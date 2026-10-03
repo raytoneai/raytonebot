@@ -304,7 +304,7 @@ export function ComposerFrame({
       {isWelcome && welcomeGreeting ? (
         <div className="composer-greeting">
           <span className="composer-greeting-avatar" aria-hidden="true">
-            <AgentAvatar size={52} live interactive fallback={<StateIcon slot="author.agent" size={40} />} />
+            <AgentAvatar size={76} live interactive fallback={<StateIcon slot="author.agent" size={40} />} />
           </span>
           <h2 className="composer-greeting-text">{welcomeGreeting}</h2>
         </div>

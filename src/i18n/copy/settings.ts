@@ -30,7 +30,7 @@ const en = {
     usesProvider: "Uses the default model service",
   },
   providers: {
-    intro: "The default service powers the Assistant, and the Planner and Builder when they use a model service.",
+    intro: "The default service powers Raer, and Tonny and Bob when they use a model service.",
     add: "Add model service",
     addTitle: "Choose a service",
     addHint: "Presets fill the address and models. Only the key is needed.",
@@ -130,7 +130,7 @@ const zh: typeof en = {
     usesProvider: "使用默认模型服务",
   },
   providers: {
-    intro: "默认服务供「助手」使用；「规划」「实施」选择模型服务时也用它。",
+    intro: "默认服务供 Raer 使用；Tonny、Bob 选择模型服务时也用它。",
     add: "添加模型服务",
     addTitle: "选择服务",
     addHint: "预设已填好地址和模型，只需填写密钥。",
@@ -180,7 +180,7 @@ const zh: typeof en = {
   shell: {
     agents: "Agent",
     settings: "设置",
-    messageTo: (name: string) => `给${name}发消息…`,
+    messageTo: (name: string) => `给 ${name} 发消息…`,
     running: "工作中",
     needsYou: "等你确认",
     notInstalled: "未安装",
@@ -230,7 +230,7 @@ const ja: typeof en = {
     usesProvider: "既定のモデルサービスを使用",
   },
   providers: {
-    intro: "既定のサービスはアシスタントと、モデルサービスを選んだプランナー・ビルダーが使います。",
+    intro: "既定のサービスは Raer と、モデルサービスを選んだ Tonny・Bob が使います。",
     add: "モデルサービスを追加",
     addTitle: "サービスを選ぶ",
     addHint: "プリセットにアドレスとモデルが入っています。キーだけ入力してください。",
@@ -280,7 +280,7 @@ const ja: typeof en = {
   shell: {
     agents: "エージェント",
     settings: "設定",
-    messageTo: (name: string) => `${name}にメッセージ…`,
+    messageTo: (name: string) => `${name} にメッセージ…`,
     running: "作業中",
     needsYou: "確認待ち",
     notInstalled: "未インストール",

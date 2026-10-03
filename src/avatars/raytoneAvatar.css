@@ -19,11 +19,16 @@
   cursor: grabbing;
 }
 
-/* The welcome greeting sizes its slot for the small stock icons. */
+/* The welcome greeting: the character leads, scaled with the viewport (56px on a phone, 76px on
+   desktop). The inline size from AgentAvatar is the upper bound. */
 .preview-frame .composer-greeting-avatar:has(.raytone-avatar) {
-  width: 52px;
-  height: 52px;
+  width: clamp(56px, 12vw, 76px);
+  height: clamp(56px, 12vw, 76px);
   background: transparent;
+}
+.preview-frame .composer-greeting-avatar .raytone-avatar {
+  width: 100% !important;
+  height: 100% !important;
 }
 
 .raytone-avatar svg {

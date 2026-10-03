@@ -15,6 +15,7 @@ import {
   type AgentSettings,
   type CliModelSource,
 } from "../../pi/harnessCatalog";
+import { HarnessMark } from "./HarnessMark";
 import "./shell.css";
 
 /**
@@ -95,7 +96,14 @@ export function AgentSwitcher({
             </span>
             <span className="shell-agent-text">
               <span className="shell-agent-name">{roles[preset.id].name}</span>
-              <span className="shell-agent-sub">{statusLabel ?? HARNESS_LABELS[preset.harness]}</span>
+              <span className="shell-agent-sub">
+                {statusLabel ?? (
+                  <>
+                    <HarnessMark harness={preset.harness} />
+                    {HARNESS_LABELS[preset.harness]}
+                  </>
+                )}
+              </span>
             </span>
           </button>
         );
@@ -150,7 +158,7 @@ export function HeaderAgent({
           <AgentAvatar size={28} kind={avatars[preset.id]} />
           <span className="shell-header-text">
             <strong>{roleCopy.presets[preset.id].name}</strong>
-            <span>{HARNESS_LABELS[preset.harness]} · {model}</span>
+            <span><HarnessMark harness={preset.harness} />{HARNESS_LABELS[preset.harness]} · {model}</span>
           </span>
           <ChevronDown size={14} aria-hidden="true" />
         </button>

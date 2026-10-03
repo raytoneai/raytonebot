@@ -11681,11 +11681,25 @@ pre {
 
 .composer-greeting-text {
   margin: 0;
-  font-size: 28px;
+  font-size: clamp(24px, 2.4vw + 12px, 34px);
   line-height: 1.25;
+  text-wrap: balance;
   font-weight: 700;
   letter-spacing: -0.01em;
   color: var(--text-primary);
+}
+
+/* Phones: the character sits above a centered, wrapping line instead of beside it, and the
+   welcome glow spans the whole width (at 78% its hard left edge shows once the sidebar is gone). */
+@media (max-width: 560px) {
+  .composer-greeting {
+    flex-direction: column;
+    gap: var(--space-2);
+    text-align: center;
+  }
+  .preview-stack[data-welcome="true"]::before {
+    width: 100%;
+  }
 }
 
 /* "Welcome greeting" section inside the Input preset group. */

@@ -81,6 +81,8 @@
 .shell-agent-name { color: var(--text-primary); font-size: 13px; font-weight: 600; }
 .shell-agent[data-active="true"] .shell-agent-name { color: var(--accent); }
 .shell-agent-sub { overflow: hidden; color: var(--text-muted); font-size: 11.5px; text-overflow: ellipsis; white-space: nowrap; }
+/* Engine logo before its name; optically centred on the small label. */
+.harness-mark { display: inline-block; flex: none; margin-right: 4px; vertical-align: -1px; }
 
 .shell-sidebar-footer {
   display: flex;

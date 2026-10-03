@@ -667,7 +667,8 @@ export function AgentApp() {
     // and returns to the welcome screen. Wiring it to `noop` made the button look broken —
     // the one control in the shell a user is guaranteed to try.
     onNewSession: startNewSession,
-    welcomeGreeting: activeProject.welcome.greeting,
+    // Each role greets in its own words; the configured greeting stays the fallback.
+    welcomeGreeting: copy.composer.agentSettings.presets[agentSettings.presetId]?.greeting ?? activeProject.welcome.greeting,
     isWelcome,
     defaultPermissionMode: permissionDefault ?? piRuntimeState?.defaultPermissionMode,
     // Settings opens from the sidebar footer and the header, not from the composer.

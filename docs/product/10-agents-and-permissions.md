@@ -4,6 +4,8 @@
 
 ## 三个预置角色
 
+界面上的名字：助手 = **Raer**，规划 = **Tonny**，实施 = **Bob**（各语言相同；代码里的角色 id 仍是 `assistant` / `planner` / `builder`）。欢迎语按角色区分，文案在 `src/i18n/copy/composer.ts` 的 `presets.*.greeting`。引擎名旁的小图标在 `src/components/shell/HarnessMark.tsx`（Pi 取自 pi.dev，Claude / OpenAI 取自 Simple Icons，CC0）。
+
 | 角色 | 引擎 | 擅长 | 模型 | 头像 |
 | --- | --- | --- | --- | --- |
 | 助手（默认） | Pi，进程内 SDK | 日常任务，响应最快 | 设置里的模型服务（当前 DeepSeek `deepseek-flash`） | 圆眼镜女生 |
