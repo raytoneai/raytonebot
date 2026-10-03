@@ -142,9 +142,20 @@ def main() -> None:
         "RAYTONEBOT_WORKSPACE_ROOT": WORKSPACE_ROOT,
         "PI_CODING_AGENT_DIR": f"{CONFIG_DIR}/pi",
     }
+    # Model keys: a value in this machine's environment wins; otherwise keep the sandbox's current
+    # one, so a redeploy from a shell without the key does not silently disable the models.
+    previous = {}
+    existing = run(sandbox, f"cat {CONFIG_DIR}/env 2>/dev/null || true", check=False)
+    for line in existing.stdout.splitlines():
+        name, sep, value = line.partition("=")
+        if sep:
+            parsed = shlex.split(value)
+            previous[name] = parsed[0] if parsed else ""
     for key in ("DEEPSEEK_API_KEY",):
         if os.environ.get(key):
             env[key] = os.environ[key]
+        elif previous.get(key):
+            env[key] = previous[key]
     env_text = "".join(f"{key}={shlex.quote(value)}\n" for key, value in env.items())
     run(sandbox, f"mkdir -p {CONFIG_DIR}/pi && chmod 700 {CONFIG_DIR}")
     sandbox.files.write(f"{CONFIG_DIR}/env", env_text)
