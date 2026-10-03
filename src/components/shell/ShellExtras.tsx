@@ -86,10 +86,10 @@ export function AgentSwitcher({
             data-active={active}
             aria-current={active ? "true" : undefined}
             disabled={disabled || !available}
-            title={active ? undefined : t.switchHint}
+            title={t.switchHint}
             onClick={() => onSelect(preset.id)}
           >
-            <span className="shell-agent-face">
+            <span className="shell-agent-face" data-status={rowStatus}>
               <AgentAvatar size={26} kind={avatars[preset.id]} />
               <span className="shell-agent-dot" data-status={rowStatus} aria-hidden="true" />
             </span>

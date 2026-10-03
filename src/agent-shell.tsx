@@ -592,6 +592,15 @@ export function AgentApp() {
     if (presetChanged && activePiConversation.events.length > 0) void startNewSession();
   }
 
+  /** Clicking an agent is how a new conversation starts (there is no separate "new chat" button).
+   *  An empty conversation on screen is reused rather than stacking another blank one. */
+  function startConversationWith(presetId: AgentPresetId) {
+    const next = { ...agentSettings, presetId };
+    setAgentSettings(next);
+    saveAgentSettings(next);
+    if (activePiConversation.events.length > 0 || piRunning) void startNewSession();
+  }
+
   function selectPiConversation(conversationId: string) {
     const conversation = piConversations.find((entry) => entry.id === conversationId);
     if (!conversation) return;
@@ -682,7 +691,7 @@ export function AgentApp() {
         activeId={agentSettings.presetId}
         statuses={agentStatuses}
         harnesses={piRuntimeState?.harnesses}
-        onSelect={(presetId) => changeAgentSettings({ ...agentSettings, presetId })}
+        onSelect={startConversationWith}
       />
     ),
     sidebarFooter: <SidebarFooter onOpenSettings={() => openSettings("providers")} />,

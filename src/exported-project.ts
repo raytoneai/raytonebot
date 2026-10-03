@@ -309,7 +309,7 @@ export const project = {
     "emptyState": "minimal"
   },
   "sidebar": {
-    "newButton": true,
+    "newButton": false,
     "search": true,
     "grouping": true,
     "footer": true

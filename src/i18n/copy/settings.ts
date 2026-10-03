@@ -86,7 +86,7 @@ const en = {
     notInstalled: "Not installed",
     modelSource: "Model",
     manageProviders: "Manage model services",
-    switchHint: "Switching starts a new conversation.",
+    switchHint: "Start a new conversation with this agent.",
   },
   about: {
     version: "Version",
@@ -186,7 +186,7 @@ const zh: typeof en = {
     notInstalled: "未安装",
     modelSource: "模型",
     manageProviders: "管理模型服务",
-    switchHint: "切换角色会开启新对话。",
+    switchHint: "和这个 Agent 开始新对话。",
   },
   about: {
     version: "版本",
@@ -286,7 +286,7 @@ const ja: typeof en = {
     notInstalled: "未インストール",
     modelSource: "モデル",
     manageProviders: "モデルサービスを管理",
-    switchHint: "切り替えると新しい会話になります。",
+    switchHint: "このエージェントと新しい会話を始めます。",
   },
   about: {
     version: "バージョン",
