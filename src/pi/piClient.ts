@@ -106,6 +106,8 @@ export type StoredConversationSummary = {
   updatedAt: number;
   agentPreset: AgentPresetId;
   eventCount: number;
+  /** A turn is in flight on the host; reattach with `followPiTurn`. */
+  running?: boolean;
 };
 
 export async function listStoredConversations(fetcher: typeof fetch = fetch): Promise<StoredConversationSummary[]> {
@@ -183,8 +185,30 @@ export async function* runPiTurn(
   if (!response.ok || !response.body) {
     throw new Error(await responseError(response, "Pi prompt failed"));
   }
+  yield* readEventStream(response.body, options.signal);
+}
 
-  const reader = response.body.getReader();
+/**
+ * Reattach to a turn still running on the host (after a reload, a closed tab or a dropped
+ * connection): the events after the first `after`, then live ones until the turn ends.
+ * Ends without events when nothing is running (the saved conversation is then complete).
+ */
+export async function* followPiTurn(
+  conversationId: string,
+  after: number,
+  options: { signal?: AbortSignal; fetcher?: typeof fetch } = {},
+): AsyncGenerator<AgentUXEvent> {
+  const response = await (options.fetcher ?? fetch)(
+    `${PI_API_PREFIX}/conversations/${encodeURIComponent(conversationId)}/live?after=${after}`,
+    { signal: options.signal },
+  );
+  if (response.status === 409) return;
+  if (!response.ok || !response.body) throw new Error(await responseError(response, "Pi follow failed"));
+  yield* readEventStream(response.body, options.signal);
+}
+
+async function* readEventStream(body: ReadableStream<Uint8Array>, signal?: AbortSignal): AsyncGenerator<AgentUXEvent> {
+  const reader = body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";
   let sawTerminal = false;
@@ -211,7 +235,7 @@ export async function* runPiTurn(
     // The server closes the stream cleanly only after a terminal event. A stream that
     // just ends (bridge/configuration failed after the 200 headers were flushed) must
     // not read as a successful turn — surface it as a transport error instead.
-    if (!sawTerminal && !options.signal?.aborted) {
+    if (!sawTerminal && !signal?.aborted) {
       throw new Error("Pi stream ended before a terminal event arrived.");
     }
   } finally {

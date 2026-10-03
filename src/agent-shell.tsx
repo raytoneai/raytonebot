@@ -40,6 +40,7 @@ import {
   configurePiRuntime,
   getPiRuntimeState,
   getStoredConversation,
+  followPiTurn,
   listStoredConversations,
   resolvePiApproval,
   runPiTurn,
@@ -261,20 +262,23 @@ export function AgentApp() {
   useEffect(() => {
     void listStoredConversations()
       .then((stored) => {
+        const stubs = stored
+          .filter((entry) => entry.eventCount > 0)
+          .map((entry): EphemeralPiConversation => ({
+            id: entry.id,
+            title: entry.title,
+            createdAt: entry.createdAt,
+            agentPreset: entry.agentPreset,
+            events: [],
+            stored: true,
+          }));
         setPiConversations((current) => {
           const known = new Set(current.map((entry) => entry.id));
-          const stubs = stored
-            .filter((entry) => entry.eventCount > 0 && !known.has(entry.id))
-            .map((entry) => ({
-              id: entry.id,
-              title: entry.title,
-              createdAt: entry.createdAt,
-              agentPreset: entry.agentPreset,
-              events: [],
-              stored: true,
-            }));
-          return [...current, ...stubs];
+          return [...current, ...stubs.filter((stub) => !known.has(stub.id))];
         });
+        // Turns that kept running on the host while this page was closed: pick them up.
+        const running = new Set(stored.filter((entry) => entry.running).map((entry) => entry.id));
+        for (const stub of stubs) if (running.has(stub.id)) void followRun(stub);
       })
       .catch(() => undefined);
   }, []);
@@ -467,6 +471,7 @@ export function AgentApp() {
       agentPreset: agentSettings.presetId,
     };
     const turnStartEventCount = nextConversation.events.length;
+    let reattach = false;
     // The run keeps going when the user opens another conversation; only the one on screen is drawn.
     const showIfActive = (conversation: EphemeralPiConversation) => {
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
@@ -523,6 +528,9 @@ export function AgentApp() {
         const closed = appendPiConversationEvents(nextConversation, piCancelledTurnEvents(nextConversation.events));
         setPiConversations((current) => replacePiConversation(current, closed));
         showIfActive(closed);
+      } else if (await runStillGoing(conversationId)) {
+        // The connection dropped, not the turn: it is still running on the host. Reattach below.
+        reattach = true;
       } else {
         const message = error instanceof Error ? error.message : "Pi runtime failed.";
         // The prompt is only passed when this turn never emitted anything; mid-run the
@@ -541,6 +549,69 @@ export function AgentApp() {
       if (piAbortRefs.current.get(conversationId) === controller) piAbortRefs.current.delete(conversationId);
       setRunningConversationIds((current) => toggleIn(current, conversationId, false));
       setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
+    }
+    if (reattach) void followRun(nextConversation);
+  }
+
+  async function runStillGoing(conversationId: string) {
+    try {
+      return (await listStoredConversations()).some((entry) => entry.id === conversationId && entry.running);
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Watch a turn that runs on the host without this page having started it (a reload, a closed
+   * tab, a dropped connection). The saved transcript replaces the local one, then live events
+   * follow from exactly where it ends, so nothing is shown twice or skipped.
+   */
+  async function followRun(conversation: EphemeralPiConversation) {
+    const conversationId = conversation.id;
+    if (piAbortRefs.current.has(conversationId)) return;
+    const controller = new AbortController();
+    piAbortRefs.current.set(conversationId, controller);
+    setRunningConversationIds((current) => toggleIn(current, conversationId, true));
+    const showIfActive = (next: EphemeralPiConversation) => {
+      if (activeConversationIdRef.current === next.id) setPiEvents([...next.events]);
+    };
+    const commit = createPiFrameCommit<EphemeralPiConversation>((next) => {
+      setPiConversations((current) => replacePiConversation(current, next));
+      showIfActive(next);
+    });
+    let current = conversation;
+    try {
+      const stored = await getStoredConversation(conversationId);
+      current = { ...conversation, title: stored.title, events: stored.events, stored: false };
+      setPiConversations((list) => replacePiConversation(list, current));
+      showIfActive(current);
+      for await (const event of followPiTurn(conversationId, stored.events.length, { signal: controller.signal })) {
+        if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
+          commit.cancel();
+          return;
+        }
+        current = appendPiConversationEvents(current, [event]);
+        commit.push(current);
+        if (event.type === "tool.call.awaiting_approval") {
+          commit.flush();
+          setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, true));
+        } else if (APPROVAL_SETTLED_EVENTS.has(event.type)) {
+          setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, false));
+        }
+      }
+      commit.flush();
+    } catch {
+      commit.cancel();
+      if (controller.signal.aborted) {
+        // Stopped from here: the host's own wrap-up events are not coming over this stream.
+        const closed = appendPiConversationEvents(current, piCancelledTurnEvents(current.events));
+        setPiConversations((list) => replacePiConversation(list, closed));
+        showIfActive(closed);
+      }
+    } finally {
+      if (piAbortRefs.current.get(conversationId) === controller) piAbortRefs.current.delete(conversationId);
+      setRunningConversationIds((ids) => toggleIn(ids, conversationId, false));
+      setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, false));
     }
   }
 

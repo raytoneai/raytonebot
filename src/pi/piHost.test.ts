@@ -216,3 +216,138 @@ test("always-allow carries over to the agent's next conversation until it is res
     rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+/** A session that streams text until released, so a run is observably "in flight". */
+function streamingBridges() {
+  const release = new Map<string, () => void>();
+  const aborted: string[] = [];
+  const factory: PiBridgeFactory = async ({ sessionDir }) => {
+    const id = decodeURIComponent(sessionDir!.split("/").pop()!);
+    let listener: ((event: never) => void) | undefined;
+    let stop: (() => void) | undefined;
+    return {
+      subscribe(next) {
+        listener = next as never;
+        return () => { listener = undefined; };
+      },
+      async prompt() {
+        const emit = (event: unknown) => listener?.(event as never);
+        emit({ type: "message_start", message: { role: "assistant" } });
+        emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "working" } });
+        await new Promise<void>((resolve) => {
+          release.set(id, resolve);
+          stop = resolve;
+        });
+        emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: " done" } });
+        emit({ type: "message_end", message: { role: "assistant", stopReason: "stop" } });
+      },
+      async abort() {
+        aborted.push(id);
+        stop?.();
+      },
+      dispose: () => undefined,
+      configure: async () => undefined,
+      state: async () => ({ models: [], tools: [] }) as never,
+      newSession: async () => undefined,
+    };
+  };
+  return { factory, release, aborted };
+}
+
+test("a watcher sees saved events past `after`, then live ones; leaving does not stop the run", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-host-"));
+  const { factory, release, aborted } = streamingBridges();
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  try {
+    assert.equal(controller.followRun("a", 0, () => undefined), undefined, "nothing running yet");
+    const run = controller.runPrompt({ conversationId: "a", prompt: "hi" }, () => undefined);
+    await tick();
+    assert.equal(controller.listConversations().find((entry) => entry.id === "a")?.running, true);
+    const saved = controller.getConversation("a")!.events.length;
+    assert.ok(saved >= 2);
+
+    const seen: string[] = [];
+    const follow = controller.followRun("a", 1, (event) => seen.push(event.type))!;
+    assert.equal(seen.length, saved - 1, "replays everything past `after`");
+    const early = controller.followRun("a", saved, () => undefined)!;
+    early.stop();
+    release.get("a")!();
+    await follow.done;
+    await run;
+    assert.equal(seen.at(-1), "run.finished");
+    assert.equal(seen.length, controller.getConversation("a")!.events.length - 1, "live events followed without gaps");
+    assert.deepEqual(aborted, []);
+    assert.equal(controller.listConversations().find((entry) => entry.id === "a")?.running, false);
+  } finally {
+    controller.dispose();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("a turn left open by the last process is closed as interrupted, not replayed", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-host-"));
+  const { factory } = streamingBridges();
+  try {
+    const { createConversationStore } = await import("./conversationStore.ts");
+    const firstStore = createConversationStore(dataDir);
+    const first = createPiRuntimeController({ cwd: dataDir, dataDir, store: firstStore, bridgeFactory: factory });
+    void first.runPrompt({ conversationId: "a", prompt: "hi" }, () => undefined);
+    await tick();
+    firstStore.flush("a"); // what the periodic flush had written when the process died
+    const second = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+    const events = second.getConversation("a")!.events;
+    assert.equal(events.at(-1)?.type, "run.finished");
+    assert.equal((events.at(-1)?.payload as { status?: string }).status, "cancelled");
+    assert.equal(second.listConversations().find((entry) => entry.id === "a")?.running, false);
+    first.dispose();
+    second.dispose();
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("over HTTP, a closed prompt stream leaves the turn running and /live reattaches", async () => {
+  const { createServer } = await import("node:http");
+  const { createPiHttpHost } = await import("./piHost.ts");
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-host-"));
+  const { factory, release, aborted } = streamingBridges();
+  const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  const server = createServer((req, res) => {
+    void host.handle(req, res).then((handled) => {
+      if (!handled) { res.statusCode = 404; res.end(); }
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+  try {
+    const leave = new AbortController();
+    const prompt = await fetch(`${base}/prompt`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ conversationId: "a", prompt: "hi" }),
+      signal: leave.signal,
+    });
+    const reader = prompt.body!.getReader();
+    await reader.read();
+    leave.abort(); // the tab closes
+    await tick();
+
+    const list = await (await fetch(`${base}/conversations`)).json() as { conversations: { id: string; running: boolean }[] };
+    assert.equal(list.conversations.find((entry) => entry.id === "a")?.running, true);
+
+    const live = await fetch(`${base}/conversations/a/live?after=0`);
+    assert.equal(live.status, 200);
+    const text = live.text();
+    await tick();
+    release.get("a")!();
+    const lines = (await text).split("\n").filter((line) => line.trim()).map((line) => JSON.parse(line) as { type: string });
+    assert.equal(lines.at(-1)?.type, "run.finished");
+    assert.ok(lines.some((line) => line.type === "text.delta"));
+    assert.deepEqual(aborted, [], "nobody stopped it");
+    assert.equal((await fetch(`${base}/conversations/a/live?after=0`)).status, 409, "finished: nothing to follow");
+  } finally {
+    host.controller.dispose();
+    await new Promise((resolve) => server.close(resolve));
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});

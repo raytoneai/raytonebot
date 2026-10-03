@@ -20,6 +20,8 @@
 
 ## Claude Code / Codex CLI
 
+- **Claude 子 Agent 的工具全部失败：`Tool permission request failed: AbortError: Stream closed`，连 `echo` 都不行** → 后台子 Agent（`run_in_background`）在主回合 `result` 之后还在跑，而我们在 `result` 时关闭 stdin，它们的权限请求无处可答 → Claude 子进程设 `CLAUDE_CODE_DISABLE_BACKGROUND_TASKS=1`，子 Agent 在前台跑完（同一消息里多个仍可并行）。排查：统计对话里 `tool.call.error` 的 message。
+
 - **Claude 在模型服务模式下仍请求本机网关** → `~/.claude/settings.json` 的 `env` 段优先于进程环境变量，`--safe-mode` 不跳过它 → 模型服务模式加 `--setting-sources ""`。
 - **本机登录模式 401** → 这台机器的「本机登录」就是继承的 `ANTHROPIC_BASE_URL/AUTH_TOKEN` → 本机登录模式不要删除 `ANTHROPIC_*`，只删父会话标记（`CLAUDECODE`、`CLAUDE_CODE_SESSION_ID` 等）。
 - **「请求权限」下 `pwd` 没弹审批** → Claude 自动放行它判定为只读的命令 → 通过 `--settings` 给 Bash/Edit/Write 加 `ask` 规则。

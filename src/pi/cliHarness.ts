@@ -147,6 +147,9 @@ export function claudeEnv(base: NodeJS.ProcessEnv, provider: ClaudeRunOptions["p
     DISABLE_TELEMETRY: "1",
     DISABLE_ERROR_REPORTING: "1",
     DISABLE_AUTOUPDATER: "1",
+    // Background subagents outlive the turn's `result`, after which stdin is closed: every
+    // permission request they make then fails ("Stream closed"). Subagents run in the foreground.
+    CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1",
   };
   for (const key of CLAUDE_PARENT_SESSION_ENV_KEYS) delete env[key];
   // "Local login" is whatever this host's Claude Code already authenticates with (keychain

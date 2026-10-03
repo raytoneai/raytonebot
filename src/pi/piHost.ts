@@ -35,6 +35,7 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
 import { createHostResources } from "./piResources.ts";
+import { piCancelledTurnEvents } from "./piCancelledTurn.ts";
 import { PiApprovalGate, SECRET_REFUSAL, type PiPermissionMode } from "./approvalGate.ts";
 import { ApprovalMemory } from "./approvalMemory.ts";
 
@@ -75,7 +76,13 @@ export type PiRuntimeController = {
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string): Promise<void>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
-  listConversations(): ConversationSummary[];
+  /** Saved conversations; `running` marks those with a turn in flight right now. */
+  listConversations(): (ConversationSummary & { running: boolean })[];
+  /**
+   * Watch a run in flight from event `after` on: the saved events past it first, then live ones.
+   * `undefined` when the conversation has nothing running. A watcher leaving never stops the run.
+   */
+  followRun(conversationId: string, after: number, onEvent: (event: AgentUXEvent) => void): { done: Promise<void>; stop(): void } | undefined;
   getConversation(id: string): StoredConversation | undefined;
   deleteConversation(id: string): void;
   /** Answers a held tool call; with a conversation, only that conversation's gate is consulted. */
@@ -101,6 +108,15 @@ export function createPiRuntimeController(options: {
   const { cwd } = options;
   const dataDir = options.dataDir ?? defaultDataDir();
   const store = options.store ?? createConversationStore(dataDir);
+  // A turn still open on disk was cut off when the last process ended (restart, crash, redeploy).
+  // It is closed as interrupted and never replayed: replaying could repeat writes or outward calls.
+  for (const summary of store.list()) {
+    const saved = store.get(summary.id);
+    const closing = saved ? piCancelledTurnEvents(saved.events) : [];
+    if (closing.length === 0) continue;
+    for (const event of closing) store.append(summary.id, event);
+    store.flush(summary.id);
+  }
   /** Per-role directories plus the shared one; one directory for everything when unset. */
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: cwd });
   const sandboxed = options.sandboxed ?? process.env.RAYTONEBOT_SANDBOX === "1";
@@ -132,7 +148,14 @@ export function createPiRuntimeController(options: {
   const maxConversations = 12;
   /** Runs in flight, one per conversation at most. The sandbox has 2 CPUs, so cap the total. */
   const maxConcurrentRuns = 3;
-  type RunSlot = { adapter?: PiEventAdapter; stop?: () => Promise<void>; stopRequested: boolean };
+  type RunSlot = {
+    adapter?: PiEventAdapter;
+    stop?: () => Promise<void>;
+    stopRequested: boolean;
+    /** Browsers watching the run; it keeps going with none (a closed tab does not stop it). */
+    watchers: Set<(event: AgentUXEvent) => void>;
+    done: Promise<void>;
+  };
   const runs = new Map<string, RunSlot>();
   /** A run registers how to stop it once it has started; a stop that arrived earlier applies now. */
   const registerStop = async (conversationId: string, adapter: PiEventAdapter, stop: () => Promise<void>) => {
@@ -465,7 +488,9 @@ export function createPiRuntimeController(options: {
         throw new Error(`${maxConcurrentRuns} conversations are already running. Wait for one to finish or stop it.`);
       }
       // Reserved before any await, so a second prompt for the same conversation cannot slip in.
-      runs.set(conversationId, { stopRequested: false });
+      let settle!: () => void;
+      const slot: RunSlot = { stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
+      runs.set(conversationId, slot);
       const stopOnSignal = () => void abortRuns(conversationId).catch(() => undefined);
       if (options?.signal?.aborted) stopOnSignal();
       options?.signal?.addEventListener("abort", stopOnSignal, { once: true });
@@ -483,6 +508,7 @@ export function createPiRuntimeController(options: {
           unflushed = 0;
         }
         onEvent(event);
+        for (const watcher of slot.watchers) watcher(event);
       };
       try {
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record);
@@ -491,9 +517,19 @@ export function createPiRuntimeController(options: {
         options?.signal?.removeEventListener("abort", stopOnSignal);
         runs.delete(conversationId);
         store.flush(conversationId);
+        settle();
       }
     },
-    listConversations: () => store.list(),
+    listConversations: () => store.list().map((summary) => ({ ...summary, running: runs.has(summary.id) })),
+    followRun(conversationId, after, onEvent) {
+      const id = normalizeConversationId(conversationId);
+      const slot = runs.get(id);
+      if (!slot) return undefined;
+      // Saved and live events come from the same single-threaded path, so nothing falls between.
+      for (const event of (store.get(id)?.events ?? []).slice(Math.max(0, after))) onEvent(event);
+      slot.watchers.add(onEvent);
+      return { done: slot.done, stop: () => slot.watchers.delete(onEvent) };
+    },
     getConversation: (id) => store.get(normalizeConversationId(id)),
     deleteConversation(id) {
       if (runs.has(normalizeConversationId(id))) {
@@ -548,6 +584,7 @@ export function createPiHttpHost(options: {
   appRoot?: string;
   sandboxed?: boolean;
   layout?: WorkspaceLayout;
+  dataDir?: string;
   bridgeFactory?: PiBridgeFactory;
 }) {
   const controller = createPiRuntimeController(options);
@@ -602,6 +639,34 @@ export function createPiHttpHost(options: {
           sendJson(res, 200, { conversations: controller.listConversations() });
           return true;
         }
+        if (req.method === "GET" && url.pathname.startsWith(`${PI_API_PREFIX}/conversations/`) && url.pathname.endsWith("/live")) {
+          const id = decodeURIComponent(url.pathname.slice(`${PI_API_PREFIX}/conversations/`.length, -"/live".length));
+          const after = Number.parseInt(url.searchParams.get("after") ?? "0", 10);
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/x-ndjson; charset=utf-8");
+          res.setHeader("cache-control", "no-store");
+          const follow = controller.followRun(id, Number.isFinite(after) ? after : 0, (event) => {
+            if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+          });
+          if (!follow) {
+            // Nothing running: the saved conversation is complete; the client reads it instead.
+            sendJson(res, 409, { error: "This conversation has no run in progress." });
+            return true;
+          }
+          res.flushHeaders();
+          const heartbeat = setInterval(() => {
+            if (!res.destroyed) res.write("\n");
+          }, 5_000);
+          res.once("close", () => {
+            clearInterval(heartbeat);
+            follow.stop();
+          });
+          await follow.done;
+          clearInterval(heartbeat);
+          follow.stop();
+          if (!res.destroyed) res.end();
+          return true;
+        }
         if (url.pathname.startsWith(`${PI_API_PREFIX}/conversations/`)) {
           const id = decodeURIComponent(url.pathname.slice(`${PI_API_PREFIX}/conversations/`.length));
           if (req.method === "GET") {
@@ -647,14 +712,9 @@ export function createPiHttpHost(options: {
           res.setHeader("content-type", "application/x-ndjson; charset=utf-8");
           res.setHeader("cache-control", "no-store");
           res.flushHeaders();
-          let completed = false;
           const conversationId = stringField(body, "conversationId");
-          // Handed to the run, which stops on it only after it owns its conversation's slot.
-          const disconnected = new AbortController();
-          const abortOnDisconnect = () => {
-            if (!completed) disconnected.abort();
-          };
-          res.once("close", abortOnDisconnect);
+          // A closed tab, reload or dropped connection leaves the run going; the browser can
+          // reattach with GET /conversations/:id/live. Only an explicit stop ends it.
           // Proxies in front of the sandbox drop a response that stays silent; a CLI can go quiet
           // for a while (Codex retrying). Blank lines keep it open and are ignored by the client.
           const heartbeat = setInterval(() => {
@@ -673,11 +733,9 @@ export function createPiHttpHost(options: {
             codexModelSource: body.codexModelSource === "local-login" ? "local-login" : "provider",
           }, (event) => {
             if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
-          }, { signal: disconnected.signal });
-          completed = true;
+          });
           clearInterval(heartbeat);
-          res.off("close", abortOnDisconnect);
-          res.end();
+          if (!res.destroyed) res.end();
           return true;
         }
         sendJson(res, 404, { error: "Unknown Pi endpoint." });

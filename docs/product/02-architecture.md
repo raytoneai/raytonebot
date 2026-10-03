@@ -23,11 +23,12 @@ AgentSphere 沙箱 agentmatrix-v1（2C/4G, Linux x86_64, Node 24）
 | --- | --- | --- |
 | GET | `/__agentcanvas/pi/state?conversationId=` | 模型、工具、会话信息 |
 | POST | `/__agentcanvas/pi/config` | provider/model/thinking/会话 key |
-| POST | `/__agentcanvas/pi/prompt` | 发起一轮，返回 NDJSON 事件流；连接断开即中止 |
+| POST | `/__agentcanvas/pi/prompt` | 发起一轮，返回 NDJSON 事件流；**连接断开不中止**，只有 `/abort` 停止 |
+| GET | `/__agentcanvas/pi/conversations/:id/live?after=N` | 重新接上运行中的一轮：先补发第 N 个之后的已存事件，再推实时事件，轮次结束时关闭；未在运行返回 409 |
 | POST | `/__agentcanvas/pi/abort` | 停止 `conversationId` 那一轮；不带则停止全部 |
 | POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no`；带 `conversationId` 时只在该对话内匹配；409 = 已失效 |
 | POST | `/__agentcanvas/pi/session/new` | 新会话 |
-| GET | `/__agentcanvas/pi/conversations` | 对话列表（侧栏恢复） |
+| GET | `/__agentcanvas/pi/conversations` | 对话列表（侧栏恢复）；`running` 标出正在运行的 |
 | GET / DELETE | `/__agentcanvas/pi/conversations/:id` | 读取历史事件 / 删除对话 |
 | POST | `/__agentcanvas/pi/provider/test` | 模型服务连通性测试 |
 | POST | `/__agentcanvas/pi/approvals/clear` | 清除某 Agent（`agentPreset`）或全部的「始终允许」 |
