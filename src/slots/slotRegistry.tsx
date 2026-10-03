@@ -1,4 +1,4 @@
-import { Fragment, type ReactNode } from "react";
+import { Fragment, lazy, Suspense, type ReactNode } from "react";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import type { AgentUXViewModel } from "@agent-ux/render-core";
 
@@ -8,7 +8,7 @@ import type { ApprovalDecision } from "../components/agent-preview/ToolCallCard"
 import { ComposerFrame, type ComposerSubmitContext } from "../components/agent-preview/ComposerFrame";
 import { ExportFrame } from "../components/agent-preview/ExportFrame";
 import { GitFrame } from "../components/agent-preview/GitFrame";
-import { OutputFrame, type OutputPanelItem, type OutputPanelOpenRequest } from "../components/agent-preview/OutputFrame";
+import type { OutputPanelItem, OutputPanelOpenRequest } from "../components/agent-preview/OutputFrame";
 import { SessionSidebar, type SessionSidebarItem } from "../components/agent-preview/SessionSidebar";
 import { DebugDock } from "../components/debug-dock/DebugDock";
 import type { ScaffoldExportSnapshot } from "../export/scaffoldManifest";
@@ -16,6 +16,9 @@ import type { GitPreviewState } from "../preview-runner/PreviewRunner";
 import type { Admission } from "../runtime/admissionReport";
 import type { AgentCanvasTemplate, AgentFrontendProject, OutputSource, ProviderConnectionId, SlotConfig } from "../schema/agentuxConfig";
 import { templateSupportsGit } from "../schema/presets";
+
+// The output panel and its renderers load when the panel first opens (it starts collapsed).
+const OutputFrame = lazy(() => import("../components/agent-preview/OutputFrame").then((module) => ({ default: module.OutputFrame })));
 
 export type SlotRenderContext = {
   project: AgentFrontendProject;
@@ -112,16 +115,18 @@ export const slotComponentRegistry: Record<SlotComponent, SlotRenderer> = {
     />
   ),
   OutputFrame: ({ project, viewModel, onCollapseRight, outputPanelItems, activeOutputPanelItemId, onSelectOutputPanelItem, onCloseOutputPanelItem, onOutputSourceChange }) => (
-    <OutputFrame
-      project={project}
-      viewModel={viewModel}
-      onCollapse={onCollapseRight}
-      openItems={outputPanelItems}
-      activeOpenItemId={activeOutputPanelItemId}
-      onSelectOpenItem={onSelectOutputPanelItem}
-      onCloseOpenItem={onCloseOutputPanelItem}
-      onSourceChange={onOutputSourceChange}
-    />
+    <Suspense fallback={null}>
+      <OutputFrame
+        project={project}
+        viewModel={viewModel}
+        onCollapse={onCollapseRight}
+        openItems={outputPanelItems}
+        activeOpenItemId={activeOutputPanelItemId}
+        onSelectOpenItem={onSelectOutputPanelItem}
+        onCloseOpenItem={onCloseOutputPanelItem}
+        onSourceChange={onOutputSourceChange}
+      />
+    </Suspense>
   ),
   GitFrame: ({ project, gitPreviewState, onGitCommit }) => <GitFrame project={project} gitState={gitPreviewState} onCommit={onGitCommit} />,
   ExportFrame: ({ exportSnapshot, onExport }) => <ExportFrame snapshot={exportSnapshot} onExport={onExport} />,

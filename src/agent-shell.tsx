@@ -1,17 +1,15 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import type { AgentUXToolTimelineItem } from "@agent-ux/render-core";
 import { useAgentUXReplay } from "@agent-ux/react";
-import { Group as PanelGroup, Panel, Separator as PanelResizeHandle } from "react-resizable-panels";
 import { PanelLeft, PanelRight } from "lucide-react";
 
 import {
-  OutputPanelModal,
   normalizeOutputPanelRequest,
   type OutputPanelItem,
   type OutputPanelOpenRequest,
-} from "./components/agent-preview/OutputFrame";
-import { SettingsDialog, type SettingsSectionId } from "./components/settings/SettingsDialog";
+} from "./components/agent-preview/outputframe/panelItem";
+import type { SettingsSectionId } from "./components/settings/SettingsDialog";
 import { AgentSwitcher, HeaderAgent, ShellExtrasProvider, SidebarFooter, type AgentRunStatus, type ShellExtras } from "./components/shell/ShellExtras";
 import { settingsCopy } from "./i18n/copy/settings";
 import type { ComposerSubmitContext } from "./components/agent-preview/ComposerFrame";
@@ -92,6 +90,12 @@ import { piCancelledTurnEvents } from "./pi/piCancelledTurn";
 import { createPiFrameCommit } from "./pi/piFrameCommit";
 
 const noop = () => {};
+
+// Loaded on first use, not with the app: settings, the full-screen output view and the resizable
+// output panel are closed when a conversation opens.
+const SettingsDialog = lazy(() => import("./components/settings/SettingsDialog").then((module) => ({ default: module.SettingsDialog })));
+const OutputPanelModal = lazy(() => import("./components/agent-preview/outputframe/OutputPanelModal").then((module) => ({ default: module.OutputPanelModal })));
+const RightPanelLayout = lazy(() => import("./components/shell/RightPanelLayout").then((module) => ({ default: module.RightPanelLayout })));
 const PREVIEW_RESPONSIVE_WIDTHS = {
   hideRightPanel: 860,
   hideLeftSidebar: 660,
@@ -148,8 +152,11 @@ export function AgentApp() {
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
   const [celebrating, setCelebrating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  /** Mounted from the first open on, so later opens and closes keep their animation. */
+  const [settingsMounted, setSettingsMounted] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("providers");
   const openSettings = (section: SettingsSectionId = "providers") => {
+    setSettingsMounted(true);
     setDrawerOpen(false);
     setSettingsSection(section);
     setSettingsOpen(true);
@@ -840,6 +847,14 @@ export function AgentApp() {
   // so debug chrome must not appear unless they ask for it with ?devtools=1.
   const showPicker = devtoolsRequested() && isFixtureMode && streams.length > 0;
   // String concat (not a template literal) so this file can be emitted from the exporter.
+  const soloStack = (
+    <section className="preview-stack preview-stack-solo" data-welcome={isWelcome ? "true" : undefined}>
+      {renderSlots(visibleLayoutSlots, "main", slotContext)}
+      {inlineApprovalOverlay}
+      {externalApprovalOverlay}
+      {renderSlots(visibleLayoutSlots, "composer", slotContext)}
+    </section>
+  );
   const mainSize = activeProject.layout.mainSize + "%";
   const rightSize = activeProject.layout.rightPanelSize + "%";
 
@@ -884,30 +899,22 @@ export function AgentApp() {
             </>
           ) : null}
           {rightPanelVisible ? (
-            <PanelGroup className="preview-panels" orientation="horizontal">
-              <Panel defaultSize={mainSize} minSize="52%">
-                <section className="preview-stack" data-welcome={isWelcome ? "true" : undefined}>
-                  {renderSlots(visibleLayoutSlots, "main", slotContext)}
-                  {inlineApprovalOverlay}
-                  {externalApprovalOverlay}
-                  {renderSlots(visibleLayoutSlots, "composer", slotContext)}
-                </section>
-              </Panel>
-              <PanelResizeHandle className="resize-handle" />
-              <Panel defaultSize={rightSize} minSize="24%">
-                <aside className="right-panel">
-                  {renderSlots(visibleLayoutSlots, "right-panel", slotContext)}
-                </aside>
-              </Panel>
-            </PanelGroup>
-          ) : (
-            <section className="preview-stack preview-stack-solo" data-welcome={isWelcome ? "true" : undefined}>
-              {renderSlots(visibleLayoutSlots, "main", slotContext)}
-              {inlineApprovalOverlay}
-              {externalApprovalOverlay}
-              {renderSlots(visibleLayoutSlots, "composer", slotContext)}
-            </section>
-          )}
+            <Suspense fallback={soloStack}>
+              <RightPanelLayout
+                mainSize={mainSize}
+                rightSize={rightSize}
+                main={(
+                  <section className="preview-stack" data-welcome={isWelcome ? "true" : undefined}>
+                    {renderSlots(visibleLayoutSlots, "main", slotContext)}
+                    {inlineApprovalOverlay}
+                    {externalApprovalOverlay}
+                    {renderSlots(visibleLayoutSlots, "composer", slotContext)}
+                  </section>
+                )}
+                panel={renderSlots(visibleLayoutSlots, "right-panel", slotContext)}
+              />
+            </Suspense>
+          ) : soloStack}
           {hasSidebar && leftCollapsed && !autoHiddenRails.left ? (
             <button
               type="button"
@@ -933,13 +940,15 @@ export function AgentApp() {
             </button>
           ) : null}
           {outputModalOpen ? (
-            <OutputPanelModal
-              items={outputPanelItems}
-              activeId={activeOutputPanelItemId}
-              onSelectItem={setActiveOutputPanelItemId}
-              onCloseItem={closeOutputPanelItem}
-              onClose={() => setOutputModalOpen(false)}
-            />
+            <Suspense fallback={null}>
+              <OutputPanelModal
+                items={outputPanelItems}
+                activeId={activeOutputPanelItemId}
+                onSelectItem={setActiveOutputPanelItemId}
+                onCloseItem={closeOutputPanelItem}
+                onClose={() => setOutputModalOpen(false)}
+              />
+            </Suspense>
           ) : null}
         </div>
         {previewOverlaySlots.length > 0 ? (
@@ -985,29 +994,33 @@ export function AgentApp() {
         </div>
       ) : null}
     </div>
-        <SettingsDialog
-          open={settingsOpen}
-          onOpenChange={setSettingsOpen}
-          initialSection={settingsSection}
-        project={activeProject}
-        runtime={piRuntimeState}
-        isRunning={piRunning}
-        sessionKeys={sessionKeys}
-        onSessionKeyChange={(id, value) => setSessionKeys((current) => ({ ...current, [id]: value }))}
-        onUpdateProvider={updateProvider}
-        // The model service may still lack a key; picking it as default must not throw.
-        onSetDefaultProvider={(id) => void selectProvider(id).catch(() => undefined)}
-        permissionDefault={permissionDefault}
-        onPermissionDefaultChange={(mode) => {
-          setPermissionDefault(mode);
-          storeSetting(PERMISSION_DEFAULT_KEY, mode);
-        }}
-        themePreset={themePreset}
-        onThemeChange={(id) => {
-          setThemePreset(id);
-          storeSetting(THEME_KEY, id);
-        }}
-        />
+        {settingsMounted ? (
+          <Suspense fallback={null}>
+            <SettingsDialog
+              open={settingsOpen}
+              onOpenChange={setSettingsOpen}
+              initialSection={settingsSection}
+            project={activeProject}
+            runtime={piRuntimeState}
+            isRunning={piRunning}
+            sessionKeys={sessionKeys}
+            onSessionKeyChange={(id, value) => setSessionKeys((current) => ({ ...current, [id]: value }))}
+            onUpdateProvider={updateProvider}
+            // The model service may still lack a key; picking it as default must not throw.
+            onSetDefaultProvider={(id) => void selectProvider(id).catch(() => undefined)}
+            permissionDefault={permissionDefault}
+            onPermissionDefaultChange={(mode) => {
+              setPermissionDefault(mode);
+              storeSetting(PERMISSION_DEFAULT_KEY, mode);
+            }}
+            themePreset={themePreset}
+            onThemeChange={(id) => {
+              setThemePreset(id);
+              storeSetting(THEME_KEY, id);
+            }}
+            />
+          </Suspense>
+        ) : null}
     </ShellExtrasProvider>
     </AgentPersonaProvider>
   );

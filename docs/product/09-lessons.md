@@ -46,6 +46,11 @@
 - **Pi 自动重试成功仍显示失败** → `message_end(error)` 先于 `auto_retry_start` 到达，被当作终态 → 先暂存错误，重试开始时清除，结束时再判定。
 - **打开历史后马上续问，页面丢消息** → 历史响应与新一轮各自整份替换会话 → 共享一次历史加载，续问先等它；历史只填充仍为空的会话。
 
+## 构建与体积
+
+- **按库拆 chunk 后首屏反而变大** → `codeSplitting.groups` 的 `test` 写成宽泛的 `/node_modules/` 会把按需加载的库（mermaid、cytoscape）并进首屏共享 chunk → 只为首屏本来就加载的库建组，并对比「入口 + preload」总量（拆分前后应相等）。React 系（react、react-dom、scheduler）必须同组，分开可能出现两份 React（`useMemo` of null）。
+- **改成 `lazy()` 后 chunk 仍在首屏** → 还有别处对该模块的值引用（例如从 `OutputFrame` 取 `normalizeOutputPanelRequest`）→ 改为从其源文件引入；纯 `import type` 不受影响。
+
 ## 界面
 
 - **设置弹层看不见** → 输入栏 `.composer-tools` 裁切溢出，欢迎页上弹层还会超出视口顶部 → 用 Radix Popover 渲染到 body 并开启碰撞处理。
