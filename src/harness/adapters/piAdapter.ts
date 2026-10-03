@@ -34,7 +34,8 @@ export type PiEventAdapter = {
    * permission after the call has streamed, so the hold cannot always be decided at
    * `tool_execution_start` the way Pi's own gate is.
    */
-  requestApproval(toolCallId: string): AgentUXEvent[];
+  /** `args` from the harness's own permission request; streamed fragments may be incomplete. */
+  requestApproval(toolCallId: string, args?: unknown): AgentUXEvent[];
   finish(status?: "success" | "cancelled" | "error"): AgentUXEvent[];
 };
 
@@ -550,10 +551,11 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
     return next;
   };
 
-  const requestApproval = (toolCallId: string): AgentUXEvent[] => {
+  const requestApproval = (toolCallId: string, args?: unknown): AgentUXEvent[] => {
     const next: AgentUXEvent[] = [];
     const tool = tools.get(toolCallId);
     if (!tool || tool.finished || tool.awaitingApproval) return next;
+    tool.args = args ?? parseJson(tool.argsText) ?? tool.args;
     tool.awaitingApproval = true;
     tool.running = false;
     push(agentUXEventBuilders.toolCallAwaitingApproval(meta(`tool_awaiting_${tool.id}`), {

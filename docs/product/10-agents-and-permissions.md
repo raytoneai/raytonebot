@@ -62,10 +62,10 @@ Claude Code / Codex 的 JSON 输出
 
 | 工具调用类别 | 例子 | 请求权限 | 替我批准 | 全部允许 |
 | --- | --- | --- | --- | --- |
-| 受保护 | 读写 `~/.raytonebot`、`~/.ssh`、`~/.codex/auth.json`、`~/.claude*` 凭据、应用自身代码（工作区分离时）、工作区里的 `.claude/.codex/.agents`；`env`/`printenv`/`/proc/*/environ` | 询问 | 询问 | **询问**（「始终允许」也不能覆盖） |
+| 受保护 | 读写 `~/.raytonebot`、`~/.ssh`、`~/.codex/auth.json`、`~/.claude*` 凭据、工作区里的 `.claude/.codex/.agents`；**修改**应用自身代码（工作区分离时；含会写入的 bash：重定向、`rm/mv/cp`、`sed -i`、`git checkout`、`npm install/build`、`sh -c` 等）；`env`/`printenv`/`/proc/*/environ` | 询问 | 询问 | **询问**（「始终允许」也不能覆盖） |
 | 对外/高危 | `git push`、各类 publish、`docker push`、部署 CLI、`ssh/scp/rsync` 到远端、`curl` 上传、`rm -rf /`/`~`、关机、格式化 | 询问 | 询问 | 直接执行 |
 | 修改工作区 | 普通 shell、edit、write、装依赖、联网下载 | 询问 | 直接执行 | 直接执行 |
-| 只读 | read/grep/find/ls 等 | 直接执行 | 直接执行 | 直接执行 |
+| 只读 | read/grep/find/ls 等；读取应用自身代码 | 直接执行 | 直接执行 | 直接执行 |
 
 - 默认模式：`RAYTONEBOT_SANDBOX=1`（云端沙箱）时为「替我批准」，本机为「请求权限」。主机通过 `/state` 的 `defaultPermissionMode` 告诉前端；用户手动选择后不再跟随。
 - Codex 沙箱：默认 `workspace-write`；只有 `RAYTONEBOT_SANDBOX=1` 且选「全部允许」时用 `danger-full-access`（VM 即边界）。Codex 无法按路径逐条拦截，受保护路径对它只能靠环境变量清理与 Codex 自身沙箱，属于已知缺口。

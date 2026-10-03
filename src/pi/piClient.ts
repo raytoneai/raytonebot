@@ -30,6 +30,8 @@ export type PiRuntimeState = {
   defaultPermissionMode?: "request" | "auto" | "allow-all";
   sandboxed?: boolean;
   protectedPaths?: string[];
+  /** Agents read these freely; changing them always asks (the bot's own code). */
+  readOnlyPaths?: string[];
   /** Per-role working directories and the shared one (paths only). */
   workspace?: { root?: string; shared?: string; agents: Record<string, string> };
   /** Names (never values) of key-like env vars set on the host. */

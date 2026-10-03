@@ -370,6 +370,15 @@ function PermissionsSection({ t, runtime, permissionDefault, onPermissionDefault
       <div className="settings-list settings-code-list">
         {(runtime?.protectedPaths ?? []).map((path) => <code key={path}>{path}</code>)}
       </div>
+      {runtime?.readOnlyPaths?.length ? (
+        <>
+          <h3 className="settings-subhead">{t.permissions.readOnlyTitle}</h3>
+          <p className="settings-intro">{t.permissions.readOnlyHint}</p>
+          <div className="settings-list settings-code-list">
+            {runtime.readOnlyPaths.map((path) => <code key={path}>{path}</code>)}
+          </div>
+        </>
+      ) : null}
       <h3 className="settings-subhead">{t.permissions.workspace}</h3>
       <WorkspaceList t={t} runtime={runtime} />
     </>

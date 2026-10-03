@@ -3,13 +3,15 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
 
-import { classifyToolCall, defaultProtectedPaths } from "./permissionPolicy.ts";
+import { classifyToolCall, defaultProtectedPaths, defaultReadOnlyPaths } from "./permissionPolicy.ts";
 import { PiApprovalGate } from "./approvalGate.ts";
 
 const workspace = "/home/user/workspace";
+const appRoot = "/home/user/raytonebot";
 const policy = {
   cwd: workspace,
-  protectedPaths: defaultProtectedPaths({ appRoot: "/home/user/raytonebot", workspaces: [workspace, "/home/user/shared"] }),
+  protectedPaths: defaultProtectedPaths({ appRoot, workspaces: [workspace, "/home/user/shared"] }),
+  readOnlyPaths: defaultReadOnlyPaths({ appRoot, workspaces: [workspace, "/home/user/shared"] }),
 };
 
 test("protected: credentials, the bot's own code, agent config, env dumps", () => {
@@ -67,4 +69,54 @@ test("the gate per mode", () => {
   gate.setMode("allow-all");
   assert.equal(gate.requiresApproval("bash", push), false);
   assert.equal(gate.requiresApproval("read", secret), true, "protected asks in every mode");
+});
+
+test("the bot's own code: reading and reviewing it is ordinary, changing it is protected", () => {
+  // From a real planner run that asked 35 times: reads, searches, type checks and tests.
+  for (const [tool, args] of [
+    ["read", { path: "/home/user/raytonebot/src/main.tsx" }],
+    ["Read", { file_path: "/home/user/raytonebot/package.json" }],
+    ["grep", { path: "/home/user/raytonebot/src", pattern: "TODO" }],
+  ] as const) assert.equal(classifyToolCall(tool, args, policy), "read", JSON.stringify(args));
+  for (const command of [
+    "cd /home/user/raytonebot && cat package.json && echo \"=== vite.config.ts ===\" && cat vite.config.ts",
+    "cd /home/user/raytonebot && find src -type f -name \"*.ts\" | xargs wc -l 2>/dev/null | sort -rn | head -30",
+    "cd /home/user/raytonebot && git status 2>&1 | head -5; timeout 300 npm run typecheck 2>&1 | tail -40",
+    "cd /home/user/raytonebot && timeout 300 npm test 2>&1 | tail -40",
+    "cd /home/user/raytonebot && grep -rn -E ':\\s*any\\b|\\)\\s*=>\\s*any' src | wc -l",
+  ]) assert.equal(classifyToolCall("bash", { command }, policy), "mutating", command);
+
+  for (const [tool, args] of [
+    ["write", { path: "/home/user/raytonebot/src/pi/piHost.ts" }],
+    ["Edit", { file_path: "/home/user/raytonebot/vite.config.ts" }],
+  ] as const) assert.equal(classifyToolCall(tool, args, policy), "protected", JSON.stringify(args));
+  for (const command of [
+    "cd /home/user/raytonebot && echo x > src/main.tsx",
+    "echo x >> /home/user/raytonebot/index.html",
+    "cd /home/user/raytonebot && sed -i 's/a/b/' src/main.tsx",
+    "rm -rf /home/user/raytonebot/dist",
+    "cp evil.js /home/user/raytonebot/dist/assets/index.js",
+    "cd /home/user/raytonebot && npm run build",
+    "cd /home/user/raytonebot && npm install left-pad",
+    "cd /home/user/raytonebot && git checkout -- .",
+    "cd /home/user/raytonebot && python3 -c \"open('x','w')\"",
+    "cd /home/user/raytonebot && sh -c 'echo x > y'",
+    "find /home/user/raytonebot/src -name '*.ts' -delete",
+  ]) assert.equal(classifyToolCall("bash", { command }, policy), "protected", command);
+
+  // Writes elsewhere stay ordinary even when they read the app.
+  assert.equal(classifyToolCall("bash", { command: "echo hi > notes.md" }, policy), "mutating");
+});
+
+test("always-allow covers reviewing the bot's code, never changing it", () => {
+  const gate = new PiApprovalGate(policy);
+  gate.setMode("request");
+  const review = { command: "cd /home/user/raytonebot && cat package.json" };
+  assert.equal(gate.requiresApproval("bash", review), true);
+  // Simulates the user's "always allow" for bash in this conversation.
+  (gate as unknown as { alwaysApproved(): Set<string> }).alwaysApproved().add("bash");
+  assert.equal(gate.requiresApproval("bash", review), false);
+  assert.equal(gate.requiresApproval("bash", { command: "cd /home/user/raytonebot && npm run build" }), true);
+  gate.setMode("auto");
+  assert.equal(gate.requiresApproval("read", { path: "/home/user/raytonebot/src/main.tsx" }), false);
 });

@@ -22,7 +22,7 @@ import {
 import { sameOriginRequestAllowed } from "./requestOrigin.ts";
 import { detectCliHarnesses, runClaudeCode, runCodex } from "./cliHarness.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
-import { defaultProtectedPaths } from "./permissionPolicy.ts";
+import { defaultProtectedPaths, defaultReadOnlyPaths } from "./permissionPolicy.ts";
 import { resolveWorkspaceLayout, workspacePrompt, type WorkspaceLayout } from "./workspaceLayout.ts";
 import {
   createConversationStore,
@@ -102,17 +102,18 @@ export function createPiRuntimeController(options: {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: cwd });
   const sandboxed = options.sandboxed ?? process.env.RAYTONEBOT_SANDBOX === "1";
   const defaultPermissionMode: PiPermissionMode = sandboxed ? "auto" : "request";
-  const protectedPaths = defaultProtectedPaths({
-    appRoot: options.appRoot ?? process.cwd(),
-    workspaces: [...new Set([cwd, ...Object.values(layout.agents), ...(layout.shared ? [layout.shared] : [])])],
-  });
+  const workspaces = [...new Set([cwd, ...Object.values(layout.agents), ...(layout.shared ? [layout.shared] : [])])];
+  const appRoot = options.appRoot ?? process.cwd();
+  const protectedPaths = defaultProtectedPaths({ appRoot, workspaces });
+  /** The bot's own code: agents may read it (reviewing it is a normal task), never change it. */
+  const readOnlyPaths = defaultReadOnlyPaths({ appRoot, workspaces });
   /** One gate per conversation: runs in different conversations wait on their own approvals,
    *  with their own mode, cwd and "always allow" memory. */
   const approvalGates = new Map<string, PiApprovalGate>();
   const gateFor = (conversationId: string) => {
     let gate = approvalGates.get(conversationId);
     if (!gate) {
-      gate = new PiApprovalGate({ cwd, protectedPaths });
+      gate = new PiApprovalGate({ cwd, protectedPaths, readOnlyPaths });
       gate.setConversation(conversationId);
       approvalGates.set(conversationId, gate);
     }
@@ -172,6 +173,7 @@ export function createPiRuntimeController(options: {
   const runtimeInfo = () => ({
     sandboxed,
     protectedPaths,
+    readOnlyPaths,
     workspace: layout,
     envKeys: Object.keys(process.env).filter((key) => /(_API_KEY|_AUTH_TOKEN)$/.test(key) && Boolean(process.env[key])).sort(),
     sessionKeyProviders: [...providerKeys.keys()],
@@ -339,7 +341,7 @@ export function createPiRuntimeController(options: {
       announcingHold = true;
       const fresh = announce();
       announcingHold = false;
-      if (!fresh) adapter.requestApproval(toolCallId);
+      if (!fresh) adapter.requestApproval(toolCallId, args);
       await approvalGate.wait(toolCallId, toolName, args, run.signal);
     };
     try {

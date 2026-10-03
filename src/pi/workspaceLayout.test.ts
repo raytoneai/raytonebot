@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { buildClaudeArgs, buildCodexArgs } from "./cliHarness.ts";
-import { classifyToolCall, defaultProtectedPaths } from "./permissionPolicy.ts";
+import { classifyToolCall, defaultProtectedPaths, defaultReadOnlyPaths } from "./permissionPolicy.ts";
 import { ensureWorkspaceLayout, resolveWorkspaceLayout, workspacePrompt } from "./workspaceLayout.ts";
 
 test("without a root every role shares one directory and nothing is created", () => {
@@ -32,9 +32,11 @@ test("with a root: own directory per role, a shared one, briefs that are not ove
 
     assert.match(workspacePrompt("planner", layout) ?? "", new RegExp(layout.shared!.replace(/[/\\]/g, ".")));
 
-    // The app's own code becomes protected once agents work elsewhere; shared work does not.
-    const protectedPaths = defaultProtectedPaths({ appRoot: "/srv/raytonebot", workspaces: [...Object.values(layout.agents), layout.shared!] });
-    const policy = { cwd: layout.agents.builder, protectedPaths };
+    // The app's own code becomes read-only once agents work elsewhere; shared work does not.
+    const workspaces = [...Object.values(layout.agents), layout.shared!];
+    const protectedPaths = defaultProtectedPaths({ appRoot: "/srv/raytonebot", workspaces });
+    const readOnlyPaths = defaultReadOnlyPaths({ appRoot: "/srv/raytonebot", workspaces });
+    const policy = { cwd: layout.agents.builder, protectedPaths, readOnlyPaths };
     assert.equal(classifyToolCall("write", { path: "/srv/raytonebot/src/x.ts" }, policy), "protected");
     assert.equal(classifyToolCall("write", { path: join(layout.shared!, "plans/a.md") }, policy), "mutating");
     assert.equal(classifyToolCall("edit", { path: join(layout.shared!, ".codex/config.toml") }, policy), "protected");
