@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#F7F5EF">
+  <link rel="icon" href="data:,">
+  <title>Raytone · 头像动起来</title>
+  <link rel="stylesheet" href="./style.css">
+</head>
+<body>
+  <main>
+    <header><a class="brand" href="/" aria-label="Raytone 首页"><svg viewBox="0 0 40 40" aria-hidden="true"><g stroke="#0C2458" stroke-width="3" stroke-linecap="round"><path d="M16 5h8M10 11h12M7 17h14M7 23h10M10 29h14M16 35h8"/></g><g stroke="#E7AC26" stroke-width="3" stroke-linecap="round"><path d="M27 11h4M26 17h8M22 23h12M29 29h2"/></g></svg>Raytone</a><span class="edition">AVATAR PLAYGROUND <span>01</span></span></header>
+    <div class="intro"><p class="eyebrow">熟悉的面孔，多一点回应</p><h1>让 Raytone，<em>动起来。</em></h1><p class="subtitle">目光跟随、轻轻眨眼。每一种状态，都有自己的小表情。</p></div>
+    <section class="playground" aria-label="头像动画体验">
+      <div class="preview">
+        <div class="stage-label"><span>实时预览</span><span id="character-tag">01 / 04</span></div>
+        <button id="avatar" class="avatar" type="button" aria-label="与圆眼镜女生互动：点击回应，拖动回弹" aria-describedby="gesture-help"></button>
+        <div class="status" role="status" aria-live="polite"><span class="status-dot"></span><span id="status-text">我在这里，随时可以开始。</span></div>
+        <p id="gesture-help">移动鼠标试试 · 拖一拖，再松开 · 轻点打个招呼</p>
+      </div>
+      <div class="controls">
+        <fieldset><legend><span class="step">01</span>选一个伙伴</legend><div id="characters" class="characters"></div></fieldset>
+        <fieldset><legend><span class="step">02</span>看看 TA 的回应</legend><div id="states" class="states"></div></fieldset>
+        <div class="preferences"><label><input id="follow" type="checkbox" checked>目光跟随</label><label><input id="reduce" type="checkbox">减少动态</label></div>
+        <div class="demo-block"><button id="demo" class="demo-button" type="button">演示一次任务 <span aria-hidden="true">↗</span></button><p id="demo-caption">从等待、思考，到完成时的开心回应。</p></div>
+        <a id="original" class="original-link" href="../05-young-woman-round-glasses.png" target="_blank" rel="noopener">查看这款头像的原始设计 ↗</a>
+      </div>
+    </section>
+    <footer><span>Raytone / Character motion study</span><a href="https://github.com/CX-ArtLab/agent-robot-avatar" target="_blank" rel="noopener">动作灵感：Agent Robot Avatar ↗</a></footer>
+    <output id="checks" hidden></output>
+  </main>
+  <script type="module" src="./preview.js"></script>
+</body>
+</html>

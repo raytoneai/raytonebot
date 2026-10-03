@@ -1,0 +1,75 @@
+/* Raytone avatar motion (from output/raytone-avatars/animated/style.css), scoped. */
+.raytone-avatar {
+  display: inline-block;
+  flex: none;
+  line-height: 0;
+  border-radius: 999px;
+  background: #fff7e8;
+  overflow: hidden;
+}
+
+.raytone-avatar[data-interactive="true"] {
+  cursor: grab;
+  touch-action: none;
+  overflow: visible;
+  background: transparent;
+}
+
+.raytone-avatar[data-interactive="true"][data-dragging="true"] {
+  cursor: grabbing;
+}
+
+/* The welcome greeting sizes its slot for the small stock icons. */
+.preview-frame .composer-greeting-avatar:has(.raytone-avatar) {
+  width: 52px;
+  height: 52px;
+  background: transparent;
+}
+
+.raytone-avatar svg {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.raytone-avatar .drag-group,
+.raytone-avatar .follow-group,
+.raytone-avatar .action-group {
+  transform-box: view-box;
+  transform-origin: 200px 235px;
+}
+.raytone-avatar .follow-group,
+.raytone-avatar .gaze { transition: transform 160ms var(--ease-out); }
+.raytone-avatar .action-group { transition: transform 240ms var(--ease-out); }
+.raytone-avatar .blink,
+.raytone-avatar .expression { transform-origin: 0 0; }
+.raytone-avatar .expression { transition: transform 240ms var(--ease-out); }
+.raytone-avatar .happy-eye { opacity: 0; }
+.raytone-avatar .open-eye,
+.raytone-avatar .happy-eye { transition: opacity 120ms ease; }
+
+.raytone-avatar[data-state="success"] .action-group { transform: translateY(-9px) rotate(-4deg); }
+.raytone-avatar[data-state="success"] .open-eye { opacity: 0; }
+.raytone-avatar[data-state="success"] .happy-eye { opacity: 1; }
+.raytone-avatar[data-state="warning"] .action-group { transform: rotate(-8deg); }
+.raytone-avatar[data-state="warning"] .expression { transform: scale(1.1, 0.66); }
+.raytone-avatar[data-state="sleep"] .action-group { transform: translateY(9px) rotate(8deg); }
+.raytone-avatar[data-state="sleep"] .expression { transform: scale(1.1, 0.12); }
+.raytone-avatar[data-state="waiting"] .action-group { animation: raytone-breathe 3.6s var(--ease-in-out) infinite; }
+.raytone-avatar[data-state="waiting"] .thinking-gaze { animation: raytone-thinking 2.8s var(--ease-in-out) infinite; }
+.raytone-avatar[data-state="waiting"] .signal { animation: raytone-signal 1.6s ease-in-out infinite; }
+.raytone-avatar[data-dragging="true"] .gaze,
+.raytone-avatar[data-dragging="true"] .follow-group { transition: none; }
+.raytone-avatar[data-hidden="true"] * { animation-play-state: paused !important; }
+
+@keyframes raytone-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
+@keyframes raytone-thinking { 0%, 100% { transform: translate(-5px, -3px); } 50% { transform: translate(5px, -3px); } }
+@keyframes raytone-signal { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .raytone-avatar * { animation: none !important; transition: none !important; }
+  .raytone-avatar .action-group,
+  .raytone-avatar .follow-group,
+  .raytone-avatar .gaze,
+  .raytone-avatar .thinking-gaze { transform: none !important; }
+}
