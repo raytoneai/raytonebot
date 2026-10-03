@@ -130,13 +130,47 @@ const WRITE_HINTS: readonly RegExp[] = [
   /\btar\b[^|;&]*\s-?[a-zA-Z]*x/,
   /\bsed\b[^|;&]*\s-[a-zA-Z]*i/,
   /\bperl\b[^|;&]*\s-[a-zA-Z]*i/,
-  /\bgit\s+(checkout|reset|restore|clean|commit|apply|am|merge|rebase|pull|stash|switch|rm|mv|add)\b/,
-  /\b(npm|pnpm|yarn|bun)\s+(i|install|ci|add|remove|rm|uninstall|update|upgrade|link|exec|x|dlx|run\s+(build|preview|dev|deploy))\b/,
   /\b(npx|bunx|pnpx)\b/,
   /\bvite\s+build\b/,
   /\b(python3?|node|ruby|perl|deno|bun)\s+(-[a-zA-Z]*[ce]\b|[^-\s])/,
   /\b(bash|sh|zsh)\s+-[a-zA-Z]*c\b|\beval\b|\s-delete\b/,
 ];
+
+/** Inspect the subcommand, not words in paths or trailing arguments such as `log --grep=reset`. */
+function cliMayWrite(command: string): boolean {
+  // Retain quoted option values as one token, including paths with spaces. This is a write
+  // heuristic, not a shell parser; unknown global options remain conservative.
+  // Subshells and command substitution start a new command too: `(git …)`, `$(git …)`, `` `git …` ``.
+  const tokens = command.match(/(?:[^\s'"|;&()`]+|'[^']*'|"(?:[^"\\]|\\.)*")+|[|;&()`\n]/g) ?? [];
+  const words = tokens.map((token) => token.replace(/'([^']*)'|"((?:[^"\\]|\\.)*)"/g, (_match, single, double) => single ?? double));
+  for (let index = 0; index < words.length; index++) {
+    // `/usr/bin/git` is still git.
+    const cli = words[index].split("/").pop();
+    if (!/^(git|npm|pnpm|yarn|bun)$/.test(cli ?? "")) continue;
+    let cursor = index + 1;
+    while (words[cursor]?.startsWith("-")) {
+      const option = words[cursor++];
+      if (option === "--") break;
+      if (/^--[^=]+=/.test(option)) continue;
+      if (/^(-C|-c|-w|--git-dir|--work-tree|--namespace|--config-env|--prefix|--dir|--cwd|--filter|--workspace)$/.test(option)) {
+        if (!words[cursor] || /^[|;&()`\n]$/.test(words[cursor])) return true;
+        cursor++;
+      } else if (!/^(--no-pager|--paginate|--bare|--literal-pathspecs|--no-optional-locks|--global|-g|--silent|--offline)$/.test(option)) {
+        return true;
+      }
+    }
+    const verb = words[cursor];
+    if (cli === "git") {
+      if (/^(checkout|reset|restore|clean|commit|apply|am|merge|rebase|pull|stash|switch|rm|mv|add)$/.test(verb)) return true;
+    } else if (/^(i|install|ci|add|remove|rm|uninstall|update|upgrade|link|exec|x|dlx)$/.test(verb)
+      || (verb === "run" && /^(build|preview|dev|deploy)$/.test(words[cursor + 1]))) return true;
+  }
+  // Double quotes still run substitutions inside them: `echo "$(git checkout .)"`.
+  for (const [, inner] of command.matchAll(/"((?:[^"\\]|\\.)*)"/g)) {
+    if (/\$\(|`/.test(inner) && cliMayWrite(inner)) return true;
+  }
+  return false;
+}
 
 function commandMayWrite(command: string): boolean {
   // Quoted text is data (`grep -E '=>'`, `echo "=== a ==="`); a quoted script still trips the
@@ -145,7 +179,7 @@ function commandMayWrite(command: string): boolean {
     .replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, " ")
     .replace(/\d?>>?\s*\/dev\/null/g, " ")
     .replace(/\d?>&\d/g, " ");
-  return WRITE_HINTS.some((pattern) => pattern.test(stripped));
+  return cliMayWrite(command) || WRITE_HINTS.some((pattern) => pattern.test(stripped));
 }
 
 const OUTWARD_COMMANDS: readonly RegExp[] = [

@@ -71,6 +71,8 @@ export type PiRuntimeConfiguration = {
 
 export type PiPromptInput = {
   conversationId?: string;
+  /** Correlates this submission with its stored run after a lost response; never auto-replayed. */
+  requestId?: string;
   prompt: string;
   provider?: string;
   model?: string;
@@ -118,8 +120,11 @@ export async function listStoredConversations(fetcher: typeof fetch = fetch): Pr
 export async function getStoredConversation(
   id: string,
   fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<StoredConversationSummary & { events: AgentUXEvent[] }> {
-  return requestJson(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`);
+  const timeout = AbortSignal.timeout(15_000);
+  return requestJson(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, undefined,
+    signal ? AbortSignal.any([signal, timeout]) : timeout);
 }
 
 export async function getPiRuntimeState(fetcher: typeof fetch = fetch): Promise<PiRuntimeState> {
@@ -141,7 +146,7 @@ export async function clearApprovalMemory(agentPreset?: string, fetcher: typeof 
 
 /** Stops one conversation's run; other conversations keep running. */
 export async function abortPiRun(conversationId?: string, fetcher: typeof fetch = fetch): Promise<void> {
-  await requestJson(fetcher, `${PI_API_PREFIX}/abort`, { conversationId });
+  await requestJson(fetcher, `${PI_API_PREFIX}/abort`, { conversationId }, AbortSignal.timeout(15_000));
 }
 
 export async function startNewPiSession(
@@ -176,35 +181,62 @@ export async function* runPiTurn(
   input: PiPromptInput,
   options: { signal?: AbortSignal; fetcher?: typeof fetch } = {},
 ): AsyncGenerator<AgentUXEvent> {
-  const response = await (options.fetcher ?? fetch)(`${PI_API_PREFIX}/prompt`, {
+  const response = await fetchStream(options.fetcher ?? fetch, `${PI_API_PREFIX}/prompt`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(input),
     signal: options.signal,
   });
-  if (!response.ok || !response.body) {
-    throw new Error(await responseError(response, "Pi prompt failed"));
-  }
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Pi prompt failed"));
+  if (!response.body) throw new Error("Pi prompt response has no event stream.");
   yield* readEventStream(response.body, options.signal);
 }
 
 /**
  * Reattach to a turn still running on the host (after a reload, a closed tab or a dropped
  * connection): the events after the first `after`, then live ones until the turn ends.
- * Ends without events when nothing is running (the saved conversation is then complete).
+ * If the run finished during reattachment, reads the remaining events from its saved transcript.
  */
 export async function* followPiTurn(
   conversationId: string,
   after: number,
-  options: { signal?: AbortSignal; fetcher?: typeof fetch } = {},
+  options: { signal?: AbortSignal; fetcher?: typeof fetch; requestId?: string } = {},
 ): AsyncGenerator<AgentUXEvent> {
-  const response = await (options.fetcher ?? fetch)(
+  const response = await fetchStream(options.fetcher ?? fetch,
     `${PI_API_PREFIX}/conversations/${encodeURIComponent(conversationId)}/live?after=${after}`,
     { signal: options.signal },
   );
-  if (response.status === 409) return;
-  if (!response.ok || !response.body) throw new Error(await responseError(response, "Pi follow failed"));
-  yield* readEventStream(response.body, options.signal);
+  if (response.status === 409) {
+    const saved = await getStoredConversation(conversationId, options.fetcher, options.signal);
+    if (options.requestId && !saved.events.some((event) => event.runId === options.requestId)) {
+      throw new PiRequestError(409, "无法确认这条消息已被主机接收；未自动重发，请检查任务后重试。");
+    }
+    for (const event of saved.events.slice(Math.max(0, after))) {
+      if (options.signal?.aborted) return;
+      yield event;
+    }
+    return;
+  }
+  if (!response.ok || !response.body) throw new PiRequestError(response.status, await responseError(response, "Pi follow failed"));
+  let received = !options.requestId;
+  for await (const event of readEventStream(response.body, options.signal)) {
+    if (event.runId === options.requestId) received = true;
+    yield event;
+  }
+  if (!received && !options.signal?.aborted) {
+    throw new PiRequestError(409, "无法确认这条消息已被主机接收；未自动重发，请检查任务后重试。");
+  }
+}
+
+/** Bound the connection handshake without putting a deadline on a healthy long-running turn. */
+async function fetchStream(fetcher: typeof fetch, url: string, init: RequestInit): Promise<Response> {
+  const timeout = new AbortController();
+  const timer = setTimeout(() => timeout.abort(new Error("Pi connection timed out.")), 15_000);
+  try {
+    return await fetcher(url, { ...init, signal: init.signal ? AbortSignal.any([init.signal, timeout.signal]) : timeout.signal });
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 async function* readEventStream(body: ReadableStream<Uint8Array>, signal?: AbortSignal): AsyncGenerator<AgentUXEvent> {
@@ -212,9 +244,16 @@ async function* readEventStream(body: ReadableStream<Uint8Array>, signal?: Abort
   const decoder = new TextDecoder();
   let buffer = "";
   let sawTerminal = false;
+  let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     for (;;) {
-      const { value, done } = await reader.read();
+      // The host sends a heartbeat every 5 seconds even during a quiet model/tool call.
+      // A dead connection must not hang here forever and bypass the reconnect budget.
+      const { value, done } = await Promise.race([
+        reader.read(),
+        new Promise<never>((_resolve, reject) => { timer = setTimeout(() => reject(new Error("Pi event stream timed out.")), 15_000); }),
+      ]);
+      clearTimeout(timer);
       if (done) break;
       buffer += decoder.decode(value, { stream: true });
       const lines = buffer.split("\n");
@@ -239,7 +278,20 @@ async function* readEventStream(body: ReadableStream<Uint8Array>, signal?: Abort
       throw new Error("Pi stream ended before a terminal event arrived.");
     }
   } finally {
+    clearTimeout(timer);
+    void reader.cancel().catch(() => undefined);
     reader.releaseLock();
+  }
+}
+
+/** A definitive HTTP rejection differs from a connection failure while a turn may still run. */
+export class PiRequestError extends Error {
+  readonly status: number;
+
+  constructor(status: number, message: string) {
+    super(message);
+    this.name = "PiRequestError";
+    this.status = status;
   }
 }
 
@@ -247,13 +299,15 @@ async function requestJson<T = Record<string, unknown>>(
   fetcher: typeof fetch,
   url: string,
   body?: unknown,
+  signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetcher(url, body === undefined ? undefined : {
+  const response = await fetcher(url, body === undefined ? (signal ? { signal } : undefined) : {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
+    signal,
   });
-  if (!response.ok) throw new Error(await responseError(response, "Pi request failed"));
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Pi request failed"));
   return response.json() as Promise<T>;
 }
 

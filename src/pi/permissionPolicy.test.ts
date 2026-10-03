@@ -176,3 +176,39 @@ test("always-allow covers reviewing the bot's code, never changing it", () => {
   gate.setMode("auto");
   assert.equal(gate.requiresApproval("read", { path: "/home/user/raytonebot/src/main.tsx" }), false);
 });
+
+test("global CLI options do not bypass application write approval", () => {
+  const memory = new ApprovalMemory();
+  memory.add("default", "bash");
+  const gate = new PiApprovalGate(policy, memory);
+  for (const mode of ["request", "auto", "allow-all"] as const) {
+    gate.setMode(mode);
+    for (const command of [
+      "git -C /home/user/raytonebot checkout -- src/main.tsx",
+      "git -C '/home/user/raytonebot' reset --hard",
+      "git --git-dir=/home/user/raytonebot/.git --work-tree=/home/user/raytonebot restore .",
+      "npm --prefix /home/user/raytonebot run build",
+      "pnpm --dir /home/user/raytonebot install",
+      "yarn --cwd /home/user/raytonebot run build",
+      "/usr/bin/git -C /home/user/raytonebot reset --hard",
+      "echo $(git -C /home/user/raytonebot checkout -- src/main.tsx)",
+      "echo \"$(git -C /home/user/raytonebot checkout -- src/main.tsx)\"",
+      "(git -C /home/user/raytonebot reset --hard)",
+      "{ git -C /home/user/raytonebot reset --hard; }",
+      "cd /home/user/raytonebot && `git checkout -- .`",
+    ]) {
+      assert.equal(classifyToolCall("bash", { command }, policy), "protected", command);
+      assert.equal(gate.requiresApproval("bash", { command }), true, `${mode}: ${command}`);
+    }
+  }
+  for (const command of [
+    "git -C /home/user/raytonebot status",
+    "git -C '/home/user/raytonebot' diff",
+    "git -C /home/user/raytonebot log --grep=reset",
+    "git -C /home/user/raytonebot diff -- src/add.ts",
+    "git --no-pager -C '/home/user/raytonebot' log --grep=checkout",
+    "npm --prefix /home/user/raytonebot run typecheck",
+    "npm --prefix /home/user/raytonebot test",
+    "npm --prefix /home/user/raytonebot/x test",
+  ]) assert.equal(classifyToolCall("bash", { command }, policy), "mutating", command);
+});

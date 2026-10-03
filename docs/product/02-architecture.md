@@ -23,7 +23,7 @@ AgentSphere 沙箱 agentmatrix-v1（2C/4G, Linux x86_64, Node 24）
 | --- | --- | --- |
 | GET | `/__agentcanvas/pi/state?conversationId=` | 模型、工具、会话信息 |
 | POST | `/__agentcanvas/pi/config` | provider/model/thinking/会话 key |
-| POST | `/__agentcanvas/pi/prompt` | 发起一轮，返回 NDJSON 事件流；**连接断开不中止**，只有 `/abort` 停止 |
+| POST | `/__agentcanvas/pi/prompt` | 发起一轮，返回 NDJSON 事件流；可选 `requestId` 对应该轮 `runId`，用于断线后核对提交；**连接断开不中止**，只有 `/abort` 停止 |
 | GET | `/__agentcanvas/pi/conversations/:id/live?after=N` | 重新接上运行中的一轮：先补发第 N 个之后的已存事件，再推实时事件，轮次结束时关闭；未在运行返回 409 |
 | POST | `/__agentcanvas/pi/abort` | 停止 `conversationId` 那一轮；不带则停止全部 |
 | POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no`；带 `conversationId` 时只在该对话内匹配；409 = 已失效 |
@@ -42,15 +42,16 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 
 界面上缺东西时，先查 `piAdapter.ts` 发出的事件和 `admissionReport`，不是加组件。
 
+浏览器断线不停止服务端任务。前端共享历史加载，断线后退避重接；连续 5 次失败后停止本地等待，并提示主机任务状态尚未确认。连接握手、历史/停止请求及事件流无心跳的超时为 15 秒；正常流每 5 秒的心跳维持连接，不限制任务总时长。若 `/live` 返回 409（任务刚结束），再读落盘历史补齐尾部事件，不重放 prompt；记录中缺少本次 `requestId` 时保留用户消息并报错。停止操作收到服务端确认后才取消本地订阅。服务端启动时为没有终态的轮次补「已中断」，包括尚未产生首个 token 的轮次；沙箱暂停/恢复仍走整机快照。
+
+`/prompt` 发出 200 响应头后被并发限制拒绝时，仍返回本次用户消息与 `run.error`，不修改已有任务的记录。已获运行槽但初始化失败的提交则将消息和错误保存，保证断线后可恢复结果。
+
 ### 当前缺口
 
-| 缺口 | 位置 | 后果 |
-| --- | --- | --- |
-2026-10-03 已补：会话落盘与恢复、服务端模型 key（env 文件）、工作区分离、部署/备份脚本。剩余：
+2026-10-03 已补：会话落盘与恢复、服务端模型 key（env 文件）、工作区分离、部署/备份脚本、进程重启中断标记（T3.2）。剩余：
 
 | 缺口 | 位置 | 后果 |
 | --- | --- | --- |
-| 进程重启或沙箱暂停时，运行中的轮次没有标记为中断 | `piHost.ts`、`conversationStore.ts` | 历史里停在半截状态（T3.2） |
 | 没有 health 接口与进程守护 | `piHost.ts`、`deploy.py` | Node 崩溃后无人拉起，只能靠 `sandbox.py status` 发现（T3.3） |
 | 本机开发未设 `RAYTONEBOT_WORKSPACE(_ROOT)` 时 cwd = 应用目录 | `piVitePlugin.ts` | 本机 Agent 能改/删应用自身 |
 | 会话 LRU 上限 12（运行中的不淘汰），并行运行上限 3 | `piHost.ts` | 单用户可接受；多用户前必须重做 |

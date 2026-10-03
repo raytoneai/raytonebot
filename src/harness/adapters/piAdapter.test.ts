@@ -38,3 +38,20 @@ test("a failed request without a successful retry still ends the run as an error
   adapter.finish("success");
   assert.equal(events.filter((event) => event.type === "run.error").length, 1);
 });
+
+test("overflow compaction clears the failed request only after a successful response", () => {
+  for (const recovered of [true, false]) {
+    const adapter = createPiEventAdapter({ runId: "overflow" });
+    adapter.apply({ type: "agent_start" });
+    adapter.apply(assistant("error", "context length exceeded"));
+    adapter.apply({ type: "compaction_start", reason: "overflow" });
+    adapter.apply({ type: "compaction_end", reason: "overflow", aborted: false, willRetry: true });
+    if (recovered) {
+      adapter.apply({ type: "message_start", message: { role: "assistant" } });
+      adapter.apply(assistant("stop"));
+    }
+    const terminal = adapter.apply({ type: "agent_settled" });
+    assert.equal(terminal.at(-1)?.type, recovered ? "run.finished" : "run.error");
+    assert.deepEqual(adapter.finish("success"), [], "terminal is emitted once");
+  }
+});

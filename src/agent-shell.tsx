@@ -43,6 +43,7 @@ import {
   resolvePiApproval,
   runPiTurn,
   startNewPiSession,
+  PiRequestError,
   type PiRuntimeState,
 } from "./pi/piClient";
 import { piRuntimeConfigurationForProvider } from "./pi/piProviderSync";
@@ -90,6 +91,20 @@ import { piCancelledTurnEvents } from "./pi/piCancelledTurn";
 import { createPiFrameCommit } from "./pi/piFrameCommit";
 
 const noop = () => {};
+
+/** Back off after a dropped connection; an acknowledged stop cancels the wait immediately. */
+function waitForReconnect(signal: AbortSignal, delay: number): Promise<void> {
+  return new Promise((resolve) => {
+    const done = () => {
+      clearTimeout(timer);
+      signal.removeEventListener("abort", done);
+      resolve();
+    };
+    const timer = setTimeout(done, delay);
+    signal.addEventListener("abort", done, { once: true });
+    if (signal.aborted) done();
+  });
+}
 
 // Loaded on first use, not with the app: settings, the full-screen output view and the resizable
 // output panel are closed when a conversation opens.
@@ -426,7 +441,7 @@ export function AgentApp() {
    * meanwhile waits for it. It only fills a conversation that is still empty, so a late response
    * can never overwrite a turn on screen.
    */
-  const historyLoadsRef = useRef(new Map<string, Promise<EphemeralPiConversation | undefined>>());
+  const historyLoadsRef = useRef(new Map<string, Promise<EphemeralPiConversation>>());
   function loadStoredConversation(conversation: EphemeralPiConversation) {
     const pending = historyLoadsRef.current.get(conversation.id);
     if (pending) return pending;
@@ -436,10 +451,13 @@ export function AgentApp() {
         setPiConversations((current) => current.map((entry) => (
           entry.id === loaded.id && entry.events.length === 0 ? loaded : entry
         )));
-        if (activeConversationIdRef.current === loaded.id) setPiEvents([...stored.events]);
+        setPiEvents((current) => (
+          activeConversationIdRef.current === loaded.id && (current?.length ?? 0) <= loaded.events.length
+            ? [...loaded.events]
+            : current
+        ));
         return loaded;
       })
-      .catch(() => undefined)
       .finally(() => historyLoadsRef.current.delete(conversation.id));
     historyLoadsRef.current.set(conversation.id, load);
     return load;
@@ -465,27 +483,18 @@ export function AgentApp() {
     const controller = new AbortController();
     piAbortRefs.current.set(conversationId, controller);
     setRunningConversationIds((current) => toggleIn(current, conversationId, true));
-    // A reopened conversation's history may still be loading; the new turn builds on it.
-    let base = activePiConversation;
-    if (base.stored && base.events.length === 0) base = (await loadStoredConversation(base)) ?? base;
-    if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
-      if (piAbortRefs.current.get(conversationId) === controller) piAbortRefs.current.delete(conversationId);
-      setRunningConversationIds((current) => toggleIn(current, conversationId, false));
-      return;
-    }
     let nextConversation: EphemeralPiConversation = {
-      ...titlePiConversation(base, normalizedPrompt),
+      ...titlePiConversation(activePiConversation, normalizedPrompt),
       agentPreset: agentSettings.presetId,
     };
-    const turnStartEventCount = nextConversation.events.length;
+    let turnStartEventCount = nextConversation.events.length;
+    let promptAttempted = false;
     let reattach = false;
     // The run keeps going when the user opens another conversation; only the one on screen is drawn.
     const showIfActive = (conversation: EphemeralPiConversation) => {
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
     };
-    setPiConversations((current) => replacePiConversation(current, nextConversation));
-    showIfActive(nextConversation);
-    const runId = "pi_export_" + Date.now().toString(36);
+    const runId = "pi_export_" + crypto.randomUUID();
     // Same coalescing as the configurator, from the same module, so a long reply does not slow
     // down as it grows here either. The conversation is still appended one event at a time.
     const commit = createPiFrameCommit<EphemeralPiConversation>((conversation) => {
@@ -493,11 +502,21 @@ export function AgentApp() {
       showIfActive(conversation);
     });
     try {
+      // Reopening and reattaching share this load; a new turn never starts from an empty stub.
+      if (nextConversation.stored && nextConversation.events.length === 0) {
+        nextConversation = await loadStoredConversation(nextConversation);
+        turnStartEventCount = nextConversation.events.length;
+      }
+      if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return;
+      setPiConversations((current) => replacePiConversation(current, nextConversation));
+      showIfActive(nextConversation);
       // Codex and a locally logged-in Claude Code bring their own model; only roles that run
       // on the configured model service need it registered (and its key handed over) first.
       if (settingsUseProvider(agentSettings)) await synchronizePiRuntime(activeProject, nextConversation.id);
+      promptAttempted = true;
       for await (const event of runPiTurn({
         conversationId: nextConversation.id,
+        requestId: runId,
         prompt: normalizedPrompt,
         provider: provider.id,
         model: provider.defaultModel,
@@ -522,7 +541,8 @@ export function AgentApp() {
         }
       }
       commit.flush();
-      await refreshPiRuntime();
+      // The turn already delivered its terminal; a metadata refresh failure must not reattach it.
+      await refreshPiRuntime().catch(() => undefined);
     } catch (error) {
       // Cancelled, not flushed: a frame still queued holds the conversation as it was *before*
       // the error events were appended, and letting it land after the commit below would erase
@@ -535,8 +555,9 @@ export function AgentApp() {
         const closed = appendPiConversationEvents(nextConversation, piCancelledTurnEvents(nextConversation.events));
         setPiConversations((current) => replacePiConversation(current, closed));
         showIfActive(closed);
-      } else if (await runStillGoing(conversationId)) {
-        // The connection dropped, not the turn: it is still running on the host. Reattach below.
+      } else if (promptAttempted && !(error instanceof PiRequestError)) {
+        // A lost connection cannot tell us whether the host is running or has just finished.
+        // Reattach in either case and read its authoritative result; never replay the prompt.
         reattach = true;
       } else {
         const message = error instanceof Error ? error.message : "Pi runtime failed.";
@@ -553,19 +574,15 @@ export function AgentApp() {
         showIfActive(nextConversation);
       }
     } finally {
-      if (piAbortRefs.current.get(conversationId) === controller) piAbortRefs.current.delete(conversationId);
-      setRunningConversationIds((current) => toggleIn(current, conversationId, false));
-      setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
+      if (piAbortRefs.current.get(conversationId) === controller) {
+        piAbortRefs.current.delete(conversationId);
+        if (!reattach) {
+          setRunningConversationIds((current) => toggleIn(current, conversationId, false));
+          setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
+        }
+      }
     }
-    if (reattach) void followRun(nextConversation);
-  }
-
-  async function runStillGoing(conversationId: string) {
-    try {
-      return (await listStoredConversations()).some((entry) => entry.id === conversationId && entry.running);
-    } catch {
-      return false;
-    }
+    if (reattach) void followRun(nextConversation, { requestId: runId, prompt: normalizedPrompt });
   }
 
   /**
@@ -573,7 +590,7 @@ export function AgentApp() {
    * tab, a dropped connection). The saved transcript replaces the local one, then live events
    * follow from exactly where it ends, so nothing is shown twice or skipped.
    */
-  async function followRun(conversation: EphemeralPiConversation) {
+  async function followRun(conversation: EphemeralPiConversation, submission?: { requestId: string; prompt: string }) {
     const conversationId = conversation.id;
     if (piAbortRefs.current.has(conversationId)) return;
     const controller = new AbortController();
@@ -583,55 +600,85 @@ export function AgentApp() {
       if (activeConversationIdRef.current === next.id) setPiEvents([...next.events]);
     };
     const commit = createPiFrameCommit<EphemeralPiConversation>((next) => {
+      if (piAbortRefs.current.get(conversationId) !== controller) return;
       setPiConversations((current) => replacePiConversation(current, next));
       showIfActive(next);
     });
     let current = conversation;
+    let retries = 0;
     try {
-      const stored = await getStoredConversation(conversationId);
-      current = { ...conversation, title: stored.title, events: stored.events, stored: false };
-      setPiConversations((list) => replacePiConversation(list, current));
-      showIfActive(current);
-      for await (const event of followPiTurn(conversationId, stored.events.length, { signal: controller.signal })) {
-        if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
-          commit.cancel();
-          return;
-        }
-        current = appendPiConversationEvents(current, [event]);
-        commit.push(current);
-        if (event.type === "tool.call.awaiting_approval") {
+      while (!controller.signal.aborted) {
+        try {
+          current = await loadStoredConversation(current);
+          if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
+          if (controller.signal.aborted) break;
+          setPiConversations((list) => replacePiConversation(list, current));
+          showIfActive(current);
+          const requestId = submission && !current.events.some((event) => event.runId === submission.requestId)
+            ? submission.requestId : undefined;
+          for await (const event of followPiTurn(conversationId, current.events.length, { signal: controller.signal, requestId })) {
+            if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
+            if (controller.signal.aborted) break;
+            retries = 0;
+            current = appendPiConversationEvents(current, [event]);
+            commit.push(current);
+            if (event.type === "tool.call.awaiting_approval") {
+              commit.flush();
+              setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, true));
+            } else if (APPROVAL_SETTLED_EVENTS.has(event.type)) {
+              setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, false));
+            }
+          }
+          if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
           commit.flush();
-          setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, true));
-        } else if (APPROVAL_SETTLED_EVENTS.has(event.type)) {
-          setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, false));
+          break;
+        } catch (error) {
+          if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
+          commit.flush();
+          if (controller.signal.aborted) break;
+          // A missing conversation or denied access is definitive; a network failure/5xx is not.
+          if (error instanceof PiRequestError && error.status < 500) throw error;
+          if (++retries >= 5) throw new Error("连续 5 次无法连接主机，已停止本地重连；未确认主机任务已停止。恢复连接后请刷新查看任务。");
+          await waitForReconnect(controller.signal, Math.min(1000 * 2 ** (retries - 1), 5000));
         }
       }
-      commit.flush();
-    } catch {
-      commit.cancel();
       if (controller.signal.aborted) {
         // Stopped from here: the host's own wrap-up events are not coming over this stream.
         const closed = appendPiConversationEvents(current, piCancelledTurnEvents(current.events));
         setPiConversations((list) => replacePiConversation(list, closed));
         showIfActive(closed);
       }
+    } catch (error) {
+      if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
+      const failed = appendPiConversationEvents(current, piErrorTurnEvents({
+        message: error instanceof Error ? error.message : "Pi runtime failed.",
+        prompt: submission && !current.events.some((event) => event.runId === submission.requestId && event.type === "text.started"
+          && (event.payload as { role?: string }).role === "user") ? submission.prompt : undefined,
+        runId: submission?.requestId ?? [...current.events].reverse().find((event) => event.type === "run.started")?.runId
+          ?? `pi_follow_${Date.now().toString(36)}`,
+      }));
+      setPiConversations((list) => replacePiConversation(list, failed));
+      showIfActive(failed);
     } finally {
-      if (piAbortRefs.current.get(conversationId) === controller) piAbortRefs.current.delete(conversationId);
-      setRunningConversationIds((ids) => toggleIn(ids, conversationId, false));
-      setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, false));
+      if (piAbortRefs.current.get(conversationId) === controller) {
+        piAbortRefs.current.delete(conversationId);
+        setRunningConversationIds((ids) => toggleIn(ids, conversationId, false));
+        setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, false));
+      }
     }
   }
 
   /** Stops the conversation on screen; runs in other conversations continue. */
   async function stopPi(conversationId = activePiConversationId) {
-    piAbortRefs.current.get(conversationId)?.abort();
+    const controller = piAbortRefs.current.get(conversationId);
     try {
       await abortPiRun(conversationId);
     } catch {
-      // Server-side abort is best effort; the local state below is what matters.
+      // The host may still be executing. Keep watching and leave Stop available for a retry.
+      return;
     }
-    setRunningConversationIds((current) => toggleIn(current, conversationId, false));
-    setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
+    // A late response for an earlier turn must not cancel a newer local subscription.
+    if (piAbortRefs.current.get(conversationId) === controller) controller?.abort();
   }
 
   async function selectProvider(id: ProviderConnectionId) {
@@ -743,7 +790,9 @@ export function AgentApp() {
       setAgentSettings(next);
       saveAgentSettings(next);
     }
-    if (conversation.stored && conversation.events.length === 0) void loadStoredConversation(conversation);
+    if (conversation.stored && conversation.events.length === 0 && !piAbortRefs.current.has(conversation.id)) {
+      void loadStoredConversation(conversation).catch(() => undefined);
+    }
     setOutputPanelItems([]);
     setActiveOutputPanelItemId(undefined);
     setOutputModalOpen(false);

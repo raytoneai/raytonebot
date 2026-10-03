@@ -1,7 +1,7 @@
 import { agentUXEventBuilders, type AgentUXEvent } from "@agent-ux/protocol";
 
 /**
- * Local terminal events for a turn cancelled by the user.
+ * Terminal events for a cancelled turn, including one interrupted by a server restart.
  *
  * Stopping the client aborts the fetch, so the server's own wrap-up events
  * (open text/tool blocks finished + run.finished(cancelled), see piHost's
@@ -67,12 +67,8 @@ export function piCancelledTurnEvents(events: readonly AgentUXEvent[]): AgentUXE
     }
   }
 
-  if (openTexts.size === 0 && openReasonings.size === 0 && openTools.size === 0) {
-    // Nothing was left open — the run ended between the last committed frame and
-    // the abort. Nothing to close.
-    return [];
-  }
-
+  // A run can be waiting for its first token or between tools with no open blocks.
+  // Only a run terminal (checked above), not the absence of blocks, proves it has ended.
   let seq = maxSeq(turnEvents);
   const now = Date.now();
   const meta = (suffix: string, messageId?: string) => ({

@@ -36,6 +36,7 @@ import { join } from "node:path";
 import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
 import { createHostResources } from "./piResources.ts";
 import { piCancelledTurnEvents } from "./piCancelledTurn.ts";
+import { piErrorTurnEvents } from "./piErrorTurn.ts";
 import { PiApprovalGate, SECRET_REFUSAL, type PiPermissionMode } from "./approvalGate.ts";
 import { ApprovalMemory } from "./approvalMemory.ts";
 
@@ -292,7 +293,7 @@ export function createPiRuntimeController(options: {
     }
 
     const adapter = createPiEventAdapter({
-      runId: `pi_${Date.now().toString(36)}`,
+      runId: input.requestId ?? `pi_${randomUUID()}`,
       onEvent,
       requiresApproval: (toolName, args) => approvalGate.requiresApproval(toolName, args),
     });
@@ -350,7 +351,7 @@ export function createPiRuntimeController(options: {
     // Set only while a call is announced on hold, so the adapter marks exactly that call.
     let announcingHold = false;
     const adapter = createPiEventAdapter({
-      runId: `${harness}_${Date.now().toString(36)}`,
+      runId: input.requestId ?? `${harness}_${randomUUID()}`,
       onEvent,
       requiresApproval: () => announcingHold,
     });
@@ -513,6 +514,10 @@ export function createPiRuntimeController(options: {
       try {
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record);
         else await runPiPrompt(input, conversationId, prompt, record);
+      } catch (error) {
+        // Bridge/configuration failures can precede the adapter. Persist the failed submission
+        // too, so a client that lost the response can recover its prompt and error by requestId.
+        for (const event of piErrorTurnEvents({ prompt, message: errorMessage(error), runId: input.requestId })) record(event);
       } finally {
         options?.signal?.removeEventListener("abort", stopOnSignal);
         runs.delete(conversationId);
@@ -713,6 +718,7 @@ export function createPiHttpHost(options: {
           res.setHeader("cache-control", "no-store");
           res.flushHeaders();
           const conversationId = stringField(body, "conversationId");
+          const requestId = stringField(body, "requestId");
           // A closed tab, reload or dropped connection leaves the run going; the browser can
           // reattach with GET /conversations/:id/live. Only an explicit stop ends it.
           // Proxies in front of the sandbox drop a response that stays silent; a CLI can go quiet
@@ -721,20 +727,30 @@ export function createPiHttpHost(options: {
             if (!res.destroyed) res.write("\n");
           }, 5_000);
           res.once("close", () => clearInterval(heartbeat));
-          await controller.runPrompt({
-            conversationId,
-            prompt,
-            provider: stringField(body, "provider"),
-            model: stringField(body, "model"),
-            thinkingLevel: stringField(body, "thinkingLevel"),
-            permissionMode: permissionMode(body.permissionMode),
-            agentPreset: isAgentPresetId(body.agentPreset) ? body.agentPreset : undefined,
-            claudeCodeModelSource: body.claudeCodeModelSource === "local-login" ? "local-login" : "provider",
-            codexModelSource: body.codexModelSource === "local-login" ? "local-login" : "provider",
-          }, (event) => {
-            if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
-          });
-          clearInterval(heartbeat);
+          try {
+            await controller.runPrompt({
+              conversationId,
+              requestId,
+              prompt,
+              provider: stringField(body, "provider"),
+              model: stringField(body, "model"),
+              thinkingLevel: stringField(body, "thinkingLevel"),
+              permissionMode: permissionMode(body.permissionMode),
+              agentPreset: isAgentPresetId(body.agentPreset) ? body.agentPreset : undefined,
+              claudeCodeModelSource: body.claudeCodeModelSource === "local-login" ? "local-login" : "provider",
+              codexModelSource: body.codexModelSource === "local-login" ? "local-login" : "provider",
+            }, (event) => {
+              if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+            });
+          } catch (error) {
+            // The 200 headers are already sent. Rejections need a terminal in this stream,
+            // but must not be appended to (or stop) the conversation's existing active run.
+            for (const event of piErrorTurnEvents({ prompt, message: errorMessage(error), runId: requestId })) {
+              if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+            }
+          } finally {
+            clearInterval(heartbeat);
+          }
           if (!res.destroyed) res.end();
           return true;
         }

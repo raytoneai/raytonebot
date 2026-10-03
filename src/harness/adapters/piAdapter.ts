@@ -427,9 +427,10 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
           finishAssistantBlocks(next);
           const stopReason = stringField(message, "stopReason");
           const errorMessage = stringField(message, "errorMessage");
-          // Not terminal yet: `auto_retry_start` follows when Pi retries this request.
+          // Not terminal yet: Pi may retry directly, or compact overflowing context first.
           if (stopReason === "error") pendingModelError = errorMessage ?? "Pi model request failed.";
           else if (stopReason === "aborted") settleRun("cancelled", next);
+          else if (stopReason === "stop" || stopReason === "toolUse" || stopReason === "length") pendingModelError = undefined;
         }
         break;
       }
