@@ -22,7 +22,7 @@ import {
 import { sameOriginRequestAllowed } from "./requestOrigin.ts";
 import { detectCliHarnesses, runClaudeCode, runCodex } from "./cliHarness.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
-import { defaultProtectedPaths, defaultReadOnlyPaths } from "./permissionPolicy.ts";
+import { defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from "./permissionPolicy.ts";
 import { resolveWorkspaceLayout, workspacePrompt, type WorkspaceLayout } from "./workspaceLayout.ts";
 import {
   createConversationStore,
@@ -35,7 +35,8 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
 import { createHostResources } from "./piResources.ts";
-import { PiApprovalGate, type PiPermissionMode } from "./approvalGate.ts";
+import { PiApprovalGate, SECRET_REFUSAL, type PiPermissionMode } from "./approvalGate.ts";
+import { ApprovalMemory } from "./approvalMemory.ts";
 
 export { PiApprovalGate } from "./approvalGate.ts";
 import {
@@ -80,6 +81,8 @@ export type PiRuntimeController = {
   /** Answers a held tool call; with a conversation, only that conversation's gate is consulted. */
   resolveApproval(toolCallId: string, decision: PiApprovalDecision, conversationId?: string): boolean;
   newSession(conversationId?: string): Promise<PiRuntimeState>;
+  /** Forgets "always allow" grants: one agent's, or every agent's. */
+  clearApprovals(agentPreset?: string): Record<string, string[]>;
   dispose(): void;
 };
 
@@ -104,17 +107,19 @@ export function createPiRuntimeController(options: {
   const defaultPermissionMode: PiPermissionMode = sandboxed ? "auto" : "request";
   const workspaces = [...new Set([cwd, ...Object.values(layout.agents), ...(layout.shared ? [layout.shared] : [])])];
   const appRoot = options.appRoot ?? process.cwd();
-  const protectedPaths = defaultProtectedPaths({ appRoot, workspaces });
+  const secretPaths = defaultSecretPaths();
+  const protectedPaths = defaultProtectedPaths({ workspaces });
   /** The bot's own code: agents may read it (reviewing it is a normal task), never change it. */
   const readOnlyPaths = defaultReadOnlyPaths({ appRoot, workspaces });
+  /** "Always allow" grants per agent, shared by every conversation with that agent. */
+  const approvalMemory = new ApprovalMemory(join(dataDir, "approvals.json"));
   /** One gate per conversation: runs in different conversations wait on their own approvals,
-   *  with their own mode, cwd and "always allow" memory. */
+   *  with their own mode and cwd. */
   const approvalGates = new Map<string, PiApprovalGate>();
   const gateFor = (conversationId: string) => {
     let gate = approvalGates.get(conversationId);
     if (!gate) {
-      gate = new PiApprovalGate({ cwd, protectedPaths, readOnlyPaths });
-      gate.setConversation(conversationId);
+      gate = new PiApprovalGate({ cwd, secretPaths, protectedPaths, readOnlyPaths }, approvalMemory);
       approvalGates.set(conversationId, gate);
     }
     return gate;
@@ -172,8 +177,10 @@ export function createPiRuntimeController(options: {
   /** Read-only facts for the settings page. Env var *names* only, never values. */
   const runtimeInfo = () => ({
     sandboxed,
+    secretPaths,
     protectedPaths,
     readOnlyPaths,
+    alwaysAllowed: approvalMemory.list(),
     workspace: layout,
     envKeys: Object.keys(process.env).filter((key) => /(_API_KEY|_AUTH_TOKEN)$/.test(key) && Boolean(process.env[key])).sort(),
     sessionKeyProviders: [...providerKeys.keys()],
@@ -256,6 +263,7 @@ export function createPiRuntimeController(options: {
     const approvalGate = gateFor(conversationId);
     approvalGate.setCwd(cwd);
     approvalGate.setMode(input.permissionMode ?? "request");
+    approvalGate.setAgent(isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant");
     if (input.provider || input.model || input.thinkingLevel) {
       await current.configure({ provider: input.provider, model: input.model, thinkingLevel: input.thinkingLevel });
     }
@@ -315,6 +323,7 @@ export function createPiRuntimeController(options: {
     const approvalGate = gateFor(conversationId);
     approvalGate.setMode(permissionMode);
     approvalGate.setCwd(runCwd);
+    approvalGate.setAgent(role);
     // Set only while a call is announced on hold, so the adapter marks exactly that call.
     let announcingHold = false;
     const adapter = createPiEventAdapter({
@@ -366,6 +375,7 @@ export function createPiRuntimeController(options: {
                 ? `The planner may only write inside ${layout.shared}.`
                 : "The planner does not write files.";
             }
+            if (approvalGate.isRefused(request.tool.name, request.tool.args)) return SECRET_REFUSAL;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
               request.startExecution();
               return true;
@@ -518,9 +528,11 @@ export function createPiRuntimeController(options: {
       // A new session starts with an empty transcript, so its tool set has to be announced
       // again or `CapabilityTray` would stay empty for the rest of the conversation's life.
       announcedCapabilities.delete(id);
-      // ... and with an empty approval memory: "always allow" must not survive a reset.
-      gateFor(id).resetConversation(id);
       return state(id);
+    },
+    clearApprovals(agentPreset) {
+      approvalMemory.clear(agentPreset);
+      return approvalMemory.list();
     },
     dispose() {
       for (const gate of approvalGates.values()) gate.cancelAll();
@@ -612,6 +624,11 @@ export function createPiHttpHost(options: {
           } else {
             sendJson(res, 200, await controller.testProvider(definition, stringField(body, "apiKey")));
           }
+          return true;
+        }
+        if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/approvals/clear`) {
+          const body = await readJson(req);
+          sendJson(res, 200, { alwaysAllowed: controller.clearApprovals(stringField(body, "agentPreset")) });
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/session/new`) {

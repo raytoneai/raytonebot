@@ -30,6 +30,7 @@ AgentSphere 沙箱 agentmatrix-v1（2C/4G, Linux x86_64, Node 24）
 | GET | `/__agentcanvas/pi/conversations` | 对话列表（侧栏恢复） |
 | GET / DELETE | `/__agentcanvas/pi/conversations/:id` | 读取历史事件 / 删除对话 |
 | POST | `/__agentcanvas/pi/provider/test` | 模型服务连通性测试 |
+| POST | `/__agentcanvas/pi/approvals/clear` | 清除某 Agent（`agentPreset`）或全部的「始终允许」 |
 
 ### 事件链路
 

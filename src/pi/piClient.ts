@@ -29,9 +29,13 @@ export type PiRuntimeState = {
   /** "auto" inside a disposable sandbox VM, "request" elsewhere. */
   defaultPermissionMode?: "request" | "auto" | "allow-all";
   sandboxed?: boolean;
+  /** Credentials: agents are refused, in every mode. */
+  secretPaths?: string[];
   protectedPaths?: string[];
   /** Agents read these freely; changing them always asks (the bot's own code). */
   readOnlyPaths?: string[];
+  /** "Always allow" grants per agent: tool names. */
+  alwaysAllowed?: Record<string, string[]>;
   /** Per-role working directories and the shared one (paths only). */
   workspace?: { root?: string; shared?: string; agents: Record<string, string> };
   /** Names (never values) of key-like env vars set on the host. */
@@ -125,6 +129,12 @@ export async function configurePiRuntime(
   fetcher: typeof fetch = fetch,
 ): Promise<PiRuntimeState> {
   return requestJson<PiRuntimeState>(fetcher, `${PI_API_PREFIX}/config`, input);
+}
+
+/** Forgets "always allow" grants for one agent, or for every agent. */
+export async function clearApprovalMemory(agentPreset?: string, fetcher: typeof fetch = fetch): Promise<Record<string, string[]>> {
+  const body = await requestJson<{ alwaysAllowed: Record<string, string[]> }>(fetcher, `${PI_API_PREFIX}/approvals/clear`, { agentPreset });
+  return body.alwaysAllowed;
 }
 
 /** Stops one conversation's run; other conversations keep running. */

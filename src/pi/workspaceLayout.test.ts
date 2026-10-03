@@ -34,7 +34,7 @@ test("with a root: own directory per role, a shared one, briefs that are not ove
 
     // The app's own code becomes read-only once agents work elsewhere; shared work does not.
     const workspaces = [...Object.values(layout.agents), layout.shared!];
-    const protectedPaths = defaultProtectedPaths({ appRoot: "/srv/raytonebot", workspaces });
+    const protectedPaths = defaultProtectedPaths({ workspaces });
     const readOnlyPaths = defaultReadOnlyPaths({ appRoot: "/srv/raytonebot", workspaces });
     const policy = { cwd: layout.agents.builder, protectedPaths, readOnlyPaths };
     assert.equal(classifyToolCall("write", { path: "/srv/raytonebot/src/x.ts" }, policy), "protected");

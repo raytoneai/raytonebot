@@ -7,7 +7,7 @@ import { APP_LOCALES, type AppLocale } from "../../i18n/locales";
 import { settingsCopy, type SettingsCopy } from "../../i18n/copy/settings";
 import { appVersionLabel } from "../../appVersion";
 import { AGENT_PRESETS, type AgentHarnessId } from "../../pi/harnessCatalog";
-import { testProviderConnection, type PiRuntimeState, type ProviderTestResult } from "../../pi/piClient";
+import { clearApprovalMemory, testProviderConnection, type PiRuntimeState, type ProviderTestResult } from "../../pi/piClient";
 import { piRuntimeConfigurationForProvider } from "../../pi/piProviderSync";
 import {
   defaultProviderConnection,
@@ -365,6 +365,14 @@ function PermissionsSection({ t, runtime, permissionDefault, onPermissionDefault
           </label>
         ))}
       </div>
+      <h3 className="settings-subhead">{t.permissions.alwaysTitle}</h3>
+      <p className="settings-intro">{t.permissions.alwaysHint}</p>
+      <AlwaysAllowedList t={t} runtime={runtime} />
+      <h3 className="settings-subhead">{t.permissions.secretTitle}</h3>
+      <p className="settings-intro">{t.permissions.secretHint}</p>
+      <div className="settings-list settings-code-list">
+        {(runtime?.secretPaths ?? []).map((path) => <code key={path}>{path}</code>)}
+      </div>
       <h3 className="settings-subhead">{t.permissions.protectedTitle}</h3>
       <p className="settings-intro">{t.permissions.protectedHint}</p>
       <div className="settings-list settings-code-list">
@@ -382,6 +390,30 @@ function PermissionsSection({ t, runtime, permissionDefault, onPermissionDefault
       <h3 className="settings-subhead">{t.permissions.workspace}</h3>
       <WorkspaceList t={t} runtime={runtime} />
     </>
+  );
+}
+
+/** Tools each agent may run without asking, granted by "always allow"; each agent can be reset. */
+function AlwaysAllowedList({ t, runtime }: { t: SettingsCopy; runtime?: PiRuntimeState }) {
+  const roleCopy = useCopy().composer.agentSettings;
+  const [granted, setGranted] = useState<Record<string, string[]>>(runtime?.alwaysAllowed ?? {});
+  useEffect(() => setGranted(runtime?.alwaysAllowed ?? {}), [runtime?.alwaysAllowed]);
+  const agents = AGENT_PRESETS.filter((preset) => granted[preset.id]?.length);
+  if (agents.length === 0) return <p className="settings-intro">{t.permissions.alwaysEmpty}</p>;
+  return (
+    <div className="settings-list">
+      {agents.map((preset) => (
+        <div className="settings-row" key={preset.id}>
+          <span className="settings-row-main">
+            <span className="settings-row-title"><strong>{roleCopy.presets[preset.id].name}</strong></span>
+            <span className="settings-row-sub">{granted[preset.id].join(", ")}</span>
+          </span>
+          <Button size="sm" variant="ghost" onClick={() => void clearApprovalMemory(preset.id).then(setGranted).catch(() => undefined)}>
+            {t.permissions.alwaysClear}
+          </Button>
+        </div>
+      ))}
+    </div>
   );
 }
 

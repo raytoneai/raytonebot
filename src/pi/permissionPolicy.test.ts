@@ -3,27 +3,40 @@ import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { test } from "node:test";
 
-import { classifyToolCall, defaultProtectedPaths, defaultReadOnlyPaths } from "./permissionPolicy.ts";
-import { PiApprovalGate } from "./approvalGate.ts";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
+
+import { classifyToolCall, defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from "./permissionPolicy.ts";
+import { PiApprovalGate, SECRET_REFUSAL } from "./approvalGate.ts";
+import { ApprovalMemory } from "./approvalMemory.ts";
 
 const workspace = "/home/user/workspace";
 const appRoot = "/home/user/raytonebot";
 const policy = {
   cwd: workspace,
-  protectedPaths: defaultProtectedPaths({ appRoot, workspaces: [workspace, "/home/user/shared"] }),
+  secretPaths: defaultSecretPaths(),
+  protectedPaths: defaultProtectedPaths({ workspaces: [workspace, "/home/user/shared"] }),
   readOnlyPaths: defaultReadOnlyPaths({ appRoot, workspaces: [workspace, "/home/user/shared"] }),
 };
 
-test("protected: credentials, the bot's own code, agent config, env dumps", () => {
+test("secret: credentials and environment dumps", () => {
   const cases: [string, Record<string, unknown>][] = [
     ["read", { path: "~/.raytonebot/env" }],
     ["read", { path: resolve(homedir(), ".ssh/id_ed25519") }],
-    ["write", { path: "/home/user/raytonebot/src/pi/piHost.ts" }],
-    ["edit", { path: ".claude/settings.json" }],
+    ["write", { path: resolve(homedir(), ".claude/.credentials.json") }],
     ["bash", { command: "cat ~/.raytonebot/env" }],
     ["bash", { command: "env | grep KEY" }],
     ["bash", { command: "printenv" }],
     ["bash", { command: "cat /proc/1/environ" }],
+  ];
+  for (const [tool, args] of cases) assert.equal(classifyToolCall(tool, args, policy), "secret", JSON.stringify(args));
+});
+
+test("protected: the bot's own code and agent config", () => {
+  const cases: [string, Record<string, unknown>][] = [
+    ["write", { path: "/home/user/raytonebot/src/pi/piHost.ts" }],
+    ["edit", { path: ".claude/settings.json" }],
   ];
   for (const [tool, args] of cases) assert.equal(classifyToolCall(tool, args, policy), "protected", JSON.stringify(args));
 });
@@ -64,11 +77,54 @@ test("the gate per mode", () => {
   assert.equal(gate.requiresApproval("write", write), false, "sandbox autonomy inside the workspace");
   assert.equal(gate.requiresApproval("bash", { command: "npm test" }), false);
   assert.equal(gate.requiresApproval("bash", push), true);
-  assert.equal(gate.requiresApproval("read", secret), true);
 
   gate.setMode("allow-all");
   assert.equal(gate.requiresApproval("bash", push), false);
-  assert.equal(gate.requiresApproval("read", secret), true, "protected asks in every mode");
+  assert.equal(gate.requiresApproval("edit", { path: ".claude/settings.json" }), true, "protected asks in every mode");
+  for (const mode of ["request", "auto", "allow-all"] as const) {
+    gate.setMode(mode);
+    assert.equal(gate.requiresApproval("read", secret), false, "credentials are refused, never asked about");
+    assert.equal(gate.isRefused("read", secret), true);
+  }
+});
+
+test("a refused call fails with the reason and leaves nothing pending", async () => {
+  const gate = new PiApprovalGate(policy);
+  gate.setMode("allow-all");
+  await assert.rejects(gate.wait("t1", "bash", { command: "printenv" }), (error: Error) => error.message === SECRET_REFUSAL);
+  assert.equal(gate.resolve("t1", "yes"), false);
+});
+
+test("always-allow is kept per agent, across conversations and restarts", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "rtb-approvals-"));
+  try {
+    const file = join(dir, "approvals.json");
+    const memory = new ApprovalMemory(file);
+    const first = new PiApprovalGate(policy, memory);
+    first.setMode("request");
+    first.setAgent("planner");
+    const answered = first.wait("t1", "bash", { command: "ls" });
+    first.resolve("t1", "always");
+    await answered;
+
+    // Another conversation with the same agent, after a restart: no question.
+    const second = new PiApprovalGate(policy, new ApprovalMemory(file));
+    second.setMode("request");
+    second.setAgent("planner");
+    assert.equal(second.requiresApproval("bash", { command: "ls" }), false);
+    // Another agent is not covered, and protected calls are never covered.
+    second.setAgent("builder");
+    assert.equal(second.requiresApproval("bash", { command: "ls" }), true);
+    second.setAgent("planner");
+    assert.equal(second.requiresApproval("bash", { command: "cd /home/user/raytonebot && npm run build" }), true);
+
+    const reloaded = new ApprovalMemory(file);
+    assert.deepEqual(reloaded.list(), { planner: ["bash"] });
+    reloaded.clear("planner");
+    assert.deepEqual(new ApprovalMemory(file).list(), {});
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test("the bot's own code: reading and reviewing it is ordinary, changing it is protected", () => {
@@ -109,12 +165,12 @@ test("the bot's own code: reading and reviewing it is ordinary, changing it is p
 });
 
 test("always-allow covers reviewing the bot's code, never changing it", () => {
-  const gate = new PiApprovalGate(policy);
+  const memory = new ApprovalMemory();
+  const gate = new PiApprovalGate(policy, memory);
   gate.setMode("request");
   const review = { command: "cd /home/user/raytonebot && cat package.json" };
   assert.equal(gate.requiresApproval("bash", review), true);
-  // Simulates the user's "always allow" for bash in this conversation.
-  (gate as unknown as { alwaysApproved(): Set<string> }).alwaysApproved().add("bash");
+  memory.add("default", "bash");
   assert.equal(gate.requiresApproval("bash", review), false);
   assert.equal(gate.requiresApproval("bash", { command: "cd /home/user/raytonebot && npm run build" }), true);
   gate.setMode("auto");

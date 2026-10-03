@@ -95,7 +95,7 @@ const en = {
     undo: "Undo",
     hints: {
       yes: "Allow once",
-      always: "Don't ask again for this tool in this chat (protected actions still ask)",
+      always: "Don't ask this agent again for this tool (protected actions still ask)",
       no: "Deny this time",
     },
     permissionRequired: "Permission required",
@@ -223,7 +223,7 @@ const zh: typeof en = {
     undo: "撤销",
     hints: {
       yes: "仅允许这一次",
-      always: "本对话中此工具不再询问（受保护操作仍会询问）",
+      always: "此 Agent 以后使用该工具不再询问（受保护操作仍会询问）",
       no: "这次先拒绝",
     },
     permissionRequired: "需要权限",
@@ -349,7 +349,7 @@ const ja: typeof en = {
     undo: "取り消す",
     hints: {
       yes: "今回だけ許可",
-      always: "この会話ではこのツールを今後確認しない（保護された操作は確認します）",
+      always: "このエージェントでは今後このツールを確認しない（保護された操作は確認します）",
       no: "今回は拒否",
     },
     permissionRequired: "権限が必要です",

@@ -62,7 +62,8 @@ Claude Code / Codex 的 JSON 输出
 
 | 工具调用类别 | 例子 | 请求权限 | 替我批准 | 全部允许 |
 | --- | --- | --- | --- | --- |
-| 受保护 | 读写 `~/.raytonebot`、`~/.ssh`、`~/.codex/auth.json`、`~/.claude*` 凭据、工作区里的 `.claude/.codex/.agents`；**修改**应用自身代码（工作区分离时；含会写入的 bash：重定向、`rm/mv/cp`、`sed -i`、`git checkout`、`npm install/build`、`sh -c` 等）；`env`/`printenv`/`/proc/*/environ` | 询问 | 询问 | **询问**（「始终允许」也不能覆盖） |
+| 禁止访问 | 读写 `~/.raytonebot`、`~/.ssh`、`~/.aws`、`~/.codex/auth.json`、`~/.claude*` 凭据；`env`/`printenv`/`/proc/*/environ` | **拒绝** | **拒绝** | **拒绝**（不弹询问，工具结果里告知原因） |
+| 受保护 | 修改工作区里的 `.claude/.codex/.agents`；**修改**应用自身代码（工作区分离时；含会写入的 bash：重定向、`rm/mv/cp`、`sed -i`、`git checkout`、`npm install/build`、`sh -c` 等） | 询问 | 询问 | **询问**（「始终允许」也不能覆盖） |
 | 对外/高危 | `git push`、各类 publish、`docker push`、部署 CLI、`ssh/scp/rsync` 到远端、`curl` 上传、`rm -rf /`/`~`、关机、格式化 | 询问 | 询问 | 直接执行 |
 | 修改工作区 | 普通 shell、edit、write、装依赖、联网下载 | 询问 | 直接执行 | 直接执行 |
 | 只读 | read/grep/find/ls 等；读取应用自身代码 | 直接执行 | 直接执行 | 直接执行 |
@@ -71,6 +72,8 @@ Claude Code / Codex 的 JSON 输出
 - Codex 沙箱：默认 `workspace-write`；只有 `RAYTONEBOT_SANDBOX=1` 且选「全部允许」时用 `danger-full-access`（VM 即边界）。Codex 无法按路径逐条拦截，受保护路径对它只能靠环境变量清理与 Codex 自身沙箱，属于已知缺口。
 - 密钥隔离（`src/pi/runtime/childEnv.ts`）：所有 Agent 子进程（Pi bash、Claude、Codex）剥离 `*_API_KEY`、任意 `*_TOKEN`、`*_SECRET(_KEY)`、`*_SECRET_ACCESS_KEY`、`*_PASSWORD`、`*_PRIVATE_KEY`、`*_CREDENTIALS`、`E2B_*`、访问密码；只把各引擎自己需要的那一个重新放回。Codex 执行的命令只看到 `PATH/HOME/LANG` 等基础变量。云入口读取访问密码后即从进程环境删除。
 - 工作区：`RAYTONEBOT_WORKSPACE` 设定 Agent 工作目录；与应用目录不同时，应用代码自动成为受保护路径。
+- 「始终允许」按 Agent 记住（`~/.raytonebot/data/approvals.json`），同一 Agent 的新对话、重启后仍有效；不覆盖受保护与对外操作。设置 → 权限里可按 Agent 重置（`POST /approvals/clear`）。
+- 禁止访问的调用 Pi 与 Claude Code 都在执行前拒绝；Codex 无逐步回调，仍靠子进程剥离密钥与自身沙箱（已知缺口）。
 - 并行：不同对话可同时运行（上限 3，沙箱 2C/4G）；同一对话同时只有一轮。每个对话一个审批闸门，模式、cwd、「始终允许」互不影响；停止、审批、断开连接只作用于本对话。侧栏 Agent 状态点按角色显示所有在跑的对话（含后台对话等待审批时的「等你确认」）。
 - Pi 资源加载（`src/pi/piResources.ts`）：进程内的 Pi 会话不加载任何扩展，项目视为不受信任（忽略 cwd 下的 `.pi/settings.json`、其中的 packages 与 `.pi/extensions`）。原因：Pi SDK 默认信任项目，并自动安装 settings 里缺失的 packages；Agent 能写自己的 cwd，写入的扩展会在下次建会话时于 bot 进程内执行（2026-10-03 实测复现后修复）。`AGENTS.md` 与 skills 照常加载。要用扩展，须在代码里显式传入，不能靠目录发现。
 

@@ -172,3 +172,47 @@ test("an approval wait that starts after its run was stopped fails at once", asy
   stopped.abort();
   await assert.rejects(gate.wait("t1", "write", { path: "a.md" }, stopped.signal), /cancelled/);
 });
+
+test("always-allow carries over to the agent's next conversation until it is reset", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-host-"));
+  const asked: string[] = [];
+  const factory: PiBridgeFactory = async ({ approvalGate, sessionDir }) => {
+    const id = decodeURIComponent(sessionDir!.split("/").pop()!);
+    return {
+      subscribe: () => () => undefined,
+      async prompt() {
+        if (approvalGate.requiresApproval("write", { path: "notes.md" })) asked.push(id);
+        await approvalGate.wait(`call-${id}`, "write", { path: "notes.md" });
+      },
+      abort: async () => undefined,
+      dispose: () => undefined,
+      configure: async () => undefined,
+      state: async () => ({ models: [], tools: [] }) as never,
+      newSession: async () => undefined,
+    };
+  };
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  const turn = (conversationId: string) =>
+    controller.runPrompt({ conversationId, prompt: "x", permissionMode: "request", agentPreset: "assistant" }, () => undefined);
+  try {
+    const first = turn("a");
+    await tick();
+    controller.resolveApproval("call-a", "always", "a");
+    await first;
+    await controller.newSession("a");
+    await turn("b");
+    await turn("a");
+    assert.deepEqual(asked, ["a"], "asked once, in the first conversation only");
+    assert.deepEqual((await controller.state("b")).alwaysAllowed, { assistant: ["write"] });
+
+    assert.deepEqual(controller.clearApprovals("assistant"), {});
+    const again = turn("c");
+    await tick();
+    assert.deepEqual(asked, ["a", "c"]);
+    controller.resolveApproval("call-c", "yes", "c");
+    await again;
+  } finally {
+    controller.dispose();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
