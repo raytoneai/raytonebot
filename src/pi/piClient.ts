@@ -137,12 +137,24 @@ export async function startNewPiSession(
   return requestJson<PiRuntimeState>(fetcher, `${PI_API_PREFIX}/session/new`, { conversationId });
 }
 
+/**
+ * Answers a held tool call. Resolves `false` when the host says it is no longer pending (409:
+ * answered elsewhere or its run ended); throws on transport failures, which are worth a retry.
+ */
 export async function resolvePiApproval(
   toolCallId: string,
   decision: PiApprovalDecision,
+  conversationId?: string,
   fetcher: typeof fetch = fetch,
-): Promise<void> {
-  await requestJson(fetcher, `${PI_API_PREFIX}/approval`, { toolCallId, decision });
+): Promise<boolean> {
+  const response = await fetcher(`${PI_API_PREFIX}/approval`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ toolCallId, decision, conversationId }),
+  });
+  if (response.status === 409) return false;
+  if (!response.ok) throw new Error(await responseError(response, "Pi request failed"));
+  return true;
 }
 
 /** Stream one real Pi turn. Each line is already an AgentUX event, never a Pi SDK object. */

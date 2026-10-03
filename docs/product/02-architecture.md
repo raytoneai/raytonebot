@@ -25,7 +25,7 @@ AgentSphere 沙箱 agentmatrix-v1（2C/4G, Linux x86_64, Node 24）
 | POST | `/__agentcanvas/pi/config` | provider/model/thinking/会话 key |
 | POST | `/__agentcanvas/pi/prompt` | 发起一轮，返回 NDJSON 事件流；连接断开即中止 |
 | POST | `/__agentcanvas/pi/abort` | 停止 `conversationId` 那一轮；不带则停止全部 |
-| POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no` |
+| POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no`；带 `conversationId` 时只在该对话内匹配；409 = 已失效 |
 | POST | `/__agentcanvas/pi/session/new` | 新会话 |
 | GET | `/__agentcanvas/pi/conversations` | 对话列表（侧栏恢复） |
 | GET / DELETE | `/__agentcanvas/pi/conversations/:id` | 读取历史事件 / 删除对话 |

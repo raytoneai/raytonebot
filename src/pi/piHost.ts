@@ -31,6 +31,7 @@ import {
   type ConversationSummary,
   type StoredConversation,
 } from "./conversationStore.ts";
+import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
 import { createHostResources } from "./piResources.ts";
@@ -67,14 +68,17 @@ export type PiBridgeFactory = (input: {
 export type PiRuntimeController = {
   state(conversationId?: string): Promise<PiRuntimeState>;
   configure(input: PiRuntimeConfiguration): Promise<PiRuntimeState>;
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void): Promise<void>;
+  /** `signal` belongs to the caller's stream: aborting it stops this run, and only once the run
+   *  holds its slot (a rejected duplicate must not stop the turn already in progress). */
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string): Promise<void>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
   listConversations(): ConversationSummary[];
   getConversation(id: string): StoredConversation | undefined;
   deleteConversation(id: string): void;
-  resolveApproval(toolCallId: string, decision: PiApprovalDecision): boolean;
+  /** Answers a held tool call; with a conversation, only that conversation's gate is consulted. */
+  resolveApproval(toolCallId: string, decision: PiApprovalDecision, conversationId?: string): boolean;
   newSession(conversationId?: string): Promise<PiRuntimeState>;
   dispose(): void;
 };
@@ -375,7 +379,8 @@ export function createPiRuntimeController(options: {
       } else {
         // `exec` cannot ask per step, so "request" asks once before Codex may write.
         if (permissionMode === "request" && approvalGate.requiresApproval("codex", {})) {
-          const toolCallId = `codex_write_${Date.now().toString(36)}`;
+          // Unique per run: two conversations starting Codex in the same millisecond must not share it.
+          const toolCallId = `codex_write_${randomUUID()}`;
           const args = { sandbox: "workspace-write", cwd: runCwd, ...(layout.shared ? { shared: layout.shared } : {}) };
           try {
             await hold(toolCallId, "codex", args, () => {
@@ -416,6 +421,17 @@ export function createPiRuntimeController(options: {
     }
   };
 
+  /** Stops one conversation's run, or every run. A stop before the run has started is kept. */
+  const abortRuns = async (conversationId?: string) => {
+    const targets = conversationId === undefined
+      ? [...runs.values()]
+      : [runs.get(normalizeConversationId(conversationId))].filter((slot): slot is RunSlot => Boolean(slot));
+    await Promise.all(targets.map(async (slot) => {
+      slot.stopRequested = true;
+      await slot.stop?.();
+    }));
+  };
+
   return {
     state,
     async configure(input) {
@@ -428,7 +444,7 @@ export function createPiRuntimeController(options: {
       await current.configure(input);
       return state(conversationId);
     },
-    async runPrompt(input, onEvent) {
+    async runPrompt(input, onEvent, options) {
       const prompt = input.prompt?.trim();
       if (!prompt) throw new Error("Pi prompt is empty.");
       const conversationId = normalizeConversationId(input.conversationId);
@@ -438,6 +454,9 @@ export function createPiRuntimeController(options: {
       }
       // Reserved before any await, so a second prompt for the same conversation cannot slip in.
       runs.set(conversationId, { stopRequested: false });
+      const stopOnSignal = () => void abortRuns(conversationId).catch(() => undefined);
+      if (options?.signal?.aborted) stopOnSignal();
+      options?.signal?.addEventListener("abort", stopOnSignal, { once: true });
       const role = isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant";
       const harness = agentPreset(role).harness;
       // Every event the browser sees is also kept on disk; a held approval is flushed at once so
@@ -457,6 +476,7 @@ export function createPiRuntimeController(options: {
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record);
         else await runPiPrompt(input, conversationId, prompt, record);
       } finally {
+        options?.signal?.removeEventListener("abort", stopOnSignal);
         runs.delete(conversationId);
         store.flush(conversationId);
       }
@@ -475,17 +495,11 @@ export function createPiRuntimeController(options: {
         || (definition.apiKeyEnvVar ? process.env[definition.apiKeyEnvVar]?.trim() : undefined);
       return probeProvider(definition, definition.authMode === "none" ? undefined : key);
     },
-    async abort(conversationId) {
-      const targets = conversationId === undefined
-        ? [...runs.values()]
-        : [runs.get(normalizeConversationId(conversationId))].filter((slot): slot is RunSlot => Boolean(slot));
-      await Promise.all(targets.map(async (slot) => {
-        slot.stopRequested = true;
-        await slot.stop?.();
-      }));
-    },
-    resolveApproval(toolCallId, decision) {
+    abort: abortRuns,
+    resolveApproval(toolCallId, decision, onlyConversationId) {
+      const scope = onlyConversationId === undefined ? undefined : normalizeConversationId(onlyConversationId);
       for (const [conversationId, gate] of approvalGates) {
+        if (scope !== undefined && conversationId !== scope) continue;
         if (!gate.resolve(toolCallId, decision)) continue;
         runs.get(conversationId)?.adapter?.resolveApproval(toolCallId, decision);
         return true;
@@ -563,7 +577,7 @@ export function createPiHttpHost(options: {
           const decision = approvalDecision(body.decision);
           if (!toolCallId || !decision) {
             sendJson(res, 400, { error: "toolCallId and a valid decision are required." });
-          } else if (!controller.resolveApproval(toolCallId, decision)) {
+          } else if (!controller.resolveApproval(toolCallId, decision, stringField(body, "conversationId"))) {
             sendJson(res, 409, { error: "This Pi approval is no longer pending." });
           } else {
             sendJson(res, 200, { ok: true });
@@ -616,9 +630,10 @@ export function createPiHttpHost(options: {
           res.flushHeaders();
           let completed = false;
           const conversationId = stringField(body, "conversationId");
-          // Only this stream's own conversation: other conversations may be running too.
+          // Handed to the run, which stops on it only after it owns its conversation's slot.
+          const disconnected = new AbortController();
           const abortOnDisconnect = () => {
-            if (!completed) void controller.abort(conversationId ?? "default").catch(() => undefined);
+            if (!completed) disconnected.abort();
           };
           res.once("close", abortOnDisconnect);
           // Proxies in front of the sandbox drop a response that stays silent; a CLI can go quiet
@@ -639,7 +654,7 @@ export function createPiHttpHost(options: {
             codexModelSource: body.codexModelSource === "local-login" ? "local-login" : "provider",
           }, (event) => {
             if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
-          });
+          }, { signal: disconnected.signal });
           completed = true;
           clearInterval(heartbeat);
           res.off("close", abortOnDisconnect);

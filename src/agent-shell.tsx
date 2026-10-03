@@ -229,13 +229,10 @@ export function AgentApp() {
     state: liveApprovalTool ? "warning" : piRunning ? "waiting" : celebrating ? "success" : "idle",
   };
   const approveLive = async (toolCallId: string, decision: ApprovalDecision) => {
-    try {
-      await resolvePiApproval(toolCallId, decision);
-    } finally {
-      // Dismiss whether or not the decision landed: a stopped run answers 409, and leaving
-      // the overlay up would strand it on a tool that can never be answered.
-      setDismissedApprovalId(toolCallId);
-    }
+    // Dismissed once the host has the answer, or says it is no longer pending (a stopped run
+    // answers 409). A transport failure throws instead: the surface stays up for a retry.
+    await resolvePiApproval(toolCallId, decision, activePiConversationId);
+    setDismissedApprovalId(toolCallId);
   };
   const inlineApprovalOverlay = liveApprovalTool && activeProject.toolCalls.approval === "inline" ? (
     <div className="preview-approval-overlay" data-preview-region="approval-overlay" data-approval-kind="inline-runtime">
@@ -413,6 +410,30 @@ export function AgentApp() {
     return state;
   }
 
+  /**
+   * One history load per conversation, shared: opening it starts the load and a prompt sent
+   * meanwhile waits for it. It only fills a conversation that is still empty, so a late response
+   * can never overwrite a turn on screen.
+   */
+  const historyLoadsRef = useRef(new Map<string, Promise<EphemeralPiConversation | undefined>>());
+  function loadStoredConversation(conversation: EphemeralPiConversation) {
+    const pending = historyLoadsRef.current.get(conversation.id);
+    if (pending) return pending;
+    const load = getStoredConversation(conversation.id)
+      .then((stored) => {
+        const loaded = { ...conversation, title: stored.title, events: stored.events, stored: false };
+        setPiConversations((current) => current.map((entry) => (
+          entry.id === loaded.id && entry.events.length === 0 ? loaded : entry
+        )));
+        if (activeConversationIdRef.current === loaded.id) setPiEvents([...stored.events]);
+        return loaded;
+      })
+      .catch(() => undefined)
+      .finally(() => historyLoadsRef.current.delete(conversation.id));
+    historyLoadsRef.current.set(conversation.id, load);
+    return load;
+  }
+
   /** Adds or removes one conversation from a set held in state. */
   const toggleIn = (set: ReadonlySet<string>, id: string, on: boolean): ReadonlySet<string> => {
     if (set.has(id) === on) return set;
@@ -426,16 +447,26 @@ export function AgentApp() {
     if (piRunning) return;
     const normalizedPrompt = prompt.trim();
     if (!normalizedPrompt) return;
-    let nextConversation: EphemeralPiConversation = {
-      ...titlePiConversation(activePiConversation, normalizedPrompt),
-      agentPreset: agentSettings.presetId,
-    };
-    const conversationId = nextConversation.id;
-    const turnStartEventCount = nextConversation.events.length;
+    const conversationId = activePiConversation.id;
+    // Synchronous guard: state updates land later, so a double submit could slip past `piRunning`.
+    if (piAbortRefs.current.has(conversationId)) return;
     const provider = defaultProviderConnection(activeProject);
     const controller = new AbortController();
     piAbortRefs.current.set(conversationId, controller);
     setRunningConversationIds((current) => toggleIn(current, conversationId, true));
+    // A reopened conversation's history may still be loading; the new turn builds on it.
+    let base = activePiConversation;
+    if (base.stored && base.events.length === 0) base = (await loadStoredConversation(base)) ?? base;
+    if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
+      if (piAbortRefs.current.get(conversationId) === controller) piAbortRefs.current.delete(conversationId);
+      setRunningConversationIds((current) => toggleIn(current, conversationId, false));
+      return;
+    }
+    let nextConversation: EphemeralPiConversation = {
+      ...titlePiConversation(base, normalizedPrompt),
+      agentPreset: agentSettings.presetId,
+    };
+    const turnStartEventCount = nextConversation.events.length;
     // The run keeps going when the user opens another conversation; only the one on screen is drawn.
     const showIfActive = (conversation: EphemeralPiConversation) => {
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
@@ -634,15 +665,7 @@ export function AgentApp() {
       setAgentSettings(next);
       saveAgentSettings(next);
     }
-    if (conversation.stored && conversation.events.length === 0) {
-      void getStoredConversation(conversation.id)
-        .then((stored) => {
-          const loaded = { ...conversation, title: stored.title, events: stored.events, stored: false };
-          setPiConversations((current) => current.map((entry) => (entry.id === loaded.id ? loaded : entry)));
-          if (activeConversationIdRef.current === loaded.id) setPiEvents([...stored.events]);
-        })
-        .catch(() => undefined);
-    }
+    if (conversation.stored && conversation.events.length === 0) void loadStoredConversation(conversation);
     setOutputPanelItems([]);
     setActiveOutputPanelItemId(undefined);
     setOutputModalOpen(false);
@@ -674,7 +697,9 @@ export function AgentApp() {
     onGitCommit: noop,
     onProviderChange: (id) => void selectProvider(id),
     onModelChange: (model) => void selectModel(model),
-    onApprovalDecision: (toolCallId, decision) => resolvePiApproval(toolCallId, decision),
+    onApprovalDecision: async (toolCallId, decision) => {
+      await resolvePiApproval(toolCallId, decision, activePiConversationId);
+    },
     onCollapseLeft: () => setLeftCollapsed(true),
     onCollapseRight: () => setRightCollapsed(true),
     onOpenArtifact: openArtifact,

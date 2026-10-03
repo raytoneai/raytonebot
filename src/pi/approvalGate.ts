@@ -72,6 +72,8 @@ export class PiApprovalGate {
 
   async wait(toolCallId: string, toolName: string, args: unknown, signal?: AbortSignal): Promise<void> {
     if (!this.requiresApproval(toolName, args)) return;
+    // The abort listener below never fires for a signal that is already aborted.
+    if (signal?.aborted) throw new Error("Tool approval was cancelled.");
     const decision = await new Promise<PiApprovalDecision>((resolve, reject) => {
       const onAbort = () => reject(new Error("Tool approval was cancelled."));
       const cleanup = () => signal?.removeEventListener("abort", onAbort);

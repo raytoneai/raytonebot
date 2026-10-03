@@ -100,3 +100,75 @@ test("concurrent runs are capped, and a stop sent before the run starts still ap
     rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test("an approval is answered only inside the conversation it is sent for", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-host-"));
+  const waits = new Map<string, Promise<string>>();
+  const factory: PiBridgeFactory = async ({ approvalGate, sessionDir }) => {
+    const id = decodeURIComponent(sessionDir!.split("/").pop()!);
+    return {
+      subscribe: () => () => undefined,
+      // Both conversations hold the same tool call id, as two same-millisecond Codex runs did.
+      async prompt() {
+        const outcome = approvalGate.wait("same-id", "write", { path: "notes.md" }).then(() => "approved", () => "denied");
+        waits.set(id, outcome);
+        await outcome;
+      },
+      abort: async () => undefined,
+      dispose: () => undefined,
+      configure: async () => undefined,
+      state: async () => ({ models: [], tools: [] }) as never,
+      newSession: async () => undefined,
+    };
+  };
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  try {
+    const runA = controller.runPrompt({ conversationId: "a", prompt: "x", permissionMode: "request" }, () => undefined);
+    const runB = controller.runPrompt({ conversationId: "b", prompt: "x", permissionMode: "request" }, () => undefined);
+    await tick();
+    assert.equal(controller.resolveApproval("same-id", "no", "b"), true);
+    assert.equal(await waits.get("b"), "denied");
+    assert.equal(controller.resolveApproval("same-id", "yes", "a"), true);
+    assert.equal(await waits.get("a"), "approved");
+    await Promise.all([runA, runB]);
+  } finally {
+    controller.dispose();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("a rejected duplicate's stream closing does not stop the run in progress", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-host-"));
+  const { factory, release, aborted } = fakeBridges();
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  try {
+    const first = new AbortController();
+    const run = controller.runPrompt({ conversationId: "a", prompt: "hi" }, () => undefined, { signal: first.signal });
+    await tick();
+    const duplicate = new AbortController();
+    await assert.rejects(
+      controller.runPrompt({ conversationId: "a", prompt: "again" }, () => undefined, { signal: duplicate.signal }),
+      /already has a run/,
+    );
+    duplicate.abort();
+    await tick();
+    assert.deepEqual(aborted, []);
+    assert.equal((await controller.state("a")).running, true);
+    // The run's own stream closing does stop it.
+    first.abort();
+    await run;
+    assert.deepEqual(aborted, ["a"]);
+    assert.equal(release.size, 1);
+  } finally {
+    controller.dispose();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("an approval wait that starts after its run was stopped fails at once", async () => {
+  const { PiApprovalGate } = await import("./approvalGate.ts");
+  const gate = new PiApprovalGate({ cwd: "/w", protectedPaths: [] });
+  const stopped = new AbortController();
+  stopped.abort();
+  await assert.rejects(gate.wait("t1", "write", { path: "a.md" }, stopped.signal), /cancelled/);
+});

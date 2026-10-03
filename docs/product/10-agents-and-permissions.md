@@ -69,7 +69,7 @@ Claude Code / Codex 的 JSON 输出
 
 - 默认模式：`RAYTONEBOT_SANDBOX=1`（云端沙箱）时为「替我批准」，本机为「请求权限」。主机通过 `/state` 的 `defaultPermissionMode` 告诉前端；用户手动选择后不再跟随。
 - Codex 沙箱：默认 `workspace-write`；只有 `RAYTONEBOT_SANDBOX=1` 且选「全部允许」时用 `danger-full-access`（VM 即边界）。Codex 无法按路径逐条拦截，受保护路径对它只能靠环境变量清理与 Codex 自身沙箱，属于已知缺口。
-- 密钥隔离（`src/pi/runtime/childEnv.ts`）：所有 Agent 子进程（Pi bash、Claude、Codex）剥离 `*_API_KEY/_TOKEN/_SECRET/_PASSWORD`、`E2B_*`、访问密码；只把各引擎自己需要的那一个重新放回。Codex 执行的命令只看到 `PATH/HOME/LANG` 等基础变量。云入口读取访问密码后即从进程环境删除。
+- 密钥隔离（`src/pi/runtime/childEnv.ts`）：所有 Agent 子进程（Pi bash、Claude、Codex）剥离 `*_API_KEY`、任意 `*_TOKEN`、`*_SECRET(_KEY)`、`*_SECRET_ACCESS_KEY`、`*_PASSWORD`、`*_PRIVATE_KEY`、`*_CREDENTIALS`、`E2B_*`、访问密码；只把各引擎自己需要的那一个重新放回。Codex 执行的命令只看到 `PATH/HOME/LANG` 等基础变量。云入口读取访问密码后即从进程环境删除。
 - 工作区：`RAYTONEBOT_WORKSPACE` 设定 Agent 工作目录；与应用目录不同时，应用代码自动成为受保护路径。
 - 并行：不同对话可同时运行（上限 3，沙箱 2C/4G）；同一对话同时只有一轮。每个对话一个审批闸门，模式、cwd、「始终允许」互不影响；停止、审批、断开连接只作用于本对话。侧栏 Agent 状态点按角色显示所有在跑的对话（含后台对话等待审批时的「等你确认」）。
 - Pi 资源加载（`src/pi/piResources.ts`）：进程内的 Pi 会话不加载任何扩展，项目视为不受信任（忽略 cwd 下的 `.pi/settings.json`、其中的 packages 与 `.pi/extensions`）。原因：Pi SDK 默认信任项目，并自动安装 settings 里缺失的 packages；Agent 能写自己的 cwd，写入的扩展会在下次建会话时于 bot 进程内执行（2026-10-03 实测复现后修复）。`AGENTS.md` 与 skills 照常加载。要用扩展，须在代码里显式传入，不能靠目录发现。

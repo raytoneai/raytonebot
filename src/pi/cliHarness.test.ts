@@ -156,6 +156,10 @@ test("agent processes never inherit the bot's secrets", async () => {
     DEEPSEEK_API_KEY: "d",
     OPENAI_API_KEY: "o",
     GITHUB_TOKEN_SECRET: "g",
+    GITHUB_TOKEN: "gh",
+    NPM_TOKEN: "npm",
+    SLACK_BOT_TOKEN: "slack",
+    AWS_SECRET_ACCESS_KEY: "aws",
     RAYTONEBOT_PUBLIC_ORIGIN: "https://x",
   }, ["OPENAI_API_KEY"]);
   assert.deepEqual(env, { PATH: "/bin", OPENAI_API_KEY: "o", RAYTONEBOT_PUBLIC_ORIGIN: "https://x" });

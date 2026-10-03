@@ -5,7 +5,7 @@
  * password, the E2B team key, model API keys) is one `env` away from a prompt-injected
  * exfiltration. Harness processes that need a credential get it re-added explicitly.
  */
-const SECRET_KEY_PATTERN = /(^|_)(API_KEY|AUTH_TOKEN|ACCESS_TOKEN|SECRET|PASSWORD|PASSWD|PRIVATE_KEY)$/i;
+const SECRET_KEY_PATTERN = /(^|_)(API_KEY|TOKEN|SECRET|SECRET_KEY|SECRET_ACCESS_KEY|PASSWORD|PASSWD|PRIVATE_KEY|CREDENTIALS)$/i;
 
 export function isSecretEnvKey(key: string): boolean {
   return key.startsWith("E2B_") || key.startsWith("RAYTONEBOT_PASSWORD") || SECRET_KEY_PATTERN.test(key);

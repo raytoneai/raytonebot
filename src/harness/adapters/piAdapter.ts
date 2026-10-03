@@ -64,6 +64,8 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
   let runStarted = false;
   let runFinished = false;
   let terminalError = false;
+  /** A failed model request. Pi may retry it, so it ends the run only if no retry succeeds. */
+  let pendingModelError: string | undefined;
 
   const meta = (suffix: string, messageId?: string) => {
     seq += 1;
@@ -338,7 +340,8 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
         ensureRun(next);
         break;
       case "agent_settled":
-        if (!terminalError) settleRun("success", next);
+        if (pendingModelError !== undefined) emitTerminalError(pendingModelError, next);
+        else if (!terminalError) settleRun("success", next);
         break;
       case "message_start": {
         const message = asRecord(event.message);
@@ -423,7 +426,8 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
           finishAssistantBlocks(next);
           const stopReason = stringField(message, "stopReason");
           const errorMessage = stringField(message, "errorMessage");
-          if (stopReason === "error") emitTerminalError(errorMessage ?? "Pi model request failed.", next);
+          // Not terminal yet: `auto_retry_start` follows when Pi retries this request.
+          if (stopReason === "error") pendingModelError = errorMessage ?? "Pi model request failed.";
           else if (stopReason === "aborted") settleRun("cancelled", next);
         }
         break;
@@ -486,6 +490,7 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
         break;
       }
       case "auto_retry_start": {
+        pendingModelError = undefined;
         const attempt = numberField(event, "attempt") ?? 1;
         startStep(`retry_${attempt}`, {
           label: `Retry ${attempt}`,
@@ -496,6 +501,7 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
       }
       case "auto_retry_end": {
         const attempt = numberField(event, "attempt") ?? 1;
+        if (event.success !== true) pendingModelError = stringField(event, "finalError") ?? pendingModelError ?? "Pi model request failed.";
         finishStep(`retry_${attempt}`, {
           status: event.success === true ? "success" : "error",
           summary: stringField(event, "finalError"),
@@ -601,7 +607,8 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
     resolveApproval,
     finish(status = "success") {
       const next: AgentUXEvent[] = [];
-      if (!terminalError) settleRun(status, next);
+      if (status === "success" && pendingModelError !== undefined) emitTerminalError(pendingModelError, next);
+      else if (!terminalError) settleRun(status, next);
       return next;
     },
   };

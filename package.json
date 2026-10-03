@@ -13,7 +13,7 @@
     "preview:cloud": "node scripts/cloud-preview.mjs",
     "typecheck": "tsc --noEmit",
     "check:local": "node scripts/check-local.mjs",
-    "test": "node --test src/pi/*.test.ts"
+    "test": "node --test src/pi/*.test.ts src/harness/adapters/*.test.ts"
   },
   "dependencies": {
     "@agent-ux/protocol": "file:./vendor/agent-ux/protocol",
