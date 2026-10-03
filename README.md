@@ -1,16 +1,12 @@
-# RaytoneBot · 本机实验
+# RaytoneBot
 
 > 产品文档、路线图与 AI 开发流程：[docs/product/](docs/product/README.md)。
 
-从 AgentCanvas 原生导出，保留其会话侧栏、输入框、工具卡片、审批和产物面板；使用已有 Pi 运行时。2026-10-03 已将同一应用部署到 AgentSphere 临时沙箱，见[部署记录与访问方式](docs/agentsphere-deployment.md)。
+单用户 AI 工作助手，运行在 AgentSphere 云沙箱。UI 分叉自 AgentCanvas 导出（commit `2019158e472a360cd02897534221a8474b18ccd6`，不再同步上游），服务端在 `src/pi/`，可驱动 Pi、Claude Code、Codex 三个引擎。当前状态、已验证项与云端地址见 [docs/product/README.md](docs/product/README.md)；部署见 [06-deployment-runbook.md](docs/product/06-deployment-runbook.md)。
 
-运行 `npm run dev` 后打开 **http://127.0.0.1:5188/**。输入框旁的齿轮可配置模型服务地址与会话密钥；沿用导出模板的模型默认值，未替用户选择新模型。模型凭据与 Cloud Sandbox key 是两回事。
+运行 `npm run dev` 后打开 **http://127.0.0.1:5188/**。本机未设置 `RAYTONEBOT_WORKSPACE(_ROOT)` 时，Agent 以此项目为工作目录、以当前用户权限执行，这不是隔离沙箱；默认对修改类工具请求审批。会话保存在 `~/.raytonebot/data`。检查命令：`npm run build`、`npm test`、`npm run check:local`（需先启动服务）、`node scripts/cloud-preview.mjs --check`。
 
-当前已验证：生产构建（含 TypeScript）、本地 Pi SDK 加载、7 个工具注册、空输入校验、跨站请求拒绝、界面设置与演示审批状态；云端 HTTP 页面、资源、Pi SDK 与入口鉴权也已通过。**尚未验证真实模型任务；云端浏览器视觉验收受客户端拦截影响未完成**。检查命令：本机先启动服务，再运行 `npm run check:local`；云入口校验运行 `node scripts/cloud-preview.mjs --check`。这些检查不会调用模型。
-
-本地工具以此项目为工作目录，以当前用户权限执行；这不是隔离沙箱。默认对修改类工具请求审批。会话保存在内存中，刷新页面不会恢复历史。`?devtools=1` 中的事件流是演示数据；普通代码产物可预览，结构化表单产物仍需补渲染映射。
-
-来源：AgentCanvas commit `2019158e472a360cd02897534221a8474b18ccd6`（2026-10-02 获取）。本次只调整品牌、欢迎文字、设置入口、面板显隐和本机监听地址。迁云判断与 OpenXX 对比见 [调研笔记](docs/feasibility.md)。
+下文为 AgentCanvas 导出时的原始说明，保留作组件与事件管线参考；其中“只改 `backendAdapter.ts`”等导出期限制已不适用，以 `AGENTS.md` 为准。
 
 A self-contained Agent frontend exported from **AgentCanvas** — the same components the
 AgentCanvas builder previews. Vite + React + TypeScript, with the AgentUX SDK vendored

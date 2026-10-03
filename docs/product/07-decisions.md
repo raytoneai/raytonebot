@@ -27,7 +27,7 @@
 
 ### ADR-004 会话持久化先用 Pi 自带的文件会话
 
-- 2026-10-03 · 已采纳（待 T1.3 实现验证）
+- 2026-10-03 · 已采纳（T1.3 已实现；实际存储位置见 ADR-012）
 - 决定：`SessionManager.inMemory` 改为 `SessionManager.create/open/list`，文件放 `~/.raytonebot/sessions/`；不引入数据库。
 - 理由：Pi 0.84.4 已提供，改动集中在 `piHost.ts`；单用户无需查询能力。
 - 重新评估：出现任务队列、定时任务、跨会话检索时，考虑 `node:sqlite`（零依赖）。

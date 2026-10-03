@@ -7,7 +7,7 @@
 | 命令 | 覆盖 |
 | --- | --- |
 | `npm run build` | TypeScript + 生产构建 |
-| `npm test`（M0 起） | piHost 接口、piAdapter 映射、后续新增单测 |
+| `npm test`（`node --test src/pi/*.test.ts`） | piHost 接口、CLI 输出翻译、权限、会话存储等；piAdapter 映射快照待补 |
 | `npm run check:local`（先启动服务） | Pi SDK 加载、工具注册、空 prompt 400、跨站拒绝 |
 | `node scripts/cloud-preview.mjs --check` | 密码、Host/Origin、CSRF、内部标准化 |
 
@@ -42,15 +42,15 @@
 | C4 | 正确密码访问页面与入口 JS/CSS | 200，HTML 含 RaytoneBot |
 | C5 | Pi state | 200，7 个工具 |
 | C6 | 普通浏览器打开 URL 走一遍 A1、A2 | 与本机一致 |
-| C7 | 工作区分离（M1 起） | Agent 的 `ls` 看到的是 `/home/user/workspace`，不是应用代码 |
+| C7 | 工作区分离（M1 起） | Agent 的 `ls` 看到的是 `/home/user/workspace/agents/<角色>/`，不是应用代码 |
 
 ## D 组：运维（M3 起）
 
 | # | 操作 | 期望 |
 | --- | --- | --- |
-| D1 | `deploy --new` | 新实例可用并通过 C 组，耗时记录在案 |
-| D2 | `backup` → `kill --yes` → `deploy --new` → `restore` | B1 的会话与工作区文件在新实例恢复 |
-| D3 | `status` | 到期时间、进程、health 正确 |
+| D1 | `sandbox.py create` → `deploy.py` | 新实例可用并通过 C 组，耗时记录在案 |
+| D2 | `sandbox.py backup` → 销毁（`kill` 待实现）→ `create` → `restore` → `deploy.py --skip-build` | B1 的会话与工作区文件在新实例恢复 |
+| D3 | `sandbox.py status` | 到期时间正确；进程与 health 待 T3.3 |
 
 ## E 组：多引擎与权限
 

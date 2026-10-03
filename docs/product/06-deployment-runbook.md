@@ -9,7 +9,7 @@
 | **只能用 E2B SDK 1.x**（实测 Python `e2b==1.11.1`；Node `e2b@^1`）；2.x 报 `404: method not allowed` | 部署脚本锁定 1.x |
 | 必须设 `E2B_DOMAIN=agentsphere.run`，否则 SDK 连官方 e2b.dev | 脚本启动时断言 |
 | 不能用 e2b CLI 登录 | 只用 SDK 脚本 |
-| 沙箱到 timeout 自动回收；`set_timeout(n)` 从调用时起算 | 需续期或接受重建 |
+| 到 timeout 时：自动暂停实例被暂停，普通实例被回收；`set_timeout(n)` 从调用时起算，单次上限 50 h | 用 `sandbox.py create` 建自动暂停实例 |
 | 单机、`SANDBOX_RECOVERY_ENABLED=false` | 沙箱随时可能消失；数据必须定期拉回本机 |
 | 公网端口地址 `https://<port>-<sandboxId>.agentsphere.run` | 应用 `RAYTONEBOT_PUBLIC_ORIGIN` 与之一致 |
 | 模板 `agentmatrix-v1`：2C/4G、Linux x86_64、Node 24 | 无需在沙箱装 Node |
@@ -19,16 +19,16 @@
 | 凭据 | 位置 | 禁止 |
 | --- | --- | --- |
 | `E2B_API_KEY`（团队 key，可创建任意沙箱） | 仅本机 shell 环境 / 本机未入库文件 | 写进仓库、沙箱、前端、文档 |
-| 访问密码（Basic Auth，用户名 `raytonebot`） | 本机 `.agentsphere/access.txt`；沙箱内 600 权限 env 文件 | 写进仓库或文档 |
+| 访问密码（Basic Auth，用户名 `raytonebot`） | 本机 `.agentsphere/access.json`；沙箱内 600 权限 env 文件 | 写进仓库或文档 |
 | 模型 API key | 沙箱 `~/.raytonebot/env`（M1 起）；或浏览器设置面板（仅内存） | 写进 `exported-project.ts` 或 bundle |
 
-`.gitignore` 已排除 `.agentsphere/`、`.env*`。
+`.gitignore` 已排除 `.agentsphere/`、`.env*`、`backups/`。
 
 ## 当前实例
 
-- URL：<https://5188-i7ngpr2af8dxd2ttcy842.agentsphere.run>
-- 状态文件：`.agentsphere/deployment.json`（sandboxId、到期时间、PID），`.agentsphere/verification.json`（最近检查结果）。
-- 它是临时实验实例，到期即失效，不承诺保留数据。
+- `id705on7k0a1ya1d90icj`（自动暂停），URL：<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>
+- 状态文件：`.agentsphere/deployment.json`（sandboxId、到期时间、PID），`.agentsphere/verification.json`（最近检查结果）。以状态文件为准，本节可能滞后。
+- 旧实例 `i7ngpr2af8dxd2ttcy842` 不会暂停，2026-10-04 13:19（北京时间）到期后销毁。
 
 ## 持久化（2026-10-03 实测）
 
@@ -50,8 +50,6 @@ $S backup            # 对话 + Pi 会话 + 工作区 → backups/<id>-<时间>.
 $S restore FILE      # 推回沙箱后运行 deploy.py --skip-build
 ```
 
-当前实例：`id705on7k0a1ya1d90icj`（自动暂停），<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>。旧实例 `i7ngpr2af8dxd2ttcy842` 不会暂停，2026-10-04 13:19（北京时间）到期后销毁。
-
 ## 部署（2026-10-03 起用脚本）
 
 ```bash
@@ -60,7 +58,7 @@ export DEEPSEEK_API_KEY=...                            # 可选，写入沙箱 e
 ~/.venvs/agentsphere/bin/python scripts/agentsphere/deploy.py [--sandbox ID] [--timeout 86400] [--skip-build]
 ```
 
-脚本：本机构建 → 上传（不含 `node_modules`、`.agentsphere`、`.env*`）→ 锁文件变化时才 `npm ci` → 写 `~/.raytonebot/env`（600，位于受保护目录）→ 停掉所有旧进程并用 `exec` 启动 → 从公网 URL 自检（鉴权 401、外站 403、`/state`、沙箱模式、工作区布局）→ 更新 `.agentsphere/deployment.json` 与 `verification.json`。沙箱内 env 包含：`RAYTONEBOT_PUBLIC_ORIGIN`、`RAYTONEBOT_PASSWORD`、`RAYTONEBOT_SANDBOX=1`、`RAYTONEBOT_WORKSPACE_ROOT=/home/user/workspace`、`PI_CODING_AGENT_DIR`、`DEEPSEEK_API_KEY`。
+脚本：本机构建 → 上传（不含 `node_modules`、`.agentsphere`、`.env*`）→ 锁文件变化时才 `npm ci` → 写 `~/.raytonebot/env`（600，位于受保护目录）→ 停掉所有旧进程并用 `setsid nohup` 脱离启动 → 从公网 URL 自检（鉴权 401、外站 403、`/state`、沙箱模式、工作区布局）→ 更新 `.agentsphere/deployment.json` 与 `verification.json`。沙箱内 env 包含：`RAYTONEBOT_PUBLIC_ORIGIN`、`RAYTONEBOT_PASSWORD`、`RAYTONEBOT_SANDBOX=1`、`RAYTONEBOT_WORKSPACE_ROOT=/home/user/workspace`、`PI_CODING_AGENT_DIR`、`DEEPSEEK_API_KEY`。
 
 沙箱目录：
 
@@ -93,24 +91,25 @@ sb.set_timeout(3600)          # 从现在起约 1 小时
 # sb.kill()                   # 销毁，未拉回的文件全部丢失 —— 先问人、先备份
 ```
 
-## 目标脚本（T1.6 / T3.1 实现）
+## 脚本一览
 
 放在 `scripts/agentsphere/`，Python + `e2b<2`，全部从环境变量读凭据，状态写 `.agentsphere/deployment.json`。
 
-| 命令 | 行为 |
-| --- | --- |
-| `deploy [--new]` | 本机 `npm run build` → 打包 `dist`、`src/pi`、`src/harness`、`vendor`、`scripts`、`vite.config.ts`、`package*.json`（不含 `node_modules`、`.agentsphere`、`.env*`）→ 上传到 `/home/user/raytonebot` → `npm ci --no-audit --no-fund` → 写 env（600）→ 用 `exec` 启动服务 → 等待 health → 运行 HTTP 自检 |
-| `status` | 到期时间、进程是否存活、health、最近日志 |
-| `renew [秒]` | `set_timeout` 并更新状态文件 |
-| `backup` | 打包 `~/.raytonebot/sessions` + `/home/user/workspace` 拉回本机 `backups/<时间>.tar.gz`（`backups/` 入 `.gitignore`） |
-| `restore <文件>` | 上传并解包到新实例，重启服务 |
-| `kill` | 先自动 `backup`，再销毁，需 `--yes` |
+| 命令 | 状态 | 行为 |
+| --- | --- | --- |
+| `deploy.py [--sandbox ID] [--timeout 秒] [--skip-build]` | 已实现 | 见上文“部署” |
+| `sandbox.py create` | 已实现 | 新建自动暂停沙箱（默认 50 h） |
+| `sandbox.py status` | 已实现 | 平台侧状态、到期时间、规格；**不检查进程与 health**（待 T3.3） |
+| `sandbox.py wake` / `pause` / `renew [秒]` | 已实现 | 恢复 / 暂停 / `set_timeout` |
+| `sandbox.py backup` | 已实现 | 打包 `~/.raytonebot/data` + `/home/user/workspace` 拉回本机 `backups/<id>-<时间>.tgz` |
+| `sandbox.py restore <文件>` | 已实现 | 上传并解包，之后运行 `deploy.py --skip-build` |
+| `kill` | 未实现 | 先自动 `backup`，再销毁，需 `--yes` |
 
 自检必须覆盖 [08](08-acceptance.md) 的 C 组：未登录 401、错误密码 401、跨站 403、登录后页面与资源 200、Pi state 200 且 7 个工具、空 prompt 400。
 
 ## 部署注意事项（来自实测）
 
-- 后台启动必须用 `exec node ...`，否则记录的 PID 是外层 shell，停止时会留下旧 Node 监听 5188。
+- 后台启动要让记录的 PID 就是 Node 进程（`exec`），并用 `setsid nohup` 脱离 SDK 命令会话，否则停止时会留下旧 Node 监听 5188，或部署脚本退出后服务被清理。
 - Vite 的 Host 检查早于插件路由，云域名必须写进 `preview.allowedHosts`（`cloud-preview.mjs` 已处理）。
 - 远程 `pkill -f`/`pgrep -f` 的模式会匹配执行它的 shell 自身，要写成 `[c]loud-preview` 形式。
 - e2b SDK 在命令非零退出时直接抛异常，脚本需捕获后再判断。
@@ -121,12 +120,12 @@ sb.set_timeout(3600)          # 从现在起约 1 小时
 
 ## 续期策略（已定：自动暂停 + 按需唤醒）
 
-沙箱每次运行最多 50 小时，到期自动暂停而不销毁；打开前若 URL 返回 502，先执行 `sandbox.py wake`。长任务前可 `renew`。以下为早期备选，保留作参考：
+沙箱每次运行最多 50 小时，到期自动暂停而不销毁；打开前若 URL 返回 502，先执行 `sandbox.py wake`。长任务前可 `renew`。沙箱外的自动续期/唤醒方案见根目录 `issue.md` #1。
 
-可选其一，需用户决定：
+早期备选（已不采用，保留作参考）：
 
 1. **按需重建**：用时 `deploy --new`，用完 `backup` + `kill`。最省钱，每次约几分钟启动。
 2. **本机定时续期**：本机 cron/launchd 每 30–50 分钟 `renew`。电脑关机后实例会过期——与“电脑关机仍在”的目标冲突。
 3. **长 timeout**：平台接受 `set_timeout(86400)`（24 小时，2026-10-03 实测）；更长的上限未验证。部署时直接设长并定期 `backup`。
 
-在 pause/resume、持久卷能力验证前，不承诺“电脑关机后任务继续”。
+暂停期间 Agent 不运行；在沙箱外有续期/唤醒服务之前，不承诺“电脑关机后任务继续”。

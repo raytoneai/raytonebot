@@ -10,10 +10,10 @@
 
 目标：项目从“导出物”变成“我们的产品仓库”，AI 有统一说明书。
 
-- [ ] T0.1 `git init`，提交当前状态；建私有远端。`.gitignore` 已排除 `.agentsphere/`、`.env*`。
-- [ ] T0.2 改写 `AGENTS.md`：保留“不新增并行组件、修事件映射”的原则，改为指向本目录；移除“只能改 backendAdapter.ts”这类导出期限制（Pi 路线的主开发区是 `src/pi/`）。
-- [ ] T0.3 加 `vitest`，写第一批无模型测试：`piHost` 接口（state/空 prompt/跨站/审批 409）、`piAdapter` 事件映射快照。`npm test` 进入完成标准。
-- [ ] T0.4 `npm run check:local` 与 `node scripts/cloud-preview.mjs --check` 写进 [08](08-acceptance.md)。
+- [~] T0.1 `git init`，提交当前状态（2026-10-03 首个提交 `eb25439`）；私有远端待定。`.gitignore` 已排除 `.agentsphere/`、`.env*`、`backups/`。
+- [x] T0.2 改写 `AGENTS.md`：保留“不新增并行组件、修事件映射”的原则，改为指向本目录；移除“只能改 backendAdapter.ts”这类导出期限制（Pi 路线的主开发区是 `src/pi/`）。
+- [~] T0.3 无模型测试：已用 `node --test`（`src/pi/*.test.ts`，未引入 vitest），`npm test` 已进入完成标准；`piAdapter` 事件映射快照仍缺。
+- [x] T0.4 `npm run check:local` 与 `node scripts/cloud-preview.mjs --check` 写进 [08](08-acceptance.md)。
 
 验收：`npm run build && npm test && npm run check:local` 全过；仓库有首个提交。
 
@@ -21,19 +21,18 @@
 
 目标：云端 URL 上打开即可完成真实任务，刷新/重启不丢会话。
 
-- [ ] T1.1 **服务端模型凭据**：默认模型已定为 DeepSeek `deepseek-flash`；进程环境变量 `DEEPSEEK_API_KEY` 已可用（本机验证）。剩余：云端启动时从 600 权限 env 文件加载。
-- [~] T1.2 **真实模型任务验收**：本机通过（Pi、Claude Code、Codex，见 [10](10-agents-and-permissions.md)）；云端待做。
+- [x] T1.1 **服务端模型凭据**：默认 DeepSeek `deepseek-flash`；`deploy.py` 把 `DEEPSEEK_API_KEY` 写入 600 权限的 `~/.raytonebot/env`，启动时加载（云端真实任务已通过）。
+- [~] T1.2 **真实模型任务验收**：本机通过（Pi、Claude Code、Codex）；云端 Pi、Claude Code 通过，Codex（DeepSeek key）已能运行，完整 A 组未逐条记录。见 [10](10-agents-and-permissions.md)。
 - [x] T1.3 **会话落盘**（2026-10-03）：`SessionManager.inMemory` → `SessionManager.create(cwd, sessionDir)`；`newSession` 新建文件；按 conversationId 找回已有会话。
-- [x] T1.4 **会话列表与恢复**（2026-10-03；接口为 `GET /conversations`、`GET /conversations/:id`）：新增 `GET /sessions`、`GET /sessions/:id/events`（把 Pi 历史转成 AgentUX 事件回放）；前端启动时恢复侧栏和当前会话。
-- [~] T1.5 **工作区分离**：`RAYTONEBOT_WORKSPACE` 已实现（Pi 与 CLI 引擎共用）；云端部署时设为 `/home/user/workspace`。
+- [x] T1.4 **会话列表与恢复**（2026-10-03）：`GET /conversations`、`GET /conversations/:id`（历史转成 AgentUX 事件回放）；前端启动时恢复侧栏和当前会话。
+- [x] T1.5 **工作区分离**：`RAYTONEBOT_WORKSPACE` / `RAYTONEBOT_WORKSPACE_ROOT`（Pi 与 CLI 引擎共用）；云端为 `/home/user/workspace`，由 T1.13 细分为角色目录。
 - [x] T1.8 **多引擎预置角色**：助手 Pi / 规划 Claude Code / 实施 Codex；设置齿轮切换；输入框去掉模型选择。
 - [x] T1.9 **沙箱权限模型**：受保护 / 对外 / 修改 / 只读四类；子进程剥离密钥；沙箱默认「替我批准」。
 - [x] T1.12 **设置页**：全屏对话框，模型服务可测试连通性、添加预设服务；主题与语言即时切换。
 - [x] T1.10 **角色头像**：Codex 的头像动画接入，仅最新一轮回答的头像会动。
-- [~] T1.11 **云端部署新代码**：已部署（模板自带两个 CLI）；剩余 Codex 登录，以及验证 `workspace-write` 沙箱在 Firecracker 内是否可用。
+- [~] T1.11 **云端部署新代码**：已部署（模板自带两个 CLI）；Codex 用 DeepSeek key 免登录。剩余：验证 `workspace-write` 沙箱在 Firecracker 内是否可用。
 - [x] T1.13 **工作区布局**：各角色独立目录 + 共享协作目录，云端已启用。
-- [x] T1.6 **部署脚本**：`scripts/agentsphere/deploy.py`（status/renew/backup/kill 仍待做）。
-- [ ] T1.6 **部署脚本** `scripts/agentsphere/`：`deploy`（构建→上传→`npm ci`→写 env→`exec` 启动→HTTP 自检）、`status`、`renew`、`kill`。凭据只从本机环境变量读。
+- [~] T1.6 **部署脚本**：`deploy.py`（构建→上传→`npm ci`→写 env→`setsid nohup` 启动→HTTP 自检）与 `sandbox.py`（create/status/wake/pause/renew/backup/restore）已完成；`kill`（先备份、需 `--yes`）未做。凭据只从本机环境变量读。
 - [ ] T1.7 接口前缀 `/__agentcanvas/pi` → `/api/agent`（同时改 client、host、检查脚本）。可选，放在本里程碑末尾。
 
 验收：[08](08-acceptance.md) 中 A、B、C 三组全过；浏览器里人工走一遍核心闭环。
@@ -47,9 +46,9 @@
 
 ### M3 可靠性与运维（2 天）
 
-- [x] T3.1 `backup` / `restore` 脚本（`sandbox.py`）：拉回 `sessions/` + `workspace/` 为带时间戳 tar.gz；重建后恢复。
-- [ ] T3.2 进程重启时，未完成的轮次在历史里标记为“已中断”，**不自动重放**（避免重复执行写操作）。
-- [ ] T3.3 `GET /api/agent/health`；部署脚本与 renew 使用它。
+- [x] T3.1 `backup` / `restore` 脚本（`sandbox.py`）：拉回 `~/.raytonebot/data` + `workspace/` 为带时间戳 tgz；重建后恢复。
+- [ ] T3.2 进程重启或沙箱暂停恢复后，未完成的轮次在历史里标记为“已中断”，**不自动重放**（避免重复执行写操作）。
+- [ ] T3.3 health 接口（随 T1.7 定前缀）+ 进程守护（沙箱内无 systemd）；部署脚本与 `sandbox.py status` 使用它。
 - [ ] T3.4 结构化日志写 `~/.raytonebot/logs/`，`status` 脚本可拉最近日志。
 - [x] T3.5 已验证：上限 50 h；pause/resume 无损；创建时可设超时自动暂停；访问不会自动唤醒（见 06、ADR-012）。
 
@@ -73,14 +72,15 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 | 问题 | 影响 |
 | --- | --- |
 | ~~默认模型~~：已定 DeepSeek `deepseek-flash`（测试用） | — |
-| Codex 在云端用 ChatGPT 登录还是 OpenAI API key（DeepSeek 不可用） | T1.11 |
+| ~~Codex 云端凭据~~：已用 DeepSeek key 免登录（ADR-008 更正） | — |
 | 私有 Git 远端放哪里 | T0.1 |
-| 云端实例是否长期保留（续期策略）还是每次按需重建 | T1.6、T3.5 |
+| ~~续期策略~~：已定自动暂停 + 按需唤醒（ADR-012）；是否加沙箱外的唤醒/续期服务见 `issue.md` #1 | — |
 
 ## 进度日志
 
 按时间倒序，每完成一个任务卡追加一行：日期、任务、结果、验证方式。
 
+- 2026-10-03 M0：首个提交 `eb25439`（T0.1，远端待定）；改写 `AGENTS.md`（T0.2）；修正文档漂移：02 当前架构/缺口/接口表、03 任务状态、06 实例与脚本一览、01 现状列、08 D 组命令、09 过时条目、`access.json` 文件名。验证：对照 `piHost.ts` 路由、`deploy.py`/`sandbox.py` 参数、`.agentsphere/deployment.json` 与 `package.json` 核对；仅文档改动，未运行构建。
 - 2026-10-03 聊天回复 Markdown 渲染（react-markdown + remark-gfm，参照 TelegramAgent）：表格、列表、代码块、引用、任务列表；仅 https 链接可点击，不加载外部图片，不渲染原始 HTML；流式输出时逐步渲染。
 - 2026-10-03 聊天区自动跟随到底部（停在底部附近时跟随流式输出；上翻阅读不打扰；发送或切换对话时回到底部），浏览器验证四种情况。
 - 2026-10-03 UI/UX 调整：Agent 选择移到侧栏（状态点），设置齿轮移到左下角，顶栏显示当前角色并承载模型来源，对话行带角色头像；修复打开已完成对话时文字重放（仅运行中出现的回复打字），修复欢迎页误高亮历史对话；部署脚本改为 `setsid nohup` 启动，避免部署脚本退出后服务被清理。

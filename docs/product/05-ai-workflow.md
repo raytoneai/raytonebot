@@ -27,7 +27,7 @@
 - **不新增并行 UI 组件**。界面缺状态时，先查 `piAdapter.ts` 发出的 AgentUX 事件和 `src/runtime/admissionReport.ts`。现有组件已覆盖文本、思考、工具全生命周期、审批、产物、错误、重试、中断。
 - **不引入新的后端、数据库或框架**，除非 [07](07-decisions.md) 新增了对应 ADR 且用户同意。
 - **不改 `vendor/`**；`slotRegistry.tsx` 保持穷举。
-- **密钥不入库、不入 bundle、不入沙箱以外的日志**：`E2B_API_KEY` 只在本机脚本进程；模型 key 只在沙箱 `~/.raytonebot/env` 或浏览器会话内存；访问密码只在 `.agentsphere/access.txt` 和沙箱 env。文档里写变量名，不写值。
+- **密钥不入库、不入 bundle、不入沙箱以外的日志**：`E2B_API_KEY` 只在本机脚本进程；模型 key 只在沙箱 `~/.raytonebot/env` 或浏览器会话内存；访问密码只在 `.agentsphere/access.json` 和沙箱 env。文档里写变量名，不写值。
 - **不擅自换模型**。默认模型属于“需人决定”。
 - **审批语义不能弱化**：默认 `request` 模式下修改类工具必须先问。任何改动若让审批失效，必须在完成报告里写明。
 - **不自动重放不确定的任务**，宁可标记中断让人重试。

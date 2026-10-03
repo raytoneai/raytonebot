@@ -9,9 +9,10 @@
 AgentSphere 沙箱 agentmatrix-v1（2C/4G, Linux x86_64, Node 24）
    scripts/cloud-preview.mjs   鉴权、Host/Origin 校验，然后交给 Vite preview
    vite preview + piRuntimePlugin   静态 dist + /__agentcanvas/pi/* 接口
-   src/pi/piHost.ts            HTTP 控制器 → 每个 conversationId 一个 Pi 会话
+   src/pi/piHost.ts            HTTP 控制器 → 按 agentPreset 分流到 Pi 或 Claude Code / Codex CLI
    @earendil-works/pi-coding-agent  模型循环 + 7 个工具 + 审批闸门
-   cwd = /home/user/raytonebot（应用目录本身）
+   cwd = /home/user/workspace/agents/<角色>/（RAYTONEBOT_WORKSPACE_ROOT）
+   数据 = /home/user/.raytonebot/data/（对话 JSON + Pi 文件会话）
 ```
 
 本机开发时链路相同，只是 `npm run dev` 监听 `127.0.0.1:5188`，没有 Basic Auth，由 `requestOrigin.ts` 只放行 loopback。
@@ -26,6 +27,9 @@ AgentSphere 沙箱 agentmatrix-v1（2C/4G, Linux x86_64, Node 24）
 | POST | `/__agentcanvas/pi/abort` | 停止当前轮 |
 | POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no` |
 | POST | `/__agentcanvas/pi/session/new` | 新会话 |
+| GET | `/__agentcanvas/pi/conversations` | 对话列表（侧栏恢复） |
+| GET / DELETE | `/__agentcanvas/pi/conversations/:id` | 读取历史事件 / 删除对话 |
+| POST | `/__agentcanvas/pi/provider/test` | 模型服务连通性测试 |
 
 ### 事件链路
 
@@ -40,12 +44,15 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 
 | 缺口 | 位置 | 后果 |
 | --- | --- | --- |
-| `SessionManager.inMemory` | `piHost.ts` `createDefaultPiBridge` | 重启丢全部会话 |
-| 前端会话列表在 React state | `agent-shell.tsx` | 刷新丢列表和历史事件 |
-| 模型凭据靠浏览器每次填写，`InMemoryCredentialStore` | `piHost.ts` | 云端开箱不可用，重启要重填 |
-| cwd = 应用目录（默认） | `piVitePlugin.ts`；已支持 `RAYTONEBOT_WORKSPACE` | 未设置时 Agent 能改/删应用自身 |
-| 单个审批闸门、单 cwd，`maxConversations` LRU | `piHost.ts` | 单用户可接受；多用户前必须重做 |
-| 没有部署脚本 | — | 每次部署靠 AI 现场写 SDK 调用 |
+2026-10-03 已补：会话落盘与恢复、服务端模型 key（env 文件）、工作区分离、部署/备份脚本。剩余：
+
+| 缺口 | 位置 | 后果 |
+| --- | --- | --- |
+| 进程重启或沙箱暂停时，运行中的轮次没有标记为中断 | `piHost.ts`、`conversationStore.ts` | 历史里停在半截状态（T3.2） |
+| 没有 health 接口与进程守护 | `piHost.ts`、`deploy.py` | Node 崩溃后无人拉起，只能靠 `sandbox.py status` 发现（T3.3） |
+| 本机开发未设 `RAYTONEBOT_WORKSPACE(_ROOT)` 时 cwd = 应用目录 | `piVitePlugin.ts` | 本机 Agent 能改/删应用自身 |
+| 单个审批闸门，`maxConversations` = 12 的 LRU | `piHost.ts` | 单用户可接受；多用户前必须重做 |
+| Agent 与 bot 同一系统用户 | 部署环境 | 见 [10](10-agents-and-permissions.md) 已知缺口 |
 
 ## 多引擎与权限（2026-10-03 新增）
 
@@ -69,24 +76,29 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
    │ HTTPS + Basic Auth
    ▼
 AgentSphere 沙箱
-   /home/user/raytonebot/          应用代码 + dist（部署脚本覆盖，Agent 不写）
-   /home/user/workspace/           Agent 工作目录（Pi cwd）
+   /home/user/raytonebot/          应用代码 + dist（部署脚本覆盖，受保护路径）
+   /home/user/workspace/
+       agents/<角色>/              各角色 cwd
+       shared/                     协作目录
    /home/user/.raytonebot/
        env                         600 权限：访问密码、模型 API key
-       sessions/                   Pi 会话 JSONL（SessionManager.create）
-       logs/
-   单个 Node 进程：静态文件 + /api/agent/*（沿用 piHost 控制器）
+       data/conversations/*.json   对话记录
+       data/pi-sessions/<对话>/    Pi 文件会话（SessionManager.create / continueRecent）
+       pi/                         PI_CODING_AGENT_DIR
+       logs/                       待做（T3.4）
+   单个 Node 进程：静态文件 + /__agentcanvas/pi/*（T1.7 改名 /api/agent 为可选）
 
 本机 Mac（唯一持有 E2B_API_KEY 的地方）
-   scripts/agentsphere/*.py        deploy / renew / status / backup / restore / kill
-   backups/                        定期拉回 sessions + workspace 的 tar.gz
+   scripts/agentsphere/deploy.py   构建 → 上传 → npm ci → 写 env → 启动 → 自检
+   scripts/agentsphere/sandbox.py  create / status / wake / pause / renew / backup / restore
+   backups/                        拉回 data + workspace 的 tgz
 ```
 
 要点：
 
-- **持久化用 Pi 自带的文件会话**（`SessionManager.create/open/list`，0.84.4 已提供），不引入数据库。新增 `GET /sessions` 列表与 `GET /sessions/:id` 历史回放接口，前端启动时据此恢复侧栏与事件。只有出现任务队列、定时任务等需求时，才考虑 `node:sqlite`（Node 22.19+ 内置，零依赖）。
-- **凭据在服务端**：进程从 `~/.raytonebot/env` 读取 `OPENAI_API_KEY` 等，`registerEditorProvider` 已支持 `$ENV_VAR` 形式的 key。浏览器设置面板保留作临时覆盖。
-- **工作区分离**：`RAYTONEBOT_WORKSPACE` 环境变量决定 Pi cwd，默认本机仍为项目目录以免破坏本地开发习惯（实现时确认）。
+- **持久化用 Pi 自带的文件会话**，不引入数据库（ADR-004、ADR-012）。对话列表与历史经 `GET /conversations`、`GET /conversations/:id` 恢复。只有出现任务队列、定时任务等需求时，才考虑 `node:sqlite`（Node 22.19+ 内置，零依赖）。
+- **凭据在服务端**：启动命令 source `~/.raytonebot/env`，模型配置用 `envVar`（默认 `DEEPSEEK_API_KEY`）取 key。浏览器设置面板保留作临时覆盖。
+- **工作区分离**：云端用 `RAYTONEBOT_WORKSPACE_ROOT` 生成角色目录（见 [10](10-agents-and-permissions.md)）；本机未设置时 cwd 仍为项目目录。
 - **沙箱可丢弃**：重建 = 部署脚本 + 恢复最近备份。沙箱内不放 `E2B_API_KEY`。
 - **生产服务器**：M1 继续用 `vite preview` + 插件（已验证可用）。只有当 Vite 成为障碍（启动慢、需要自定义路由）时再换成 `node:http` 独立服务，`piHost.handle(req, res)` 已是框架无关的。
 
