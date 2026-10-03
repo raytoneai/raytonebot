@@ -68,7 +68,8 @@ export type PiRuntimeController = {
   state(conversationId?: string): Promise<PiRuntimeState>;
   configure(input: PiRuntimeConfiguration): Promise<PiRuntimeState>;
   runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void): Promise<void>;
-  abort(): Promise<void>;
+  /** Stops one conversation's run; every run when no conversation is given. */
+  abort(conversationId?: string): Promise<void>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
   listConversations(): ConversationSummary[];
   getConversation(id: string): StoredConversation | undefined;
@@ -101,18 +102,37 @@ export function createPiRuntimeController(options: {
     appRoot: options.appRoot ?? process.cwd(),
     workspaces: [...new Set([cwd, ...Object.values(layout.agents), ...(layout.shared ? [layout.shared] : [])])],
   });
-  const approvalGate = new PiApprovalGate({ cwd, protectedPaths });
+  /** One gate per conversation: runs in different conversations wait on their own approvals,
+   *  with their own mode, cwd and "always allow" memory. */
+  const approvalGates = new Map<string, PiApprovalGate>();
+  const gateFor = (conversationId: string) => {
+    let gate = approvalGates.get(conversationId);
+    if (!gate) {
+      gate = new PiApprovalGate({ cwd, protectedPaths });
+      gate.setConversation(conversationId);
+      approvalGates.set(conversationId, gate);
+    }
+    return gate;
+  };
   const bridgeFactory = options.bridgeFactory ?? createDefaultPiBridge;
   const bridgePromises = new Map<string, Promise<PiSessionBridge>>();
   /** Conversations that have already announced their tool set — see `runPrompt`. */
   const announcedCapabilities = new Set<string>();
   const defaultConversationId = "default";
   const maxConversations = 12;
+  /** Runs in flight, one per conversation at most. The sandbox has 2 CPUs, so cap the total. */
+  const maxConcurrentRuns = 3;
+  type RunSlot = { adapter?: PiEventAdapter; stop?: () => Promise<void>; stopRequested: boolean };
+  const runs = new Map<string, RunSlot>();
+  /** A run registers how to stop it once it has started; a stop that arrived earlier applies now. */
+  const registerStop = async (conversationId: string, adapter: PiEventAdapter, stop: () => Promise<void>) => {
+    const slot = runs.get(conversationId);
+    if (!slot) return;
+    slot.adapter = adapter;
+    slot.stop = stop;
+    if (slot.stopRequested) await stop();
+  };
   let activeConversationId = defaultConversationId;
-  let activeBridge: PiSessionBridge | undefined;
-  let activeAdapter: PiEventAdapter | undefined;
-  let activeCliRun: AbortController | undefined;
-  let running = false;
   /** Provider definitions and session keys from settings, for CLI harnesses that need them. */
   const providerDefinitions = new Map<string, PiProviderDefinition>();
   const providerKeys = new Map<string, string>();
@@ -128,14 +148,15 @@ export function createPiRuntimeController(options: {
       bridgePromises.set(id, existing);
       return existing;
     }
-    const created = bridgeFactory({ cwd, approvalGate, sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)) }).catch((error) => {
+    const created = bridgeFactory({ cwd, approvalGate: gateFor(id), sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)) }).catch((error) => {
       bridgePromises.delete(id);
       throw error;
     });
     bridgePromises.set(id, created);
-    while (bridgePromises.size > maxConversations) {
-      const oldestId = bridgePromises.keys().next().value as string | undefined;
-      if (!oldestId) break;
+    // Evict the least recently used idle conversations; a running one keeps its session.
+    for (const oldestId of [...bridgePromises.keys()]) {
+      if (bridgePromises.size <= maxConversations) break;
+      if (runs.has(oldestId)) continue;
       const oldest = bridgePromises.get(oldestId);
       bridgePromises.delete(oldestId);
       void oldest?.then((current) => current.dispose());
@@ -159,7 +180,7 @@ export function createPiRuntimeController(options: {
       return {
         available: true,
         cwd,
-        running,
+        running: runs.has(normalizeConversationId(conversationId)),
         ...(await current.state()),
         harnesses: [{ id: "pi", available: true }, ...cliHarnesses],
         defaultPermissionMode,
@@ -226,22 +247,24 @@ export function createPiRuntimeController(options: {
     onEvent: (event: AgentUXEvent) => void,
   ) => {
     const current = await bridge(conversationId);
+    const approvalGate = gateFor(conversationId);
     approvalGate.setCwd(cwd);
     approvalGate.setMode(input.permissionMode ?? "request");
-    approvalGate.setConversation(conversationId);
     if (input.provider || input.model || input.thinkingLevel) {
       await current.configure({ provider: input.provider, model: input.model, thinkingLevel: input.thinkingLevel });
     }
 
-    running = true;
     const adapter = createPiEventAdapter({
       runId: `pi_${Date.now().toString(36)}`,
       onEvent,
       requiresApproval: (toolName, args) => approvalGate.requiresApproval(toolName, args),
     });
-    activeBridge = current;
-    activeAdapter = adapter;
     const unsubscribe = current.subscribe((event) => adapter.apply(event));
+    await registerStop(conversationId, adapter, async () => {
+      approvalGate.cancelAll("Pi run was stopped.");
+      await current.abort();
+      adapter.finish("cancelled");
+    });
     try {
       // Once per conversation, before the first prompt. Canonical events accumulate across
       // turns in the browser, so announcing on every turn would stack a duplicate row in
@@ -251,6 +274,9 @@ export function createPiRuntimeController(options: {
         const tools = await current.state().then((value) => value.tools).catch(() => []);
         adapter.attachCapabilities(tools);
       }
+      // A stop that landed before the prompt started has nothing to abort yet; honour it here,
+      // with no await between this check and the prompt.
+      if (runs.get(conversationId)?.stopRequested) return;
       adapter.startUserMessage(prompt);
       await current.prompt(prompt);
       adapter.finish("success");
@@ -259,9 +285,6 @@ export function createPiRuntimeController(options: {
     } finally {
       unsubscribe();
       approvalGate.cancelAll();
-      activeBridge = undefined;
-      activeAdapter = undefined;
-      running = false;
     }
   };
 
@@ -283,10 +306,9 @@ export function createPiRuntimeController(options: {
       const target = resolvePath(runCwd, path);
       return target === layout.shared || target.startsWith(`${layout.shared}/`);
     };
+    const approvalGate = gateFor(conversationId);
     approvalGate.setMode(permissionMode);
-    approvalGate.setConversation(conversationId);
     approvalGate.setCwd(runCwd);
-    running = true;
     // Set only while a call is announced on hold, so the adapter marks exactly that call.
     let announcingHold = false;
     const adapter = createPiEventAdapter({
@@ -295,8 +317,11 @@ export function createPiRuntimeController(options: {
       requiresApproval: () => announcingHold,
     });
     const run = new AbortController();
-    activeAdapter = adapter;
-    activeCliRun = run;
+    await registerStop(conversationId, adapter, async () => {
+      approvalGate.cancelAll("Pi run was stopped.");
+      run.abort();
+      adapter.finish("cancelled");
+    });
     const binding = cliSessions.get(conversationId) ?? store.get(conversationId)?.cliSession;
     const resumeId = binding?.harness === harness ? binding.id : undefined;
     const onSessionId = (id: string) => {
@@ -388,20 +413,17 @@ export function createPiRuntimeController(options: {
       else adapter.apply({ type: "extension_error", message: errorMessage(error) });
     } finally {
       approvalGate.cancelAll();
-      activeAdapter = undefined;
-      activeCliRun = undefined;
-      running = false;
     }
   };
 
   return {
     state,
     async configure(input) {
-      if (running) throw new Error("Stop the active Pi run before changing its configuration.");
+      const conversationId = normalizeConversationId(input.conversationId);
+      if (runs.has(conversationId)) throw new Error("Stop this conversation's run before changing its configuration.");
       if (input.providerDefinition) providerDefinitions.set(input.providerDefinition.id, input.providerDefinition);
       if (input.provider && input.apiKey) providerKeys.set(input.provider, input.apiKey);
       else if (input.provider && input.clearApiKey) providerKeys.delete(input.provider);
-      const conversationId = normalizeConversationId(input.conversationId);
       const current = await bridge(conversationId);
       await current.configure(input);
       return state(conversationId);
@@ -409,8 +431,13 @@ export function createPiRuntimeController(options: {
     async runPrompt(input, onEvent) {
       const prompt = input.prompt?.trim();
       if (!prompt) throw new Error("Pi prompt is empty.");
-      if (running) throw new Error("A Pi run is already active.");
       const conversationId = normalizeConversationId(input.conversationId);
+      if (runs.has(conversationId)) throw new Error("This conversation already has a run in progress.");
+      if (runs.size >= maxConcurrentRuns) {
+        throw new Error(`${maxConcurrentRuns} conversations are already running. Wait for one to finish or stop it.`);
+      }
+      // Reserved before any await, so a second prompt for the same conversation cannot slip in.
+      runs.set(conversationId, { stopRequested: false });
       const role = isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant";
       const harness = agentPreset(role).harness;
       // Every event the browser sees is also kept on disk; a held approval is flushed at once so
@@ -430,13 +457,14 @@ export function createPiRuntimeController(options: {
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record);
         else await runPiPrompt(input, conversationId, prompt, record);
       } finally {
+        runs.delete(conversationId);
         store.flush(conversationId);
       }
     },
     listConversations: () => store.list(),
     getConversation: (id) => store.get(normalizeConversationId(id)),
     deleteConversation(id) {
-      if (running && normalizeConversationId(id) === activeConversationId) {
+      if (runs.has(normalizeConversationId(id))) {
         throw new Error("Stop the active run before deleting its conversation.");
       }
       store.remove(normalizeConversationId(id));
@@ -447,19 +475,26 @@ export function createPiRuntimeController(options: {
         || (definition.apiKeyEnvVar ? process.env[definition.apiKeyEnvVar]?.trim() : undefined);
       return probeProvider(definition, definition.authMode === "none" ? undefined : key);
     },
-    async abort() {
-      approvalGate.cancelAll("Pi run was stopped.");
-      activeCliRun?.abort();
-      await activeBridge?.abort();
-      activeAdapter?.finish("cancelled");
+    async abort(conversationId) {
+      const targets = conversationId === undefined
+        ? [...runs.values()]
+        : [runs.get(normalizeConversationId(conversationId))].filter((slot): slot is RunSlot => Boolean(slot));
+      await Promise.all(targets.map(async (slot) => {
+        slot.stopRequested = true;
+        await slot.stop?.();
+      }));
     },
     resolveApproval(toolCallId, decision) {
-      activeAdapter?.resolveApproval(toolCallId, decision);
-      return approvalGate.resolve(toolCallId, decision);
+      for (const [conversationId, gate] of approvalGates) {
+        if (!gate.resolve(toolCallId, decision)) continue;
+        runs.get(conversationId)?.adapter?.resolveApproval(toolCallId, decision);
+        return true;
+      }
+      return false;
     },
     async newSession(conversationId) {
-      if (running) throw new Error("Stop the active Pi run before starting a new session.");
       const id = normalizeConversationId(conversationId);
+      if (runs.has(id)) throw new Error("Stop this conversation's run before starting a new session.");
       cliSessions.delete(id);
       store.reset(id);
       const current = await bridge(id);
@@ -468,11 +503,11 @@ export function createPiRuntimeController(options: {
       // again or `CapabilityTray` would stay empty for the rest of the conversation's life.
       announcedCapabilities.delete(id);
       // ... and with an empty approval memory: "always allow" must not survive a reset.
-      approvalGate.resetConversation(id);
+      gateFor(id).resetConversation(id);
       return state(id);
     },
     dispose() {
-      approvalGate.cancelAll();
+      for (const gate of approvalGates.values()) gate.cancelAll();
       for (const pending of bridgePromises.values()) void pending.then((current) => current.dispose());
       bridgePromises.clear();
       announcedCapabilities.clear();
@@ -517,7 +552,8 @@ export function createPiHttpHost(options: {
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/abort`) {
-          await controller.abort();
+          const body = await readJson(req);
+          await controller.abort(stringField(body, "conversationId"));
           sendJson(res, 200, { ok: true });
           return true;
         }
@@ -579,8 +615,10 @@ export function createPiHttpHost(options: {
           res.setHeader("cache-control", "no-store");
           res.flushHeaders();
           let completed = false;
+          const conversationId = stringField(body, "conversationId");
+          // Only this stream's own conversation: other conversations may be running too.
           const abortOnDisconnect = () => {
-            if (!completed) void controller.abort();
+            if (!completed) void controller.abort(conversationId ?? "default").catch(() => undefined);
           };
           res.once("close", abortOnDisconnect);
           // Proxies in front of the sandbox drop a response that stays silent; a CLI can go quiet
@@ -590,7 +628,7 @@ export function createPiHttpHost(options: {
           }, 5_000);
           res.once("close", () => clearInterval(heartbeat));
           await controller.runPrompt({
-            conversationId: stringField(body, "conversationId"),
+            conversationId,
             prompt,
             provider: stringField(body, "provider"),
             model: stringField(body, "model"),

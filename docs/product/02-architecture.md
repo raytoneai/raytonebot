@@ -24,7 +24,7 @@ AgentSphere 沙箱 agentmatrix-v1（2C/4G, Linux x86_64, Node 24）
 | GET | `/__agentcanvas/pi/state?conversationId=` | 模型、工具、会话信息 |
 | POST | `/__agentcanvas/pi/config` | provider/model/thinking/会话 key |
 | POST | `/__agentcanvas/pi/prompt` | 发起一轮，返回 NDJSON 事件流；连接断开即中止 |
-| POST | `/__agentcanvas/pi/abort` | 停止当前轮 |
+| POST | `/__agentcanvas/pi/abort` | 停止 `conversationId` 那一轮；不带则停止全部 |
 | POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no` |
 | POST | `/__agentcanvas/pi/session/new` | 新会话 |
 | GET | `/__agentcanvas/pi/conversations` | 对话列表（侧栏恢复） |
@@ -51,7 +51,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 | 进程重启或沙箱暂停时，运行中的轮次没有标记为中断 | `piHost.ts`、`conversationStore.ts` | 历史里停在半截状态（T3.2） |
 | 没有 health 接口与进程守护 | `piHost.ts`、`deploy.py` | Node 崩溃后无人拉起，只能靠 `sandbox.py status` 发现（T3.3） |
 | 本机开发未设 `RAYTONEBOT_WORKSPACE(_ROOT)` 时 cwd = 应用目录 | `piVitePlugin.ts` | 本机 Agent 能改/删应用自身 |
-| 单个审批闸门，`maxConversations` = 12 的 LRU | `piHost.ts` | 单用户可接受；多用户前必须重做 |
+| 会话 LRU 上限 12（运行中的不淘汰），并行运行上限 3 | `piHost.ts` | 单用户可接受；多用户前必须重做 |
 | Agent 与 bot 同一系统用户 | 部署环境 | 见 [10](10-agents-and-permissions.md) 已知缺口 |
 
 ## 多引擎与权限（2026-10-03 新增）

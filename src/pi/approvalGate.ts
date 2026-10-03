@@ -24,8 +24,9 @@ export class PiApprovalGate {
     this.mode = mode;
   }
 
-  /** The conversation whose always-decisions `requiresApproval`/`wait` consult. A single
-   *  run is active at a time (the controller enforces it), so a mutable scope is safe. */
+  /** The conversation whose always-decisions `requiresApproval`/`wait` consult. The host keeps
+   *  one gate per conversation and runs at most one turn per conversation, so a mutable scope
+   *  (mode, cwd, conversation) is safe. */
   setConversation(conversationId: string) {
     this.conversationId = conversationId;
   }

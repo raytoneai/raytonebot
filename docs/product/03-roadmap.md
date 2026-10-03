@@ -80,6 +80,7 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 按时间倒序，每完成一个任务卡追加一行：日期、任务、结果、验证方式。
 
+- 2026-10-03 并行对话：运行中可切换对话、角色、新建对话，其他对话可同时运行（上限 3）。服务端运行状态与审批闸门改为按对话；修复停止请求在 prompt 开始前到达时被忽略的竞态。`piAdapter.ts` 补 `.ts` 扩展名（`piHost.ts` 可被 `node --test` 加载，Vite native-config 警告消失）。验证：新增 `piHost.test.ts`（并行、按对话停止与审批、同对话拒绝、上限、提前停止），`npm test` 22 项、build、`check:local` 通过。未用真实模型做并行的浏览器验收（本机无模型 key）。
 - 2026-10-03 侧栏品牌区用 Raytone Bot logo 替换「我的Agent」（深色主题用浅色版）；`deploy.py` 本机未设模型 key 时保留沙箱原有 key（此前会被清空）。部署到 `id705on7k0a1ya1d90icj`（含扩展加固），自检 7 项通过、三个引擎可用；公网 logo 资源 200、bundle 引用正确。浏览器验收：本机 headless Chrome 截图浅色/深色两种主题；云端页面未做视觉验收。
 - 2026-10-03 安全加固：Pi 会话不再从 cwd / 全局目录发现扩展、不读项目 `.pi/settings.json`（此前 Agent 写入的扩展会在 bot 进程内执行）。验证：`piResources.test.ts`（默认加载器加载 3 个植入扩展、新配置 0 个且 `AGENTS.md` 仍加载）；本机起独立实例植入扩展后请求 `/state`，旧代码执行、新代码不执行；`npm test` 20 项、`npm run build`、`check:local` 通过。云端未重新部署。
 - 2026-10-03 M0：首个提交 `eb25439`（T0.1，远端待定）；改写 `AGENTS.md`（T0.2）；修正文档漂移：02 当前架构/缺口/接口表、03 任务状态、06 实例与脚本一览、01 现状列、08 D 组命令、09 过时条目、`access.json` 文件名。验证：对照 `piHost.ts` 路由、`deploy.py`/`sandbox.py` 参数、`.agentsphere/deployment.json` 与 `package.json` 核对；仅文档改动，未运行构建。

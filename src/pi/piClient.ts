@@ -125,8 +125,9 @@ export async function configurePiRuntime(
   return requestJson<PiRuntimeState>(fetcher, `${PI_API_PREFIX}/config`, input);
 }
 
-export async function abortPiRun(fetcher: typeof fetch = fetch): Promise<void> {
-  await requestJson(fetcher, `${PI_API_PREFIX}/abort`, {});
+/** Stops one conversation's run; other conversations keep running. */
+export async function abortPiRun(conversationId?: string, fetcher: typeof fetch = fetch): Promise<void> {
+  await requestJson(fetcher, `${PI_API_PREFIX}/abort`, { conversationId });
 }
 
 export async function startNewPiSession(

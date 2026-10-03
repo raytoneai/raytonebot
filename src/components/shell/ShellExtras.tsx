@@ -48,20 +48,21 @@ export function useShellExtras(): ShellExtras {
 
 export const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI" };
 
-type AgentStatus = "idle" | "running" | "needs-you" | "unavailable";
+/** State of an agent's runs: any of its conversations may be in flight, on screen or not. */
+export type AgentRunStatus = "idle" | "running" | "needs-you";
+type AgentStatus = AgentRunStatus | "unavailable";
 
 export function AgentSwitcher({
   avatars,
   activeId,
-  status,
+  statuses,
   harnesses,
   disabled,
   onSelect,
 }: {
   avatars: Record<AgentPresetId, AvatarKind>;
   activeId: AgentPresetId;
-  /** State of the active agent's run. */
-  status: "idle" | "running" | "needs-you";
+  statuses: Partial<Record<AgentPresetId, AgentRunStatus>>;
   harnesses?: readonly AgentHarnessStatus[];
   disabled?: boolean;
   onSelect: (id: AgentPresetId) => void;
@@ -75,7 +76,7 @@ export function AgentSwitcher({
       {AGENT_PRESETS.map((preset) => {
         const available = harnesses?.find((entry) => entry.id === preset.harness)?.available !== false;
         const active = preset.id === activeId;
-        const rowStatus: AgentStatus = !available ? "unavailable" : active ? status : "idle";
+        const rowStatus: AgentStatus = !available ? "unavailable" : statuses[preset.id] ?? "idle";
         const statusLabel = rowStatus === "running" ? t.running : rowStatus === "needs-you" ? t.needsYou : rowStatus === "unavailable" ? t.notInstalled : undefined;
         return (
           <button

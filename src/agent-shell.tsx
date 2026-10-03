@@ -12,7 +12,7 @@ import {
   type OutputPanelOpenRequest,
 } from "./components/agent-preview/OutputFrame";
 import { SettingsDialog, type SettingsSectionId } from "./components/settings/SettingsDialog";
-import { AgentSwitcher, HeaderAgent, ShellExtrasProvider, SidebarFooter, type ShellExtras } from "./components/shell/ShellExtras";
+import { AgentSwitcher, HeaderAgent, ShellExtrasProvider, SidebarFooter, type AgentRunStatus, type ShellExtras } from "./components/shell/ShellExtras";
 import { settingsCopy } from "./i18n/copy/settings";
 import type { ComposerSubmitContext } from "./components/agent-preview/ComposerFrame";
 import { ExternalApprovalSurface, InlineApprovalSurface } from "./components/agent-preview/ChatFrame";
@@ -51,6 +51,8 @@ import { isAgentPresetId, loadAgentSettings, saveAgentSettings, settingsUseProvi
 import { AgentPersonaProvider, type AgentPersona, type AvatarKind } from "./avatars/AgentPersona";
 
 const THEME_KEY = "raytonebot.theme";
+/** Events after which a tool call is no longer waiting on the user. */
+const APPROVAL_SETTLED_EVENTS = new Set(["tool.call.running", "tool.call.result", "tool.call.error", "tool.call.finished", "run.finished"]);
 const PERMISSION_DEFAULT_KEY = "raytonebot.permissionDefault";
 
 function readSetting(key: string): string | undefined {
@@ -134,7 +136,11 @@ export function AgentApp() {
     createEphemeralPiConversation(),
   ]);
   const [activePiConversationId, setActivePiConversationId] = useState(() => piConversations[0].id);
-  const [piRunning, setPiRunning] = useState(false);
+  /** Conversations with a turn in flight. Each runs on its own; switching away does not stop it. */
+  const [runningConversationIds, setRunningConversationIds] = useState<ReadonlySet<string>>(() => new Set());
+  /** Running conversations currently held on a tool approval, including ones not on screen. */
+  const [awaitingConversationIds, setAwaitingConversationIds] = useState<ReadonlySet<string>>(() => new Set());
+  const piRunning = runningConversationIds.has(activePiConversationId);
   const [piRuntimeState, setPiRuntimeState] = useState<PiRuntimeState>();
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
   const [celebrating, setCelebrating] = useState(false);
@@ -152,9 +158,9 @@ export function AgentApp() {
     const stored = readSetting(PERMISSION_DEFAULT_KEY);
     return stored === "request" || stored === "auto" || stored === "allow-all" ? stored : undefined;
   });
-  const wasRunningRef = useRef(false);
+  const wasRunningRef = useRef<{ id: string; running: boolean }>({ id: "", running: false });
   const [dismissedApprovalId, setDismissedApprovalId] = useState<string | null>(null);
-  const piAbortRef = useRef<AbortController | undefined>(undefined);
+  const piAbortRefs = useRef(new Map<string, AbortController>());
 
   // Single entry for both modes: fixture replay (dev/preview) or the live backend
   // stream. Components never learn which one they got.
@@ -204,15 +210,16 @@ export function AgentApp() {
     ? pendingApprovalTool
     : undefined;
   // A finished run gets a moment of the "done" face before settling back to idle.
+  // Only for the conversation on screen finishing, not for switching away from a running one.
   useEffect(() => {
-    if (wasRunningRef.current && !piRunning) {
+    const previous = wasRunningRef.current;
+    wasRunningRef.current = { id: activePiConversationId, running: piRunning };
+    if (previous.id === activePiConversationId && previous.running && !piRunning) {
       setCelebrating(true);
       const timer = setTimeout(() => setCelebrating(false), 1400);
-      wasRunningRef.current = piRunning;
       return () => clearTimeout(timer);
     }
-    wasRunningRef.current = piRunning;
-  }, [piRunning]);
+  }, [piRunning, activePiConversationId]);
   const persona: AgentPersona = {
     kind: PRESET_AVATARS[agentSettings.presetId],
     name: copy.composer.agentSettings.presets[agentSettings.presetId].name,
@@ -388,6 +395,15 @@ export function AgentApp() {
     return state;
   }
 
+  /** Adds or removes one conversation from a set held in state. */
+  const toggleIn = (set: ReadonlySet<string>, id: string, on: boolean): ReadonlySet<string> => {
+    if (set.has(id) === on) return set;
+    const next = new Set(set);
+    if (on) next.add(id);
+    else next.delete(id);
+    return next;
+  };
+
   async function submitToPi(prompt: string, context?: ComposerSubmitContext) {
     if (piRunning) return;
     const normalizedPrompt = prompt.trim();
@@ -396,19 +412,24 @@ export function AgentApp() {
       ...titlePiConversation(activePiConversation, normalizedPrompt),
       agentPreset: agentSettings.presetId,
     };
+    const conversationId = nextConversation.id;
     const turnStartEventCount = nextConversation.events.length;
     const provider = defaultProviderConnection(activeProject);
     const controller = new AbortController();
-    piAbortRef.current = controller;
-    setPiRunning(true);
+    piAbortRefs.current.set(conversationId, controller);
+    setRunningConversationIds((current) => toggleIn(current, conversationId, true));
+    // The run keeps going when the user opens another conversation; only the one on screen is drawn.
+    const showIfActive = (conversation: EphemeralPiConversation) => {
+      if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
+    };
     setPiConversations((current) => replacePiConversation(current, nextConversation));
-    setPiEvents([...nextConversation.events]);
+    showIfActive(nextConversation);
     const runId = "pi_export_" + Date.now().toString(36);
     // Same coalescing as the configurator, from the same module, so a long reply does not slow
     // down as it grows here either. The conversation is still appended one event at a time.
     const commit = createPiFrameCommit<EphemeralPiConversation>((conversation) => {
       setPiConversations((current) => replacePiConversation(current, conversation));
-      setPiEvents([...conversation.events]);
+      showIfActive(conversation);
     });
     try {
       // Codex and a locally logged-in Claude Code bring their own model; only roles that run
@@ -425,7 +446,7 @@ export function AgentApp() {
         claudeCodeModelSource: agentSettings.claudeCodeModelSource,
         codexModelSource: agentSettings.codexModelSource,
       }, { signal: controller.signal })) {
-        if (controller.signal.aborted || piAbortRef.current !== controller) {
+        if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
           commit.cancel();
           return;
         }
@@ -434,6 +455,9 @@ export function AgentApp() {
         if (event.type === "tool.call.awaiting_approval") {
           // Waiting on the user, so it cannot wait on a frame.
           commit.flush();
+          setAwaitingConversationIds((current) => toggleIn(current, conversationId, true));
+        } else if (APPROVAL_SETTLED_EVENTS.has(event.type)) {
+          setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
         }
       }
       commit.flush();
@@ -449,7 +473,7 @@ export function AgentApp() {
         // run terminal) so the transcript never keeps a half-finished turn.
         const closed = appendPiConversationEvents(nextConversation, piCancelledTurnEvents(nextConversation.events));
         setPiConversations((current) => replacePiConversation(current, closed));
-        setPiEvents([...closed.events]);
+        showIfActive(closed);
       } else {
         const message = error instanceof Error ? error.message : "Pi runtime failed.";
         // The prompt is only passed when this turn never emitted anything; mid-run the
@@ -462,22 +486,25 @@ export function AgentApp() {
         });
         nextConversation = appendPiConversationEvents(nextConversation, errorEvents);
         setPiConversations((current) => replacePiConversation(current, nextConversation));
-        setPiEvents([...nextConversation.events]);
+        showIfActive(nextConversation);
       }
     } finally {
-      if (piAbortRef.current === controller) piAbortRef.current = undefined;
-      setPiRunning(false);
+      if (piAbortRefs.current.get(conversationId) === controller) piAbortRefs.current.delete(conversationId);
+      setRunningConversationIds((current) => toggleIn(current, conversationId, false));
+      setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
     }
   }
 
-  async function stopPi() {
-    piAbortRef.current?.abort();
+  /** Stops the conversation on screen; runs in other conversations continue. */
+  async function stopPi(conversationId = activePiConversationId) {
+    piAbortRefs.current.get(conversationId)?.abort();
     try {
-      await abortPiRun();
+      await abortPiRun(conversationId);
     } catch {
       // Server-side abort is best effort; the local state below is what matters.
     }
-    setPiRunning(false);
+    setRunningConversationIds((current) => toggleIn(current, conversationId, false));
+    setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
   }
 
   async function selectProvider(id: ProviderConnectionId) {
@@ -534,15 +561,12 @@ export function AgentApp() {
    * longer on screen.
    */
   async function startNewSession() {
-    if (piRunning) {
-      // A run in flight would keep committing its transcript over the fresh session and the
-      // server would refuse the new session anyway. Stop it first (the await waits for the
-      // server-side abort to settle), then start fresh.
-      await stopPi();
-    }
+    // A run in flight keeps going in its own conversation; it only draws while on screen.
     const conversation = createEphemeralPiConversation();
     setStreamId("");
     setPiConversations((current) => replacePiConversation(current, conversation));
+    // Set at once, not on the next render: a background run's frame must not draw over this view.
+    activeConversationIdRef.current = conversation.id;
     setActivePiConversationId(conversation.id);
     setPiEvents([]);
     void startNewPiSession(conversation.id)
@@ -562,7 +586,6 @@ export function AgentApp() {
    * switching agents starts fresh instead of pretending the new one remembers.
    */
   function changeAgentSettings(next: AgentSettings) {
-    if (piRunning) return;
     const presetChanged = next.presetId !== agentSettings.presetId;
     setAgentSettings(next);
     saveAgentSettings(next);
@@ -570,10 +593,10 @@ export function AgentApp() {
   }
 
   function selectPiConversation(conversationId: string) {
-    if (piRunning) return;
     const conversation = piConversations.find((entry) => entry.id === conversationId);
     if (!conversation) return;
     setStreamId("");
+    activeConversationIdRef.current = conversation.id;
     setActivePiConversationId(conversation.id);
     setPiEvents([...conversation.events]);
     // A conversation belongs to the role that answered it; reopening it brings that role back.
@@ -617,7 +640,7 @@ export function AgentApp() {
     modelOptions: modelOptionsForProject(activeProject),
     isRunning: piRunning,
     onSubmit: submitToPi,
-    onStop: stopPi,
+    onStop: () => stopPi(),
     onExport: noop,
     onGitCommit: noop,
     onProviderChange: (id) => void selectProvider(id),
@@ -643,14 +666,22 @@ export function AgentApp() {
   };
 
   const defaultProvider = defaultProviderConnection(activeProject);
+  // Every agent with a conversation in flight shows it, not only the one on screen.
+  const agentStatuses: Partial<Record<AgentPresetId, AgentRunStatus>> = {};
+  for (const conversation of piConversations) {
+    if (!runningConversationIds.has(conversation.id) || !isAgentPresetId(conversation.agentPreset)) continue;
+    const waiting = awaitingConversationIds.has(conversation.id)
+      || (conversation.id === activePiConversationId && Boolean(liveApprovalTool));
+    if (waiting) agentStatuses[conversation.agentPreset] = "needs-you";
+    else agentStatuses[conversation.agentPreset] ??= "running";
+  }
   const shellExtras: ShellExtras = {
     agentSwitcher: (
       <AgentSwitcher
         avatars={PRESET_AVATARS}
         activeId={agentSettings.presetId}
-        status={liveApprovalTool ? "needs-you" : piRunning ? "running" : "idle"}
+        statuses={agentStatuses}
         harnesses={piRuntimeState?.harnesses}
-        disabled={piRunning}
         onSelect={(presetId) => changeAgentSettings({ ...agentSettings, presetId })}
       />
     ),
@@ -660,7 +691,6 @@ export function AgentApp() {
         avatars={PRESET_AVATARS}
         settings={agentSettings}
         providerLabel={`${defaultProvider.label} · ${defaultProvider.defaultModel}`}
-        disabled={piRunning}
         onChange={changeAgentSettings}
         onManageProviders={() => openSettings("providers")}
       />

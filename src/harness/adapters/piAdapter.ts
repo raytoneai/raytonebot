@@ -1,5 +1,5 @@
 import { agentUXEventBuilders, type AgentUXEvent } from "@agent-ux/protocol";
-import { limitEventText, limitToolResult } from "../../runtime/eventLimits";
+import { limitEventText, limitToolResult } from "../../runtime/eventLimits.ts";
 
 /**
  * Pi's SDK, JSON and RPC modes all expose the same session-event vocabulary. Keep this adapter
