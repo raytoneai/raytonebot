@@ -120,6 +120,8 @@ export function AgentApp() {
   const copy = useCopy();
   const frameRef = useRef<HTMLDivElement>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
+  /** Phones: the sidebar (agents, history, settings) lives in a drawer opened from the top left. */
+  const [drawerOpen, setDrawerOpen] = useState(false);
   // Closed until asked for, matching the configurator: a run with nothing to show should not
   // hand half the canvas to an empty output panel. Opens on the drawer toggle or on clicking an
   // artifact in the conversation.
@@ -147,6 +149,7 @@ export function AgentApp() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("providers");
   const openSettings = (section: SettingsSectionId = "providers") => {
+    setDrawerOpen(false);
     setSettingsSection(section);
     setSettingsOpen(true);
   };
@@ -328,6 +331,21 @@ export function AgentApp() {
   const hasSidebar = inRegion("sidebar").length > 0;
   const hasRightPanel = inRegion("right-panel").length > 0;
   const leftSidebarMounted = hasSidebar && !autoHiddenRails.left;
+  /** Too narrow for the sidebar column (phones): it becomes a drawer instead of disappearing. */
+  const compact = hasSidebar && autoHiddenRails.left;
+  // Escape closes the drawer; widening past the breakpoint puts the sidebar back in place.
+  useEffect(() => {
+    if (!compact) {
+      setDrawerOpen(false);
+      return;
+    }
+    if (!drawerOpen) return;
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setDrawerOpen(false);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [compact, drawerOpen]);
   const leftSidebarVisible = leftSidebarMounted && !leftCollapsed;
   // Available = it could be shown. Visible = the reader has opened it. Clicking an artifact
   // keys on the former, so a collapsed panel reopens instead of being bypassed for a modal.
@@ -595,6 +613,7 @@ export function AgentApp() {
   /** Clicking an agent is how a new conversation starts (there is no separate "new chat" button).
    *  An empty conversation on screen is reused rather than stacking another blank one. */
   function startConversationWith(presetId: AgentPresetId) {
+    setDrawerOpen(false);
     const next = { ...agentSettings, presetId };
     setAgentSettings(next);
     saveAgentSettings(next);
@@ -602,6 +621,7 @@ export function AgentApp() {
   }
 
   function selectPiConversation(conversationId: string) {
+    setDrawerOpen(false);
     const conversation = piConversations.find((entry) => entry.id === conversationId);
     if (!conversation) return;
     setStreamId("");
@@ -733,7 +753,7 @@ export function AgentApp() {
     // designed against. Re-implementing it here is what made the export "not fit".
     <AgentPersonaProvider persona={persona}>
     <ShellExtrasProvider value={shellExtras}>
-    <div className="exported-shell" style={{ height: "100vh" }}>
+    <div className="exported-shell" style={{ height: "100dvh" }}>
 
       <>
         <div
@@ -744,9 +764,29 @@ export function AgentApp() {
           data-right-collapsed={rightCollapsed}
           data-style-preset={project.theme.stylePreset}
           data-appearance={appearance}
+          data-compact={compact ? "true" : undefined}
           ref={frameRef}
         >
           {leftSidebarMounted ? renderSlots(visibleLayoutSlots, "sidebar", slotContext) : null}
+          {compact ? (
+            <>
+              <button
+                type="button"
+                className="rail-icon-btn preview-rail-float"
+                data-side="left"
+                aria-label={copy.shell.editor.expandSidebar}
+                aria-expanded={drawerOpen}
+                onClick={() => setDrawerOpen(true)}
+              >
+                <span className="native-rail-icon"><SidebarRailIcon size={17} /></span>
+                <span className="legacy-rail-icon"><PanelLeft size={17} /></span>
+              </button>
+              <div className="compact-drawer-scrim" data-open={drawerOpen} aria-hidden="true" onClick={() => setDrawerOpen(false)} />
+              <div className="compact-drawer" data-open={drawerOpen} inert={!drawerOpen}>
+                {renderSlots(visibleLayoutSlots, "sidebar", { ...slotContext, onCollapseLeft: () => setDrawerOpen(false) })}
+              </div>
+            </>
+          ) : null}
           {rightPanelVisible ? (
             <PanelGroup className="preview-panels" orientation="horizontal">
               <Panel defaultSize={mainSize} minSize="52%">

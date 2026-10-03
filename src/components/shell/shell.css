@@ -120,6 +120,8 @@
 
 .shell-header-agent {
   display: inline-flex;
+  min-width: 0;
+  max-width: 100%;
   align-items: center;
   gap: 10px;
   margin: -4px 0 -4px -8px;
@@ -134,9 +136,9 @@
 }
 
 .shell-header-agent:hover, .shell-header-agent[data-state="open"] { background: var(--surface-hover, var(--surface-inset)); }
-.shell-header-text { display: grid; line-height: 1.2; }
+.shell-header-text { display: grid; min-width: 0; line-height: 1.2; }
 .shell-header-text strong { color: var(--text-primary); font-size: 15px; font-weight: 700; }
-.shell-header-text span { color: var(--text-muted); font-size: 12px; }
+.shell-header-text span { overflow: hidden; color: var(--text-muted); font-size: 12px; text-overflow: ellipsis; white-space: nowrap; }
 
 .shell-popover {
   z-index: 70;

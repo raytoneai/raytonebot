@@ -524,6 +524,11 @@
   .settings-field { grid-template-columns: 1fr; gap: 4px; }
   .settings-provider-actions { padding-left: 0; }
   .settings-key-pill { width: auto; }
+  /* Provider rows: the key state drops under the name (aligned past the 32px mark) instead of
+     squeezing the host and model into a three-line column. */
+  .settings-provider .settings-row { flex-wrap: wrap; row-gap: 6px; }
+  .settings-provider .settings-row-sub { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .settings-provider .settings-key-pill { order: 1; margin-left: 44px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
