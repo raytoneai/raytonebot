@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="330" height="64" viewBox="0 0 330 64" color="#0C2458" role="img" aria-labelledby="raytone-bot-title">
+<title id="raytone-bot-title">Raytone Bot</title>
+<desc>Raytone's navy and gold striped circle with two capsule eyes and a rounded path-based wordmark.</desc>
+<g transform="translate(2 4) scale(.56)"><g fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round">
+  <path d="M40 12H60M25 24H50M17 36H29M12 50H27M17 64H29M25 76H51M40 88H60"/>
+</g>
+<g fill="none" stroke="#E7AC26" stroke-width="6" stroke-linecap="round">
+  <path d="M62 24H75M73 36H83M76 50H88M73 64H83M63 76H75"/>
+</g>
+<g fill="currentColor"><rect x="39" y="39" width="8" height="22" rx="4"/><rect x="57" y="39" width="8" height="22" rx="4"/></g></g>
+<g fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(74 16) scale(.9)">
+  <path d="M0 32V1H11C27 1 27 18 11 18H0M12 18L25 32"/>
+  <g transform="translate(33)"><path d="M20 12V32"/><ellipse cx="10" cy="22" rx="10" ry="10.5"/></g>
+  <path transform="translate(61)" d="M0 12L9 31M20 12L9 36Q6 43 0 41"/>
+  <path transform="translate(89)" d="M8 4V26Q8 34 17 31M0 12H17"/>
+  <ellipse transform="translate(112)" cx="10.5" cy="22" rx="10.5" ry="10.5"/>
+  <path transform="translate(141)" d="M0 32V12M0 22Q0 11 10 11Q20 11 20 22V32"/>
+  <path transform="translate(170)" d="M0 22H21C21 8 0 7 0 22C0 35 14 35 20 30"/>
+</g>
+<g fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(259 18.5) scale(.82)">
+  <path d="M0 32V1H10C24 1 24 15 10 15H0M10 15C26 15 27 32 10 32H0"/>
+  <ellipse transform="translate(29)" cx="10.5" cy="22" rx="10.5" ry="10.5"/>
+  <path transform="translate(59)" d="M8 4V26Q8 34 17 31M0 12H17"/>
+</g>
+</svg>
+

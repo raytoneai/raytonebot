@@ -3577,6 +3577,15 @@ textarea:focus-visible {
   line-height: 1.25;
   color: var(--text-primary);
 }
+.session-brand-logo {
+  display: block;
+  height: 24px;
+  width: auto;
+}
+.preview-frame[data-appearance="dark"] .session-brand-logo[data-variant="light"],
+.preview-frame:not([data-appearance="dark"]) .session-brand-logo[data-variant="dark"] {
+  display: none;
+}
 
 .session-brand-actions {
   display: inline-flex;

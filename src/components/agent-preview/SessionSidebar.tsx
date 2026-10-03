@@ -145,7 +145,10 @@ export function SessionSidebar({
   return (
     <aside ref={sidebarRef} className="session-sidebar" data-preview-anchor="sidebar" aria-label={c.ariaLabel}>
       <header className="session-brand">
-        <span className="session-brand-name">{c.brandName}</span>
+        <span className="session-brand-name">
+          <img className="session-brand-logo" data-variant="light" src="/brand/raytone-bot.svg" alt={c.brandName} />
+          <img className="session-brand-logo" data-variant="dark" src="/brand/raytone-bot-dark.svg" alt={c.brandName} />
+        </span>
         <span className="session-brand-actions">
           {search ? (
             <div className="session-search-menu">

@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Raytone Bot · Logo 预览</title>
+  <style>
+    :root { color-scheme: light; color: #0c2458; background: #eeeee9; font: 14px/1.6 -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; }
+    * { box-sizing: border-box; }
+    body { margin: 0; }
+    main { max-width: 1080px; margin: 64px auto; padding: 0 28px; }
+    .eyebrow { margin: 0 0 12px; font-size: 11px; letter-spacing: .16em; font-weight: 650; }
+    h1 { margin: 0; font-size: 28px; letter-spacing: -.03em; font-weight: 650; }
+    .intro { margin: 10px 0 32px; color: #667087; }
+    .layout { display: grid; grid-template-columns: minmax(0, 1fr) 308px; gap: 24px; align-items: start; }
+    .plate { background: #f8f6f0; border-radius: 16px; overflow: hidden; }
+    .hero { min-height: 280px; display: grid; place-items: center; padding: 48px 36px; }
+    .hero img { width: min(100%, 470px); height: auto; }
+    .reverse { min-height: 144px; background: #0c2458; display: flex; align-items: center; justify-content: center; padding: 36px; }
+    .reverse img { width: min(100%, 300px); height: auto; }
+    .note { margin: 14px 0 0; color: #667087; font-size: 12px; }
+    .downloads { display: flex; flex-wrap: wrap; gap: 20px; margin-top: 24px; }
+    a { color: #0c2458; text-underline-offset: 4px; }
+    .context { background: #dfe2e9; padding: 20px; border-radius: 16px; }
+    .sidebar { width: 268px; height: 424px; background: #f5f6fc; border-radius: 12px; padding: 0 12px; color: #1d2943; }
+    .brand { height: 68px; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    .brand-logo { display: block; width: 154px; height: auto; }
+    .old-brand { display: none; font-size: 16px; font-weight: 760; }
+    .actions { display: flex; gap: 10px; align-items: center; }
+    .actions svg, .new-chat svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+    .new-chat { display: flex; align-items: center; gap: 8px; margin: 12px 10px 26px; }
+    .label { font-size: 11px; font-weight: 600; color: #848c9e; margin: 0 10px 6px; }
+    .agent { display: flex; align-items: center; gap: 10px; min-height: 48px; padding: 6px 10px; border-radius: 12px; }
+    .agent.selected { background: white; border: 1px solid #e4e7f0; }
+    .agent img { width: 30px; height: 30px; border-radius: 50%; object-fit: cover; }
+    .agent strong { display: block; font-size: 13px; line-height: 1.3; }
+    .agent small { color: #8991a4; font-size: 11px; }
+    .today { margin-top: 28px; }
+    .thread { padding: 6px 12px; background: #e8eaf3; border-radius: 14px; font-size: 12px; }
+    .toggle { display: flex; align-items: center; gap: 7px; margin-top: 16px; cursor: pointer; font-size: 12px; color: #667087; }
+    .toggle input { accent-color: #0c2458; width: 15px; height: 15px; }
+    .context:has(#show-original:checked) .brand-logo { display: none; }
+    .context:has(#show-original:checked) .old-brand { display: inline; }
+    footer { margin-top: 40px; padding-top: 18px; border-top: 1px solid #daddda; display: flex; gap: 24px; align-items: center; color: #667087; font-size: 12px; }
+    .icon { width: 40px; height: 40px; }
+    @media (max-width: 760px) { main { margin: 28px auto; padding: 0 20px; } .layout { grid-template-columns: minmax(0,1fr); } .context { width: 308px; max-width: 100%; } .hero { min-height: 210px; padding: 32px 24px; } footer { align-items: flex-start; } }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">RAYTONE / BRAND EXPLORATION 01</p>
+    <h1>让品牌，拥有一双眼睛。</h1>
+    <p class="intro">沿用 Raytone 的黄蓝条纹圆形，加入胶囊眼与圆润字标。</p>
+    <div class="layout">
+      <section aria-label="Logo 展示与下载">
+        <div class="plate">
+          <div class="hero"><img src="raytone-bot.svg" alt="Raytone Bot 黄蓝条纹机器人圆形标志与字标"></div>
+          <div class="reverse"><img src="raytone-bot-dark.svg" alt="Raytone Bot 深色背景版本"></div>
+        </div>
+        <p class="note">透明背景 · 字标已转为路径 · SVG 可无损缩放</p>
+        <nav class="downloads" aria-label="下载 logo">
+          <a href="raytone-bot.svg" download>下载 SVG</a>
+          <a href="raytone-bot.png" download>透明 PNG</a>
+          <a href="raytone-bot-dark.svg" download>深色背景版</a>
+          <a href="raytone-bot-icon.svg" download>独立图标</a>
+        </nav>
+      </section>
+      <section aria-label="侧栏替换效果">
+        <div class="context">
+          <div class="sidebar">
+            <div class="brand">
+              <img class="brand-logo" src="raytone-bot.svg" alt="Raytone Bot">
+              <span class="old-brand">我的Agent</span>
+              <span class="actions" aria-hidden="true">
+                <svg viewBox="0 0 24 24"><circle cx="10.5" cy="10.5" r="6.5"/><path d="m16 16 4 4"/></svg>
+                <svg viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="3"/><path d="M14 3v18"/></svg>
+              </span>
+            </div>
+            <div class="new-chat"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M16 4H7a4 4 0 0 0-4 4v7a4 4 0 0 0 4 4h1v3l4-3h4a4 4 0 0 0 4-4v-4M20 2v6m-3-3h6"/></svg>新建对话</div>
+            <p class="label">Agent</p>
+            <div class="agent selected"><img src="../raytone-avatars/04-grokbot-fusion.png" alt=""><div><strong>助手</strong><small>Pi</small></div></div>
+            <div class="agent"><img src="../raytone-avatars/07-middle-aged-man-square-glasses.png" alt=""><div><strong>规划</strong><small>Claude Code</small></div></div>
+            <div class="agent"><img src="../raytone-avatars/06-teen-boy-short-hair.png" alt=""><div><strong>实施</strong><small>Codex CLI</small></div></div>
+            <p class="label today">今天</p>
+            <div class="thread">hello</div>
+          </div>
+          <label class="toggle"><input id="show-original" type="checkbox">对比原来的「我的Agent」</label>
+        </div>
+        <p class="note">侧栏尺寸预览 · Logo 宽 154 px<br>此页为设计预览，尚未修改应用标题。</p>
+      </section>
+    </div>
+    <footer><img class="icon" src="raytone-bot-icon.svg" alt="Raytone Bot 独立图标"><span>深蓝 #0C2458 · 金黄 #E7AC26 · 米白 #F8F6F0<br>保留圆形与横线的品牌识别；两只眼睛体现 Bot 身份。</span></footer>
+  </main>
+</body>
+</html>
