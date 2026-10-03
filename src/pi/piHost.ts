@@ -33,6 +33,7 @@ import {
 } from "./conversationStore.ts";
 import { join } from "node:path";
 import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
+import { createHostResources } from "./piResources.ts";
 import { PiApprovalGate, type PiPermissionMode } from "./approvalGate.ts";
 
 export { PiApprovalGate } from "./approvalGate.ts";
@@ -627,6 +628,7 @@ async function createDefaultPiBridge(input: { cwd: string; approvalGate: PiAppro
     allowModelNetwork: false,
     credentials: new InMemoryCredentialStore(),
   });
+  const { settingsManager, resourceLoader } = await createHostResources(pi, input.cwd);
   let session = await createSession(false);
 
   /**
@@ -657,6 +659,8 @@ async function createDefaultPiBridge(input: { cwd: string; approvalGate: PiAppro
       cwd: input.cwd,
       modelRuntime,
       sessionManager: sessionManager(fresh),
+      settingsManager,
+      resourceLoader,
       noTools: "builtin",
       customTools: definitions,
     });

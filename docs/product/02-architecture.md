@@ -67,6 +67,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 | `src/pi/runtime/process.ts`、`childEnv.ts` | Node | 进程组终止、密钥剥离 |
 | `src/avatars/*` | 浏览器 | 角色头像（SVG + 动画），由 `AgentPersonaProvider` 提供 |
 | `src/components/settings/*` | 浏览器 | 设置对话框（齿轮打开），文案在 `src/i18n/copy/settings.ts` |
+| `src/pi/piResources.ts` | Node | Pi 会话的资源加载：禁用扩展、项目不受信任 |
 | `src/pi/providerProbe.ts` | Node | `POST /provider/test`：带密钥请求服务商 `/models`，返回延迟与模型列表 |
 
 ## 目标架构（M1–M3 完成后）

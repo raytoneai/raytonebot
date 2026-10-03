@@ -50,4 +50,5 @@
 
 - **刷新后会话没了** → 曾是 `SessionManager.inMemory` + 前端 React state，T1.3/T1.4 已修 → 若再出现，检查 `RAYTONEBOT_DATA_DIR`（默认 `~/.raytonebot/data`）是否可写。
 - **云端没有可用模型** → 沙箱 `~/.raytonebot/env` 里没有 `DEEPSEEK_API_KEY` → 部署时在本机环境设置该变量再运行 `deploy.py`。
+- **Agent 写的 `.pi/extensions/*.ts` 在 bot 进程里执行** → `createAgentSession` 不传 `resourceLoader` 时用 Pi 默认加载器：SDK 模式默认信任项目，会加载 cwd 与全局目录的扩展，并自动安装 `settings.json` 里的 packages → 用 `createHostResources()`（`noExtensions` + `projectTrusted: false`），见 `piResources.test.ts`。
 - **Pi 拒绝请求 403** → `requestOrigin.ts` 只放行 loopback；云端靠 `cloud-preview.mjs` 鉴权后把 Host/Origin 标准化为 `127.0.0.1:5188`。不要用 `vite --host 0.0.0.0` 直接暴露。
