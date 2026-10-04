@@ -207,3 +207,11 @@
 - **参考**：OpenClaw Agent 只能读配置（`gateway` 工具无写入），`secrets request` 用遮罩输入框直送服务端、"值不进入聊天/记录/工具结果/模型上下文"，聊天渠道里只发网页链接；OpenClaw 与 CopilotKit OpenBot 用配对码/一次性 link 免填用户 ID；MCP 2025-11-25 规定敏感信息必须走 URL 模式而非表单；dsh-im 的飞书/企业微信扫码注册只在设置页发起。
 - **决定**：Raer（Pi）新增 `connect_channel {platform}`，无凭据参数。主机经 `run.awaiting_input`（`channelSetup` 载荷，只含阶段/机器人名/配对候选）显示卡片，复用 `chatframe/approval.tsx` 提问卡（新增可选 `secret` 密码输入）；token 由浏览器直接 POST `/channels/setup`，主机验证并连接，失败恢复原设置。连接后进入配对：新机器人收到的第一条被拒私聊作为候选，用户点「允许」后加入白名单（保留确认，防止陌生人抢先），15 分钟无消息则不配对直接完成。工具结果只有状态、机器人名、被允许的用户名。IM 会话中调用返回"请在网页中操作"，不收凭据；对话里出现的 Telegram token 在存档与发模型前打码，提示词要求让用户 /revoke。首期仅 Telegram。
 - **边界**：卡片答复按 conversationId+requestId 校验，单用户产品不另做会话所有权；飞书/企业微信扫码注册、钉钉（注册接口非公开文档）未做；Tonny/Bob 无此工具。
+
+## ADR-030：沙箱内以出站边界代替逐条询问（2026-10-04）
+
+- **问题**：云端默认「替我批准」仍会对 `git push`、ssh、部署、`curl` 上传等询问，读取 `SOUL.md`/`USER.md`/Agent 配置也要批准；而这些推送在沙箱里本来就到不了外网（Agent UID 出站只放行模型代理与 npm/PyPI，且没有 git/ssh/云凭据）。
+- **参考**：OpenAgentCore（Codex never + full access，风险由外层 VM 限定）、nightly openbot（danger-full-access，仅发布/替换/删除站点与支付登录交还用户）、CopilotKit OpenBot（自身沙箱工具豁免，凭据/安全设置/支付强制转人工）、OpenClaw（沙箱容器内执行不过审批）、Codex/Claude Code 官方（隔离容器内可免逐步审批）。共识：沙箱代替本地工作的审批，仍然询问的是真正越过边界的发布、对用户数据的破坏和 Agent 自我修改。
+- **决定**：`PermissionPolicy.egressContained`（= 沙箱）时，网络类对外命令归为普通工作，失败交回 Agent；publish（注册表可达）、`git reset --hard`/`git clean -f`、整树删除始终询问。受保护路径扩展到 `.git/hooks`、`.mcp.json`、`.npmrc` 与 Agent HOME 的 shell 启动文件；所有受保护/只读路径只拦修改，读取不询问；shell 写入相对路径同样识别。本机无出站边界，行为不变。
+- **未做**：LLM 风险评审（OpenClaw auto、OpenHands ConfirmRisky）——每次调用增加一次模型请求，暂不值得；支付/凭据类转人工——当前 Agent 无浏览器或支付能力。
+- **注意**：Codex 文档已将审批策略 `untrusted` 标为退役；本机 0.153.4 协议仍支持，升级 Codex 时需复核。

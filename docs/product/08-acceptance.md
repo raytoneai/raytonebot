@@ -656,3 +656,7 @@
 - 云端 Raer 工具含 `connect_channel`；真实 DeepSeek "帮我连接 Telegram"：调用 `connect_channel`，卡片进入 credentials 阶段，经 `/channels/setup` 取消后本轮成功结束，回复提示 token 只填卡片、不要贴进聊天（临时会话已删除）。
 - 未做：云端真实 token 的连接与配对（同一 bot 需先关闭本机 5188 的 Telegram）。
 - 观察：`SOUL.md`/`USER.md` 列为受保护路径后，Agent 读取它们也需批准（与 `.claude` 等一致）；内容已注入提示词，正常任务无需读取。
+
+## AY 组：沙箱权限减负（2026-10-04，工作树）
+
+- 156 项测试：沙箱内 `git push`（含 `--force`）、ssh/scp、`docker push`、`gh pr create`、`vercel deploy`、`curl -F`、`git remote add` 为普通工作；`npm publish`、`twine upload`、`git reset --hard`、`git clean -fd`、`rm -rf ~`/`..`、`crontab -r` 在沙箱与本机均询问；`git reset --soft` 普通。`.git/hooks/*`、`.mcp.json`、`.npmrc`、Agent HOME `.bashrc/.profile/.npmrc` 写入受保护，`echo … >> ~/.bashrc` 识别；读取 `USER.md`、`cat SOUL.md` 不询问，`echo hi > SOUL.md`（相对路径）受保护；`.git/config` 普通。

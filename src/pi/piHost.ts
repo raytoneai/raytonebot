@@ -163,7 +163,8 @@ export function createPiRuntimeController(options: {
   const workspaces = [...new Set([cwd, ...Object.values(layout.agents), ...(layout.shared ? [layout.shared] : [])])];
   const appRoot = options.appRoot ?? process.cwd();
   const secretPaths = defaultSecretPaths();
-  const protectedPaths = defaultProtectedPaths({ workspaces });
+  // In the sandbox agents run as their own user with their own home; locally it is the developer's.
+  const protectedPaths = defaultProtectedPaths({ workspaces, agentHome: process.env.RAYTONEBOT_AGENT_HOME?.trim() || undefined });
   /** The bot's own code: agents may read it (reviewing it is a normal task), never change it. */
   const readOnlyPaths = defaultReadOnlyPaths({ appRoot, workspaces });
   /** "Always allow" grants per agent, shared by every conversation with that agent. */
@@ -175,7 +176,7 @@ export function createPiRuntimeController(options: {
   const gateFor = (conversationId: string) => {
     let gate = approvalGates.get(conversationId);
     if (!gate) {
-      gate = new PiApprovalGate({ cwd, secretPaths, protectedPaths, readOnlyPaths }, approvalMemory);
+      gate = new PiApprovalGate({ cwd, secretPaths, protectedPaths, readOnlyPaths, egressContained: sandboxed }, approvalMemory);
       approvalGates.set(conversationId, gate);
     }
     return gate;

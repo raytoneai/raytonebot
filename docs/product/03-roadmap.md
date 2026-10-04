@@ -111,6 +111,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-04 沙箱权限减负（ADR-030）：参考 OpenAgentCore、nightly openbot、CopilotKit OpenBot、OpenClaw 与 Codex/Claude 官方做法，沙箱内被出站防火墙挡住的推送/部署/ssh/上传不再询问；publish、硬重置/清理、整树删除仍问；受保护路径增加 hooks/MCP/npmrc/shell 启动文件，所有受保护路径读取不再询问。见 AY 组。
+
 - 2026-10-04 重选历史会话不再重放 streaming：只在主机报告运行时跟随，跟随时不重复读取历史；浏览器验证见 AX 组。与聊天连接 Telegram（AW 组）一并部署云端。
 
 - 2026-10-04 聊天中连接 Telegram（ADR-029）：对 Raer 说"帮我连接 Telegram"→安全卡片粘贴 token（不经模型、不入记录）→用自己的账号给机器人发一条消息→点「允许」完成配对。参照 OpenClaw secrets request/配对、MCP URL 模式。FAQ 修正"key 不在沙箱"的误导。154 项测试与真实 DeepSeek 浏览器流程见 AW 组。

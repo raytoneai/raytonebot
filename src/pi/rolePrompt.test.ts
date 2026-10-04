@@ -5,7 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { createCodexAppServer } from "./codexAppServer.ts";
-import { classifyToolCall, defaultProtectedPaths } from "./permissionPolicy.ts";
+import { classifyToolCall, defaultProtectedPaths, defaultReadOnlyPaths } from "./permissionPolicy.ts";
 import { DEFAULT_SOULS, LEGACY_SOULS, PERSONA_FILE_LIMIT, personaFile, rolePrompt } from "./rolePrompt.ts";
 import { ensureWorkspaceLayout, resolveWorkspaceLayout } from "./workspaceLayout.ts";
 
@@ -81,13 +81,17 @@ This directory is your own working directory in RaytoneBot.
   } finally { cleanup(); }
 });
 
-test("agents must ask before rewriting persona files", () => {
+test("agents read persona files freely but must ask before rewriting them", () => {
   const { layout, cleanup } = workspace();
   try {
-    const protectedPaths = defaultProtectedPaths({ workspaces: [...Object.values(layout.agents), layout.shared!] });
-    const policy = { cwd: layout.agents.assistant, protectedPaths };
+    const workspaces = [...Object.values(layout.agents), layout.shared!];
+    const policy = { cwd: layout.agents.assistant, protectedPaths: defaultProtectedPaths({ workspaces }),
+      readOnlyPaths: defaultReadOnlyPaths({ appRoot: "/srv/raytonebot", workspaces }) };
+    assert.equal(classifyToolCall("read", { path: join(layout.shared!, "USER.md") }, policy), "read");
+    assert.equal(classifyToolCall("bash", { command: "cat SOUL.md" }, policy), "mutating", "a read-only shell command is ordinary work");
     assert.equal(classifyToolCall("write", { path: "SOUL.md" }, policy), "protected");
     assert.equal(classifyToolCall("edit", { path: join(layout.shared!, "USER.md") }, policy), "protected");
+    assert.equal(classifyToolCall("bash", { command: "echo hi > SOUL.md" }, policy), "protected");
   } finally { cleanup(); }
 });
 

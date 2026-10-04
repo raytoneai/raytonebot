@@ -29,7 +29,7 @@
 
 - Codex 从 cwd 读取 `AGENTS.md`；云端 Pi 禁止 bot 身份自动读取工作区资源，工作区布局由固定代码生成的说明传入，需要其他说明时通过受限 read 工具读取。本机 Pi 保留自动读取。Claude Code 在 `--safe-mode` 下不读，改由 `--append-system-prompt` 告知同样内容。Claude 用 `--add-dir`，Codex 通过逐项文件/命令审批访问共享目录。
 - 规划角色只能把文件写进共享目录（其他位置的 Write 直接拒绝，Edit 类工具禁用）。
-- 工作区与应用目录分离后，应用代码自动成为受保护路径；每个角色目录与共享目录里的 `.claude/.codex/.agents` 也受保护。
+- 工作区与应用目录分离后，应用代码自动成为受保护路径；每个角色目录与共享目录里的 `.claude/.codex/.agents`、`.git/hooks`、`.mcp.json`、`.npmrc`、`SOUL.md`、`USER.md`，以及 Agent HOME 的 shell 启动文件与 `.npmrc` 也受保护。受保护只管修改，读取不询问。
 - 未设置时（本机开发）所有角色共用一个目录，行为与之前一致。
 
 ## 引擎接入方式
@@ -63,10 +63,11 @@ Claude Code / Codex 的 JSON 输出
 | 工具调用类别 | 例子 | 请求权限 | 替我批准 | 全部允许 |
 | --- | --- | --- | --- | --- |
 | 禁止访问 | 读写 `~/.raytonebot`、`~/.ssh`、`~/.aws`、`~/.codex/auth.json`、`~/.claude*` 凭据；`env`/`printenv`/`/proc/*/environ` | **拒绝** | **拒绝** | **拒绝**（不弹询问，工具结果里告知原因） |
-| 受保护 | 修改工作区里的 `.claude/.codex/.agents`；**修改**应用自身代码（工作区分离时；含会写入的 bash：重定向、`rm/mv/cp`、`sed -i`、`git checkout`、`npm install/build`、`sh -c` 等） | 询问 | 询问 | **询问**（「始终允许」也不能覆盖） |
-| 对外/高危 | `git push`、各类 publish、`docker push`、部署 CLI、`ssh/scp/rsync` 到远端、`curl` 上传、`rm -rf /`/`~`、关机、格式化 | 询问 | 询问 | 直接执行 |
+| 受保护 | **修改**（读取不询问）：工作区的 `.claude/.codex/.agents`、`.git/hooks`、`.mcp.json`、`.npmrc`；人设 `SOUL.md`/`USER.md`；Agent HOME 的 `.bashrc/.profile/.zshrc` 等与 `.npmrc`；应用自身代码（工作区分离时）。含会写入的 bash：重定向、`rm/mv/cp`、`sed -i`、`git checkout`、`npm install/build`、`sh -c` 等，相对路径同样识别 | 询问 | 询问 | **询问**（「始终允许」也不能覆盖） |
+| 对外/高危（始终） | 各类 publish（npm/pnpm/yarn/bun/cargo/gem/twine/poetry）、`git reset --hard`、`git clean -f`、`rm -rf /`/`~`/`..`、关机、格式化、`crontab -r` | 询问 | 询问 | 直接执行 |
+| 对外（仅本机） | `git push`、`git remote add/set-url`、`docker push/login`、`gh` 发布类、部署 CLI、`ssh/scp/rsync` 到远端、`curl` 上传。沙箱内 Agent 出站防火墙只放行模型代理与 npm/PyPI，且无相关凭据，归为修改工作区、失败后把错误交回 Agent | 询问 | 本机询问；沙箱直接执行 | 直接执行 |
 | 修改工作区 | 普通 shell、edit、write、装依赖、联网下载 | 询问 | 直接执行 | 直接执行 |
-| 只读 | read/grep/find/ls 等；读取应用自身代码 | 直接执行 | 直接执行 | 直接执行 |
+| 只读 | read/grep/find/ls 等；读取应用自身代码、Agent 配置与人设文件 | 直接执行 | 直接执行 | 直接执行 |
 
 - 默认模式：`RAYTONEBOT_SANDBOX=1`（云端沙箱）时为「替我批准」，本机为「请求权限」。主机通过 `/state` 的 `defaultPermissionMode` 告诉前端；用户手动选择后不再跟随。
 - Codex 原生策略固定为 `untrusted` + `read-only`，写动作进入现有审批闸门；安全只读命令可由 Codex 自动执行。`auto` / `allow-all` 由闸门对单次动作作决定，不改为整轮全权限。补丁的每个路径（含重命名目标）都检查，命令按实际 cwd 分类。

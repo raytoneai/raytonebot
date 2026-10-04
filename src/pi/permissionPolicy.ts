@@ -11,11 +11,15 @@ import { isAbsolute, relative, resolve } from "node:path";
  * about: no task needs them, and a prompt for them only trains a reflexive "allow".
  *
  * - `secret`: reads or writes credentials, or dumps the environment. Refused in every mode.
- * - `protected`: changes agent config in the workspace or the bot's own code (or rebuilds it).
- *   Asks in every mode; "always allow" cannot cover it. Reading the bot's code is ordinary: it
- *   holds no secrets, and reviewing it is a normal request.
- * - `outward`: publishes, deploys, reaches remote hosts, uploads, or destroys outside the
- *   workspace. Asks unless the mode is "allow all".
+ * - `protected`: changes agent config, hooks or persona files, or the bot's own code (or rebuilds
+ *   it). Asks in every mode; "always allow" cannot cover it. Reading any of them is ordinary:
+ *   they hold no secrets, and an approval for a read only trains a reflexive "allow".
+ * - `outward`: publishes, deploys, reaches remote hosts, uploads, or destroys history and trees
+ *   that existed before the turn. Asks unless the mode is "allow all". Inside the sandbox the
+ *   agent's egress firewall already stops pushes, deploys, ssh and uploads, and it holds no
+ *   credentials for them, so those run and fail there instead of asking (as OpenAgentCore,
+ *   nightly openbot and CopilotKit OpenBot treat their own sandboxes); publishing to the
+ *   allowlisted package registries and destroying data still ask.
  * - `mutating`: changes the workspace (shell, edit, write). Asks only under "request".
  * - `read`: everything else.
  */
@@ -28,6 +32,8 @@ export type PermissionPolicy = {
   protectedPaths: readonly string[];
   /** Readable freely; any change to them is `protected`. The bot's own code. */
   readOnlyPaths?: readonly string[];
+  /** Agents run behind the sandbox's egress firewall: only the model proxy and package registries. */
+  egressContained?: boolean;
 };
 
 const MUTATING_TOOLS = new Set(["bash", "edit", "write", "powershell", "codex"]);
@@ -50,26 +56,31 @@ export function defaultSecretPaths(options: { home?: string } = {}): string[] {
   ].map((entry) => resolve(home, entry));
 }
 
-/** Agent config inside the workspace, plus RAYTONEBOT_PROTECTED_PATHS. */
-export function defaultProtectedPaths(options: { workspaces: readonly string[] }): string[] {
+/**
+ * Files that keep acting after the turn: agent config and hooks in the workspace, the agent's
+ * shell startup and package-manager config, plus RAYTONEBOT_PROTECTED_PATHS.
+ */
+export function defaultProtectedPaths(options: { workspaces: readonly string[]; agentHome?: string }): string[] {
   const paths: string[] = [];
   // Agent config inside the workspace would let one run plant hooks or settings for the next.
   for (const workspace of options.workspaces) {
-    paths.push(...[".claude", ".codex", ".agents"].map((entry) => resolve(workspace, entry)));
-    // Persona files reach every later prompt: an agent must not rewrite them unasked.
-    paths.push(...["SOUL.md", "USER.md"].map((entry) => resolve(workspace, entry)));
+    paths.push(...[".claude", ".codex", ".agents", ".git/hooks", ".mcp.json", ".npmrc"].map((entry) => resolve(workspace, entry)));
   }
+  const home = options.agentHome ?? homedir();
+  paths.push(...[".bashrc", ".bash_profile", ".profile", ".zshrc", ".zprofile", ".npmrc"].map((entry) => resolve(home, entry)));
   const extra = process.env.RAYTONEBOT_PROTECTED_PATHS?.split(":").map((entry) => entry.trim()).filter(Boolean) ?? [];
   return [...paths, ...extra.map((entry) => resolve(entry))];
 }
 
 /**
- * The bot's own code, read-only to agents: only when they work elsewhere. In local development
- * the workspace *is* the app and editing it is the point.
+ * Readable freely, changed only with approval. The bot's own code, when agents work elsewhere (in
+ * local development the workspace *is* the app and editing it is the point), and the persona
+ * files: they reach every later prompt, so an agent must not rewrite them unasked.
  */
 export function defaultReadOnlyPaths(options: { appRoot: string; workspaces: readonly string[] }): string[] {
   const appRoot = resolve(options.appRoot);
-  return options.workspaces.some((workspace) => isWithin(resolve(workspace), appRoot)) ? [] : [appRoot];
+  const personas = options.workspaces.flatMap((workspace) => ["SOUL.md", "USER.md"].map((entry) => resolve(workspace, entry)));
+  return [...(options.workspaces.some((workspace) => isWithin(resolve(workspace), appRoot)) ? [] : [appRoot]), ...personas];
 }
 
 export function classifyToolCall(toolName: string, args: unknown, policy: PermissionPolicy): ToolCallClass {
@@ -79,9 +90,10 @@ export function classifyToolCall(toolName: string, args: unknown, policy: Permis
   if (name === "bash" || name === "powershell") {
     const command = typeof record.command === "string" ? record.command : "";
     if (ENV_DUMP.test(command) || pathIsWithin(callCwd, policy.secretPaths ?? [], policy.cwd) || commandMentions(command, policy.secretPaths ?? [])) return "secret";
-    if (pathIsWithin(callCwd, policy.protectedPaths, policy.cwd) || commandMentions(command, policy.protectedPaths)) return "protected";
-    if ((pathIsWithin(callCwd, policy.readOnlyPaths ?? [], policy.cwd) || commandMentions(command, policy.readOnlyPaths ?? [])) && commandMayWrite(command)) return "protected";
-    if (isOutwardCommand(command)) return "outward";
+    const guarded = [...policy.protectedPaths, ...(policy.readOnlyPaths ?? [])];
+    if ((pathIsWithin(callCwd, guarded, policy.cwd) || commandMentions(command, guarded, callCwd)) && commandMayWrite(command)) return "protected";
+    if (DESTRUCTIVE_COMMANDS.some((pattern) => pattern.test(command))) return "outward";
+    if (!policy.egressContained && NETWORK_COMMANDS.some((pattern) => pattern.test(command))) return "outward";
     return "mutating";
   }
   const paths = [record.path, record.file_path, record.notebook_path, ...(Array.isArray(record.paths) ? record.paths : [])];
@@ -91,8 +103,7 @@ export function classifyToolCall(toolName: string, args: unknown, policy: Permis
   if (targets.some((value) => pathIsWithin(value, policy.secretPaths ?? [], callCwd))) return "secret";
   for (const value of targets) {
     if (typeof value !== "string") continue;
-    if (pathIsWithin(value, policy.protectedPaths, callCwd)) return "protected";
-    if (WRITING_TOOLS.has(name) && pathIsWithin(value, policy.readOnlyPaths ?? [], callCwd)) return "protected";
+    if (WRITING_TOOLS.has(name) && pathIsWithin(value, [...policy.protectedPaths, ...(policy.readOnlyPaths ?? [])], callCwd)) return "protected";
   }
   return MUTATING_TOOLS.has(name) ? "mutating" : "read";
 }
@@ -115,12 +126,14 @@ function isWithin(path: string, root: string): boolean {
 /** Environment dumps reveal whatever credentials the host process holds. */
 const ENV_DUMP = /(^|[;&|(`\s])(env|printenv|export\s+-p|declare\s+-x|set)\s*($|[;&|)>`])|\/proc\/[^\s]*\/environ/;
 
-function commandMentions(command: string, paths: readonly string[]): boolean {
+/** With `cwd`, a path written relative to it (`SOUL.md`, `../shared/USER.md`) counts too. */
+function commandMentions(command: string, paths: readonly string[], cwd?: string): boolean {
   const home = homedir();
   return paths.some((path) => {
     const tilde = path.startsWith(`${home}/`) ? `~/${path.slice(home.length + 1)}` : undefined;
     const homeVar = tilde ? `$HOME/${path.slice(home.length + 1)}` : undefined;
-    return [path, tilde, homeVar].some((form) => form && command.includes(form));
+    const local = cwd && relative(cwd, path);
+    return [path, tilde, homeVar, local].some((form) => form && command.includes(form));
   });
 }
 
@@ -188,21 +201,25 @@ function commandMayWrite(command: string): boolean {
   return cliMayWrite(command) || WRITE_HINTS.some((pattern) => pattern.test(stripped));
 }
 
-const OUTWARD_COMMANDS: readonly RegExp[] = [
+/** Reach other machines; outward only where nothing stops them (outside the sandbox). */
+const NETWORK_COMMANDS: readonly RegExp[] = [
   /\bgit\s+push\b/,
   /\bgit\s+remote\s+(add|set-url)\b/,
-  /\b(npm|pnpm|yarn|bun)\s+publish\b/,
-  /\b(cargo|gem|twine|poetry)\s+publish\b|\btwine\s+upload\b/,
   /\bdocker\s+(push|login)\b/,
   /\bgh\s+(pr\s+(create|merge)|release\s+create|repo\s+(create|delete)|secret|api)\b/,
   /\b(vercel|netlify|flyctl|fly|wrangler|firebase|heroku)\b[^|;&]*\b(deploy|publish|--prod)\b/,
   /\b(ssh|scp|sftp|rsync)\b[^|;&]*\S+@\S+|\b(scp|rsync)\b[^|;&]*\s\S+:\S*/,
   /\bcurl\b[^|;&]*(\s-T\b|--upload-file|\s-F\b|--form|--data-binary\s+@|-d\s+@)/,
+];
+
+/** Outward everywhere: package registries are reachable from the sandbox, and lost data is lost. */
+const DESTRUCTIVE_COMMANDS: readonly RegExp[] = [
+  /\b(npm|pnpm|yarn|bun)\s+publish\b/,
+  /\b(cargo|gem|twine|poetry)\s+publish\b|\btwine\s+upload\b/,
+  /\bgit\s+reset\b[^|;&]*--hard\b|\bgit\s+clean\b[^|;&]*\s-[a-zA-Z]*f/,
   /\brm\s+(-[a-zA-Z]*r[a-zA-Z]*f?|-[a-zA-Z]*f[a-zA-Z]*r)[a-zA-Z]*\s+(\/|~|\$HOME|\.\.)(\s|\/?$|\/\*)/,
   /\b(shutdown|reboot|halt|poweroff|mkfs(\.\w+)?)\b|\bdd\b[^|;&]*\bof=\/dev\//,
   /\bcrontab\s+-r\b|\bkill\s+-9\s+-1\b/,
 ];
 
-function isOutwardCommand(command: string): boolean {
-  return OUTWARD_COMMANDS.some((pattern) => pattern.test(command));
-}
+
