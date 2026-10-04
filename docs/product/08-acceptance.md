@@ -649,3 +649,10 @@
 - 修复（`2d27a9d`）：`refreshPiConversation` 先读主机保存的副本，仅当主机返回 `activeRunId` 时才跟随；有连接问题的会话仍走 `followRun` 重试。追加：主机报告运行中时把刚读到的副本交给 `followRun(…, preloaded)`，首轮不再重复读取；断线重连仍会重新读取。
 - 验证（本机 5188，真实 DeepSeek，headless Chromium，临时会话测后停止并删除）：重选已完成会话 1.5 s 内无停止按钮、无 `/live` 请求；另一客户端在该会话启动长回复后从侧栏点开：1 次历史读取、1 次 `/live` 跟随，停止按钮出现，进行中的工具调用与待批准实时显示。154 项测试、build 通过。
 - 已知：重选逻辑在 `agent-shell.tsx`，现有 node 测试不覆盖，依赖浏览器验收；本地补写的停止终态与主机终态按事件数比较，主机终态不多于本地时保留本地副本（两者都表示已停止）。
+
+## 云端部署：聊天连接 Telegram 与历史重选修复（2026-10-04）
+
+- `0f17110` 部署到 `id705on7k0a1ya1d90icj`，部署前备份 `backups/id705on7k0a1ya1d90icj-20261004-230836-050428.tgz`；自检全过，依赖未变。
+- 云端 Raer 工具含 `connect_channel`；真实 DeepSeek "帮我连接 Telegram"：调用 `connect_channel`，卡片进入 credentials 阶段，经 `/channels/setup` 取消后本轮成功结束，回复提示 token 只填卡片、不要贴进聊天（临时会话已删除）。
+- 未做：云端真实 token 的连接与配对（同一 bot 需先关闭本机 5188 的 Telegram）。
+- 观察：`SOUL.md`/`USER.md` 列为受保护路径后，Agent 读取它们也需批准（与 `.claude` 等一致）；内容已注入提示词，正常任务无需读取。
