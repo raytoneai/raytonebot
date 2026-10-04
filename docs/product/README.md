@@ -16,6 +16,7 @@ RaytoneBot 是运行在 AgentSphere 云沙箱上的单用户 AI 工作助手：�
 | [08-acceptance.md](08-acceptance.md) | 验收清单与检查命令 | 宣布完成前 |
 | [09-lessons.md](09-lessons.md) | 踩坑记录，按主题检索 | 排障时 |
 | [10-agents-and-permissions.md](10-agents-and-permissions.md) | 三个预置角色、多引擎接入、权限模型 | 改引擎、审批、权限前 |
+| [11-parity.md](11-parity.md) | 参考项目源码基线、功能/UX 差距与模块验收 | 继续对齐 OpenBot / OpenMuse 时 |
 
 ## 当前状态（2026-10-03）
 

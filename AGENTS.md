@@ -55,7 +55,10 @@ permission model: `docs/product/10-agents-and-permissions.md`.
 - `src/slots/slotRegistry.tsx` — an exhaustive registry over every slot component. Removing
   an entry breaks the build; `src/components/agent-preview/ExportFrame.tsx` is an
   intentional stub that exists only to satisfy it.
-- `src/components/**` — fix defects only; no parallel components.
+- `src/components/**` — fix defects only; no parallel components. T2.4 exception: workspace
+  file browsing is an Output panel source; reuse the existing Composer/Output controls for
+  file upload, browsing and download. This does not permit unrelated component features or
+  a second file browser/modal implementation.
 - Fixtures under `src/` are preview and test data, never product data. `src/event-source.ts`
   loads them with a dynamic import so the live path never requests that chunk. Do not import
   a fixture from a component to make something appear.

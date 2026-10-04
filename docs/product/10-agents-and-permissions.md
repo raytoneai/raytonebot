@@ -1,6 +1,6 @@
 # 10 Agent 角色、引擎与权限
 
-2026-10-03 实现并本机验证。改引擎接入、审批或权限规则前读本文。
+2026-10-04 工作树更新；旧验证记录保留在末尾，新 Linux 隔离与 app-server 的验收见 [08](08-acceptance.md)。生产实例尚未部署本轮变更。
 
 ## 三个预置角色
 
@@ -27,7 +27,7 @@
 | `agents/assistant/`、`agents/planner/`、`agents/builder/` | 各角色的工作目录（cwd），各放一份说明布局的 `AGENTS.md`（已存在则不覆盖） |
 | `shared/` | 所有角色可读写的协作目录：`plans/`、`handoffs/<from>-to-<to>.md`、`artifacts/`，含 `README.md` |
 
-- Pi 与 Codex 从 cwd 读取 `AGENTS.md`；Claude Code 在 `--safe-mode` 下不读，改由 `--append-system-prompt` 告知同样内容。Claude 与 Codex 通过 `--add-dir` 获得共享目录的访问权限。
+- Codex 从 cwd 读取 `AGENTS.md`；云端 Pi 禁止 bot 身份自动读取工作区资源，工作区布局由固定代码生成的说明传入，需要其他说明时通过受限 read 工具读取。本机 Pi 保留自动读取。Claude Code 在 `--safe-mode` 下不读，改由 `--append-system-prompt` 告知同样内容。Claude 用 `--add-dir`，Codex 通过逐项文件/命令审批访问共享目录。
 - 规划角色只能把文件写进共享目录（其他位置的 Write 直接拒绝，Edit 类工具禁用）。
 - 工作区与应用目录分离后，应用代码自动成为受保护路径；每个角色目录与共享目录里的 `.claude/.codex/.agents` 也受保护。
 - 未设置时（本机开发）所有角色共用一个目录，行为与之前一致。
@@ -45,12 +45,12 @@ Claude Code / Codex 的 JSON 输出
 
 | 项 | Claude Code | Codex CLI |
 | --- | --- | --- |
-| 启动 | `claude -p --output-format stream-json --include-partial-messages --input-format stream-json --permission-prompt-tool stdio --safe-mode --strict-mcp-config --permission-mode manual --settings {ask:[Bash,Edit,Write…]}` | `codex exec --json --sandbox … --cd … --ignore-user-config --ignore-rules --disable plugins --disable apps`，prompt 走 stdin |
-| 逐步审批 | 有：`can_use_tool` 控制请求在执行前到达，由 RaytoneBot 审批闸门回答 | 无：`exec` 不能逐步询问。「请求权限」下每轮先弹一次写入授权 |
-| 多轮续接 | `--resume <session_id>` | `exec … resume <thread_id> -` |
+| 启动 | `claude -p --output-format stream-json --include-partial-messages --input-format stream-json --permission-prompt-tool stdio --safe-mode --strict-mcp-config --permission-mode manual --settings {ask:[Bash,Edit,Write…]}` | `codex app-server --stdio`，`initialize → thread/start或resume → turn/start` |
+| 逐步审批 | 有：`can_use_tool` 控制请求在执行前到达，由 RaytoneBot 审批闸门回答 | 有：`commandExecution/requestApproval` 与 `fileChange/requestApproval`，仅授权当前动作；未知权限类型拒绝 |
+| 多轮续接 | `--resume <session_id>` | `thread/resume` 保留原 native thread id |
 | 会话丢失 | 尚未输出任何内容时冷启动重试一次 | 同左 |
 | 停止 | 进程组 SIGTERM，1.5 s 后 SIGKILL（`src/pi/runtime/process.ts`） | 同左 |
-| 本机配置隔离 | `--safe-mode`；模型服务模式下 `--setting-sources ""` | `--ignore-user-config` 等；登录（auth.json）保留 |
+| 本机配置隔离 | `--safe-mode`；模型服务模式下 `--setting-sources ""` | 每轮临时 HOME/CODEX_HOME，不加载用户 config；只链接原生 sessions；本机登录模式单独复制 auth.json，云端禁用登录模式 |
 
 可执行文件可用 `RAYTONEBOT_CLAUDE_BIN` / `RAYTONEBOT_CODEX_BIN` 指定。`GET /state` 返回 `harnesses`，设置面板据此显示「未安装」。
 
@@ -69,20 +69,22 @@ Claude Code / Codex 的 JSON 输出
 | 只读 | read/grep/find/ls 等；读取应用自身代码 | 直接执行 | 直接执行 | 直接执行 |
 
 - 默认模式：`RAYTONEBOT_SANDBOX=1`（云端沙箱）时为「替我批准」，本机为「请求权限」。主机通过 `/state` 的 `defaultPermissionMode` 告诉前端；用户手动选择后不再跟随。
-- Codex 沙箱：默认 `workspace-write`；只有 `RAYTONEBOT_SANDBOX=1` 且选「全部允许」时用 `danger-full-access`（VM 即边界）。Codex 无法按路径逐条拦截，受保护路径对它只能靠环境变量清理与 Codex 自身沙箱，属于已知缺口。
-- 密钥隔离（`src/pi/runtime/childEnv.ts`）：所有 Agent 子进程（Pi bash、Claude、Codex）剥离 `*_API_KEY`、任意 `*_TOKEN`、`*_SECRET(_KEY)`、`*_SECRET_ACCESS_KEY`、`*_PASSWORD`、`*_PRIVATE_KEY`、`*_CREDENTIALS`、`E2B_*`、访问密码；只把各引擎自己需要的那一个重新放回。Codex 执行的命令只看到 `PATH/HOME/LANG` 等基础变量。云入口读取访问密码后即从进程环境删除。
+- Codex 原生策略固定为 `untrusted` + `read-only`，写动作进入现有审批闸门；安全只读命令可由 Codex 自动执行。`auto` / `allow-all` 由闸门对单次动作作决定，不改为整轮全权限。补丁的每个路径（含重命名目标）都检查，命令按实际 cwd 分类。
+- 密钥隔离（`src/pi/runtime/childEnv.ts`）：子进程剥离继承的密钥、E2B 与访问凭据。配置模型服务的任务只拿 bot 模型代理的单轮 token，真实 key 不进入 Agent 环境；Codex 的工具环境进一步仅保留基础变量。云入口读取访问密码后即从进程环境删除。
 - 工作区：`RAYTONEBOT_WORKSPACE` 设定 Agent 工作目录；与应用目录不同时，应用代码自动成为受保护路径。
 - 「始终允许」按 Agent 记住（`~/.raytonebot/data/approvals.json`），同一 Agent 的新对话、重启后仍有效；不覆盖受保护与对外操作。设置 → 权限里可按 Agent 重置（`POST /approvals/clear`）。
-- 禁止访问的调用 Pi 与 Claude Code 都在执行前拒绝；Codex 无逐步回调，仍靠子进程剥离密钥与自身沙箱（已知缺口）。
+- 进入审批回调的调用三个引擎均经策略拒绝；Codex 原生安全只读调用可以不经过回调。Linux 独立 UID 与文件权限承担硬边界，即使 shell 文本分类没有识别出读凭据行为也不能读 bot env；本机开发不具备这一保证。
 - 并行：不同对话可同时运行（上限 3，沙箱 2C/4G）；同一对话同时只有一轮。每个对话一个审批闸门，模式、cwd、「始终允许」互不影响；停止、审批、断开连接只作用于本对话。侧栏 Agent 状态点按角色显示所有在跑的对话（含后台对话等待审批时的「等你确认」）。
-- Pi 资源加载（`src/pi/piResources.ts`）：进程内的 Pi 会话不加载任何扩展，项目视为不受信任（忽略 cwd 下的 `.pi/settings.json`、其中的 packages 与 `.pi/extensions`）。原因：Pi SDK 默认信任项目，并自动安装 settings 里缺失的 packages；Agent 能写自己的 cwd，写入的扩展会在下次建会话时于 bot 进程内执行（2026-10-03 实测复现后修复）。`AGENTS.md` 与 skills 照常加载。要用扩展，须在代码里显式传入，不能靠目录发现。
+- Pi 资源加载（`src/pi/piResources.ts`）：进程内会话不加载任何扩展，项目视为不受信任（忽略 cwd 下的 `.pi/settings.json`、其中的 packages 与 `.pi/extensions`）。沙箱还关闭 AGENTS、skills、prompts、themes 和 SYSTEM/APPEND 文件的自动发现，避免 Agent 把资源链接到 bot 凭据后，由高权限读取器将秘密带入上下文；本机保留这些非扩展资源。需读工作区说明时使用受限工具，不让 bot UID 代读。
 
-### 已知缺口（按优先级）
+### Linux 边界与剩余限制
 
-1. **Agent 与 bot 同一个系统用户**：同用户可读 `/proc/<bot>/environ` 和磁盘上的 env 文件。Pi/Claude 的读取会被闸门拦，但 Codex 的命令不经过闸门。下一步：Agent 进程以独立的非特权用户运行，应用目录 root 所有、只读。
-2. **模型 key 在 Claude 进程环境里**：Claude 的 Bash 子进程能继承它（`env` 类命令会被拦，但不是硬边界）。下一步：模型请求走 bot 侧代理，Agent 只拿可吊销的临时 token；先用有额度上限的专用 key。
-3. **出站网络不受限**：可考虑出站白名单代理（模型代理、包仓库）。
-4. **Codex 无逐步审批**：改用 `codex app-server` 的 `requestApproval` 协议可补齐。
+- `setup_isolation.py` 建立 `raytone-agent` UID，加入 `user` 工作组；workspace 与 Agent home 使用 setgid 目录共享文件，上传文件 0660。应用 root 所有、不可改；`~/.raytonebot` 为 bot 所有且 0700。`sudo -u raytone-agent setpriv --no-new-privs` 启动工具，缺少已安装隔离配置时拒绝沙箱任务。
+- Pi 的 7 个工具使用相同 SDK 定义，但 execute 在独立 UID worker 内运行；仅模型循环留在 bot。CLI、Pi worker 原始 stdout 与事件输出都有大小上限。Linux 文件 API 逐级以目录 fd 和 `O_NOFOLLOW` 锚定操作，防止父路径替换指向凭据目录。
+- bot 进程内的 gateway 只允许单轮固定 provider/model 路由，禁止转发重定向，token 结束撤销；默认 100 次请求、30 分钟有效期。云端只支持已配置的 HTTPS OpenAI-compatible / Anthropic 服务。本机的其他 Pi 协议、三引擎 HTTP 服务与 CLI 登录模式保持原路径，因此不声称有代理请求次数上限或真实 key 隔离。
+- Agent UID 的 IPv4/IPv6 直连、DNS 与 bot HTTP 端口均被防火墙拒绝；仅 loopback gateway 开放。原生 ACL 另拒绝 Agent 遍历 `/run/dbus`、`/run/systemd`，避免借系统 DNS 服务联网；每次启动 Agent 检查 ACL，丢失即拒绝执行。包下载允许 `registry.npmjs.org`、`pypi.org`、`files.pythonhosted.org` 的 CONNECT，校验 TLS ClientHello SNI、公网 IP，拒绝 ECH 与不匹配握手。任意网页访问、其他下载源默认不可用，确有任务需求时再显式扩域。
+- 白名单代理不解密 TLS，不是 DLP：不能保证阻止白名单站点上传或站点支持的 HTTP Host 域名前置。三个角色和并行任务仍共享 Agent UID，可以访问彼此的工作区与临时 token；当前范围是单用户 bot 与 Agent 的隔离，不是多租户或逐任务隔离。
+- macOS 开发不创建系统用户或防火墙，不具备以上硬边界。生产实例未更新之前仍保留旧架构风险。新 UID/原生会话目录已在两个独立 Linux 测试实例间完成恢复演练，三个引擎续接通过；具体范围见 [08](08-acceptance.md) G 组。
 
 ## 验证记录（2026-10-03，本机）
 
