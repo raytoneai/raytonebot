@@ -11725,16 +11725,15 @@ pre {
   z-index: -1;
 }
 
+/* A light from the top edge: sky blue from the right corner, a breath of mint toward the
+   left. It spans the whole stack and is sized in percentages, so no width shows an edge. */
 .preview-stack[data-welcome="true"]::before {
-  top: 0;
-  right: 0;
-  width: 78%;
-  height: 390px;
-  opacity: 1;
+  inset: 0 0 auto;
+  height: min(460px, 62%);
   background:
-    radial-gradient(1500px 1380px at 104% -48%, rgba(166, 202, 255, 0.6) 0%, rgba(166, 202, 255, 0) 42%),
-    radial-gradient(620px 460px at 36% -18%, rgba(182, 255, 239, 0.3) 0%, rgba(182, 255, 239, 0) 46%);
-  mask-image: linear-gradient(180deg, #000 0%, #000 54%, rgba(0, 0, 0, 0) 100%);
+    radial-gradient(ellipse 72% 100% at 100% 0%, rgb(160 200 255 / 0.42), rgb(160 200 255 / 0) 72%),
+    radial-gradient(ellipse 60% 80% at 22% 0%, rgb(180 238 228 / 0.3), rgb(180 238 228 / 0) 70%);
+  mask-image: linear-gradient(180deg, #000 30%, transparent);
 }
 
 .preview-stack[data-welcome="true"]::after {
@@ -11820,16 +11819,12 @@ pre {
   color: var(--text-primary);
 }
 
-/* Phones: the character sits above a centered, wrapping line instead of beside it, and the
-   welcome glow spans the whole width (at 78% its hard left edge shows once the sidebar is gone). */
+/* Phones: the character sits above a centered, wrapping line instead of beside it. */
 @media (max-width: 560px) {
   .composer-greeting {
     flex-direction: column;
     gap: var(--space-2);
     text-align: center;
-  }
-  .preview-stack[data-welcome="true"]::before {
-    width: 100%;
   }
 }
 
