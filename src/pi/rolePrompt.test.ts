@@ -22,7 +22,7 @@ test("each role is named, told when the shared directory matters, and gets its o
     const raer = rolePrompt("assistant", layout);
     assert.match(raer, /You are Raer/);
     assert.match(raer, /use it only for handoffs/);
-    assert.match(raer, /Reply in the user's language/);
+    assert.match(raer, /Reply language: the one named in the turn's language note/);
     assert.match(raer, /ASD-STE100/);
     assert.match(raer, /SOUL\.md \(your character\)\n# Raer/);
     assert.doesNotMatch(raer, /USER\.md \(user preferences\)/, "the seeded USER.md holds only a comment, so nothing is sent");
@@ -121,4 +121,25 @@ test("every role carries the product FAQ, with the settings page's own IM setup 
     assert.match(cloud, /cloud sandbox/);
     assert.match(cloud, /separate Linux user/);
   } finally { cleanup(); }
+});
+
+test("the interface language reaches the model as a per-turn note, never the saved transcript", async () => {
+  const { createPiRuntimeController } = await import("./piHost.ts");
+  const dir = mkdtempSync(join(tmpdir(), "rtb-lang-"));
+  const seen: string[] = [];
+  const controller = createPiRuntimeController({ cwd: dir, dataDir: dir, bridgeFactory: async () => ({
+    subscribe: () => () => undefined, async prompt(text) { seen.push(text); }, abort: async () => undefined, dispose: () => undefined,
+    configure: async () => undefined, state: async () => ({ models: [], tools: [] }) as never, newSession: async () => undefined,
+  }) });
+  try {
+    await controller.runPrompt({ conversationId: "c", requestId: "r1", prompt: "run ls -la and explain", locale: "zh" }, () => {});
+    await controller.runPrompt({ conversationId: "c", requestId: "r2", prompt: "hello" }, () => {});
+    assert.match(seen[0], /reply in Simplified Chinese \(简体中文\), the user's interface language/);
+    assert.equal(seen[1], "hello", "IM turns carry no interface language");
+    assert.doesNotMatch(JSON.stringify(controller.getConversation("c")), /Language note/);
+    assert.match(rolePrompt("assistant", resolveWorkspaceLayout({ fallbackCwd: dir })), /without a note, the language of the user's latest message/);
+  } finally {
+    controller.dispose();
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

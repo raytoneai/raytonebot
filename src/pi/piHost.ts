@@ -24,7 +24,8 @@ import { lastClaudeTaskPlan } from "./claudeTaskPlan.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
 import { defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from "./permissionPolicy.ts";
 import { resolveWorkspaceLayout, type WorkspaceLayout } from "./workspaceLayout.ts";
-import { rolePrompt } from "./rolePrompt.ts";
+import { rolePrompt, withReplyLanguage } from "./rolePrompt.ts";
+import { isAppLocale } from "../i18n/locales.ts";
 import { listWorkspaceFiles, openWorkspaceFile, promptWithWorkspaceFiles, uploadWorkspaceFile, WorkspaceFileError } from "./workspaceFiles.ts";
 import { sendWorkspaceFile } from "./workspaceDownload.ts";
 import { createConversationRecorder } from "./conversationRecorder.ts";
@@ -687,7 +688,7 @@ export function createPiRuntimeController(options: {
       try {
         store.begin(conversationId, role, prompt);
         opened = true;
-        const modelPrompt = await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]);
+        const modelPrompt = withReplyLanguage(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), input.locale);
         store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt,
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, modelPrompt);
@@ -1032,6 +1033,7 @@ export function createPiHttpHost(options: {
               agentPreset: isAgentPresetId(body.agentPreset) ? body.agentPreset : undefined,
               claudeCodeModelSource: body.claudeCodeModelSource === "local-login" ? "local-login" : "provider",
               codexModelSource: body.codexModelSource === "local-login" ? "local-login" : "provider",
+              locale: isAppLocale(body.locale) ? body.locale : undefined,
             }, (event) => {
               if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
             });

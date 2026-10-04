@@ -2,6 +2,7 @@ import type { AgentUXEvent } from "@agent-ux/protocol";
 
 import type { PiApprovalDecision } from "../harness/adapters/piAdapter.ts";
 import type { ChannelPatch, ChannelPlatform, ChannelView } from "./imChannels/types.ts";
+import type { AppLocale } from "../i18n/locales.ts";
 import type { AgentHarnessStatus, AgentPresetId, ClaudeCodeModelSource } from "./harnessCatalog.ts";
 
 export const PI_API_PREFIX = "/__agentcanvas/pi";
@@ -122,6 +123,8 @@ export type PiPromptInput = {
   agentPreset?: AgentPresetId;
   claudeCodeModelSource?: ClaudeCodeModelSource;
   codexModelSource?: ClaudeCodeModelSource;
+  /** The interface language the user picked; replies use it unless the user asks otherwise. */
+  locale?: AppLocale;
 };
 
 export type ProviderTestResult = {

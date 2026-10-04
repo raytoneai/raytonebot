@@ -661,3 +661,8 @@
 
 - 156 项测试：沙箱内 `git push`（含 `--force`）、ssh/scp、`docker push`、`gh pr create`、`vercel deploy`、`curl -F`、`git remote add` 为普通工作；`npm publish`、`twine upload`、`git reset --hard`、`git clean -fd`、`rm -rf ~`/`..`、`crontab -r` 在沙箱与本机均询问；`git reset --soft` 普通。`.git/hooks/*`、`.mcp.json`、`.npmrc`、Agent HOME `.bashrc/.profile/.npmrc` 写入受保护，`echo … >> ~/.bashrc` 识别；读取 `USER.md`、`cat SOUL.md` 不询问，`echo hi > SOUL.md`（相对路径）受保护；`.git/config` 普通。
 - 云端（`17e74cb` 部署到 `id705on7k0a1ya1d90icj`，部署前备份 `backups/id705on7k0a1ya1d90icj-20261004-233946-365014.tgz`）：「替我批准」下真实 DeepSeek 让 Raer 执行 `cat SOUL.md` 与 `git push https://github.com/…`：0 次审批；SOUL.md 正常读出；push 被沙箱出站代理拒绝（`HTTP 403 from proxy after CONNECT`），Raer 如实报告未推送。临时会话已删除。观察：中文提问得到英文回复，"用用户的语言回复"在长指令型提示下未生效，待观察。
+
+## AZ 组：回复语言跟随界面语言（2026-10-04，工作树）
+
+- 157 项测试：带 `locale` 时模型提示含语言提示、产品记录不含；无 `locale`（IM）不加；角色提示规则更新。
+- 真实 DeepSeek（本机 5188，临时会话测后删除）：界面英文 + 中文提问 → 英文回答；界面中文 + 英文提问（含命令）→ 中文回答，命令原样保留；均零工具。

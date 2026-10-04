@@ -2,6 +2,7 @@ import { closeSync, constants, fstatSync, openSync, readSync } from "node:fs";
 import { join } from "node:path";
 
 import type { AgentPresetId } from "./harnessCatalog.ts";
+import type { AppLocale } from "../i18n/locales.ts";
 import type { WorkspaceLayout } from "./workspaceLayout.ts";
 import { productFaq } from "./productFaq.ts";
 
@@ -27,7 +28,18 @@ const CONTRACTS: Record<AgentPresetId, string> = {
   builder: "You are Bob, the builder in RaytoneBot (team: Raer assistant, Tonny planner). Implement only what is asked, run the relevant checks, and end with what changed and how you verified it.",
 };
 
-const WRITING = "Reply in the user's language. Answer greetings and small talk without tools. For technical answers, write ~80% ASD-STE100: active voice, one instruction per sentence, max 20 words per instruction and 25 per description, one term per concept, in any language.";
+const WRITING = "Reply language: the one named in the turn's language note (the user's interface setting); without a note, the language of the user's latest message. Switch only when the user explicitly asks. Keep code, commands, paths and product names as they are. Answer greetings and small talk without tools. For technical answers, write ~80% ASD-STE100: active voice, one instruction per sentence, max 20 words per instruction and 25 per description, one term per concept, in any language.";
+
+const LANGUAGE_NAMES: Record<AppLocale, string> = { en: "English", zh: "Simplified Chinese (简体中文)", ja: "Japanese (日本語)" };
+
+/**
+ * The turn's language note, appended to the model's copy of the prompt only (the transcript
+ * keeps what the user typed). Repeating it every turn, at the end, keeps replies from drifting
+ * to English after English tool output, the failure Claude Code's `language` setting reports.
+ */
+export function withReplyLanguage(modelPrompt: string, locale: AppLocale | undefined): string {
+  return locale ? `${modelPrompt}\n\n[Language note: reply in ${LANGUAGE_NAMES[locale]}, the user's interface language, unless they ask for another.]` : modelPrompt;
+}
 
 /** Per file; a long file is cut with a note rather than crowding out the conversation. */
 export const PERSONA_FILE_LIMIT = 4096;

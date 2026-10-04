@@ -215,3 +215,10 @@
 - **决定**：`PermissionPolicy.egressContained`（= 沙箱）时，网络类对外命令归为普通工作，失败交回 Agent；publish（注册表可达）、`git reset --hard`/`git clean -f`、整树删除始终询问。受保护路径扩展到 `.git/hooks`、`.mcp.json`、`.npmrc` 与 Agent HOME 的 shell 启动文件；所有受保护/只读路径只拦修改，读取不询问；shell 写入相对路径同样识别。本机无出站边界，行为不变。
 - **未做**：LLM 风险评审（OpenClaw auto、OpenHands ConfirmRisky）——每次调用增加一次模型请求，暂不值得；支付/凭据类转人工——当前 Agent 无浏览器或支付能力。
 - **注意**：Codex 文档已将审批策略 `untrusted` 标为退役；本机 0.153.4 协议仍支持，升级 Codex 时需复核。
+
+## ADR-031：回复语言跟随界面语言，逐轮提示（2026-10-04）
+
+- **问题**：长指令型中文提问（夹大量英文命令）得到英文回复；"用用户的语言回复"只在系统提示中出现一次。
+- **参考**：Claude Code `language` 设置把值原样写成"始终用 X 回复"，即使用户用别的语言提问也按设置回复；已知读取英文工具输出后会漂回英文，社区用每次工具后再强调的 hook 缓解。OpenClaw 飞书评论："Use the same language as the user's comment or reply, unless the user asks for another language"；其 cron 示例另写"keep URLs, code, and product names unchanged"。nightly openbot 的界面语言只用于界面，不进入提示词。
+- **决定**：浏览器随每轮发送界面语言（`locale`），主机把一行 `[Language note: reply in …, the user's interface language, unless they ask for another.]` 追加到模型收到的提示末尾，不写入产品记录；角色提示的规则改为：有提示按提示，无提示（IM）按用户最新一条消息的语言，用户明确要求才切换，代码、命令、路径和产品名保持原样。
+- **边界**：Pi/CLI 的原生会话会保留这行（模型上下文的一部分）；IM 不知道所有者的界面语言，按消息语言回复。

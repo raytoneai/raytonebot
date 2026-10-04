@@ -743,6 +743,7 @@ export function AgentApp() {
         agentPreset: presetId,
         claudeCodeModelSource: agentSettings.claudeCodeModelSource,
         codexModelSource: agentSettings.codexModelSource,
+        locale,
       }, { signal: controller.signal })) {
         if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
           commit.cancel();

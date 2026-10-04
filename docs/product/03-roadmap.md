@@ -111,6 +111,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-04 回复语言跟随界面语言（ADR-031）：每轮把界面语言作为提示附在模型提示末尾，IM 按消息语言；参考 Claude Code `language` 设置与 OpenClaw。见 AZ 组。
+
 - 2026-10-04 沙箱权限减负（ADR-030）：参考 OpenAgentCore、nightly openbot、CopilotKit OpenBot、OpenClaw 与 Codex/Claude 官方做法，沙箱内被出站防火墙挡住的推送/部署/ssh/上传不再询问；publish、硬重置/清理、整树删除仍问；受保护路径增加 hooks/MCP/npmrc/shell 启动文件，所有受保护路径读取不再询问。见 AY 组。
 
 - 2026-10-04 重选历史会话不再重放 streaming：只在主机报告运行时跟随，跟随时不重复读取历史；浏览器验证见 AX 组。与聊天连接 Telegram（AW 组）一并部署云端。
