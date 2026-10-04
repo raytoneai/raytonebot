@@ -623,3 +623,9 @@
 - 实际系统提示词（本机 Raer）：40,212 → 5,154 字节，技能 76 → 0，含角色说明与 SOUL.md。
 - 真实 DeepSeek（5188 服务，临时对话测后删除）：`hello` 零工具调用直接回复；"rebase 与 merge 区别"中文、先结论、短句，零工具。
 - 未覆盖：Tonny/Bob 的真实模型行为、云端部署。
+
+## 云端部署：IM 频道与角色提示词（2026-10-04）
+
+- 提交 `5afb88b` 部署到 `id705on7k0a1ya1d90icj`；部署前备份 `backups/id705on7k0a1ya1d90icj-20261004-214214-912436.tgz`。`npm ci`（新增三个 IM SDK）、隔离校验与全部自检通过；云端 Claude Code 2.1.267、Codex 0.154.0。
+- 认证后 `/channels` 返回 4 个未启用频道；三角色目录已生成 `SOUL.md`，共享目录有 `USER.md`；真实 DeepSeek `hello` 零工具调用成功（临时对话已删除）。
+- 未做：云端配置真实 IM 凭据收发（需先关闭本机同一 Telegram bot，避免 getUpdates 冲突）、Tonny/Bob 云端真实提示词行为。
