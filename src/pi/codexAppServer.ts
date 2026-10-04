@@ -19,6 +19,8 @@ export function createCodexAppServer(options: {
   resumeId?: string;
   forkBeforeTurnId?: string;
   model?: string;
+  /** The role prompt, sent on start, resume and fork alike so it survives every session change. */
+  developerInstructions?: string;
   emit(event: PiWireEvent): void;
   onSessionId(id: string): void;
   onNativeTurn?: (turn: { sessionId: string; id: string }) => void;
@@ -108,6 +110,7 @@ export function createCodexAppServer(options: {
             runtimeWorkspaceRoots: [options.cwd, ...(options.addDirs ?? [])],
             config: { tools: { update_plan: { enabled: true } }, features: { default_mode_request_user_input: true } },
             ...(options.model ? { model: options.model, modelProvider: "raytonebot" } : {}),
+            ...(options.developerInstructions ? { developerInstructions: options.developerInstructions } : {}),
           } });
         } else if (line.id === "thread") {
           const result = record(line.result);

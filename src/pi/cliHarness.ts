@@ -62,6 +62,7 @@ export type ClaudeRunOptions = CliRunBase & {
 export type CodexRunOptions = CliRunBase & {
   forkBeforeTurnId?: string;
   addDirs?: readonly string[];
+  developerInstructions?: string;
   /** A Responses-API provider (e.g. DeepSeek). Omitted means Codex's own login. */
   provider?: { name: string; baseUrl: string; apiKey: string; model: string };
   onPermission(request: CodexPermissionRequest): Promise<true | string>;

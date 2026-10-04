@@ -1,5 +1,5 @@
 import * as RadixDialog from "@radix-ui/react-dialog";
-import { Check, ChevronDown, CircleAlert, Copy, Info, Palette, Plus, Server, ShieldCheck, X } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, Copy, Info, MessagesSquare, Palette, Plus, Server, ShieldCheck, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useCopy, useLocale } from "../../i18n/LocaleContext";
@@ -22,19 +22,22 @@ import { Button, Input, SelectMenu, Switch } from "../ui";
 import { useClipboardFeedback } from "../../runtime/useClipboardFeedback";
 import type { ProviderSettingsStatus } from "../../runtime/useProviderSettings";
 import type { ProviderPatch } from "../../runtime/providerSettings";
+import type { ImChannelsState } from "../../runtime/useImChannels";
+import { CHANNEL_FIELDS, type ChannelPatch, type ChannelView } from "../../pi/imChannels/types";
 import "./settings.css";
 
 /**
  * Settings, as one dialog with a section rail. Layout and row patterns follow magpie
  * (name + muted sub-line + control on the right, masked key pill, inline test result) and
  * CC Switch (provider presets that only need a key, CLI status cards, latency colours).
- * Every change applies at once; there is no Save button.
+ * Every change applies at once; there is no Save button, except for IM channel credentials,
+ * which connect to an outside service and are sent together once complete.
  */
 
 export type PermissionMode = "request" | "auto" | "allow-all";
 export type { ProviderPatch } from "../../runtime/providerSettings";
 
-export type SettingsSectionId = "providers" | "permissions" | "appearance" | "about";
+export type SettingsSectionId = "providers" | "permissions" | "channels" | "appearance" | "about";
 type SectionId = SettingsSectionId;
 
 const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI" };
@@ -42,6 +45,8 @@ const INSTALL_COMMANDS: Partial<Record<AgentHarnessId, string>> = {
   "claude-code": "npm install -g @anthropic-ai/claude-code",
   codex: "npm install -g @openai/codex",
 };
+/** Stands for a key that is set but never sent to the page; it carries none of its characters. */
+const MASK = "••••••••••••••••";
 const LOCALE_LABELS: Record<AppLocale, string> = { zh: "中文", en: "English", ja: "日本語" };
 
 export type SettingsDialogProps = {
@@ -61,6 +66,8 @@ export type SettingsDialogProps = {
   onPermissionDefaultChange: (mode: PermissionMode | undefined) => void;
   themePreset: ThemePresetId;
   onThemeChange: (id: ThemePresetId) => void;
+  /** IM channels from the host; the section is hidden when absent (fixtures, static previews). */
+  imChannels?: ImChannelsState;
 };
 
 export function SettingsDialog(props: SettingsDialogProps) {
@@ -73,6 +80,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const nav: { id: SectionId; label: string; Icon: typeof Server }[] = [
     { id: "providers", label: t.nav.providers, Icon: Server },
     { id: "permissions", label: t.nav.permissions, Icon: ShieldCheck },
+    ...(props.imChannels ? [{ id: "channels" as const, label: t.nav.channels, Icon: MessagesSquare }] : []),
     { id: "appearance", label: t.nav.appearance, Icon: Palette },
     { id: "about", label: t.nav.about, Icon: Info },
   ];
@@ -108,6 +116,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
             <div className="settings-body-scroll">
               {section === "providers" ? <ProvidersSection {...props} t={t} /> : null}
               {section === "permissions" ? <PermissionsSection {...props} t={t} /> : null}
+              {section === "channels" && props.imChannels ? <ChannelsSection t={t} state={props.imChannels} /> : null}
               {section === "appearance" ? <AppearanceSection {...props} t={t} /> : null}
               {section === "about" ? <AboutSection {...props} t={t} /> : null}
             </div>
@@ -218,7 +227,7 @@ function ProviderRow({
     : sessionKey
       ? { tone: "ok", label: maskKey(sessionKey) }
       : envSet
-        ? { tone: "ok", label: t.providers.keyEnv }
+        ? { tone: "ok", label: `${MASK.slice(0, 4)} ${t.providers.keyEnv}` }
         : { tone: "warn", label: t.providers.keyMissing };
   const models = provider.models.length > 0 ? provider.models : [provider.defaultModel];
 
@@ -291,16 +300,17 @@ function ProviderRow({
                   </span>
                 </div>
               </Field>
-              <Field label={t.providers.sessionKey} hint={t.providers.sessionKeyHint}>
+              <Field label={t.providers.sessionKey} hint={envSet && !sessionKey ? t.providers.envKeyHint : t.providers.sessionKeyHint}>
                 <div className="settings-field-row">
                   <Input
                     type={revealed ? "text" : "password"}
                     autoComplete="off"
                     spellCheck={false}
-                    placeholder={t.providers.sessionKeyPlaceholder}
+                    placeholder={envSet ? MASK : t.providers.sessionKeyPlaceholder}
                     value={sessionKey}
                     onChange={(event) => onSessionKeyChange(event.target.value.trim())}
                   />
+                  {envSet && !sessionKey ? <span className="settings-status" data-tone="ok"><Dot />{t.providers.envKeySet}</span> : null}
                   <Button size="sm" variant="ghost" onClick={() => setRevealed((value) => !value)}>
                     {revealed ? t.providers.hide : t.providers.show}
                   </Button>
@@ -438,6 +448,159 @@ function WorkspaceList({ t, runtime }: { t: SettingsCopy; runtime?: PiRuntimeSta
           {path !== "—" ? <CopyButton t={t.about} value={path} /> : null}
         </div>
       ))}
+    </div>
+  );
+}
+
+function ChannelsSection({ t, state }: { t: SettingsCopy; state: ImChannelsState }) {
+  const [expanded, setExpanded] = useState<string | undefined>();
+  return (
+    <>
+      <p className="settings-intro">{t.channels.intro}</p>
+      {state.error ? <p className="settings-status" data-tone="error" role="status"><Dot />{t.channels.loadFailed(state.error)}</p> : null}
+      <div className="settings-list">
+        {(state.channels ?? []).map((channel) => (
+          <ChannelRow
+            key={channel.platform}
+            t={t}
+            channel={channel}
+            state={state}
+            open={expanded === channel.platform}
+            onToggleOpen={() => setExpanded((current) => (current === channel.platform ? undefined : channel.platform))}
+          />
+        ))}
+      </div>
+      <p className="settings-note">{t.channels.commands}</p>
+    </>
+  );
+}
+
+function ChannelRow({ t, channel, state, open, onToggleOpen }: {
+  t: SettingsCopy;
+  channel: ChannelView;
+  state: ImChannelsState;
+  open: boolean;
+  onToggleOpen: () => void;
+}) {
+  const c = t.channels;
+  const roleCopy = useCopy().composer.agentSettings;
+  const name = c.names[channel.platform];
+  const [fields, setFields] = useState<Record<string, string>>(channel.fields);
+  const [allowText, setAllowText] = useState(channel.allowUsers.join(", "));
+  useEffect(() => setAllowText(channel.allowUsers.join(", ")), [channel.allowUsers]);
+  const saving = state.saving === channel.platform;
+  const saveError = state.saveError?.platform === channel.platform ? state.saveError.message : undefined;
+  const complete = CHANNEL_FIELDS[channel.platform].every(({ key, secret }) => fields[key]?.trim() || (secret && channel.secretsSet[key]));
+  const tone = { off: "muted", connecting: "warn", connected: "ok", error: "error" }[channel.status.state];
+  const allowUsers = (text: string) => text.split(/[,，\s]+/).map((id) => id.trim()).filter(Boolean);
+  const save = (patch: ChannelPatch) => void state.save(channel.platform, patch);
+  const saveAll = () => {
+    save({ enabled: true, fields, allowUsers: allowUsers(allowText) });
+    setFields((current) => Object.fromEntries(Object.entries(current).map(([key, value]) =>
+      [key, CHANNEL_FIELDS[channel.platform].find((field) => field.key === key)?.secret ? "" : value])));
+  };
+
+  return (
+    <div className="settings-provider" data-open={open}>
+      <div className="settings-row">
+        <ProviderMark label={name} />
+        <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
+          <span className="settings-row-title"><strong>{name}</strong></span>
+          <span className="settings-row-sub">
+            {channel.status.botName ? `${channel.status.botName} · ` : ""}{roleCopy.presets[channel.agentPreset].name} · {channel.access === "open" ? c.open : c.allowlist}
+          </span>
+        </button>
+        <span className="settings-key-pill" data-tone={tone}><Dot />{c.state[channel.status.state]}</span>
+        <Switch
+          size="sm"
+          aria-label={`${name} ${c.state.connected}`}
+          checked={channel.enabled}
+          disabled={saving || (!channel.enabled && !complete)}
+          title={!channel.enabled && !complete ? c.fillFirst : undefined}
+          // Turning on also sends what is typed, so a filled-in form connects without a second click.
+          onCheckedChange={(checked) => (checked ? saveAll() : save({ enabled: false }))}
+        />
+        <button type="button" className="settings-chevron" aria-label={name} aria-expanded={open} onClick={onToggleOpen}>
+          <ChevronDown size={16} aria-hidden="true" />
+        </button>
+      </div>
+      {open ? (
+        <div className="settings-provider-editor">
+          <p className="settings-note">{c.setup[channel.platform]}</p>
+          {CHANNEL_FIELDS[channel.platform].map(({ key, secret }) => (
+            <Field key={key} label={c.fields[key as keyof typeof c.fields]} hint={secret && channel.secretsSet[key] ? c.secretHint : undefined}>
+              <div className="settings-field-row">
+                <Input
+                  type={secret ? "password" : "text"}
+                  autoComplete="off"
+                  spellCheck={false}
+                  placeholder={secret ? (channel.secretsSet[key] ? MASK : c.secretEmpty) : undefined}
+                  value={fields[key] ?? ""}
+                  onChange={(event) => {
+                    const value = event.target.value;
+                    setFields((current) => ({ ...current, [key]: value }));
+                  }}
+                />
+                {secret && channel.secretsSet[key] && !fields[key] ? <span className="settings-status" data-tone="ok"><Dot />{c.secretSaved}</span> : null}
+              </div>
+            </Field>
+          ))}
+          <Field label={c.role}>
+            <SelectMenu
+              ariaLabel={c.role}
+              value={channel.agentPreset}
+              options={AGENT_PRESETS.map((preset) => ({ value: preset.id, label: roleCopy.presets[preset.id].name }))}
+              onValueChange={(value) => save({ agentPreset: value as ChannelView["agentPreset"] })}
+            />
+          </Field>
+          <Field label={c.access}>
+            <Segmented
+              ariaLabel={c.access}
+              value={channel.access}
+              options={[{ value: "allowlist" as const, label: c.allowlist }, { value: "open" as const, label: c.open }]}
+              disabled={saving}
+              onChange={(access) => save({ access })}
+            />
+          </Field>
+          {channel.access === "open" ? <span className="settings-status" data-tone="error"><Dot />{c.openWarning}</span> : (
+            <Field label={c.allowUsers} hint={c.allowUsersHint}>
+              <Input
+                spellCheck={false}
+                value={allowText}
+                onChange={(event) => setAllowText(event.target.value)}
+                onBlur={() => {
+                  const next = allowUsers(allowText);
+                  if (next.join() !== channel.allowUsers.join()) save({ allowUsers: next });
+                }}
+              />
+            </Field>
+          )}
+          {channel.denied.length > 0 && channel.access === "allowlist" ? (
+            <Field label={c.denied}>
+              <div className="settings-list">
+                {channel.denied.map((entry) => (
+                  <div className="settings-row settings-about-row" key={entry.id}>
+                    <span className="settings-about-label">{entry.name ?? "—"}</span>
+                    <code>{entry.id}</code>
+                    <Button size="sm" variant="ghost" disabled={saving} onClick={() => save({ allowUsers: [...channel.allowUsers, entry.id] })}>{c.allow}</Button>
+                  </div>
+                ))}
+              </div>
+            </Field>
+          ) : null}
+          <p className="settings-note">{channel.model ? c.model(channel.model.model) : c.noModel}</p>
+          <div className="settings-provider-actions">
+            <Button size="sm" disabled={saving || !complete} onClick={saveAll}>
+              {saving ? c.saving : channel.enabled && channel.status.state === "error" ? c.reconnect : c.save}
+            </Button>
+            {saveError ? (
+              <span className="settings-status" data-tone="error" role="status"><Dot />{c.saveFailed(saveError)}</span>
+            ) : channel.status.error ? (
+              <span className="settings-status" data-tone="error" role="status"><Dot />{channel.status.error}</span>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }

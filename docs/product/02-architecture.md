@@ -47,6 +47,8 @@ Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子�
 | GET / DELETE | `/__agentcanvas/pi/conversations/:id` | 读取历史事件 / 删除对话；读取错误不是 404，临时 `activeRunId` 用于恢复当前运行，`incomplete` 表示当前没有运行但已保存的最后一轮缺少终态 |
 | POST | `/__agentcanvas/pi/conversations/:id/branch` | `{beforeRunId}`；201 返回独立 `conversationId` 与原始 `draft`，只保留所选轮次之前的记录，不执行草稿；来源运行中或无可靠边界返回 409 |
 | POST | `/__agentcanvas/pi/provider/test` | 模型服务连通性测试 |
+| GET | `/__agentcanvas/pi/channels` | IM 频道（飞书/钉钉/企业微信/Telegram）设置与连接状态；已保存的密钥只回报是否已设置 |
+| POST | `/__agentcanvas/pi/channels/:platform` | 保存一个频道：`enabled`、`fields`（密钥留空保持不变）、`access`、`allowUsers`、`agentPreset`、`model`（默认模型服务定义，不含 key）；凭据或开关变化时重连 |
 | POST | `/__agentcanvas/pi/approvals/clear` | 清除某 Agent（`agentPreset`）或全部的「始终允许」 |
 
 `/prompt` 可带 `attachments: [{scope,path}]`（最多 10 项）。服务端验证文件属于当前角色或共享工作区，再把绝对路径加入模型上下文；界面与保存的用户消息保留原文。上传失败保留草稿与附件，准备阶段可取消。浏览器 Output 面板复用为文件列表、目录导航及下载入口。
@@ -139,6 +141,7 @@ AgentSphere 沙箱
        env                         600 权限：访问密码、模型 API key
        data/conversations/*.json   对话记录
        data/pi-sessions/<对话>/    Pi 文件会话（SessionManager.create / 按 id open）
+       data/im-channels.json       600 权限：IM 频道凭据、白名单、聊天→对话绑定、Telegram 游标
        pi/                         PI_CODING_AGENT_DIR
        logs/                       runtime.jsonl + supervisor.jsonl（有界轮换、仅元数据）
    /home/raytone-agent/             Agent UID 的 Claude/Codex 原生会话；不放真实模型 key

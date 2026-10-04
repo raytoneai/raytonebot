@@ -44,6 +44,7 @@ test("agent-writable .pi files and global extensions never load into the host", 
       resourceLoader.getAgentsFiles().agentsFiles.some((file) => file.path === join(cwd, "AGENTS.md")),
       "workspace AGENTS.md still reaches the agent",
     );
+    assert.deepEqual(resourceLoader.getSkills().skills, [], "the developer's own skills never reach a product agent");
   } finally {
     if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
     else process.env.PI_CODING_AGENT_DIR = previousAgentDir;

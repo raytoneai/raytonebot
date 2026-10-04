@@ -38,6 +38,7 @@ Product features that have no entry point yet extend their owner, and only these
 | Interactive artifacts, file/PDF/HTML previews, workspace files (T2.4) | Output panel (`OutputFrame`, `outputframe/`) |
 | Browser / computer takeover | Output panel source; connect only while visible |
 | Questions to the user and approvals | `chatframe/approval.tsx` |
+| IM channel settings and status (ADR-026) | `SettingsDialog` (its "channels" section) |
 
 How to extend:
 
@@ -53,6 +54,7 @@ How to extend:
 | Area | Path |
 | --- | --- |
 | Server: HTTP controller, engines, approval, permissions, storage | `src/pi/**` |
+| IM channels: connectors, chat → run bridge | `src/pi/imChannels/**` |
 | Event mapping (Pi and CLI engines share it) | `src/harness/adapters/piAdapter.ts`; CLI output → Pi events in `src/pi/cliStreams.ts` |
 | Front-end state, conversation restore | `src/agent-shell.tsx` |
 | Brand, layout, panels, default model | `src/exported-project.ts` |

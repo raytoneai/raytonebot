@@ -1,7 +1,8 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { AGENT_PRESETS, type AgentPresetId } from "./harnessCatalog.ts";
+import { DEFAULT_SOULS, DEFAULT_USER } from "./rolePrompt.ts";
 
 /**
  * Where each agent works. Node-only.
@@ -28,37 +29,39 @@ export function resolveWorkspaceLayout(options: { fallbackCwd: string; root?: st
   return { root, shared: root ? join(root, "shared") : undefined, agents };
 }
 
-/** Create the directories and leave a short brief in each; existing briefs are not overwritten. */
+/**
+ * Create the directories and leave a short brief in each, plus the user-editable persona files
+ * (`SOUL.md` per role, `shared/USER.md`). Edited files are never overwritten; a brief still
+ * holding an earlier generated text is brought up to date.
+ */
 export function ensureWorkspaceLayout(layout: WorkspaceLayout): void {
   for (const dir of new Set(Object.values(layout.agents))) mkdirSync(dir, { recursive: true });
   if (!layout.shared) return;
   mkdirSync(layout.shared, { recursive: true });
-  for (const [role, dir] of Object.entries(layout.agents)) {
+  for (const [role, dir] of Object.entries(layout.agents) as [AgentPresetId, string][]) {
     const brief = join(dir, "AGENTS.md");
-    if (!existsSync(brief)) writeFileSync(brief, workspaceBrief(role as AgentPresetId, layout));
+    if (!existsSync(brief) || readFileSync(brief, "utf8") === workspaceBrief(role, layout, LEGACY_SHARED_LINE)) {
+      writeFileSync(brief, workspaceBrief(role, layout));
+    }
+    const soul = join(dir, "SOUL.md");
+    if (!existsSync(soul)) writeFileSync(soul, DEFAULT_SOULS[role]);
   }
   const readme = join(layout.shared, "README.md");
   if (!existsSync(readme)) writeFileSync(readme, sharedReadme(layout));
+  const user = join(layout.shared, "USER.md");
+  if (!existsSync(user)) writeFileSync(user, DEFAULT_USER);
 }
 
-/** The same facts as the briefs, for agents that do not read AGENTS.md (Claude Code in safe mode). */
-export function workspacePrompt(role: AgentPresetId, layout: WorkspaceLayout): string | undefined {
-  if (!layout.shared) return undefined;
-  return [
-    `Your own working directory is ${layout.agents[role]}.`,
-    `${layout.shared} is shared by every RaytoneBot agent (assistant, planner, builder):`,
-    "read it for handoffs from the others, and write plans, results and files meant for them there.",
-    "Do not change another agent's own directory.",
-  ].join(" ");
-}
+/** Until 2026-10-04 the brief told agents to read the shared directory, so they listed it every turn. */
+const LEGACY_SHARED_LINE = "Read it for handoffs from the other agents;\n  put plans, results and files meant for them there.";
+const SHARED_LINE = "Look there only when a task mentions a handoff,\n  a plan or another agent's work; put files meant for the others there.";
 
-function workspaceBrief(role: AgentPresetId, layout: WorkspaceLayout): string {
+function workspaceBrief(role: AgentPresetId, layout: WorkspaceLayout, sharedLine = SHARED_LINE): string {
   return `# Workspace (${role})
 
 This directory is your own working directory in RaytoneBot.
 
-- Shared with every agent: \`${layout.shared}\`. Read it for handoffs from the other agents;
-  put plans, results and files meant for them there.
+- Shared with every agent: \`${layout.shared}\`. ${sharedLine}
 - Other agents' directories: ${AGENT_PRESETS.filter((preset) => preset.id !== role)
     .map((preset) => `\`${layout.agents[preset.id]}\` (${preset.id})`).join(", ")}. Do not change them.
 - Suggested handoff names in the shared directory: \`plans/<topic>.md\`, \`handoffs/<from>-to-<to>.md\`, \`artifacts/\`.

@@ -23,7 +23,8 @@ import { detectCliHarnesses, runClaudeCode, runCodex } from "./cliHarness.ts";
 import { lastClaudeTaskPlan } from "./claudeTaskPlan.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
 import { defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from "./permissionPolicy.ts";
-import { resolveWorkspaceLayout, workspacePrompt, type WorkspaceLayout } from "./workspaceLayout.ts";
+import { resolveWorkspaceLayout, type WorkspaceLayout } from "./workspaceLayout.ts";
+import { rolePrompt } from "./rolePrompt.ts";
 import { listWorkspaceFiles, openWorkspaceFile, promptWithWorkspaceFiles, uploadWorkspaceFile, WorkspaceFileError } from "./workspaceFiles.ts";
 import { sendWorkspaceFile } from "./workspaceDownload.ts";
 import { createConversationRecorder } from "./conversationRecorder.ts";
@@ -50,6 +51,8 @@ import type { PendingUserInput } from "../runtime/userInput.ts";
 import type { UserInputRequest } from "./userInputTool.ts";
 import type { UserAnswers } from "../runtime/userInput.ts";
 import { runLimits, runtimeLogger, type RunLimits } from "./hostOperations.ts";
+import { createChannelManager, type ConnectorFactories } from "./imChannels/channelManager.ts";
+import { CHANNEL_PLATFORMS, type ChannelPatch, type ChannelPlatform } from "./imChannels/types.ts";
 import { createModelGateway } from "./runtime/modelGateway.ts";
 import { isolatePiTool } from "./runtime/isolatedPiTools.ts";
 import { requireAgentIsolation } from "./runtime/agentProcess.ts";
@@ -84,6 +87,8 @@ export type PiBridgeFactory = (input: {
 }) => Promise<PiSessionBridge>;
 
 export type PiRuntimeController = {
+  /** Permission mode a turn gets when its client does not choose one (IM channels). */
+  readonly defaultPermissionMode: PiPermissionMode;
   health(): { status: "ok"; activeRuns: number; maxConcurrentRuns: number; uptimeSeconds: number };
   state(conversationId?: string): Promise<PiRuntimeState>;
   configure(input: PiRuntimeConfiguration): Promise<PiRuntimeState>;
@@ -189,7 +194,7 @@ export function createPiRuntimeController(options: {
   const bridgeFactory = options.bridgeFactory ?? ((input) => {
     const id = decodeURIComponent(input.sessionDir!.split("/").pop()!);
     const saved = store.get(id);
-    return createDefaultPiBridge({ ...input, sandboxed, sessionId: saved?.piSessionId,
+    return createDefaultPiBridge({ ...input, sandboxed, rolePrompt: rolePrompt("assistant", layout), sessionId: saved?.piSessionId,
       branch: saved?.branch?.native?.harness === "pi" ? { ...saved.branch.native,
         sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(saved.branch.native.sourceId)) } : undefined,
       hasHistory: saved?.agentPreset === "assistant" && saved.events.length > 0,
@@ -428,7 +433,6 @@ export function createPiRuntimeController(options: {
     const permissionMode = input.permissionMode ?? "request";
     const runCwd = layout.agents[role];
     const sharedDirs = layout.shared ? [layout.shared] : [];
-    const brief = workspacePrompt(role, layout);
     const plannerMayWrite = (args: Record<string, unknown>) => {
       const path = typeof args.path === "string" ? args.path : undefined;
       if (!layout.shared || !path) return false;
@@ -499,8 +503,8 @@ export function createPiRuntimeController(options: {
           emit,
           onSessionId,
           provider,
-          appendSystemPrompt: brief ? `${PLANNER_SYSTEM_PROMPT} ${brief}` : PLANNER_SYSTEM_PROMPT,
-          disallowedTools: PLANNER_DISALLOWED_TOOLS,
+          appendSystemPrompt: rolePrompt(role, layout),
+          disallowedTools: agentPreset(role).disallowedTools,
           async onPermission(request) {
             // The planner writes only into the shared directory: plans and handoffs for others.
             if (request.tool.name === "write" && !plannerMayWrite(request.tool.args)) {
@@ -530,7 +534,8 @@ export function createPiRuntimeController(options: {
           onUserInput,
           cwd: runCwd,
           addDirs: sharedDirs,
-          prompt: resumeId ? modelPrompt : `${BUILDER_INSTRUCTIONS}${brief ? ` ${brief}` : ""}\n\n${modelPrompt}`,
+          prompt: modelPrompt,
+          developerInstructions: rolePrompt(role, layout),
           permissionMode,
           resumeId,
           forkBeforeTurnId: branch?.harness === "codex" ? branch.beforeTurnId : undefined,
@@ -582,6 +587,7 @@ export function createPiRuntimeController(options: {
 
   return {
     state,
+    defaultPermissionMode,
     health: () => ({ status: "ok", activeRuns: runs.size, maxConcurrentRuns, uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000) }),
     async configure(input) {
       const conversationId = normalizeConversationId(input.conversationId);
@@ -770,10 +776,14 @@ export function createPiHttpHost(options: {
   dataDir?: string;
   bridgeFactory?: PiBridgeFactory;
   limits?: RunLimits;
+  channelFactories?: ConnectorFactories;
 }) {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: options.cwd });
   const privatePaths = [options.dataDir ?? defaultDataDir()];
   const controller = createPiRuntimeController({ ...options, layout });
+  const dataDir = options.dataDir ?? defaultDataDir();
+  // Only when something talks to this host; the vite plugin creates it on the first request.
+  const channels = createChannelManager({ runtime: controller, dataDir, defaultPermissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir), factories: options.channelFactories });
 
   return {
     controller,
@@ -820,6 +830,17 @@ export function createPiHttpHost(options: {
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/config`) {
           sendJson(res, 200, await controller.configure(await readJson(req)));
+          return true;
+        }
+        if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/channels`) {
+          sendJson(res, 200, { channels: channels.list() });
+          return true;
+        }
+        const channelMatch = url.pathname.match(new RegExp(`^${PI_API_PREFIX}/channels/([a-z]+)$`));
+        if (req.method === "POST" && channelMatch) {
+          const platform = channelMatch[1] as ChannelPlatform;
+          if (!CHANNEL_PLATFORMS.includes(platform)) sendJson(res, 404, { error: "Unknown IM channel." });
+          else sendJson(res, 200, { channels: channels.update(platform, channelPatch(await readJson(req))) });
           return true;
         }
         const branchMatch = url.pathname.match(new RegExp(`^${PI_API_PREFIX}/conversations/([^/]+)/branch$`));
@@ -997,13 +1018,35 @@ export function createPiHttpHost(options: {
       return true;
     },
     dispose() {
+      channels.dispose();
       controller.dispose();
     },
   };
 }
 
+/** Only known fields of the right type; anything else is ignored, never stored. */
+function channelPatch(body: Record<string, unknown>): ChannelPatch {
+  const fields = asRecord(body.fields);
+  const definition = asRecord(asRecord(body.model).definition);
+  const model = stringField(asRecord(body.model), "model");
+  return {
+    ...(typeof body.enabled === "boolean" ? { enabled: body.enabled } : {}),
+    fields: Object.fromEntries(Object.entries(fields).filter((entry): entry is [string, string] => typeof entry[1] === "string" && entry[1].length <= 4096)),
+    ...(body.access === "open" || body.access === "allowlist" ? { access: body.access } : {}),
+    ...(Array.isArray(body.allowUsers) ? { allowUsers: body.allowUsers.filter((id): id is string => typeof id === "string" && id.length <= 200) } : {}),
+    ...(isAgentPresetId(body.agentPreset) ? { agentPreset: body.agentPreset } : {}),
+    ...(model && typeof definition.id === "string" && typeof definition.baseUrl === "string" && Array.isArray(definition.models)
+      ? { model: { model, definition: {
+        id: definition.id, name: stringField(definition, "name") ?? definition.id, baseUrl: definition.baseUrl,
+        protocol: definition.protocol as PiProviderDefinition["protocol"], models: definition.models.filter((entry): entry is string => typeof entry === "string"),
+        authMode: definition.authMode === "none" ? "none" : "required",
+        ...(stringField(definition, "apiKeyEnvVar") ? { apiKeyEnvVar: stringField(definition, "apiKeyEnvVar") } : {}),
+      } } } : {}),
+  };
+}
+
 async function createDefaultPiBridge(input: {
-  cwd: string; approvalGate: PiApprovalGate; sessionDir?: string; sandboxed: boolean;
+  cwd: string; approvalGate: PiApprovalGate; sessionDir?: string; sandboxed: boolean; rolePrompt?: string;
   sessionId?: string | null; hasHistory: boolean; onSessionId(id: string, beforeEntryId: string | null): void;
   branch?: { sessionDir: string; sessionId: string; entryId: string };
   onUserInput(request: UserInputRequest): Promise<UserAnswers>;
@@ -1017,7 +1060,7 @@ async function createDefaultPiBridge(input: {
     allowModelNetwork: false,
     credentials: new InMemoryCredentialStore(),
   });
-  const { settingsManager, resourceLoader } = await createHostResources(pi, input.cwd);
+  const { settingsManager, resourceLoader } = await createHostResources(pi, input.cwd, input.rolePrompt ? [input.rolePrompt] : []);
   const definitions = new Map<string, PiProviderDefinition>();
   const keys = new Map<string, string>();
   let stopEpoch = 0;
@@ -1247,22 +1290,6 @@ function guardTool<T extends { name: string; execute: (...args: any[]) => Promis
     },
   } as T;
 }
-
-/** Planner role (Claude Code): reads and plans; file-changing tools are not available. */
-const PLANNER_SYSTEM_PROMPT = [
-  "You are the planning agent in RaytoneBot.",
-  "Read and analyse as needed. Do not modify files, except writing plans and handoffs into the shared directory (when there is one).",
-  "Finish with a concrete, numbered plan: goal, steps, files involved, risks, and how to verify.",
-  "Reply in the user's language.",
-].join(" ");
-const PLANNER_DISALLOWED_TOOLS = ["Edit", "MultiEdit", "NotebookEdit"];
-
-/** Builder role (Codex CLI), sent ahead of the first prompt of a Codex session. */
-const BUILDER_INSTRUCTIONS = [
-  "[RaytoneBot builder role] You implement changes in this workspace.",
-  "Keep changes scoped to the request, run the relevant checks, and end with a short summary",
-  "of what changed and how it was verified. Reply in the user's language.",
-].join(" ");
 
 function permissionMode(value: unknown): PiPermissionMode {
   return value === "auto" || value === "allow-all" ? value : "request";

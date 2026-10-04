@@ -7,13 +7,15 @@ import { test } from "node:test";
 import { buildClaudeArgs } from "./cliHarness.ts";
 import { createCodexAppServer } from "./codexAppServer.ts";
 import { classifyToolCall, defaultProtectedPaths, defaultReadOnlyPaths } from "./permissionPolicy.ts";
-import { ensureWorkspaceLayout, resolveWorkspaceLayout, workspacePrompt } from "./workspaceLayout.ts";
+import { ensureWorkspaceLayout, resolveWorkspaceLayout } from "./workspaceLayout.ts";
+import { rolePrompt } from "./rolePrompt.ts";
 
 test("without a root every role shares one directory and nothing is created", () => {
   const layout = resolveWorkspaceLayout({ fallbackCwd: "/app" });
   assert.deepEqual(Object.values(layout.agents), ["/app", "/app", "/app"]);
   assert.equal(layout.shared, undefined);
-  assert.equal(workspacePrompt("planner", layout), undefined);
+  assert.doesNotMatch(rolePrompt("planner", layout), /shared by every agent/);
+  assert.match(rolePrompt("planner", layout), /You are Tonny/);
 });
 
 test("with a root: own directory per role, a shared one, briefs that are not overwritten", () => {
@@ -31,7 +33,7 @@ test("with a root: own directory per role, a shared one, briefs that are not ove
     ensureWorkspaceLayout(layout);
     assert.equal(readFileSync(join(layout.agents.planner, "AGENTS.md"), "utf8"), "edited");
 
-    assert.match(workspacePrompt("planner", layout) ?? "", new RegExp(layout.shared!.replace(/[/\\]/g, ".")));
+    assert.match(rolePrompt("planner", layout), new RegExp(layout.shared!.replace(/[/\\]/g, ".")));
 
     // The app's own code becomes read-only once agents work elsewhere; shared work does not.
     const workspaces = [...Object.values(layout.agents), layout.shared!];

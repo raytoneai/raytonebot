@@ -13,13 +13,15 @@ export type AgentPresetId = "assistant" | "planner" | "builder";
 export type AgentPreset = {
   id: AgentPresetId;
   harness: AgentHarnessId;
+  /** Engine tools withheld from this role; enforced by the engine, never only described in a prompt. */
+  disallowedTools?: readonly string[];
 };
 
 export const AGENT_PRESETS: readonly AgentPreset[] = [
   // Default: Pi answers fastest and runs in-process.
   { id: "assistant", harness: "pi" },
   // Claude Code in plan mode: reads and plans, never edits.
-  { id: "planner", harness: "claude-code" },
+  { id: "planner", harness: "claude-code", disallowedTools: ["Edit", "MultiEdit", "NotebookEdit"] },
   // Codex CLI: implements in the workspace.
   { id: "builder", harness: "codex" },
 ];

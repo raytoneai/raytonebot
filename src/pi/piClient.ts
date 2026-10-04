@@ -1,6 +1,7 @@
 import type { AgentUXEvent } from "@agent-ux/protocol";
 
 import type { PiApprovalDecision } from "../harness/adapters/piAdapter.ts";
+import type { ChannelPatch, ChannelPlatform, ChannelView } from "./imChannels/types.ts";
 import type { AgentHarnessStatus, AgentPresetId, ClaudeCodeModelSource } from "./harnessCatalog.ts";
 
 export const PI_API_PREFIX = "/__agentcanvas/pi";
@@ -201,6 +202,17 @@ export async function configurePiRuntime(
 export async function clearApprovalMemory(agentPreset?: string, fetcher: typeof fetch = fetch): Promise<Record<string, string[]>> {
   const body = await requestJson<{ alwaysAllowed: Record<string, string[]> }>(fetcher, `${PI_API_PREFIX}/approvals/clear`, { agentPreset });
   return body.alwaysAllowed;
+}
+
+export async function listImChannels(fetcher: typeof fetch = fetch, signal?: AbortSignal): Promise<ChannelView[]> {
+  const body = await requestJson<{ channels: ChannelView[] }>(fetcher, `${PI_API_PREFIX}/channels`, undefined, signal ?? AbortSignal.timeout(15_000));
+  return body.channels;
+}
+
+/** Saves one channel; the server reconnects it when credentials or the enabled switch change. */
+export async function updateImChannel(platform: ChannelPlatform, patch: ChannelPatch, fetcher: typeof fetch = fetch): Promise<ChannelView[]> {
+  const body = await requestJson<{ channels: ChannelView[] }>(fetcher, `${PI_API_PREFIX}/channels/${platform}`, patch, AbortSignal.timeout(15_000));
+  return body.channels;
 }
 
 /** Stops one conversation's run; other conversations keep running. */

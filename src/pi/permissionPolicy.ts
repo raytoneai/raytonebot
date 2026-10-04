@@ -56,6 +56,8 @@ export function defaultProtectedPaths(options: { workspaces: readonly string[] }
   // Agent config inside the workspace would let one run plant hooks or settings for the next.
   for (const workspace of options.workspaces) {
     paths.push(...[".claude", ".codex", ".agents"].map((entry) => resolve(workspace, entry)));
+    // Persona files reach every later prompt: an agent must not rewrite them unasked.
+    paths.push(...["SOUL.md", "USER.md"].map((entry) => resolve(workspace, entry)));
   }
   const extra = process.env.RAYTONEBOT_PROTECTED_PATHS?.split(":").map((entry) => entry.trim()).filter(Boolean) ?? [];
   return [...paths, ...extra.map((entry) => resolve(entry))];

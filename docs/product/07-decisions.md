@@ -177,3 +177,19 @@
 - **问题**：AGENTS.md 的“只修缺陷”与对齐目标冲突，追问队列、历史管理、交互式产物、浏览器接管缺少入口；同时本轮已有多处超出“修缺陷”的组件改动，规则与实际不一致。
 - **决定**：保持“每个状态只有一个组件”的原则，把扩展范围列成白名单，见 AGENTS.md。已完成的侧栏全文搜索/窗口化、Composer 草稿持久化、Output 全屏模式事后认可。参考 nightly OpenBot（先复用共享组件，队列以 `QueuePanel` 挂进现有 Composer）与 OpenMuse（队列、线程管理与接管都挂在既有界面）。
 - **约束**：白名单外的新功能先在 roadmap 写一页规格（入口、状态来源、验收）再动组件；不建第二个面板、弹窗或浏览器；能用事件映射解决的仍不改组件。
+
+## ADR-026：IM 频道只用主动连出的接入方式，复用现有运行与审批（2026-10-04）
+
+- **问题**：M4 的 IM 入口。沙箱没有稳定公网地址；回调类接入（企业微信自建应用、Slack Events、Telegram webhook）需要入站 URL。
+- **决定**：首版接飞书（企业自建应用长连接，`@larksuiteoapi/node-sdk` 1.74.0）、钉钉（Stream 模式，`dingtalk-stream` 2.1.4）、企业微信智能机器人（长连接，`@wecom/aibot-node-sdk` 1.0.7）与 Telegram（`getUpdates` 长轮询，无依赖），三个 SDK 均 MIT、官方维护，只在频道启用时动态加载。接入方式、命令和聊天内批准文案参照 [dsh-im](https://github.com/xmanrui/dsh-im)（MIT），代码自写。nightly openbot 的 channels 是多 Agent 房间而非 IM，只借鉴设置页状态展示。
+- **复用**：每个聊天绑定一个产品对话，消息经 `controller.runPrompt` 运行，转录、审批闸门、运行上限、会话列表与浏览器完全相同；批准与 Agent 提问通过在聊天中回复处理，网页端也能看到并接管同一对话。设置是现有设置页的一个分区（ADR-025 扩展所有者），状态逻辑在 `src/runtime/useImChannels.ts`。
+- **安全**：默认白名单且为空；未授权者私聊时收到自己的 ID，设置页列出最近被拒者可一键允许。凭据存 `~/.raytonebot/data/im-channels.json`（600，Agent 不可读，在密钥路径内），接口不回传。IM 运行使用主机默认权限模式（沙箱 auto、本机 request）；模型 key 只能来自服务器环境变量，浏览器会话 key 不进入 IM。
+- **边界**：只收文字；钉钉无法编辑消息，只发最终回复；企业微信流式消息有时长上限，超时改为普通消息；飞书国际版 Lark、Slack、Discord、个人微信、图片/文件收发、群聊内多人会话隔离均未做。备份归档会带上 IM 凭据，与模型 env 同等保管。
+
+## ADR-027：角色提示词分层：产品角色说明 + SOUL.md + USER.md（2026-10-04）
+
+- **问题**：Raer/Tonny/Bob 的名字只在界面上；Raer 只有 Pi 默认提示词和工作区说明，说明里的"读共享目录看交接"让模型对 hello 也先 `ls`；本机还注入开发者自己的 76 个技能（约 40 KB），本机与沙箱表现不一致。Bob 的角色说明只拼在首条用户消息里。
+- **参考**：OpenClaw 的 AGENTS/SOUL/USER 分工与字符上限、工具在配置中强制而非靠提示词（TOOLS.md 已废弃）；nightly openbot 与 OpenAgentCore 用 Codex `developerInstructions`、Claude 追加系统提示词，在开始与续接时都发送；TelegramAgent 的人设文件结构。Karpathy 建议的约 80% ASD-STE100 写法用于专业/代码回答。
+- **决定**：`src/pi/rolePrompt.ts` 统一组装，引擎默认提示词不改：①产品角色说明（代码内）②工作区事实（共享目录只在任务涉及交接时查看）③写作规则（用户语言、问候不调工具、技术回答约 80% ASD-STE100）④`agents/<角色>/SOUL.md`（用户可改，首次生成后不覆盖）⑤`shared/USER.md`（三角色共用）。各 4096 字符上限、去掉 HTML 注释。Pi 经 `appendSystemPrompt`，Claude Code 经 `--append-system-prompt`，Codex 经 app-server `developerInstructions`（start/resume/fork，0.153.4 协议已核对），不再拼进用户消息。工具限制放在 `AGENT_PRESETS.disallowedTools`，由引擎强制。本机与沙箱都不再加载开发者个人技能。
+- **安全**：人设文件位于 Agent 可写目录，主机以 `O_NOFOLLOW`、仅普通文件且链接数为 1 的方式读取，拒绝符号/硬链接指向 bot 私有数据；`SOUL.md`/`USER.md` 列入受保护路径，Agent 修改总是需要批准。
+- **边界**：旧版自动生成且未修改的 AGENTS.md 自动更新措辞，修改过的保留；设置页编辑 SOUL/USER、产品技能白名单、记忆（MEMORY.md）未做。Pi 的人设在会话桥接创建时读取，修改 SOUL.md 后对新对话生效。

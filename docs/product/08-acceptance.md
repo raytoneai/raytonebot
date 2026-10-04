@@ -605,3 +605,21 @@
   - `?devtools=1` 18 个场景走查无页面错误；fixture 回放不显示队列。走查中的一个资源 404 在改动前同样存在，未处理。
 - 未覆盖：真实外部模型、三引擎逐一、Claude/Codex 角色的队列发送、跨标签页同时继续同一队列（依赖草稿版本冲突检查与主机单会话单运行限制，未实测）、真机触摸与读屏、云端部署。队列只存在本浏览器，不跨设备。
 
+
+## AT 组：IM 频道（2026-10-04，工作树）
+
+- 实现：`src/pi/imChannels/`（`types`、`channelStore`、`channelBridge`、`channelManager`、`connectors/{feishu,dingtalk,wecom,telegram}`），`piHost` 增加 `/channels` 两个路由；设置页新增「IM 频道」分区（`SettingsDialog`，无新组件），`src/runtime/useImChannels.ts` 打开设置时每 3 秒刷新状态。
+- 147 项测试（新增 8 项）与 build 通过；前端产物不含 SDK 代码。
+- 单测覆盖：白名单拒绝与 ID 回执、群聊未 @ 不触发、重复投递去重、流式回复与最终编辑、聊天内「同意」批准、批准等待中其他消息只提醒、/stop、/new 切换对话、同一聊天续用对话、Agent 提问的编号/文字/多行答案、密钥留空不覆盖、文件 600 权限、HTTP 接口不回传密钥、访问设置变化不重连、连接失败状态、未知平台 404；Telegram 首次启动跳过积压、去掉 @机器人、编辑同一条回复。
+- 真实平台（假凭据）：飞书、钉钉、企业微信、Telegram 均实际连到官方服务并在 0.2–1.1 s 内以明确错误拒绝，无未处理异常。
+- 真实运行链路：生产 `createPiHttpHost` + 真实 Pi SDK + 受控 Telegram API。缺少 key 时聊天收到错误并提示需设置的环境变量 `DEEPSEEK_API_KEY`；设置假 key 后请求经模型代理到达 DeepSeek 返回 401，回复编辑为错误，对话 `im-telegram-…` 出现在网页会话列表。
+- 浏览器：Playwright headless Chromium，独立 5199 实例（临时数据目录）。桌面 1280px 与 390×844 的分区布局、展开编辑、假 Token 保存后显示「未连接」与平台错误、已保存密钥只显示「已保存」。
+- 修复（用户反馈）：设置弹窗网格行未限高，长分区被裁切无法滚动，改为 `grid-template-rows: minmax(0, 1fr)`；频道开关在凭据填完即可打开，打开时一并保存并连接。900×620 实测开关可用、内容可滚到底。
+- 未覆盖：真实 IM 账号收发（无测试应用凭据）、真实模型回答、钉钉 session webhook 过期后的 OpenAPI 发送、企业微信流式超时回退、断线重连实测、云端部署。
+
+## AU 组：角色提示词分层（2026-10-04，工作树）
+
+- 152 项测试（新增 5 项）：角色名/共享目录条件/语言/ASD-STE100/SOUL 注入、USER.md 共用与注释过滤、4096 截断、符号链接与硬链接拒绝、旧版未改 AGENTS.md 迁移且已改文件保留、SOUL/USER 写入需批准、Codex resume 携带 `developerInstructions` 且用户消息不含角色文本、本机不加载个人技能。
+- 实际系统提示词（本机 Raer）：40,212 → 5,154 字节，技能 76 → 0，含角色说明与 SOUL.md。
+- 真实 DeepSeek（5188 服务，临时对话测后删除）：`hello` 零工具调用直接回复；"rebase 与 merge 区别"中文、先结论、短句，零工具。
+- 未覆盖：Tonny/Bob 的真实模型行为、云端部署。

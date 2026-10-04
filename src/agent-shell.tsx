@@ -62,6 +62,7 @@ import { approvalForReplay, identityEventForReplay } from "./runtime/replayIdent
 import { questionCopy } from "./i18n/copy/questions";
 import { useRunStop } from "./runtime/runStop";
 import { useProviderSettings } from "./runtime/useProviderSettings";
+import { useImChannels } from "./runtime/useImChannels";
 
 const THEME_KEY = "raytonebot.theme";
 /** Events after which a tool call is no longer waiting on the user. */
@@ -286,6 +287,12 @@ export function AgentApp() {
     () => ({ ...configuredProject, output: { ...configuredProject.output, source: outputSource } }),
     [configuredProject, outputSource],
   );
+  /** IM chats run on the default model service; its definition (never a key) is saved with them. */
+  const channelModel = useMemo(() => {
+    const config = piRuntimeConfigurationForProvider(defaultProviderConnection(configuredProject));
+    return config.providerDefinition && config.model ? { definition: config.providerDefinition, model: config.model } : undefined;
+  }, [configuredProject]);
+  const imChannels = useImChannels(settingsOpen && Boolean(piRuntimeState), channelModel);
   // Both approval modes answer above the composer, exactly where the configurator previewed
   // them. Each mode needs its own surface here: `ChatFrame` no longer places either one in the
   // transcript, so a mode without an overlay would leave a real run with nothing to click.
@@ -1382,6 +1389,7 @@ export function AgentApp() {
               setThemePreset(id);
               storeSetting(THEME_KEY, id);
             }}
+            imChannels={piRuntimeState ? imChannels : undefined}
             />
           </Suspense>
         ) : null}
