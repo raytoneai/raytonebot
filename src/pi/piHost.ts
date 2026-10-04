@@ -194,7 +194,7 @@ export function createPiRuntimeController(options: {
   const bridgeFactory = options.bridgeFactory ?? ((input) => {
     const id = decodeURIComponent(input.sessionDir!.split("/").pop()!);
     const saved = store.get(id);
-    return createDefaultPiBridge({ ...input, sandboxed, rolePrompt: rolePrompt("assistant", layout), sessionId: saved?.piSessionId,
+    return createDefaultPiBridge({ ...input, sandboxed, rolePrompt: rolePrompt("assistant", layout, { sandboxed }), sessionId: saved?.piSessionId,
       branch: saved?.branch?.native?.harness === "pi" ? { ...saved.branch.native,
         sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(saved.branch.native.sourceId)) } : undefined,
       hasHistory: saved?.agentPreset === "assistant" && saved.events.length > 0,
@@ -503,7 +503,7 @@ export function createPiRuntimeController(options: {
           emit,
           onSessionId,
           provider,
-          appendSystemPrompt: rolePrompt(role, layout),
+          appendSystemPrompt: rolePrompt(role, layout, { sandboxed }),
           disallowedTools: agentPreset(role).disallowedTools,
           async onPermission(request) {
             // The planner writes only into the shared directory: plans and handoffs for others.
@@ -535,7 +535,7 @@ export function createPiRuntimeController(options: {
           cwd: runCwd,
           addDirs: sharedDirs,
           prompt: modelPrompt,
-          developerInstructions: rolePrompt(role, layout),
+          developerInstructions: rolePrompt(role, layout, { sandboxed }),
           permissionMode,
           resumeId,
           forkBeforeTurnId: branch?.harness === "codex" ? branch.beforeTurnId : undefined,

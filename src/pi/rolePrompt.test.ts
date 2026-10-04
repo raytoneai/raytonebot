@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { createCodexAppServer } from "./codexAppServer.ts";
 import { classifyToolCall, defaultProtectedPaths } from "./permissionPolicy.ts";
-import { PERSONA_FILE_LIMIT, personaFile, rolePrompt } from "./rolePrompt.ts";
+import { DEFAULT_SOULS, LEGACY_SOULS, PERSONA_FILE_LIMIT, personaFile, rolePrompt } from "./rolePrompt.ts";
 import { ensureWorkspaceLayout, resolveWorkspaceLayout } from "./workspaceLayout.ts";
 
 function workspace() {
@@ -21,11 +21,11 @@ test("each role is named, told when the shared directory matters, and gets its o
     ensureWorkspaceLayout(layout);
     const raer = rolePrompt("assistant", layout);
     assert.match(raer, /You are Raer/);
-    assert.match(raer, /only when the task mentions a handoff/);
+    assert.match(raer, /use it only for handoffs/);
     assert.match(raer, /Reply in the user's language/);
     assert.match(raer, /ASD-STE100/);
-    assert.match(raer, /SOUL\.md\)\n\n# Raer/);
-    assert.doesNotMatch(raer, /About the user/, "the seeded USER.md holds only a comment, so nothing is sent");
+    assert.match(raer, /SOUL\.md \(your character\)\n# Raer/);
+    assert.doesNotMatch(raer, /USER\.md \(user preferences\)/, "the seeded USER.md holds only a comment, so nothing is sent");
     assert.match(rolePrompt("builder", layout), /You are Bob[\s\S]*# Bob/);
 
     writeFileSync(join(layout.shared!, "USER.md"), "# About the user\n\n- Prefer Chinese replies.\n<!-- private note -->\n");
@@ -72,10 +72,12 @@ This directory is your own working directory in RaytoneBot.
     writeFileSync(join(layout.agents.assistant, "AGENTS.md"), legacy);
     writeFileSync(join(layout.agents.planner, "AGENTS.md"), `${legacy}\nmy note\n`);
     writeFileSync(join(layout.agents.planner, "SOUL.md"), "# Tonny\n\nmine");
+    writeFileSync(join(layout.agents.assistant, "SOUL.md"), LEGACY_SOULS.assistant[0]);
     ensureWorkspaceLayout(layout);
-    assert.match(readFileSync(join(layout.agents.assistant, "AGENTS.md"), "utf8"), /Look there only when a task mentions a handoff/);
+    assert.match(readFileSync(join(layout.agents.assistant, "AGENTS.md"), "utf8"), /handoffs, plans, other agents' work only/);
     assert.match(readFileSync(join(layout.agents.planner, "AGENTS.md"), "utf8"), /my note/);
     assert.equal(readFileSync(join(layout.agents.planner, "SOUL.md"), "utf8"), "# Tonny\n\nmine");
+    assert.equal(readFileSync(join(layout.agents.assistant, "SOUL.md"), "utf8"), DEFAULT_SOULS.assistant, "an untouched earlier default is updated");
   } finally { cleanup(); }
 });
 
@@ -99,4 +101,20 @@ test("Codex receives the role as developer instructions on resume, not inside th
   assert.equal((thread.params as Record<string, unknown>).developerInstructions, "You are Bob.");
   codex.push({ id: "thread", result: { thread: { id: "t" } } }, (request) => requests.push(request));
   assert.deepEqual((requests.at(-1)!.params as { input: { text: string }[] }).input[0].text, "continue");
+});
+
+test("every role carries the product FAQ, with the settings page's own IM setup steps and the real deployment", async () => {
+  const { settingsCopy } = await import("../i18n/copy/settings.ts");
+  const { layout, cleanup } = workspace();
+  try {
+    const local = rolePrompt("planner", layout);
+    assert.match(local, /RaytoneBot facts/);
+    assert.ok(local.includes(settingsCopy.en.channels.setup.feishu), "Feishu steps come from the settings copy");
+    assert.match(local, /owner's computer/);
+    assert.match(local, /设置 → IM 频道/, "menu names match the UI");
+    assert.ok(local.includes(layout.agents.planner));
+    const cloud = rolePrompt("builder", layout, { sandboxed: true });
+    assert.match(cloud, /cloud sandbox/);
+    assert.match(cloud, /separate Linux user/);
+  } finally { cleanup(); }
 });

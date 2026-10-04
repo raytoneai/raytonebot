@@ -629,3 +629,10 @@
 - 提交 `5afb88b` 部署到 `id705on7k0a1ya1d90icj`；部署前备份 `backups/id705on7k0a1ya1d90icj-20261004-214214-912436.tgz`。`npm ci`（新增三个 IM SDK）、隔离校验与全部自检通过；云端 Claude Code 2.1.267、Codex 0.154.0。
 - 认证后 `/channels` 返回 4 个未启用频道；三角色目录已生成 `SOUL.md`，共享目录有 `USER.md`；真实 DeepSeek `hello` 零工具调用成功（临时对话已删除）。
 - 未做：云端配置真实 IM 凭据收发（需先关闭本机同一 Telegram bot，避免 getUpdates 冲突）、Tonny/Bob 云端真实提示词行为。
+
+## AV 组：产品 FAQ（2026-10-04，工作树）
+
+- 153 项测试：FAQ 进入每个角色、飞书步骤与设置页文案一致、本机/沙箱运行位置随部署变化。
+- 真实 DeepSeek（本机 5188，临时对话测后删除）："这个产品是什么""怎么连接飞书""agent 运行在哪里"均零工具调用、成功结束，答案与本机部署（本机模式、`/tmp/raytone-demo-workspace` 路径）一致；飞书步骤与设置页一致。菜单名改为中英并列以匹配界面。
+- 瘦身（同日）：角色说明、写作规则、FAQ、默认 SOUL.md 与 AGENTS.md 改为精简英语并去重；每角色 4.6 → 3.2 KB，AGENTS.md 547 → 291 B；未改过的旧中文 SOUL.md 与旧 AGENTS.md 自动更新。153 项测试通过；真实 DeepSeek "hello""怎么连接飞书""权限模式区别"零工具、答案正确。
+- 未做：云端部署本项。
