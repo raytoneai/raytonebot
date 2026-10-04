@@ -888,6 +888,20 @@ export function AgentApp() {
     }
   }
 
+  /** Reads the host's copy of an opened conversation; follows it only if a run is in flight there. */
+  async function refreshPiConversation(conversation: EphemeralPiConversation) {
+    if (piAbortRefs.current.has(conversation.id)) return;
+    const loaded = await loadStoredConversation(conversation).catch(() => undefined);
+    if (!loaded || piAbortRefs.current.has(conversation.id)) return;
+    if (loaded.activeRunId) {
+      void followRun(loaded);
+      return;
+    }
+    if (loaded.events.length <= conversation.events.length) return;
+    setPiConversations((list) => list.map((entry) => entry.id === loaded.id ? loaded : entry));
+    if (activeConversationIdRef.current === loaded.id) setPiEvents([...loaded.events]);
+  }
+
   /** Stops the conversation on screen; runs in other conversations continue. Its queue pauses first. */
   const stopPi = (conversationId = activePiConversationId) => {
     composer.pauseQueue(conversationId, "stopped");
@@ -1057,9 +1071,11 @@ export function AgentApp() {
       setAgentSettings(next);
       saveAgentSettings(next);
     }
-    // Cached history may have changed while detached or in another tab. This shared reader
-    // reserves the subscription synchronously and only reads/attaches; it never resends a prompt.
-    if (conversation.stored || conversation.events.length || followProblems[conversation.id]) void followRun(conversation);
+    // Cached history may have changed while detached or in another tab. Re-read it, and attach
+    // only when the host reports a run: `followRun` marks the conversation running up front,
+    // which on finished history showed a spinner and replayed every answer's typing.
+    if (followProblems[conversation.id]) void followRun(conversation);
+    else if (conversation.stored || conversation.events.length) void refreshPiConversation(conversation);
     setOutputPanelItems([]);
     setActiveOutputPanelItemId(undefined);
     setOutputModalOpen(false);
