@@ -1,7 +1,5 @@
 import type { AgentUXEvent } from "@agent-ux/protocol";
 
-export const MAX_EPHEMERAL_PI_CONVERSATIONS = 100;
-
 export type EphemeralPiConversation = {
   id: string;
   title: string;
@@ -11,6 +9,8 @@ export type EphemeralPiConversation = {
   agentPreset?: string;
   /** Known from the server's store but its events are not loaded yet. */
   stored?: boolean;
+  /** Host-reported active run; never an instruction to start or replay it. */
+  activeRunId?: string;
 };
 
 export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt">;
@@ -53,10 +53,8 @@ export function appendPiConversationEvents(
 export function replacePiConversation(
   conversations: readonly EphemeralPiConversation[],
   replacement: EphemeralPiConversation,
-  max = MAX_EPHEMERAL_PI_CONVERSATIONS,
 ): readonly EphemeralPiConversation[] {
-  const next = [replacement, ...conversations.filter((entry) => entry.id !== replacement.id)];
-  return next.slice(0, Math.max(1, max));
+  return [replacement, ...conversations.filter((entry) => entry.id !== replacement.id)];
 }
 
 export function piConversationSidebarItems(

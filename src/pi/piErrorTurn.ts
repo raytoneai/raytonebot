@@ -1,6 +1,9 @@
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { agentUXEventBuilders } from "@agent-ux/protocol";
 
+/** `run.error` code for a prompt the host refused before saving it (e.g. a run already active). */
+export const PROMPT_REJECTED = "prompt_rejected";
+
 /**
  * The canonical events for a Pi turn that failed.
  *

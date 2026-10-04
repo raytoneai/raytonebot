@@ -1,5 +1,7 @@
 import { agentUXEventBuilders, type AgentUXEvent } from "@agent-ux/protocol";
 import { limitEventText, limitToolResult } from "../../runtime/eventLimits.ts";
+import { taskPlanSnapshot } from "../../runtime/taskPlan.ts";
+import type { UserAnswers, UserQuestion } from "../../runtime/userInput.ts";
 
 /**
  * Pi's SDK, JSON and RPC modes all expose the same session-event vocabulary. Keep this adapter
@@ -65,6 +67,7 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
   let runStarted = false;
   let runFinished = false;
   let terminalError = false;
+  let planCreated = false;
   /** A failed model request. Pi may retry it, so it ends the run only if no retry succeeds. */
   let pendingModelError: string | undefined;
 
@@ -330,6 +333,30 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
     push(agentUXEventBuilders.runFinished(meta("run_finished"), { status }), next);
   };
 
+  const emitPlan = (value: unknown, explanation: unknown, next: AgentUXEvent[]) => {
+    if (runFinished) return;
+    const plan = taskPlanSnapshot(runId, value, explanation);
+    if (!plan) return;
+    ensureRun(next);
+    const artifactId = `plan_${runId}`;
+    if (!planCreated) {
+      push(agentUXEventBuilders.artifactCreated(meta("plan_created"), {
+        artifactId, kind: "markdown", title: "Plan.md", mimeType: "text/markdown",
+      }), next);
+      planCreated = true;
+    }
+    push(agentUXEventBuilders.artifactDelta(meta("plan_updated"), { artifactId, format: "json", delta: plan }), next);
+    // The snapshot is ready to read; this does not mark its steps complete.
+    push(agentUXEventBuilders.artifactFinished(meta("plan_ready"), { artifactId, status: "success" }), next);
+  };
+
+  const inputMessage = (id: string, role: "user" | "assistant", text: string, next: AgentUXEvent[], skipped = false) => {
+    const messageId = `${runId}_input_${id}_${role}`, textId = `${messageId}_text`;
+    push(agentUXEventBuilders.textStarted(meta("input_text_started", messageId), { textId, role, format: "plain" }), next);
+    push(agentUXEventBuilders.textDelta(meta("input_text_delta", messageId), { textId, delta: text, ...(skipped ? { inputSkipped: true } : {}) }), next);
+    push(agentUXEventBuilders.textFinished(meta("input_text_finished", messageId), { textId }), next);
+  };
+
   const apply = (raw: unknown): AgentUXEvent[] => {
     const event = asRecord(raw);
     const type = stringField(event, "type");
@@ -337,6 +364,27 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
     const next: AgentUXEvent[] = [];
 
     switch (type) {
+      case "user_input_required":
+        inputMessage(String(event.requestId), "assistant", (event.questions as UserQuestion[]).map((q) =>
+          [q.question, ...q.options.map((o) => `• ${o.label}${o.description ? ` — ${o.description}` : ""}`)].join("\n")).join("\n\n"), next);
+        push(agentUXEventBuilders.runAwaitingInput(meta("user_input"), {
+          requestId: event.requestId, toolCallId: event.toolCallId, questions: event.questions,
+        }), next);
+        break;
+      case "user_input_resolved":
+        if (event.answers !== undefined) {
+          const answers = event.answers as UserAnswers;
+          inputMessage(String(event.requestId), "user", answers === null ? "Skipped questions." :
+            (event.questions as UserQuestion[]).map((q) => `${q.question}\n${answers[q.id].join(", ")}`).join("\n\n"), next, answers === null);
+        }
+        push(agentUXEventBuilders.toolCallProgress(meta("user_input_resolved"), {
+          toolCallId: event.toolCallId, inputRequestId: event.requestId,
+        }), next);
+        break;
+      case "plan_update": {
+        emitPlan(event.plan, event.explanation, next);
+        break;
+      }
       case "agent_start":
         ensureRun(next);
         break;
@@ -487,6 +535,10 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
             resultPreview: previewText(event.result),
           }), next);
           emitFileArtifact(tool, event.result, next, meta, push);
+          if (tool.name === "update_plan") {
+            const details = asRecord(asRecord(event.result).details);
+            emitPlan(details.plan, details.explanation, next);
+          }
           finishTool(tool, "success", next);
         }
         break;

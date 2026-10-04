@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, rmSync } from "node:fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -36,6 +36,182 @@ function fakeBridges() {
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
+
+test("HTTP stop identities reject old or malformed requests without stopping the current run", async () => {
+  const { createServer } = await import("node:http");
+  const { createPiHttpHost } = await import("./piHost.ts");
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-stop-identity-"));
+  const { factory, release, aborted } = fakeBridges();
+  const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/abort`;
+  const stop = (body: unknown) => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  try {
+    const first = host.controller.runPrompt({ conversationId: "a", requestId: "first", prompt: "wait" }, () => {});
+    await tick(); release.get("a")!(); await first;
+    const second = host.controller.runPrompt({ conversationId: "a", requestId: "second", prompt: "wait" }, () => {});
+    const other = host.controller.runPrompt({ conversationId: "b", requestId: "other", prompt: "wait" }, () => {});
+    await tick();
+    const listed = await (await fetch(url.replace("/abort", "/conversations"))).json();
+    const detail = await (await fetch(url.replace("/abort", "/conversations/a"))).json();
+    assert.equal(listed.conversations.find((entry: { id: string }) => entry.id === "a").activeRunId, "second");
+    assert.equal(detail.activeRunId, "second");
+    assert.equal((await stop({ conversationId: "a", runId: "first" })).status, 409);
+    for (const body of [{ conversationId: "a", runId: "" }, { conversationId: "a", runId: " " }, { conversationId: "a", runId: 42 }, { runId: "second" }, { conversationId: "" }, { conversationId: " " }])
+      assert.equal((await stop(body)).status, 400);
+    assert.deepEqual(aborted, []);
+    assert.equal(host.controller.health().activeRuns, 2);
+    assert.equal((await stop({ conversationId: "a", runId: "second" })).status, 200);
+    await second; assert.deepEqual(aborted, ["a"]);
+    assert.equal((await stop({ conversationId: "a", runId: "second" })).status, 409);
+    assert.equal((await stop({ conversationId: "b" })).status, 200, "legacy scoped stop remains supported");
+    await other;
+    assert.equal((await stop({})).status, 200, "explicit administrative stop-all remains supported");
+  } finally {
+    await host.controller.abort(); host.dispose();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("HTTP approvals cannot resolve a later run reusing the same native tool id", async () => {
+  const { createServer } = await import("node:http");
+  const { createPiHttpHost } = await import("./piHost.ts");
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-approval-run-"));
+  const { factory, release } = fakeBridges();
+  const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/approval`;
+  const answer = (runId: unknown, decision = "yes") => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId: "a", toolCallId: "call-a", decision, runId }) });
+  try {
+    const first = host.controller.runPrompt({ conversationId: "a", prompt: "write", requestId: "first", permissionMode: "request" }, () => {});
+    await tick();
+    assert.equal((await answer("first")).status, 200);
+    await tick(); release.get("a")!(); await first; release.delete("a");
+    const second = host.controller.runPrompt({ conversationId: "a", prompt: "write", requestId: "second", permissionMode: "request" }, () => {});
+    await tick();
+    assert.equal((await answer("first")).status, 409);
+    assert.equal((await answer(42)).status, 400);
+    assert.equal((await answer("")).status, 400);
+    assert.equal(release.has("a"), false, "stale/invalid approval must leave the new tool waiting");
+    assert.equal((await answer("second", "no")).status, 200);
+    await second;
+    assert.equal(release.has("a"), false, "denial never reaches execution");
+    assert.equal((await answer("second")).status, 409);
+  } finally {
+    await host.controller.abort(); host.dispose();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("saved user input and terminal events are on disk before a live reader can acknowledge them", async () => {
+  const { createConversationStore } = await import("./conversationStore.ts");
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-receipts-"));
+  const { factory, release } = fakeBridges();
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  const snapshots: { type: string; types: string[]; text: string }[] = [];
+  try {
+    const running = controller.runPrompt({ conversationId: "receipts", prompt: "Keep this original prompt", requestId: "receipt-run" }, (event) => {
+      if (!["text.finished", "run.finished"].includes(event.type)) return;
+      const saved = createConversationStore(dataDir).get("receipts")!.events;
+      snapshots.push({ type: event.type, types: saved.map((e) => e.type), text: saved.filter((e) => e.type === "text.delta").map((e) => e.payload.delta).join("") });
+    });
+    await tick();
+    release.get("receipts")!();
+    await running;
+    assert.equal(snapshots[0].text, "Keep this original prompt");
+    assert.equal(snapshots[0].types.at(-1), "text.finished");
+    assert.equal(snapshots.at(-1)?.types.at(-1), "run.finished");
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("HTTP history reports corrupt records without hiding healthy ones or starting an engine against unreadable history", async () => {
+  const { createServer } = await import("node:http");
+  const { createPiHttpHost } = await import("./piHost.ts");
+  const { createConversationStore } = await import("./conversationStore.ts");
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-history-failure-"));
+  const seed = createConversationStore(dataDir);
+  seed.begin("healthy", "assistant", "A preserved conversation");
+  const brokenPath = join(seed.dir, "broken.json");
+  writeFileSync(brokenPath, '{"events":');
+  mkdirSync(join(seed.dir, "unwritable.json.tmp"));
+  let engineStarts = 0;
+  const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: async () => { engineStarts++; throw new Error("Must not start"); } });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+  try {
+    const index = await (await fetch(`${base}/conversations`)).json();
+    assert.deepEqual(index.conversations.map((entry: { id: string }) => entry.id), ["healthy"]);
+    assert.deepEqual(index.unreadable, ["broken"]);
+    assert.equal((await fetch(`${base}/conversations/broken`)).status, 500, "a read error is not 404");
+    for (const conversationId of ["broken", "unwritable"]) {
+      const response = await fetch(`${base}/prompt`, { method: "POST", headers: { "content-type": "application/json" },
+        body: JSON.stringify({ conversationId, requestId: "rejected-id", prompt: "Do not lose this draft" }) });
+      const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
+      assert.equal(events.at(-1).payload.code, "prompt_rejected", "the browser must keep the draft");
+    }
+    assert.equal(engineStarts, 0);
+    assert.equal(host.controller.health().activeRuns, 0);
+    assert.equal(readFileSync(brokenPath, "utf8"), '{"events":');
+    assert.equal((await fetch(`${base}/conversations/unwritable`)).status, 404);
+  } finally { host.dispose(); await new Promise((resolve) => server.close(resolve)); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("write failure before acceptance or during a run reports one honest terminal to the caller and followers", async () => {
+  for (const phase of ["prompt", "stream", "terminal"]) {
+    const dataDir = mkdtempSync(join(tmpdir(), "rtb-write-failure-"));
+    const blocked = join(dataDir, "conversations", "a.json.tmp");
+    let emit: (event: any) => void = () => {};
+    let prompts = 0;
+    let inject = true;
+    const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: async () => ({
+      subscribe(fn) { emit = fn; return () => {}; },
+      async prompt() {
+        prompts++;
+        emit({ type: "message_start", message: { role: "assistant" } });
+        if (inject && phase === "stream") mkdirSync(blocked);
+        for (let i = 0; i < 45; i++) emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "response" } });
+        if (inject && phase === "terminal") mkdirSync(blocked);
+        emit({ type: "agent_settled" });
+      },
+      async state() { if (inject && phase === "prompt") mkdirSync(blocked); return { models: [], tools: [] } as never; },
+      async abort() {}, async configure() {}, async newSession() {}, dispose() {},
+    }) });
+    const events: any[] = [], followed: any[] = [];
+    try {
+      await controller.runPrompt({ conversationId: "a", requestId: "failed-run", prompt: "Keep this prompt" }, (event) => {
+        events.push(event);
+        if (event.type === "run.started") controller.followRun("a", 0, (e) => followed.push(e));
+      });
+      for (const received of [events, followed]) {
+        const terminals = received.filter((event) => ["run.finished", "run.error"].includes(event.type));
+        assert.equal(terminals.length, 1, phase);
+        assert.equal(terminals[0].type, "run.error", phase);
+        assert.equal(terminals[0].payload.code, phase === "prompt" ? "prompt_rejected" : "history_save_failed");
+        assert.match(terminals[0].payload.message, /could not be saved/);
+      }
+      assert.equal(prompts, phase === "prompt" ? 0 : 1);
+      assert.equal(controller.health().activeRuns, 0);
+      const saved = JSON.parse(readFileSync(join(dataDir, "conversations", "a.json"), "utf8"));
+      assert.deepEqual(controller.getConversation("a")?.events, saved.events, "reattach must not recover an unsaved success");
+      assert.equal(controller.getConversation("a")?.incomplete, phase !== "prompt", "a refresh must still report the missing terminal");
+      assert.ok(!saved.events.some((event: any) => event.type === "run.finished"));
+      const restarted = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: async () => { throw new Error("Must not replay"); } });
+      try { assert.equal(restarted.getConversation("a")?.incomplete, phase !== "prompt"); }
+      finally { restarted.dispose(); }
+      inject = false;
+      rmSync(blocked, { recursive: true });
+      const retried: any[] = [];
+      await controller.runPrompt({ conversationId: "a", requestId: "retry-run", prompt: "Explicit retry" }, (event) => retried.push(event));
+      assert.equal(retried.at(-1)?.type, "run.finished");
+      assert.equal(controller.getConversation("a")?.incomplete, false);
+    } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+  }
+});
 
 test("conversations run in parallel; stop and approval stay inside their own conversation", async () => {
   const dataDir = mkdtempSync(join(tmpdir(), "rtb-host-"));
@@ -79,13 +255,14 @@ test("concurrent runs are capped, and a stop sent before the run starts still ap
   const { factory, release } = fakeBridges();
   const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
   try {
-    const runs = ["c1", "c2", "c3"].map((id) => controller.runPrompt({ conversationId: id, prompt: "hi" }, () => undefined));
+    const runs = ["c1", "c2", "c3"].map((id) => controller.runPrompt({ conversationId: id, requestId: `${id}-run`, prompt: "hi" }, () => undefined));
     await assert.rejects(
       controller.runPrompt({ conversationId: "c4", prompt: "hi" }, () => undefined),
       /3 conversations are already running/,
     );
-    // c1's session may not exist yet; the stop is remembered and applied when it does.
-    await controller.abort("c1");
+    // c1's session may not exist yet; the matching stop is applied when it does.
+    assert.equal(await controller.abort("c1", "stale"), false);
+    assert.equal(await controller.abort("c1", "c1-run"), true);
     await runs[0];
     await tick();
     release.get("c2")!();
@@ -402,6 +579,7 @@ test("HTTP prompt rejections deliver the rejected message and error without touc
       const events = (await response.text()).split("\n").filter(Boolean).map((line) => JSON.parse(line));
       assert.equal(events.at(-1)?.type, "run.error");
       assert.equal(events.at(-1)?.runId, "rejected-request");
+      assert.equal(events.at(-1)?.payload.code, "prompt_rejected", "the browser keeps the draft only for rejections");
       assert.ok(events.some((event) => event.type === "text.delta" && event.payload.delta === "rejected prompt"));
       assert.equal(host.controller.getConversation(conversationId)!.events.length, before, "rejection must not corrupt another run");
     }
@@ -433,9 +611,119 @@ test("accepted submissions keep their request ID in saved history, including bri
     const failed = host.getConversation("failed")!.events;
     assert.equal(failed.at(-1)?.type, "run.error");
     assert.equal(failed.at(-1)?.runId, "failed-id");
+    assert.notEqual((failed.at(-1)?.payload as { code?: string }).code, "prompt_rejected", "a saved failure clears the draft");
     assert.ok(failed.some((event) => event.type === "text.delta" && (event.payload as { delta?: string }).delta === "show my failed message"));
   } finally {
     host.dispose();
     rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("Pi SDK abort errors settle as cancellation with one terminal event", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-stop-"));
+  let emit: (event: any) => void = () => undefined;
+  let release!: () => void;
+  const factory: PiBridgeFactory = async () => ({
+    subscribe(listener) { emit = listener; return () => { emit = () => undefined; }; },
+    async prompt() { await new Promise<void>((resolve) => { release = resolve; }); throw new Error("This operation was aborted"); },
+    async abort() {
+      // The real SDK settles its aborted model request before abort() resolves.
+      emit({ type: "message_end", message: { role: "assistant", stopReason: "error", errorMessage: "This operation was aborted" } });
+      emit({ type: "agent_settled" });
+      release();
+    },
+    dispose: () => undefined,
+    configure: async () => undefined,
+    state: async () => ({ models: [], tools: [] }) as never,
+    newSession: async () => undefined,
+  });
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  const events: any[] = [];
+  try {
+    const running = controller.runPrompt({ conversationId: "stop", prompt: "sleep" }, (event) => events.push(event));
+    await tick();
+    await controller.abort("stop");
+    await running;
+    assert.deepEqual(events.filter((event) => ["run.finished", "run.error"].includes(event.type)).map((event) => ({ type: event.type, status: event.payload.status })), [{ type: "run.finished", status: "cancelled" }]);
+  } finally {
+    controller.dispose();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("run duration and output limits stop the engine and persist one visible failure", async () => {
+  for (const limit of ["duration", "output"]) {
+    const root = mkdtempSync(join(tmpdir(), "rtb-limits-"));
+    const { factory, release, aborted } = streamingBridges();
+    const controller = createPiRuntimeController({
+      cwd: root, dataDir: join(root, "data"), bridgeFactory: factory,
+      limits: { durationMs: limit === "duration" ? 30 : 1000, outputBytes: limit === "output" ? 900 : 1_000_000, modelRequests: 100 },
+    });
+    try {
+      const running = controller.runPrompt({ conversationId: "limited", prompt: "do work" }, () => {});
+      // Keep the event loop alive while the host's unref'ed production deadline expires.
+      const guard = setTimeout(() => release.get("limited")?.(), 500);
+      assert.equal(controller.health().activeRuns, 1);
+      await running;
+      clearTimeout(guard);
+      assert.deepEqual(aborted, ["limited"]);
+      assert.equal(controller.health().activeRuns, 0);
+      const events = controller.getConversation("limited")!.events;
+      assert.deepEqual(events.filter((event) => event.type === "run.error" || event.type === "run.finished").map((event) => event.type), ["run.error"]);
+      assert.match(JSON.stringify(events.at(-1)), /maximum/);
+    } finally {
+      controller.dispose();
+      rmSync(root, { recursive: true, force: true });
+    }
+  }
+});
+
+test("health is cheap, same-origin guarded, and does not initialize a model session", async () => {
+  const { createServer } = await import("node:http");
+  const { createPiHttpHost } = await import("./piHost.ts");
+  const root = mkdtempSync(join(tmpdir(), "rtb-health-"));
+  let bridgeCalls = 0;
+  const host = createPiHttpHost({ cwd: root, dataDir: join(root, "data"), bridgeFactory: async () => { bridgeCalls++; throw Error("unused"); } });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/health`;
+  try {
+    const response = await fetch(url);
+    assert.equal(response.status, 200);
+    assert.deepEqual(Object.keys(await response.json()).sort(), ["activeRuns", "maxConcurrentRuns", "status", "uptimeSeconds"]);
+    assert.equal(bridgeCalls, 0);
+    assert.equal((await fetch(url, { headers: { origin: "https://foreign.example" } })).status, 403);
+  } finally {
+    host.dispose();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("synchronous engine completion cannot turn an exceeded output budget into success", async () => {
+  const root = mkdtempSync(join(tmpdir(), "rtb-sync-limit-"));
+  let emit: (event: any) => void = () => {};
+  const controller = createPiRuntimeController({ cwd: root, dataDir: join(root, "data"),
+    limits: { durationMs: 1000, outputBytes: 2000, modelRequests: 100 },
+    bridgeFactory: async () => ({
+      subscribe(listener) { emit = listener; return () => {}; },
+      async prompt() {
+        emit({ type: "message_start", message: { role: "assistant" } });
+        emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "x".repeat(3000) } });
+        emit({ type: "agent_settled" });
+      },
+      abort: async () => {}, dispose() {}, configure: async () => {}, newSession: async () => {},
+      state: async () => ({ models: [], tools: [] }) as never,
+    }),
+  });
+  try {
+    await controller.runPrompt({ conversationId: "a", prompt: "hello" }, () => {});
+    const terminals = controller.getConversation("a")!.events.filter((event) => ["run.error", "run.finished"].includes(event.type));
+    assert.equal(terminals.length, 1);
+    assert.equal(terminals[0].type, "run.error");
+    assert.match(JSON.stringify(terminals[0]), /maximum event output/);
+  } finally {
+    controller.dispose();
+    rmSync(root, { recursive: true, force: true });
   }
 });

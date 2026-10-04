@@ -5,6 +5,44 @@ import type { AgentHarnessStatus, AgentPresetId, ClaudeCodeModelSource } from ".
 
 export const PI_API_PREFIX = "/__agentcanvas/pi";
 
+export async function answerPiQuestion(conversationId: string, requestId: string, answers: import("../runtime/userInput.ts").UserAnswers) {
+  await requestJson(fetch, `${PI_API_PREFIX}/input`, { conversationId, requestId, answers }, AbortSignal.timeout(15_000));
+}
+
+export type PiFileScope = AgentPresetId | "shared";
+export type PiWorkspaceFile = { name: string; path: string; size: number; directory: boolean };
+export type PiFileReference = { scope: PiFileScope; path: string; name: string; size: number };
+export type PiPromptAttachment = Pick<PiFileReference, "scope" | "path"> & { name?: string };
+
+export async function listPiFiles(scope: PiFileScope, path = "", signal?: AbortSignal): Promise<{ files: PiWorkspaceFile[] }> {
+  const timeout = AbortSignal.timeout(15_000);
+  return requestJson(fetch, `${PI_API_PREFIX}/files?${new URLSearchParams({ scope, path })}`, undefined,
+    signal ? AbortSignal.any([signal, timeout]) : timeout);
+}
+
+export async function uploadPiFile(file: File, scope: PiFileScope, signal?: AbortSignal): Promise<PiFileReference> {
+  const timeout = AbortSignal.timeout(60_000);
+  const response = await fetch(`${PI_API_PREFIX}/files?${new URLSearchParams({ scope, name: file.name })}`, {
+    method: "POST", body: file, signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+    headers: { "content-type": "application/octet-stream" },
+  });
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "File upload failed"));
+  return response.json();
+}
+
+export function piFileDownloadUrl(scope: PiFileScope, path: string): string {
+  return `${PI_API_PREFIX}/files/download?${new URLSearchParams({ scope, path })}`;
+}
+
+/** Reused attachments may have been removed since the original turn. Check before acceptance. */
+export async function checkPiAttachment(file: PiPromptAttachment, signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<void> {
+  const timeout = AbortSignal.timeout(15_000);
+  const response = await fetcher(piFileDownloadUrl(file.scope, file.path), {
+    method: "HEAD", signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  });
+  if (!response.ok) throw new PiRequestError(response.status, `Attachment ${file.name ?? file.path} is unavailable (${response.status}). Restore or remove it before sending.`);
+}
+
 export type PiModelInfo = {
   provider: string;
   id: string;
@@ -74,6 +112,7 @@ export type PiPromptInput = {
   /** Correlates this submission with its stored run after a lost response; never auto-replayed. */
   requestId?: string;
   prompt: string;
+  attachments?: PiPromptAttachment[];
   provider?: string;
   model?: string;
   thinkingLevel?: string;
@@ -108,20 +147,31 @@ export type StoredConversationSummary = {
   updatedAt: number;
   agentPreset: AgentPresetId;
   eventCount: number;
+  snippet?: string;
+  textId?: string;
+  matches?: import("./conversationSearch.ts").ConversationTextMatch[];
   /** A turn is in flight on the host; reattach with `followPiTurn`. */
   running?: boolean;
+  /** Live identity, not a persisted attribute; used to stop only the observed run. */
+  activeRunId?: string;
 };
 
-export async function listStoredConversations(fetcher: typeof fetch = fetch): Promise<StoredConversationSummary[]> {
-  const body = await requestJson<{ conversations: StoredConversationSummary[] }>(fetcher, `${PI_API_PREFIX}/conversations`);
-  return body.conversations;
+export async function listStoredConversations(fetcher: typeof fetch = fetch): Promise<{ conversations: StoredConversationSummary[]; unreadable: string[] }> {
+  const body = await requestJson<{ conversations: StoredConversationSummary[]; unreadable?: string[] }>(fetcher, `${PI_API_PREFIX}/conversations`, undefined, AbortSignal.timeout(15_000));
+  return { ...body, unreadable: body.unreadable ?? [] };
+}
+
+export async function searchStoredConversations(query: string, signal: AbortSignal, fetcher: typeof fetch = fetch, cursor?: string) {
+  return requestJson<{ conversations: StoredConversationSummary[]; unreadable: string[]; nextCursor?: string }>(fetcher,
+    `${PI_API_PREFIX}/conversations?${new URLSearchParams({ query, limit: "100", ...(cursor ? { cursor } : {}) })}`, undefined,
+    AbortSignal.any([signal, AbortSignal.timeout(15_000)]));
 }
 
 export async function getStoredConversation(
   id: string,
   fetcher: typeof fetch = fetch,
   signal?: AbortSignal,
-): Promise<StoredConversationSummary & { events: AgentUXEvent[] }> {
+): Promise<StoredConversationSummary & { events: AgentUXEvent[]; incomplete?: boolean }> {
   const timeout = AbortSignal.timeout(15_000);
   return requestJson(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, undefined,
     signal ? AbortSignal.any([signal, timeout]) : timeout);
@@ -131,11 +181,20 @@ export async function getPiRuntimeState(fetcher: typeof fetch = fetch): Promise<
   return requestJson<PiRuntimeState>(fetcher, `${PI_API_PREFIX}/state`);
 }
 
+/** Creates a saved prefix and returns the original submission; never starts the draft. */
+export async function branchStoredConversation(id: string, beforeRunId: string, fetcher: typeof fetch = fetch) {
+  return requestJson<{ conversationId: string; draft: { prompt: string; attachments: PiPromptAttachment[] } }>(fetcher,
+    `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}/branch`, { beforeRunId }, AbortSignal.timeout(15_000));
+}
+
 export async function configurePiRuntime(
   input: PiRuntimeConfiguration,
   fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<PiRuntimeState> {
-  return requestJson<PiRuntimeState>(fetcher, `${PI_API_PREFIX}/config`, input);
+  const timeout = AbortSignal.timeout(15_000);
+  return requestJson<PiRuntimeState>(fetcher, `${PI_API_PREFIX}/config`, input,
+    signal ? AbortSignal.any([signal, timeout]) : timeout);
 }
 
 /** Forgets "always allow" grants for one agent, or for every agent. */
@@ -145,8 +204,8 @@ export async function clearApprovalMemory(agentPreset?: string, fetcher: typeof 
 }
 
 /** Stops one conversation's run; other conversations keep running. */
-export async function abortPiRun(conversationId?: string, fetcher: typeof fetch = fetch): Promise<void> {
-  await requestJson(fetcher, `${PI_API_PREFIX}/abort`, { conversationId }, AbortSignal.timeout(15_000));
+export async function abortPiRun(conversationId?: string, fetcher: typeof fetch = fetch, runId?: string): Promise<void> {
+  await requestJson(fetcher, `${PI_API_PREFIX}/abort`, { conversationId, runId }, AbortSignal.timeout(15_000));
 }
 
 export async function startNewPiSession(
@@ -164,12 +223,14 @@ export async function resolvePiApproval(
   toolCallId: string,
   decision: PiApprovalDecision,
   conversationId?: string,
+  runId?: string,
   fetcher: typeof fetch = fetch,
 ): Promise<boolean> {
   const response = await fetcher(`${PI_API_PREFIX}/approval`, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ toolCallId, decision, conversationId }),
+    body: JSON.stringify({ toolCallId, decision, conversationId, runId }),
+    signal: AbortSignal.timeout(15_000),
   });
   if (response.status === 409) return false;
   if (!response.ok) throw new Error(await responseError(response, "Pi request failed"));

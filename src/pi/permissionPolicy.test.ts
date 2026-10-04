@@ -41,6 +41,13 @@ test("protected: the bot's own code and agent config", () => {
   for (const [tool, args] of cases) assert.equal(classifyToolCall(tool, args, policy), "protected", JSON.stringify(args));
 });
 
+test("native patch checks every path and shell calls use their actual cwd", () => {
+  assert.equal(classifyToolCall("edit", { path: "ok.ts", paths: ["ok.ts", `${appRoot}/src/main.ts`] }, policy), "protected");
+  assert.equal(classifyToolCall("edit", { paths: [`${appRoot}/src/main.ts`, resolve(homedir(), ".ssh/key")] }, policy), "secret");
+  assert.equal(classifyToolCall("bash", { command: "npm run build", cwd: appRoot }, policy), "protected");
+  assert.equal(classifyToolCall("bash", { command: "cat env", cwd: resolve(homedir(), ".raytonebot") }, policy), "secret");
+});
+
 test("outward: publishing, remote hosts, uploads, destroying outside the workspace", () => {
   for (const command of [
     "git push origin main",

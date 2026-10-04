@@ -4,7 +4,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { buildClaudeArgs, buildCodexArgs } from "./cliHarness.ts";
+import { buildClaudeArgs } from "./cliHarness.ts";
+import { createCodexAppServer } from "./codexAppServer.ts";
 import { classifyToolCall, defaultProtectedPaths, defaultReadOnlyPaths } from "./permissionPolicy.ts";
 import { ensureWorkspaceLayout, resolveWorkspaceLayout, workspacePrompt } from "./workspaceLayout.ts";
 
@@ -45,8 +46,13 @@ test("with a root: own directory per role, a shared one, briefs that are not ove
   }
 });
 
-test("CLI harnesses get write access to the shared directory", () => {
+test("CLI harnesses retain the shared directory with Codex writes approved per operation", () => {
   assert.deepEqual(buildClaudeArgs({ permissionMode: "request", addDirs: ["/ws/shared"] }).slice(-2), ["--add-dir", "/ws/shared"]);
-  const codex = buildCodexArgs({ cwd: "/ws/agents/builder", sandbox: "workspace-write", addDirs: ["/ws/shared"], resumeId: "t" });
-  assert.ok(codex.indexOf("--add-dir") < codex.indexOf("resume"), "exec options precede the resume subcommand");
+  const requests: Record<string, unknown>[] = [];
+  const codex = createCodexAppServer({ cwd: "/ws/agents/builder", addDirs: ["/ws/shared"], resumeId: "t", prompt: "continue",
+    signal: new AbortController().signal, emit() {}, onSessionId() {}, onPermission: async () => true });
+  codex.push({ id: "initialize", result: {} }, (request) => requests.push(request));
+  const params = requests.at(-1)?.params as Record<string, unknown>;
+  assert.deepEqual(params.runtimeWorkspaceRoots, ["/ws/agents/builder", "/ws/shared"]);
+  assert.equal(params.sandbox, "read-only", "shared writes still require an individual approval");
 });

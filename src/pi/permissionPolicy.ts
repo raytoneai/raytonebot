@@ -73,20 +73,24 @@ export function defaultReadOnlyPaths(options: { appRoot: string; workspaces: rea
 export function classifyToolCall(toolName: string, args: unknown, policy: PermissionPolicy): ToolCallClass {
   const record = args && typeof args === "object" ? args as Record<string, unknown> : {};
   const name = toolName.toLowerCase();
+  const callCwd = typeof record.cwd === "string" ? resolve(policy.cwd, record.cwd) : policy.cwd;
   if (name === "bash" || name === "powershell") {
     const command = typeof record.command === "string" ? record.command : "";
-    if (ENV_DUMP.test(command) || commandMentions(command, policy.secretPaths ?? [])) return "secret";
-    if (commandMentions(command, policy.protectedPaths)) return "protected";
-    if (commandMentions(command, policy.readOnlyPaths ?? []) && commandMayWrite(command)) return "protected";
+    if (ENV_DUMP.test(command) || pathIsWithin(callCwd, policy.secretPaths ?? [], policy.cwd) || commandMentions(command, policy.secretPaths ?? [])) return "secret";
+    if (pathIsWithin(callCwd, policy.protectedPaths, policy.cwd) || commandMentions(command, policy.protectedPaths)) return "protected";
+    if ((pathIsWithin(callCwd, policy.readOnlyPaths ?? [], policy.cwd) || commandMentions(command, policy.readOnlyPaths ?? [])) && commandMayWrite(command)) return "protected";
     if (isOutwardCommand(command)) return "outward";
     return "mutating";
   }
-  for (const key of ["path", "file_path", "notebook_path"]) {
-    const value = record[key];
+  const paths = [record.path, record.file_path, record.notebook_path, ...(Array.isArray(record.paths) ? record.paths : [])];
+  // Check every target before returning a lesser classification: one native Codex patch can
+  // contain both ordinary files and a credential path (including rename destinations).
+  const targets = paths.filter((value): value is string => typeof value === "string");
+  if (targets.some((value) => pathIsWithin(value, policy.secretPaths ?? [], callCwd))) return "secret";
+  for (const value of targets) {
     if (typeof value !== "string") continue;
-    if (pathIsWithin(value, policy.secretPaths ?? [], policy.cwd)) return "secret";
-    if (pathIsProtected(value, policy)) return "protected";
-    if (WRITING_TOOLS.has(name) && pathIsWithin(value, policy.readOnlyPaths ?? [], policy.cwd)) return "protected";
+    if (pathIsWithin(value, policy.protectedPaths, callCwd)) return "protected";
+    if (WRITING_TOOLS.has(name) && pathIsWithin(value, policy.readOnlyPaths ?? [], callCwd)) return "protected";
   }
   return MUTATING_TOOLS.has(name) ? "mutating" : "read";
 }

@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
-import { readFileSync } from "node:fs";
+import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { buildClaudeArgs, buildCodexArgs, claudeEnv } from "./cliHarness.ts";
+import { buildClaudeArgs, buildCodexArgs, claudeEnv, runClaudeCode, runCodex } from "./cliHarness.ts";
 import {
   createClaudeStreamTranslator,
   createCodexStreamTranslator,
@@ -120,13 +120,17 @@ test("CLI launch arguments and environment", () => {
   const settings = JSON.parse(claude[claude.indexOf("--settings") + 1]);
   assert.ok(settings.permissions.ask.includes("Bash"), "read-only shell commands must still ask");
 
-  const codex = buildCodexArgs({ cwd: "/w", sandbox: "read-only", resumeId: "th" });
-  assert.deepEqual(codex.slice(-3), ["resume", "th", "-"]);
-  assert.equal(codex[codex.indexOf("--sandbox") + 1], "read-only");
+  const codex = buildCodexArgs({ cwd: "/w", resumeId: "th" });
+  assert.deepEqual(codex.slice(0, 2), ["app-server", "--stdio"]);
+  assert.ok(codex.includes('projects."/w".trust_level="untrusted"'));
+  assert.ok(!codex.includes("--ignore-user-config"), "app-server does not support exec flags");
 
-  const local = claudeEnv({ ANTHROPIC_AUTH_TOKEN: "host", CLAUDECODE: "1", PATH: "/bin" }, undefined);
+  const local = claudeEnv({ ANTHROPIC_AUTH_TOKEN: "host", CLAUDECODE: "1", CLAUDE_CODE_TASK_LIST_ID: "parent-tasks", PATH: "/bin" }, undefined);
   assert.equal(local.ANTHROPIC_AUTH_TOKEN, "host", "the local login is the host's own auth");
   assert.equal(local.CLAUDECODE, undefined, "a product run is not a nested session");
+  assert.equal(local.CLAUDE_CODE_TASK_LIST_ID, undefined, "task lists belong to the product session");
+  assert.equal(local.CLAUDE_CODE_ENABLE_TODO_TOOLS, "1");
+  assert.equal(local.CLAUDE_CODE_ENABLE_TASKS, "1");
   assert.equal(local.PATH, "/bin");
   const provider = claudeEnv(
     { ANTHROPIC_API_KEY: "leak" },
@@ -138,7 +142,7 @@ test("CLI launch arguments and environment", () => {
 });
 
 test("Codex on a Responses-API provider: config flags, key only in Codex's env", () => {
-  const args = buildCodexArgs({ cwd: "/w", sandbox: "workspace-write", provider: { name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", apiKey: "k", model: "deepseek-flash" } });
+  const args = buildCodexArgs({ cwd: "/w", provider: { name: "DeepSeek", baseUrl: "https://api.deepseek.com/v1", apiKey: "k", model: "deepseek-flash" } });
   const config = args.filter((_, index) => args[index - 1] === "-c");
   assert.ok(config.includes('model_provider="raytonebot"'));
   assert.ok(config.includes('model_providers.raytonebot.wire_api="responses"'));
@@ -163,6 +167,75 @@ test("agent processes never inherit the bot's secrets", async () => {
     RAYTONEBOT_PUBLIC_ORIGIN: "https://x",
   }, ["OPENAI_API_KEY"]);
   assert.deepEqual(env, { PATH: "/bin", OPENAI_API_KEY: "o", RAYTONEBOT_PUBLIC_ORIGIN: "https://x" });
-  const codex = buildCodexArgs({ cwd: "/w", sandbox: "workspace-write" });
+  const codex = buildCodexArgs({ cwd: "/w" });
   assert.match(codex.join(" "), /shell_environment_policy\.include_only=\["PATH"/);
+});
+
+test("CLI output limit stops an unterminated stdout line before readline can grow indefinitely", async () => {
+  const dir = mkdtempSync("/tmp/raytone-cli-output-test-");
+  const previous = process.env.RAYTONEBOT_CODEX_BIN;
+  const previousHome = process.env.HOME;
+  const previousLimit = process.env.RAYTONEBOT_RUN_OUTPUT_BYTES;
+  const executable = `${dir}/fake-codex`;
+  writeFileSync(executable, `#!/usr/bin/env node\nprocess.stdout.write('x'.repeat(128 * 1024)); setInterval(() => {}, 1000);\n`);
+  chmodSync(executable, 0o700);
+  process.env.RAYTONEBOT_CODEX_BIN = executable;
+  process.env.HOME = dir;
+  process.env.RAYTONEBOT_RUN_OUTPUT_BYTES = "65536";
+  try {
+    await assert.rejects(runCodex({ cwd: dir, prompt: "unused", permissionMode: "request", signal: AbortSignal.timeout(5000),
+      emit() {}, onSessionId() {}, onPermission: async () => true }), /65536 byte turn output limit/);
+  } finally {
+    if (previous === undefined) delete process.env.RAYTONEBOT_CODEX_BIN;
+    else process.env.RAYTONEBOT_CODEX_BIN = previous;
+    if (previousHome === undefined) delete process.env.HOME;
+    else process.env.HOME = previousHome;
+    if (previousLimit === undefined) delete process.env.RAYTONEBOT_RUN_OUTPUT_BYTES;
+    else process.env.RAYTONEBOT_RUN_OUTPUT_BYTES = previousLimit;
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
+test("missing native history never silently retries the prompt in a fresh CLI session", async () => {
+  const dir = mkdtempSync("/tmp/raytone-missing-session-");
+  const executable = `${dir}/fake-cli`, calls = `${dir}/calls`;
+  writeFileSync(executable, `#!/usr/bin/env node
+const fs = require('node:fs');
+const log = (value) => fs.appendFileSync(${JSON.stringify(calls)}, value + '\\n');
+const send = (value) => process.stdout.write(JSON.stringify(value) + '\\n');
+if (!process.argv.includes('app-server')) {
+  const resume = process.argv.includes('--resume'); log(resume ? 'resume' : 'fresh');
+  if (resume) { send({type:'result',subtype:'error',is_error:true,errors:['No conversation found with session ID: missing']}); process.exit(0); }
+  send({type:'result',subtype:'success',is_error:false,session_id:'replacement'}); process.exit(0);
+}
+require('node:readline').createInterface({input:process.stdin}).on('line', raw => {
+ const m = JSON.parse(raw);
+ if(m.method === 'initialize') send({id:m.id,result:{}});
+ if(m.method === 'thread/resume') { log('resume'); send({id:m.id,error:{message:'no rollout found for thread id missing'}}); }
+ if(m.method === 'thread/start') { log('fresh'); send({id:m.id,result:{thread:{id:'replacement'}}}); }
+ if(m.method === 'turn/start') send({method:'turn/completed',params:{threadId:'replacement',turn:{id:'t',status:'completed'}}});
+});
+`);
+  chmodSync(executable, 0o700);
+  const previousClaude = process.env.RAYTONEBOT_CLAUDE_BIN, previousCodex = process.env.RAYTONEBOT_CODEX_BIN;
+  process.env.RAYTONEBOT_CLAUDE_BIN = process.env.RAYTONEBOT_CODEX_BIN = executable;
+  try {
+    for (const run of [runClaudeCode, runCodex]) {
+      writeFileSync(calls, "");
+      const sessions: string[] = [];
+      await assert.rejects(run({ cwd: dir, prompt: "A follow-up that depends on saved context", resumeId: "missing",
+        permissionMode: "request", signal: AbortSignal.timeout(5000), emit() {}, onSessionId(id) { sessions.push(id); },
+        onPermission: async () => true }), /Restore.*native session.*start a new conversation/);
+      assert.equal(readFileSync(calls, "utf8"), "resume\n");
+      assert.deepEqual(sessions, [], "the saved binding must not be replaced");
+    }
+    writeFileSync(executable, "#!/usr/bin/env node\nprocess.stderr.write('No conversation found with session ID: missing'); process.exit(1);\n");
+    await assert.rejects(runClaudeCode({ cwd: dir, prompt: "Keep the CLI's actual failure cause", resumeId: "missing",
+      permissionMode: "request", signal: AbortSignal.timeout(5000), emit() {}, onSessionId() {},
+      onPermission: async () => true }), /Restore.*native session.*start a new conversation/);
+  } finally {
+    if (previousClaude === undefined) delete process.env.RAYTONEBOT_CLAUDE_BIN; else process.env.RAYTONEBOT_CLAUDE_BIN = previousClaude;
+    if (previousCodex === undefined) delete process.env.RAYTONEBOT_CODEX_BIN; else process.env.RAYTONEBOT_CODEX_BIN = previousCodex;
+    rmSync(dir, { recursive: true, force: true });
+  }
 });

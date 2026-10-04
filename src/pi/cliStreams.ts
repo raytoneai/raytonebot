@@ -1,4 +1,5 @@
 import type { PiWireEvent } from "../harness/adapters/piAdapter.ts";
+import { createClaudeTaskPlan } from "./claudeTaskPlan.ts";
 
 /**
  * Translate CLI harness output into Pi's session-event vocabulary.
@@ -63,7 +64,8 @@ export type ClaudeStreamTranslator = {
   readonly failure: string | undefined;
 };
 
-export function createClaudeStreamTranslator(emit: Emit): ClaudeStreamTranslator {
+export function createClaudeStreamTranslator(emit: Emit, initialTaskPlan?: unknown): ClaudeStreamTranslator {
+  const updateTaskPlan = createClaudeTaskPlan(initialTaskPlan);
   let sessionId: string | undefined;
   let failure: string | undefined;
   const blocks = new Map<number, ClaudeBlock>();
@@ -172,13 +174,17 @@ export function createClaudeStreamTranslator(emit: Emit): ClaudeStreamTranslator
     emit({ type: "message_end", message: { role: "assistant", stopReason: stringValue(message.stop_reason) ?? "stop" } });
   };
 
-  const handleToolResults = (message: Json) => {
+  const handleToolResults = (message: Json, receipt: unknown) => {
     const content = Array.isArray(message.content) ? message.content : [];
     for (const value of content) {
       const block = asRecord(value);
       if (stringValue(block.type) !== "tool_result") continue;
       const toolCallId = stringValue(block.tool_use_id);
       if (!toolCallId) continue;
+      const tool = tools.get(toolCallId);
+      // Claude attaches one structured receipt to a result line, outside message.content.
+      const result = content.length === 1 ? asRecord(receipt) : {};
+      const isError = block.is_error === true || (tool?.name === "TaskUpdate" && result.success === false);
       // Read-only calls run without a permission prompt, so their result is the first sign
       // of execution.
       startExecution(toolCallId);
@@ -187,8 +193,18 @@ export function createClaudeStreamTranslator(emit: Emit): ClaudeStreamTranslator
         toolCallId,
         toolName: tools.get(toolCallId)?.name ?? "tool",
         result: { content: [{ type: "text", text: toolResultText(block.content) }] },
-        isError: block.is_error === true,
+        isError,
       });
+      if (tool && !isError) {
+        const plan = updateTaskPlan(tool.name, tool.args, result);
+        if (plan) emit({ type: "plan_update", plan });
+      }
+      if (tool?.name === "TodoWrite" && !isError && Array.isArray(tool.args.todos)) {
+        emit({ type: "plan_update", plan: tool.args.todos.map((value) => {
+          const todo = asRecord(value);
+          return { step: todo.content, status: todo.status };
+        }) });
+      }
     }
   };
 
@@ -213,7 +229,7 @@ export function createClaudeStreamTranslator(emit: Emit): ClaudeStreamTranslator
         return;
       }
       if (type === "user") {
-        handleToolResults(asRecord(line.message));
+        handleToolResults(asRecord(line.message), line.tool_use_result);
         return;
       }
       if (type === "result") {
@@ -237,6 +253,7 @@ export function createClaudeStreamTranslator(emit: Emit): ClaudeStreamTranslator
 
 export type CodexStreamTranslator = {
   push(line: Json): void;
+  startExecution(toolCallId: string, tool: NormalizedTool): boolean;
   readonly sessionId: string | undefined;
   readonly failure: string | undefined;
 };
@@ -258,9 +275,10 @@ export function createCodexStreamTranslator(emit: Emit): CodexStreamTranslator {
   };
 
   const start = (id: string, tool: NormalizedTool) => {
-    if (started.has(id)) return;
+    if (started.has(id)) return false;
     started.add(id);
     emit({ type: "tool_execution_start", toolCallId: id, toolName: tool.name, args: tool.args });
+    return true;
   };
 
   const end = (id: string, tool: NormalizedTool, text: string, isError: boolean) => {
@@ -279,6 +297,13 @@ export function createCodexStreamTranslator(emit: Emit): CodexStreamTranslator {
     const id = stringValue(item.id) ?? `codex_item_${started.size + 1}`;
     const status = stringValue(item.status);
     const failed = status === "failed" || status === "declined";
+    if (itemType === "todo_list") {
+      if (!failed && Array.isArray(item.items)) emit({ type: "plan_update", plan: item.items.map((value) => {
+        const todo = asRecord(value);
+        return { step: todo.text, status: typeof todo.completed === "boolean" ? (todo.completed ? "completed" : "pending") : undefined };
+      }) });
+      return;
+    }
     if (itemType === "agent_message") {
       if (phase === "completed") message("text", stringValue(item.text) ?? "");
       return;
@@ -299,6 +324,7 @@ export function createCodexStreamTranslator(emit: Emit): CodexStreamTranslator {
   };
 
   return {
+    startExecution: start,
     push(line) {
       const type = stringValue(line.type);
       if (type === "thread.started") sessionId = stringValue(line.thread_id) ?? sessionId;
@@ -339,7 +365,7 @@ function codexTool(itemType: string | undefined, item: Json): NormalizedTool | u
     case "web_search":
       return { name: "web_search", args: { query: stringValue(item.query) ?? "" } };
     default:
-      // todo_list, error notices and future item types carry no tool to show.
+      // Error notices and future item types carry no tool to show.
       return undefined;
   }
 }

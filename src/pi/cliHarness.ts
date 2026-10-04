@@ -1,10 +1,18 @@
-import { execFile, spawn } from "node:child_process";
+import { execFile } from "node:child_process";
+import { existsSync, mkdirSync, mkdtempSync, rmSync, symlinkSync } from "node:fs";
+import { homedir } from "node:os";
+import { join } from "node:path";
 import { createInterface } from "node:readline";
 
 import type { PiWireEvent } from "../harness/adapters/piAdapter.ts";
 import type { AgentHarnessId, AgentHarnessStatus } from "./harnessCatalog.ts";
-import { createClaudeStreamTranslator, createCodexStreamTranslator, normalizeClaudeTool, type NormalizedTool } from "./cliStreams.ts";
+import { createClaudeStreamTranslator, normalizeClaudeTool, type NormalizedTool } from "./cliStreams.ts";
+import { createCodexAppServer, type CodexPermissionRequest } from "./codexAppServer.ts";
+import { runLimits } from "./hostOperations.ts";
+import { MISSING_NATIVE_SESSION } from "./nativeSession.ts";
+import { userQuestions, type UserAnswers, type UserQuestion } from "../runtime/userInput.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
+import { agentEnvironment, agentIsolationEnabled, cleanupAgentDirectory, prepareAgentDirectory, spawnAgentProcess } from "./runtime/agentProcess.ts";
 import { appendRecentStderr, createChildProcessTerminator, RUNTIME_PROCESS_GROUP } from "./runtime/process.ts";
 
 /**
@@ -26,6 +34,8 @@ type CliRunBase = {
   signal: AbortSignal;
   emit: (event: PiWireEvent) => void;
   onSessionId: (id: string) => void;
+  onNativeTurn?: (turn: { sessionId: string; id: string }) => void;
+  onUserInput?: (request: { toolCallId: string; questions: UserQuestion[]; signal: AbortSignal }) => Promise<UserAnswers>;
 };
 
 export type ClaudePermissionRequest = {
@@ -36,6 +46,9 @@ export type ClaudePermissionRequest = {
 };
 
 export type ClaudeRunOptions = CliRunBase & {
+  forkAtMessageId?: string;
+  /** Display projection from this native session's previous turn; ignored on a cold start. */
+  initialTaskPlan?: unknown;
   /** Anthropic-format endpoint (e.g. DeepSeek). Omitted means the local Claude login. */
   provider?: { baseUrl: string; apiKey: string; model: string };
   appendSystemPrompt?: string;
@@ -47,11 +60,11 @@ export type ClaudeRunOptions = CliRunBase & {
 };
 
 export type CodexRunOptions = CliRunBase & {
+  forkBeforeTurnId?: string;
   addDirs?: readonly string[];
   /** A Responses-API provider (e.g. DeepSeek). Omitted means Codex's own login. */
   provider?: { name: string; baseUrl: string; apiKey: string; model: string };
-  /** `danger-full-access` only inside a disposable VM, where the VM is the boundary. */
-  sandbox: "read-only" | "workspace-write" | "danger-full-access";
+  onPermission(request: CodexPermissionRequest): Promise<true | string>;
 };
 
 const CLAUDE_PROVIDER_ENV_KEYS = [
@@ -69,10 +82,11 @@ const CLAUDE_PROVIDER_ENV_KEYS = [
 const CODEX_COMMAND_ENV = [
   "PATH", "HOME", "SHELL", "USER", "LOGNAME", "TMPDIR", "TMP", "TEMP",
   "LANG", "LANGUAGE", "LC_ALL", "LC_CTYPE", "TZ", "TERM", "COLORTERM",
+  "HTTP_PROXY", "HTTPS_PROXY", "NO_PROXY", "http_proxy", "https_proxy", "no_proxy",
 ];
 
 /** Tools whose every call goes through RaytoneBot's approval gate. */
-const CLAUDE_ASK_TOOLS = ["Bash", "Edit", "MultiEdit", "Write", "NotebookEdit"];
+const CLAUDE_ASK_TOOLS = ["Bash", "Edit", "MultiEdit", "Write", "NotebookEdit", "AskUserQuestion"];
 
 export function cliCommand(harness: Exclude<AgentHarnessId, "pi">, env: NodeJS.ProcessEnv = process.env): string {
   if (harness === "claude-code") return env.RAYTONEBOT_CLAUDE_BIN?.trim() || "claude";
@@ -95,7 +109,7 @@ export function detectCliHarnesses(): Promise<AgentHarnessStatus[]> {
   return value;
 }
 
-export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode" | "resumeId" | "provider" | "appendSystemPrompt" | "disallowedTools" | "addDirs">): string[] {
+export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode" | "resumeId" | "forkAtMessageId" | "provider" | "appendSystemPrompt" | "disallowedTools" | "addDirs">): string[] {
   const args = [
     "-p",
     "--verbose",
@@ -122,6 +136,7 @@ export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode"
   if (options.disallowedTools?.length) args.push("--disallowedTools", ...options.disallowedTools);
   if (options.addDirs?.length) args.push("--add-dir", ...options.addDirs);
   if (options.resumeId) args.push("--resume", options.resumeId);
+  if (options.forkAtMessageId) args.push("--fork-session", "--resume-session-at", options.forkAtMessageId);
   return args;
 }
 
@@ -138,6 +153,7 @@ const CLAUDE_PARENT_SESSION_ENV_KEYS = [
   "CLAUDE_PID",
   "CLAUDE_EFFORT",
   "CLAUDE_PLUGIN_DATA",
+  "CLAUDE_CODE_TASK_LIST_ID",
 ] as const;
 
 export function claudeEnv(base: NodeJS.ProcessEnv, provider: ClaudeRunOptions["provider"]): NodeJS.ProcessEnv {
@@ -150,6 +166,8 @@ export function claudeEnv(base: NodeJS.ProcessEnv, provider: ClaudeRunOptions["p
     // Background subagents outlive the turn's `result`, after which stdin is closed: every
     // permission request they make then fails ("Stream closed"). Subagents run in the foreground.
     CLAUDE_CODE_DISABLE_BACKGROUND_TASKS: "1",
+    CLAUDE_CODE_ENABLE_TODO_TOOLS: "1",
+    CLAUDE_CODE_ENABLE_TASKS: "1",
   };
   for (const key of CLAUDE_PARENT_SESSION_ENV_KEYS) delete env[key];
   // "Local login" is whatever this host's Claude Code already authenticates with (keychain
@@ -173,24 +191,20 @@ export function claudeEnv(base: NodeJS.ProcessEnv, provider: ClaudeRunOptions["p
 /** The env var carrying a provider key into Codex (and only Codex: its commands never see it). */
 export const CODEX_PROVIDER_KEY_ENV = "RAYTONEBOT_CODEX_API_KEY";
 
-export function buildCodexArgs(options: Pick<CodexRunOptions, "cwd" | "sandbox" | "resumeId" | "addDirs" | "provider">): string[] {
+export function buildCodexArgs(options: Pick<CodexRunOptions, "cwd" | "resumeId" | "addDirs" | "provider">, home = homedir()): string[] {
   const args = [
-    "exec",
-    "--json",
-    "--sandbox", options.sandbox,
-    "--cd", options.cwd,
-    "--skip-git-repo-check",
-    // The host's ~/.codex config, rules, plugins and apps stay out of product runs; the login
-    // (auth.json) is still used.
-    "--ignore-user-config",
-    "--ignore-rules",
+    "app-server", "--stdio",
+    // HOME/CODEX_HOME are private per run. Explicitly distrust project config as well.
+    "-c", `projects.${JSON.stringify(options.cwd)}.trust_level="untrusted"`,
     "--disable", "plugins",
     "--disable", "apps",
+    "--disable", "shell_snapshot",
+    "--disable", "multi_agent",
     // Commands Codex runs see only basic variables, never the key Codex itself uses.
     "-c", `shell_environment_policy.inherit="all"`,
     "-c", `shell_environment_policy.include_only=${JSON.stringify(CODEX_COMMAND_ENV)}`,
+    "-c", `shell_environment_policy.set.HOME=${JSON.stringify(home)}`,
   ];
-  for (const dir of options.addDirs ?? []) args.push("--add-dir", dir);
   if (options.provider) {
     // TOML basic strings share JSON's escaping, so JSON.stringify quotes them safely.
     const value = (text: string) => JSON.stringify(text);
@@ -203,9 +217,6 @@ export function buildCodexArgs(options: Pick<CodexRunOptions, "cwd" | "sandbox" 
       "-c", `model_providers.raytonebot.wire_api="responses"`,
     );
   }
-  // The prompt goes in on stdin (`-`), so its length is not bounded by argv.
-  if (options.resumeId) args.push("resume", options.resumeId, "-");
-  else args.push("-");
   return args;
 }
 
@@ -226,10 +237,10 @@ async function runCliProcess(params: {
   isFinished?(): boolean;
 }): Promise<void> {
   if (params.signal.aborted) return;
-  const child = spawn(params.command, params.args, {
+  const maxOutputBytes = runLimits().outputBytes;
+  const child = spawnAgentProcess(params.command, params.args, {
     cwd: params.cwd,
     env: params.env,
-    stdio: ["pipe", "pipe", "pipe"],
     windowsHide: true,
     detached: RUNTIME_PROCESS_GROUP,
   });
@@ -250,6 +261,18 @@ async function runCliProcess(params: {
   child.stderr.setEncoding("utf8");
   child.stderr.on("data", (chunk: string) => {
     stderrTail = appendRecentStderr(stderrTail, chunk);
+  });
+  // Bound raw bytes before readline can retain a single unbounded model/tool output line.
+  let stdoutBytes = 0;
+  let outputLimit = false;
+  child.stdout.on("data", (chunk: Buffer) => {
+    stdoutBytes += chunk.length;
+    if (stdoutBytes > maxOutputBytes) {
+      outputLimit = true;
+      lines.close();
+      child.stdout.destroy();
+      terminate("abort");
+    }
   });
   const exit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
     child.once("error", reject);
@@ -282,10 +305,12 @@ async function runCliProcess(params: {
     }
     const result = await exit;
     if (params.signal.aborted) return;
+    if (outputLimit) throw new Error(`${params.label} exceeded the ${maxOutputBytes} byte turn output limit.`);
     if (result.code !== 0) {
       const detail = stderrTail.trim() ? `\n${stderrTail.trim()}` : "";
       throw new Error(`${params.label} exited with code ${result.code ?? "null"}${result.signal ? ` (${result.signal})` : ""}${detail}`);
     }
+    if (params.isFinished && !params.isFinished()) throw new Error(`${params.label} closed before completing the turn.`);
   } finally {
     params.signal.removeEventListener("abort", abort);
     lines.close();
@@ -342,7 +367,8 @@ export async function runClaudeCode(options: ClaudeRunOptions): Promise<void> {
     options.emit(event);
   };
   const attempt = async (resumeId: string | undefined) => {
-    const translator = createClaudeStreamTranslator(emit);
+    const translator = createClaudeStreamTranslator(emit, resumeId ? options.initialTaskPlan : undefined);
+    const controls = new Map<string, AbortController>();
     let finished = false;
     await failWithReport(translator, () => runCliProcess({
       label: "Claude Code",
@@ -363,10 +389,19 @@ export async function runClaudeCode(options: ClaudeRunOptions): Promise<void> {
       onLine(line, stdin) {
         const type = line.type;
         if (type === "control_request") {
-          void answerClaudeControl(line, stdin, translator, options);
+          const id = String(line.request_id);
+          const control = new AbortController();
+          controls.set(id, control);
+          void answerClaudeControl(line, stdin, translator, { ...options, signal: AbortSignal.any([options.signal, control.signal]) })
+            .finally(() => controls.delete(id));
           return;
         }
+        if (type === "control_cancel_request") controls.get(String(line.request_id))?.abort();
         if (type === "control_response" || type === "keep_alive" || type === "control_cancel_request") return;
+        if (type === "assistant" && !line.parent_tool_use_id && typeof line.uuid === "string") {
+          const sessionId = typeof line.session_id === "string" ? line.session_id : translator.sessionId;
+          if (sessionId) options.onNativeTurn?.({ sessionId, id: line.uuid });
+        }
         translator.push(line);
         if (type === "result") finished = true;
         if (translator.sessionId) options.onSessionId(translator.sessionId);
@@ -377,9 +412,8 @@ export async function runClaudeCode(options: ClaudeRunOptions): Promise<void> {
   try {
     await attempt(options.resumeId);
   } catch (error) {
-    // A session Claude no longer has (deleted, other machine) gets one cold retry, but only
-    // before anything reached the transcript.
-    if (options.resumeId && emitted === 0 && isMissingSession(String(error))) await attempt(undefined);
+    // Missing native context is actionable failure; never retry into a different conversation.
+    if (options.resumeId && emitted === 0 && isMissingSession(String(error))) throw new Error(MISSING_NATIVE_SESSION);
     else throw error;
   }
 }
@@ -404,6 +438,20 @@ async function answerClaudeControl(
   const input = request.input && typeof request.input === "object" ? request.input as Record<string, unknown> : {};
   const toolUseID = typeof request.tool_use_id === "string" ? request.tool_use_id : undefined;
   const toolCallId = toolUseID ?? `claude_permission_${requestId}`;
+  if (toolName === "AskUserQuestion") {
+    try {
+      if (!options.onUserInput) throw new Error("User questions are not connected on this host.");
+      const questions = userQuestions(input.questions, "claude");
+      const answer = await options.onUserInput({ toolCallId, questions, signal: options.signal });
+      if (options.signal.aborted) return;
+      controlResponse(stdin, requestId, { behavior: "allow", updatedInput: { ...input,
+        answers: answer === null ? {} : Object.fromEntries(questions.map((q) => [q.question, answer[q.id].join(", ")])) },
+        ...(toolUseID ? { toolUseID } : {}) });
+    } catch (error) {
+      if (!options.signal.aborted) controlResponse(stdin, requestId, { behavior: "deny", message: error instanceof Error ? error.message : "User input failed." });
+    }
+    return;
+  }
   let decision: true | string;
   try {
     decision = await options.onPermission({
@@ -419,7 +467,7 @@ async function answerClaudeControl(
     : { behavior: "deny", message: decision, ...(toolUseID ? { toolUseID } : {}) });
 }
 
-/** One Codex CLI turn. Codex has no per-step approval in `exec`; the sandbox is the boundary. */
+/** One native app-server turn. Only individual approvals can authorize tool effects. */
 export async function runCodex(options: CodexRunOptions): Promise<void> {
   let emitted = 0;
   const emit = (event: PiWireEvent) => {
@@ -427,27 +475,47 @@ export async function runCodex(options: CodexRunOptions): Promise<void> {
     options.emit(event);
   };
   const attempt = async (resumeId: string | undefined) => {
-    const translator = createCodexStreamTranslator(emit);
-    await failWithReport(translator, () => runCliProcess({
-      label: "Codex CLI",
-      command: cliCommand("codex"),
-      args: buildCodexArgs({ ...options, resumeId }),
-      cwd: options.cwd,
-      env: options.provider
-        ? { ...scrubSecretEnv(process.env), [CODEX_PROVIDER_KEY_ENV]: options.provider.apiKey }
-        : scrubSecretEnv(process.env, ["OPENAI_API_KEY", "CODEX_API_KEY"]),
-      signal: options.signal,
-      stdinText: options.prompt,
-      onLine(line) {
-        translator.push(line);
-        if (translator.sessionId) options.onSessionId(translator.sessionId);
-      },
-    }), codexHint);
+    const baseEnv = agentEnvironment(scrubSecretEnv(process.env, options.provider ? [] : ["OPENAI_API_KEY", "CODEX_API_KEY"]));
+    const nativeHome = baseEnv.HOME ?? homedir();
+    const sessions = join(nativeHome, ".codex", "sessions");
+    mkdirSync(sessions, { recursive: true });
+    const isolatedHome = mkdtempSync("/tmp/raytone-codex-");
+    const codexHome = join(isolatedHome, ".codex");
+    mkdirSync(codexHome);
+    symlinkSync(sessions, join(codexHome, "sessions"), "dir");
+    const auth = join(nativeHome, ".codex", "auth.json");
+    if (!options.provider && existsSync(auth)) symlinkSync(auth, join(codexHome, "auth.json"));
+    prepareAgentDirectory(isolatedHome);
+    const env = { ...baseEnv, HOME: isolatedHome, CODEX_HOME: codexHome,
+      ...(options.provider ? { [CODEX_PROVIDER_KEY_ENV]: options.provider.apiKey } : {}) };
+    // Desktop/session routing markers must not attach product runs to the user's app-server.
+    for (const key of Object.keys(env)) {
+      if (key.startsWith("CODEX_") && key !== "CODEX_HOME" && key !== "CODEX_API_KEY") delete env[key as keyof typeof env];
+    }
+    const protocol = createCodexAppServer({ ...options, resumeId, emit, model: options.provider?.model });
+    try {
+      await failWithReport(protocol, () => runCliProcess({
+        label: "Codex CLI",
+        command: cliCommand("codex"),
+        args: buildCodexArgs({ ...options, resumeId }, nativeHome),
+        cwd: options.cwd,
+        env,
+        signal: options.signal,
+        stdinLines: [protocol.initialize],
+        onLine(line, stdin) {
+          protocol.push(line, (message) => writeLine(stdin, message));
+        },
+        isFinished: () => protocol.finished,
+      }), codexHint);
+    } finally {
+      if (agentIsolationEnabled()) cleanupAgentDirectory(isolatedHome);
+      else rmSync(isolatedHome, { recursive: true, force: true });
+    }
   };
   try {
     await attempt(options.resumeId);
   } catch (error) {
-    if (options.resumeId && emitted === 0 && isMissingSession(String(error))) await attempt(undefined);
+    if (options.resumeId && emitted === 0 && isMissingSession(String(error))) throw new Error(MISSING_NATIVE_SESSION);
     else throw error;
   }
 }
