@@ -112,7 +112,8 @@ import { workspaceFileUrl } from "./runtime/filePreview";
 import { artifactEventForReplay, refreshArtifactItems } from "./runtime/artifactContent";
 import { displayTaskPlans } from "./runtime/taskPlan";
 import { historyFeedbackEvents, type HistoryNotice } from "./runtime/historyFeedback";
-import { hasComposerState } from "./runtime/composerDraftStore";
+import { hasComposerDraft, hasComposerState } from "./runtime/composerDraftStore";
+import { lastRunOutcome, nextQueueStep, queuedPrompt, type QueuedMessage } from "./runtime/followUpQueue";
 import { useComposerDrafts } from "./runtime/useComposerDrafts";
 import { branchReplayEvents, useMessageBranch } from "./runtime/useMessageBranch";
 import { piCancelledTurnEvents } from "./pi/piCancelledTurn";
@@ -195,6 +196,10 @@ export function AgentApp() {
   const [runningConversationIds, setRunningConversationIds] = useState<ReadonlySet<string>>(() => new Set());
   /** Running conversations currently held on a tool approval, including ones not on screen. */
   const [awaitingConversationIds, setAwaitingConversationIds] = useState<ReadonlySet<string>>(() => new Set());
+  /** The composer still holds a sent message the host has not accepted; queuing it would send it twice. */
+  const [acceptingConversationIds, setAcceptingConversationIds] = useState<ReadonlySet<string>>(() => new Set());
+  const dispatchingQueueRef = useRef(new Set<string>());
+  const [queueTick, setQueueTick] = useState(0);
   const piRunning = runningConversationIds.has(activePiConversationId);
   const [piRuntimeState, setPiRuntimeState] = useState<PiRuntimeState>();
   const [historyProblems, setHistoryProblems] = useState<Record<string, "failed" | "missing" | "incomplete" | undefined>>({});
@@ -637,7 +642,8 @@ export function AgentApp() {
     return next;
   };
 
-  async function submitToPi(prompt: string, context?: ComposerSubmitContext, target = activePiConversation) {
+  async function submitToPi(prompt: string, context?: ComposerSubmitContext, target = activePiConversation,
+    queued?: { requestId: string; agentPreset: AgentPresetId }) {
     if (runningConversationIds.has(target.id)) return false;
     const normalizedPrompt = prompt.trim();
     if (!normalizedPrompt) return false;
@@ -649,9 +655,13 @@ export function AgentApp() {
     piAbortRefs.current.set(conversationId, controller);
     preparingPiRefs.current.add(conversationId);
     setRunningConversationIds((current) => toggleIn(current, conversationId, true));
+    // A queued follow-up belongs to its conversation's role, whichever one is on screen now.
+    const presetId = queued?.agentPreset ?? agentSettings.presetId;
+    const fromDraft = !queued && Boolean(context?.draftSnapshot);
+    if (fromDraft) setAcceptingConversationIds((current) => toggleIn(current, conversationId, true));
     let nextConversation: EphemeralPiConversation = {
       ...titlePiConversation(target, normalizedPrompt),
-      agentPreset: agentSettings.presetId,
+      agentPreset: presetId,
     };
     let turnStartEventCount = nextConversation.events.length;
     let promptAttempted = false;
@@ -660,13 +670,14 @@ export function AgentApp() {
     const showIfActive = (conversation: EphemeralPiConversation) => {
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
     };
-    const runId = "pi_export_" + crypto.randomUUID();
+    const runId = queued?.requestId ?? "pi_export_" + crypto.randomUUID();
     runStop.bind(controller, runId);
     // The composer callback is bound to this conversation's draft, even after switching away.
     const onAccepted = () => {
       setFollowProblems((current) => ({ ...current, [conversationId]: undefined }));
       setHistoryProblems((current) => current[conversationId] === "incomplete" ? { ...current, [conversationId]: undefined } : current);
       composer.accepted(nextConversation, new Set([runId]));
+      if (fromDraft) setAcceptingConversationIds((current) => toggleIn(current, conversationId, false));
       context?.onAccepted?.();
     };
     // Same coalescing as the configurator, from the same module, so a long reply does not slow
@@ -686,7 +697,7 @@ export function AgentApp() {
       showIfActive(nextConversation);
       // Codex and a locally logged-in Claude Code bring their own model; only roles that run
       // on the configured model service need it registered (and its key handed over) first.
-      if (settingsUseProvider(agentSettings)) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal);
+      if (settingsUseProvider({ ...agentSettings, presetId })) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal);
       const attachments: PiPromptAttachment[] = [];
       for (const attachment of context?.attachments ?? []) {
         if (attachment.reference) {
@@ -694,8 +705,8 @@ export function AgentApp() {
           attachments.push(attachment.reference); continue;
         }
         let uploaded = uploadedFilesRef.current.get(attachment.file);
-        if (uploaded?.scope !== agentSettings.presetId) {
-          uploaded = await uploadPiFile(attachment.file, agentSettings.presetId, controller.signal);
+        if (uploaded?.scope !== presetId) {
+          uploaded = await uploadPiFile(attachment.file, presetId, controller.signal);
           uploadedFilesRef.current.set(attachment.file, uploaded);
         }
         attachments.push(uploaded);
@@ -714,7 +725,7 @@ export function AgentApp() {
         model: provider.defaultModel,
         thinkingLevel: context?.budgetMode === "fast" ? "low" : context?.budgetMode === "expert" ? "high" : "medium",
         permissionMode: context?.permissionMode ?? "request",
-        agentPreset: agentSettings.presetId,
+        agentPreset: presetId,
         claudeCodeModelSource: agentSettings.claudeCodeModelSource,
         codexModelSource: agentSettings.codexModelSource,
       }, { signal: controller.signal })) {
@@ -768,6 +779,7 @@ export function AgentApp() {
       }
     } finally {
       preparingPiRefs.current.delete(conversationId);
+      if (fromDraft && !reattach) setAcceptingConversationIds((current) => toggleIn(current, conversationId, false));
       if (piAbortRefs.current.get(conversationId) === controller) {
         piAbortRefs.current.delete(conversationId);
         if (!reattach) {
@@ -869,8 +881,61 @@ export function AgentApp() {
     }
   }
 
-  /** Stops the conversation on screen; runs in other conversations continue. */
-  const stopPi = (conversationId = activePiConversationId) => runStop.stop(conversationId);
+  /** Stops the conversation on screen; runs in other conversations continue. Its queue pauses first. */
+  const stopPi = (conversationId = activePiConversationId) => {
+    composer.pauseQueue(conversationId, "stopped");
+    return runStop.stop(conversationId);
+  };
+
+  // Follow-ups go one at a time, each only after the previous turn ended well; a stop, failure,
+  // lost connection or reload pauses the queue until the user resumes it.
+  useEffect(() => {
+    if (streamId) return;
+    for (const [conversationId, queue] of Object.entries(composer.queues)) {
+      if (dispatchingQueueRef.current.has(conversationId)) continue;
+      const conversation = piConversations.find((entry) => entry.id === conversationId);
+      if (!conversation) continue;
+      const step = nextQueueStep(queue, {
+        running: runningConversationIds.has(conversationId) || piAbortRefs.current.has(conversationId),
+        events: conversation.events,
+        connectionFailed: Boolean(followProblems[conversationId]),
+      });
+      if (step.kind === "pause") composer.pauseQueue(conversationId, step.reason);
+      else if (step.kind === "send") void sendQueued(conversation, step.item);
+    }
+  }, [composer.queues, runningConversationIds, piConversations, followProblems, streamId, queueTick]);
+
+  async function sendQueued(conversation: EphemeralPiConversation, item: QueuedMessage) {
+    dispatchingQueueRef.current.add(conversation.id);
+    try {
+      await submitToPi(queuedPrompt(item), {
+        attachments: item.attachments.map(({ id: _id, ...attachment }) => attachment),
+        permissionMode: item.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
+        budgetMode: item.runOptions?.budgetMode ?? "medium",
+        // Only the host's acceptance takes it off the queue; a rejected send stays for review.
+        onAccepted: () => void composer.removeQueued(conversation, new Set([item.id])),
+      }, conversation, { requestId: item.id, agentPreset: isAgentPresetId(conversation.agentPreset) ? conversation.agentPreset : agentSettings.presetId });
+    } finally {
+      dispatchingQueueRef.current.delete(conversation.id);
+      setQueueTick((tick) => tick + 1);
+    }
+  }
+
+  /** Resuming re-reads the host first: anything it already holds a turn for is dropped, not resent. */
+  async function resumeQueue(conversation: EphemeralPiConversation) {
+    let events = conversation.events;
+    try {
+      const loaded = await loadStoredConversation(conversation);
+      if (!events.length) events = loaded.events;
+      const accepted = storedRunIds.current.get(conversation.id);
+      if (accepted) await composer.removeQueued(conversation, accepted);
+      if (loaded.activeRunId) void followRun(conversation);
+    } catch (error) {
+      // Never saved on the host means nothing was accepted; any other read failure stays paused.
+      if (!(error instanceof PiRequestError && error.status === 404)) return;
+    }
+    composer.resumeQueue(conversation.id, lastRunOutcome(events)?.runId);
+  }
 
   async function selectProvider(id: ProviderConnectionId) {
     const provider = activeProject.providers.connections.find((entry) => entry.id === id && entry.enabled);
@@ -1099,6 +1164,16 @@ export function AgentApp() {
         budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
       },
       onChange: update => changeComposerDraft(current => ({ ...current, runOptions: { ...current.runOptions, ...update } })),
+    },
+    composerQueue: streamId ? undefined : {
+      items: (composer.queues[activePiConversationId]?.items ?? []).map((item) => ({ id: item.id, prompt: queuedPrompt(item), attachmentCount: item.attachments.length })),
+      paused: composer.queues[activePiConversationId]?.paused,
+      canEnqueue: !acceptingConversationIds.has(activePiConversationId),
+      canEdit: !hasComposerDraft(composer.drafts[activePiConversationId]),
+      onEnqueue: (options) => void composer.enqueue({ ...activePiConversation, agentPreset: agentSettings.presetId }, options),
+      onRemove: (id) => void composer.removeQueued(activePiConversation, new Set([id])),
+      onEdit: (id) => void composer.editQueued(activePiConversation, id),
+      onResume: () => void resumeQueue(activePiConversation),
     },
     composerDraft: {
       value: composer.drafts[activePiConversationId] ?? { prompt: "", attachments: [] },

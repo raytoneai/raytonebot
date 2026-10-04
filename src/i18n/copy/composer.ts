@@ -40,6 +40,7 @@ const en = {
     stopFailed: "Stop was not confirmed. The host may still be running; retry Stop.",
     send: "Send",
     draftStatus: { loading: "Restoring drafts and run options…", saving: "Saving draft and run options…", saved: "Draft and chosen run options saved in this browser", unavailable: "Draft or run options not saved — keep this page open", conflict: "Draft or run options changed in another tab. Keep a copy of your edits here before reloading." },
+    queue: { label: "Queued follow-ups", title: (count: number) => `${count} queued`, waiting: "Sends in order after the current reply", sending: "Sending the next follow-up…", paused: { stopped: "Paused after Stop", failed: "Paused: the last turn failed or the connection dropped", restored: "Paused after reload. Resuming first checks what was already sent" }, resume: "Resume", add: "Queue", edit: "Edit", editBlocked: "Clear the composer to edit this item", remove: "Remove", files: (count: number) => `${count} file${count === 1 ? "" : "s"}` },
   },
   floatingSettings: {
     settings: "Provider settings",
@@ -146,6 +147,7 @@ const zh: typeof en = {
     stopFailed: "未确认主机已停止；任务可能仍在运行，请重试停止。",
     send: "发送",
     draftStatus: { loading: "正在恢复草稿和运行选项…", saving: "正在保存草稿和运行选项…", saved: "草稿和所选运行选项已保存在此浏览器", unavailable: "草稿或运行选项未保存，请保留此页面", conflict: "其他标签页已更新草稿或运行选项；刷新前请先复制这里的修改。" },
+    queue: { label: "待发送的追问", title: (count: number) => `${count} 条待发送`, waiting: "当前回复结束后依次发送", sending: "正在发送下一条…", paused: { stopped: "已停止，队列已暂停", failed: "上一轮失败或连接中断，队列已暂停", restored: "页面刷新后已暂停；继续前会先核对哪些已发送" }, resume: "继续发送", add: "排队", edit: "编辑", editBlocked: "先清空输入框再编辑此条", remove: "移除", files: (count: number) => `${count} 个附件` },
   },
   floatingSettings: {
     settings: "提供方设置",
@@ -248,6 +250,7 @@ const ja: typeof en = {
     stopFailed: "停止を確認できません。ホストで実行中の可能性があります。もう一度停止してください。",
     send: "送信",
     draftStatus: { loading: "下書きと実行設定を復元中…", saving: "下書きと実行設定を保存中…", saved: "下書きと選択した実行設定をこのブラウザーに保存しました", unavailable: "下書きまたは実行設定を保存できません。このページを開いたままにしてください", conflict: "別のタブで下書きまたは実行設定が更新されました。再読み込みする前に、ここの編集内容をコピーしてください。" },
+    queue: { label: "送信待ちのフォローアップ", title: (count: number) => `${count} 件待機中`, waiting: "現在の返信が終わると順に送信します", sending: "次のメッセージを送信中…", paused: { stopped: "停止したため一時停止中", failed: "前のターンが失敗したか接続が切れたため一時停止中", restored: "再読み込み後は一時停止します。再開時に送信済みかを先に確認します" }, resume: "再開", add: "キューに追加", edit: "編集", editBlocked: "入力欄を空にしてから編集してください", remove: "削除", files: (count: number) => `添付 ${count} 件` },
   },
   floatingSettings: {
     settings: "プロバイダー設定",

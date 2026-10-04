@@ -1,4 +1,4 @@
-import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, MessageSquareText, Mic, Paperclip, Plus, Rocket, Search, Send, ShieldCheck, ShieldHalf, ShieldOff, Sparkles, Square, X } from "lucide-react";
+import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, ListPlus, MessageSquareText, Mic, Paperclip, Pencil, Plus, Rocket, Search, Send, ShieldCheck, ShieldHalf, ShieldOff, Sparkles, Square, X } from "lucide-react";
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { useShellExtras } from "../shell/ShellExtras";
 import type { PiPromptAttachment } from "../../pi/piClient";
@@ -131,7 +131,7 @@ export function ComposerFrame({
   defaultPermissionMode?: PermissionMode;
 }) {
   const copy = useCopy();
-  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus } = useShellExtras();
+  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue } = useShellExtras();
   const promptShortcuts = [
     { label: copy.composer.frame.shortcuts.inspectFiles, Icon: Search },
     { label: copy.composer.frame.shortcuts.fixTest, Icon: Bug },
@@ -169,6 +169,10 @@ export function ComposerFrame({
   const restoringDrafts = composerDraft?.status === "loading";
   const stopFeedback = stopStatus === "pending" ? copy.composer.frame.stopping : stopStatus === "failed" ? copy.composer.frame.stopFailed : undefined;
   const canSubmit = !restoringDrafts && (promptValue.trim().length > 0 || attachedFiles.length > 0);
+  // While a turn runs, a new message joins the queue instead of turning Send into Stop.
+  const canQueue = isRunning && canSubmit && Boolean(composerQueue?.canEnqueue);
+  const queueStatus = composerQueue?.paused ? copy.composer.frame.queue.paused[composerQueue.paused]
+    : isRunning ? copy.composer.frame.queue.waiting : copy.composer.frame.queue.sending;
   const isMinimalStyle = project.theme.stylePreset === "illustrated";
   const showCombinedModelBudget = isMinimalStyle && Boolean(project.composer.thinkingBudget || project.composer.modelSwitcher);
   const hasToolsAfterUpload = Boolean(project.composer.thinkingBudget || project.composer.modelSwitcher);
@@ -218,6 +222,11 @@ export function ComposerFrame({
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (restoringDrafts) return;
+    if (canQueue) {
+      composerQueue!.onEnqueue({ permissionMode, budgetMode });
+      textareaRef.current?.focus({ preventScroll: true });
+      return;
+    }
     if (isRunning) {
       textareaRef.current?.focus({ preventScroll: true });
       onStop?.();
@@ -247,7 +256,7 @@ export function ComposerFrame({
       event.ctrlKey ||
       event.metaKey ||
       event.nativeEvent.isComposing ||
-      isRunning ||
+      (isRunning && !canQueue) ||
       !canSubmit
     ) {
       return;
@@ -357,6 +366,47 @@ export function ComposerFrame({
             </Button>
           ))}
         </div>
+      ) : null}
+      {composerQueue?.items.length ? (
+        <section className="composer-queue" aria-label={copy.composer.frame.queue.label}>
+          <div className="composer-queue-header">
+            <strong>{copy.composer.frame.queue.title(composerQueue.items.length)}</strong>
+            <span role="status">{queueStatus}</span>
+            {composerQueue.paused ? (
+              <Button className="composer-queue-resume" variant="secondary" size="sm" type="button" onClick={composerQueue.onResume}>
+                {copy.composer.frame.queue.resume}
+              </Button>
+            ) : null}
+          </div>
+          <ol className="composer-queue-list">
+            {composerQueue.items.map((item, index) => (
+              <li className="composer-queue-item" key={item.id}>
+                <span className="composer-queue-index" aria-hidden="true">{index + 1}</span>
+                <span className="composer-queue-text" title={item.prompt}>{item.prompt}</span>
+                {item.attachmentCount ? (
+                  <span className="composer-queue-files" aria-label={copy.composer.frame.queue.files(item.attachmentCount)}>
+                    <Paperclip size={12} aria-hidden="true" />{item.attachmentCount}
+                  </span>
+                ) : null}
+                <IconButton
+                  className="icon-button composer-queue-action"
+                  size="sm"
+                  label={composerQueue.canEdit ? copy.composer.frame.queue.edit : copy.composer.frame.queue.editBlocked}
+                  disabled={!composerQueue.canEdit}
+                  onClick={() => {
+                    composerQueue.onEdit(item.id);
+                    textareaRef.current?.focus();
+                  }}
+                >
+                  <Pencil size={13} />
+                </IconButton>
+                <IconButton className="icon-button composer-queue-action" size="sm" label={copy.composer.frame.queue.remove} onClick={() => composerQueue.onRemove(item.id)}>
+                  <X size={13} />
+                </IconButton>
+              </li>
+            ))}
+          </ol>
+        </section>
       ) : null}
       <div className="composer-shell">
         <div className="composer-prompt-row">
@@ -624,6 +674,12 @@ export function ComposerFrame({
                   <span />
                 </span>
               </IconButton>
+            ) : null}
+            {canQueue ? (
+              <Button className="send-button composer-queue-add" variant="primary" type="submit">
+                <ListPlus size={16} />
+                {copy.composer.frame.queue.add}
+              </Button>
             ) : null}
             <Button
               className="send-button"

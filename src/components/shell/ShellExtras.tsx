@@ -46,6 +46,17 @@ export type ShellExtras = {
   composerPlaceholder?: string;
   /** The shell keeps each conversation's files and draft across layout remounts. */
   composerDraft?: { value: ComposerDraft; status?: "loading" | "saving" | "saved" | "unavailable" | "conflict"; onChange: (update: (current: ComposerDraft) => ComposerDraft) => void };
+  /** Follow-ups typed while a turn runs. The shell owns order, sending and pausing; the composer only shows and edits. */
+  composerQueue?: {
+    items: readonly { id: string; prompt: string; attachmentCount: number }[];
+    paused?: "stopped" | "failed" | "restored";
+    canEnqueue: boolean;
+    canEdit: boolean;
+    onEnqueue: (options: ComposerRunOptions) => void;
+    onRemove: (id: string) => void;
+    onEdit: (id: string) => void;
+    onResume: () => void;
+  };
   /** Explicit choices belong to the conversation, not a remountable layout slot. */
   composerOptions?: { value: ComposerRunOptions; onChange: (update: Partial<ComposerRunOptions>) => void };
   composerFocus?: string;
