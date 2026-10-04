@@ -582,3 +582,10 @@
 - 恢复往返：上传目录已清理，`.rtb-restore-previous` 为 root 0700，恢复后重新部署成功。
 - 未覆盖：长任务触顶提示与“continue”续跑、allow-all 刷新回落的浏览器实测。
 
+
+## 本地实时演示（2026-10-04）
+
+- 开发服务用新代码重启，Agent 工作目录设为独立的 `/tmp/raytone-demo-workspace`；`npm run check:local` 通过（UI、Pi SDK、9 工具、空输入、跨源拒绝）。
+- 真实 DeepSeek `deepseek-flash`，经 UI 同一 HTTP 接口：Pi 写 `hello.md` 一次审批后成功，下载接口内容一致；Claude Code 无工具计划 8.1 s 成功；Codex `ls -la` 审批后成功，只见自身角色目录；生成中停止 0.01 s 内 `cancelled`；4 个会话均出现在历史列表。
+- 待查：`thinkingLevel: off` 时 `deepseek-flash` 仍产生大量 reasoning（一次长文先推理约 4 分钟），需确认是模型行为还是关闭推理未传给服务。
+- 未做：浏览器界面点击操作（本机 Computer Use 未完成初始化）。
