@@ -111,7 +111,9 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
-- 2026-10-04 聊天中连接 Telegram（ADR-029）：对 Raer 说"帮我连接 Telegram"→安全卡片粘贴 token（不经模型、不入记录）→用自己的账号给机器人发一条消息→点「允许」完成配对。参照 OpenClaw secrets request/配对、MCP URL 模式。FAQ 修正"key 不在沙箱"的误导。154 项测试与真实 DeepSeek 浏览器流程见 AW 组。未提交、未部署。
+- 2026-10-04 重选历史会话不再重放 streaming：只在主机报告运行时跟随，跟随时不重复读取历史；浏览器验证见 AX 组。与聊天连接 Telegram（AW 组）一并部署云端。
+
+- 2026-10-04 聊天中连接 Telegram（ADR-029）：对 Raer 说"帮我连接 Telegram"→安全卡片粘贴 token（不经模型、不入记录）→用自己的账号给机器人发一条消息→点「允许」完成配对。参照 OpenClaw secrets request/配对、MCP URL 模式。FAQ 修正"key 不在沙箱"的误导。154 项测试与真实 DeepSeek 浏览器流程见 AW 组。
 
 - 2026-10-04 角色提示词分层（ADR-027）：Raer/Tonny/Bob 各有产品角色说明与可编辑 SOUL.md，共用 shared/USER.md；三引擎改为系统层注入（Codex 用 developerInstructions，续接不再丢失）；技术回答约 80% ASD-STE100；本机不再注入个人技能。hello 不再触发 ls，152 项测试与真实 DeepSeek 验证见 AU 组。IM 批准提示补上工具名。未提交。
 

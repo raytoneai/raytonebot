@@ -813,7 +813,8 @@ export function AgentApp() {
    * tab, a dropped connection). The saved transcript replaces the local one, then live events
    * follow from exactly where it ends, so nothing is shown twice or skipped.
    */
-  async function followRun(conversation: EphemeralPiConversation, submission?: { requestId: string; prompt: string; onAccepted?: () => void }) {
+  /** `preloaded`: `conversation` was just read from the host, so the first pass skips reading it again. */
+  async function followRun(conversation: EphemeralPiConversation, submission?: { requestId: string; prompt: string; onAccepted?: () => void }, preloaded = false) {
     const conversationId = conversation.id;
     if (piAbortRefs.current.has(conversationId)) return;
     const controller = new AbortController();
@@ -830,10 +831,13 @@ export function AgentApp() {
     });
     let current = conversation;
     let retries = 0;
+    let reload = !preloaded;
     try {
       while (!controller.signal.aborted) {
         try {
-          current = await loadStoredConversation(current);
+          // A reconnect always reads again: the host may have moved on while the stream was down.
+          if (reload) current = await loadStoredConversation(current);
+          reload = true;
           if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
           if (controller.signal.aborted) break;
           runStop.bind(controller, current.activeRunId ?? [...current.events].reverse().find(event => event.type === "run.started")?.runId);
@@ -902,7 +906,7 @@ export function AgentApp() {
     const loaded = await loadStoredConversation(conversation).catch(() => undefined);
     if (!loaded || piAbortRefs.current.has(conversation.id)) return;
     if (loaded.activeRunId) {
-      void followRun(loaded);
+      void followRun(loaded, undefined, true);
       return;
     }
     if (loaded.events.length <= conversation.events.length) return;

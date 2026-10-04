@@ -642,3 +642,10 @@
 - 154 项测试：工具→卡片→错误 token 400 且卡片显示原因、恢复原设置→跨会话答复 409→正确 token 连接→新机器人收到私聊后卡片显示候选、该用户收到"回网页点允许"→允许后工具结果仅含状态/机器人/用户名、白名单加入→事件、对话记录、工具结果均不含 token；对话中粘贴的 token 存档前打码；IM 会话返回 open_in_browser。`check:local` 增加 `connect_channel`（10 个工具）。
 - 真实链路：独立 5199 实例 + 真实 DeepSeek + headless Chromium：对 Raer 说"帮我连接 Telegram"，Raer 一句话说明 @BotFather 后调用 `connect_channel`，卡片为密码输入并说明不经模型；假 token 显示"未连接 · Telegram getMe: Unauthorized"；侧栏显示"等你确认"。
 - 未做：真实 token 的配对全流程（需用户的机器人）、云端部署、手机宽度截图。
+
+## AX 组：重选历史会话不再重放 streaming（2026-10-04）
+
+- 问题：侧栏重选会话一律走 `followRun`，它在确认主机是否有运行前就把会话标记为运行中，已结束的历史出现转圈并重放每条回答的打字效果。
+- 修复（`2d27a9d`）：`refreshPiConversation` 先读主机保存的副本，仅当主机返回 `activeRunId` 时才跟随；有连接问题的会话仍走 `followRun` 重试。追加：主机报告运行中时把刚读到的副本交给 `followRun(…, preloaded)`，首轮不再重复读取；断线重连仍会重新读取。
+- 验证（本机 5188，真实 DeepSeek，headless Chromium，临时会话测后停止并删除）：重选已完成会话 1.5 s 内无停止按钮、无 `/live` 请求；另一客户端在该会话启动长回复后从侧栏点开：1 次历史读取、1 次 `/live` 跟随，停止按钮出现，进行中的工具调用与待批准实时显示。154 项测试、build 通过。
+- 已知：重选逻辑在 `agent-shell.tsx`，现有 node 测试不覆盖，依赖浏览器验收；本地补写的停止终态与主机终态按事件数比较，主机终态不多于本地时保留本地副本（两者都表示已停止）。
