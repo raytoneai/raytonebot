@@ -3733,6 +3733,78 @@ textarea:focus-visible {
   background: var(--accent-soft);
 }
 
+/* Delete: revealed on hover/focus (always on the open row for touch); asks in place. */
+.session-item-delete {
+  position: absolute;
+  top: 50%;
+  right: 0;
+  z-index: 2;
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(-50%);
+  transition: opacity var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
+}
+
+.session-item-shell:is(:hover, :focus-within) .session-item-delete {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.session-item-shell:is(:hover, :focus-within) .session-item:has(+ .session-item-delete) {
+  padding-right: 26px;
+}
+
+.session-item-delete:hover:not(:disabled) {
+  color: var(--danger);
+}
+
+.session-item-delete:disabled {
+  cursor: not-allowed;
+  opacity: 0.4;
+}
+
+@media (hover: none) {
+  .session-item-shell[data-active="true"] .session-item-delete { opacity: 1; pointer-events: auto; }
+  .session-item-shell[data-active="true"] .session-item:has(+ .session-item-delete) { padding-right: 26px; }
+}
+
+.session-item-confirm {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 4px;
+  color: var(--text-primary);
+}
+
+.session-item-confirm button {
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--text-secondary);
+  font-size: var(--text-xs);
+}
+
+.session-item-confirm .session-confirm-delete {
+  background: var(--danger);
+  color: #fff;
+}
+
+.session-item-confirm .session-confirm-delete:disabled {
+  opacity: 0.6;
+}
+
+.session-item-confirm .session-confirm-cancel:hover {
+  color: var(--text-primary);
+}
+
 .session-footer {
   /*
    * Pinned to the bottom of the column rather than trailing the session list.

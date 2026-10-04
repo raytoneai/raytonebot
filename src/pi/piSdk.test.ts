@@ -23,6 +23,8 @@ test("installed Pi SDK preserves guarded tools, approval effects, cancellation a
       const chunks = [];
       for await (const chunk of req) chunks.push(chunk);
       const body = JSON.parse(Buffer.concat(chunks).toString());
+      // The host's one-off title request for a new conversation is not an engine turn.
+      if (body.stream === false) { res.end(JSON.stringify({ choices: [{ message: { content: "SDK check" } }] })); return; }
       assert.equal(body.model, "deepseek-flash");
       assert.deepEqual(body.tools.map((tool: any) => tool.function.name).sort(), names);
       if (turn === 3) resumedContext = JSON.stringify(body.messages).includes("SDK original context sentinel");

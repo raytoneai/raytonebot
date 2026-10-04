@@ -41,6 +41,10 @@ export type ShellExtras = {
   sessionAvatars?: Record<string, AvatarKind>;
   searchConversations?: ConversationSearch;
   onSelectSearchResult?: (session: SearchSession) => void;
+  /** Deletes a saved conversation after the row's inline confirmation; omitted, rows have no delete. */
+  onDeleteSession?: (id: string) => Promise<void>;
+  /** Conversations with a run in flight: the host refuses to delete them. */
+  runningSessionIds?: ReadonlySet<string>;
   transcriptTarget?: { textId: string; nonce: string };
   /** Composer placeholder naming the current agent. */
   composerPlaceholder?: string;

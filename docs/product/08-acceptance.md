@@ -672,3 +672,11 @@
 
 - 163 项测试、build 通过（Codex 独立复核同结果）：Telegram 发起的会话在网页继续时显示安全卡片，IM 本轮仍得 `open_in_browser`；重置进行中发来的任务等待重置，重置失败则任务失败且不调用引擎；等待重置的配置在任务开始后被拒绝，不改动运行中的模型；IM 准备阶段的 `/stop` 阻止任务启动；Telegram 编辑失败后相同终稿重发。
 - Codex 用临时数据、虚拟 token 与模拟 Telegram 接口运行真实 Vite：dev/preview 无 HTTP 请求即启动频道，build 不连接。
+- 云端（`b0eb22c` 部署到 `id705on7k0a1ya1d90icj`，部署前备份 `backups/id705on7k0a1ya1d90icj-20261005-013919-442914.tgz`）：部署自检与三引擎可用；`kill -9` 应用进程后 supervisor 1 s 拉起，2.2 s 后 Telegram `channel.connected`，期间无 HTTP 请求；`im-telegram-probe-*` 临时会话经网页接口请求连接，真实 DeepSeek 调用 `connect_channel` 得到凭据卡片（`run.awaiting_input`，未返回 `open_in_browser`），停止后会话已删除，原 Telegram 连接不受影响；`cloud-preview --check` 通过。未验：真实 Telegram 聊天中的 `open_in_browser`、准备阶段 `/stop`、编辑失败重发（需真实账号发消息）。
+
+## BB 组：删除对话与模型标题（2026-10-05，工作树）
+
+- 166 项测试、build 通过：标题清理与 OpenAI-compatible/Anthropic 请求单测；新会话第一轮期间请求一次标题，运行中不写盘（磁盘仍为截断提问），结束后写入并标记 `titleSource: "summary"`，后续轮次不再请求；运行中删除被拒绝（409），结束后可删。两个计数模型请求的 SDK 测试改为不计非流式标题请求。
+- 本机浏览器（临时数据目录、loopback 假模型，Chrome 无头，zh-CN）：三个新会话侧栏显示模型标题（引号/句号已清理），`?summary=1` 不含事件；悬停显示删除，行内确认/取消，确认后主机记录删除；键盘 Delete 打开确认、Esc 取消且焦点回到原行；删除当前会话后切到新空会话；运行中删除按钮禁用并提示，接口 409；页面中途接上的首轮结束后标题刷新；390px 触屏当前行常显删除；`?devtools=1` 无页面错误。
+- 云端（部署到 `id705on7k0a1ya1d90icj`，部署前备份 `backups/id705on7k0a1ya1d90icj-20261005-022645-040560.tgz`）：Chrome 无头登录后在界面发送中文任务，真实 DeepSeek 回复约 2.3 s 结束、标题先暂存，`run.ended` 后写入（`conversation.titled`），侧栏约 3 s 由截断提问变为「产品发布会准备三件事」；界面内确认删除后主机记录移除，刷新仍不在；无页面错误。
+- 删除只移除产品会话记录，Pi/CLI 原生会话文件保留（分支首轮仍需读取来源原生文件）；已有会话不回填标题。

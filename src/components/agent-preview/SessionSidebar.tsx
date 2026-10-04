@@ -1,8 +1,8 @@
-import { PanelLeft, Search } from "lucide-react";
+import { PanelLeft, Search, Trash2 } from "lucide-react";
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { useShellExtras } from "../shell/ShellExtras";
 import { createPortal } from "react-dom";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 import { searchResultKey, useConversationSearch, type SearchSession } from "../../runtime/useConversationSearch";
 import { useSearchWindow } from "../../runtime/useSearchWindow";
 import { conversationSearchPattern } from "../../pi/conversationSearch";
@@ -49,6 +49,7 @@ export function SessionSidebar({
   const [searchOpen, setSearchOpen] = useState(false);
   const [searchOverlayRoot, setSearchOverlayRoot] = useState<HTMLElement | null>(null);
   const [query, setQuery] = useState("");
+  const deletion = useSessionDeletion(sidebarRef);
   const sessions: readonly SessionSidebarItem[] = onSelectSession
     ? sessionItems ?? sessionPrompts.map((prompt) => ({ id: prompt, title: prompt }))
     : [];
@@ -265,7 +266,13 @@ export function SessionSidebar({
           onFocusCapture={event => historyWindow.onFocus(event.target.dataset.sessionKey)}
           onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) historyWindow.onFocus(); }}
           onKeyDown={event => {
-            const index = Number((event.target as HTMLElement).dataset.searchIndex);
+            const target = event.target as HTMLElement;
+            if (event.key === "Delete" && target.dataset.sessionId && deletion.available) {
+              event.preventDefault();
+              deletion.ask(target.dataset.sessionId);
+              return;
+            }
+            const index = Number(target.dataset.searchIndex);
             if (!Number.isInteger(index) || event.altKey || event.ctrlKey || event.metaKey) return;
             const last = historyWindow.items.length - 1;
             const next = event.key === "Home" ? 0 : event.key === "End" ? last
@@ -276,14 +283,14 @@ export function SessionSidebar({
           {grouping ? (
             <>
               {today.length > 0 ? (
-                <SessionGroup label={c.groupToday} items={today} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} />
+                <SessionGroup label={c.groupToday} items={today} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} />
               ) : null}
               {earlier.length > 0 ? (
-                <SessionGroup label={c.groupEarlier} items={earlier} window={historyWindow.groups[1]} activeId={effectiveActive} onSelect={onSelectSession} />
+                <SessionGroup label={c.groupEarlier} items={earlier} window={historyWindow.groups[1]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} />
               ) : null}
             </>
           ) : (
-            <SessionGroup items={sessions} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} />
+            <SessionGroup items={sessions} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} />
           )}
         </nav>
       ) : null}
@@ -348,6 +355,41 @@ function NewChatIcon({ size }: { size: number }) {
   );
 }
 
+/** One row at a time asks "delete?" in place; the shell does the deleting. */
+function useSessionDeletion(sidebarRef: RefObject<HTMLElement | null>) {
+  const { onDeleteSession, runningSessionIds } = useShellExtras();
+  const [asking, setAsking] = useState<string>();
+  const [status, setStatus] = useState<"idle" | "deleting" | "failed">("idle");
+  const focusRow = (id: string) => requestAnimationFrame(() => sidebarRef.current
+    ?.querySelector<HTMLElement>(`.session-list [data-session-id="${CSS.escape(id)}"]`)?.focus());
+  return {
+    available: Boolean(onDeleteSession),
+    asking,
+    status,
+    running: (id: string) => runningSessionIds?.has(id) ?? false,
+    ask(id: string) {
+      if (!onDeleteSession || runningSessionIds?.has(id)) return;
+      setAsking(id);
+      setStatus("idle");
+    },
+    cancel() {
+      if (!asking) return;
+      focusRow(asking);
+      setAsking(undefined);
+      setStatus("idle");
+    },
+    confirm() {
+      const id = asking;
+      if (!id || !onDeleteSession || status === "deleting") return;
+      setStatus("deleting");
+      onDeleteSession(id).then(() => {
+        setAsking((current) => current === id ? undefined : current);
+        setStatus("idle");
+      }, () => setStatus("failed"));
+    },
+  };
+}
+
 function SessionGroup({
   label,
   items,
@@ -356,6 +398,7 @@ function SessionGroup({
   onSelect,
   onSelectResult,
   window,
+  deletion,
 }: {
   label?: string;
   items: readonly SessionSidebarItem[];
@@ -364,6 +407,8 @@ function SessionGroup({
   onSelect?: (id: string) => void;
   onSelectResult?: (session: SearchSession) => void;
   window?: ReturnType<typeof useSearchWindow>["groups"][number];
+  /** History rows only; search results do not delete. */
+  deletion?: ReturnType<typeof useSessionDeletion>;
 }) {
   const avatars = useShellExtras().sessionAvatars;
   const c = useCopy().workspace.sessionSidebar;
@@ -376,6 +421,22 @@ function SessionGroup({
         const { id, title, snippet, role } = session;
         const active = id === activeId;
         const match = snippet && pattern?.exec(snippet);
+        if (deletion?.asking === id) return (
+          <div key={searchResultKey(session)} className="session-item-shell" data-active={active}
+            style={row ? { position: "absolute", top: row.offset } : undefined}>
+            <span className="session-item-bg" aria-hidden="true" />
+            <div className="session-item session-item-confirm" role="group" aria-label={`${c.deleteSession}: ${title}`}
+              onKeyDown={(event) => { if (event.key === "Escape") { event.stopPropagation(); deletion.cancel(); } }}>
+              <span className="session-item-label" role="status">
+                {deletion.status === "failed" ? c.deleteFailed : c.deletePrompt}
+              </span>
+              <button type="button" className="session-confirm-delete" autoFocus disabled={deletion.status === "deleting"}
+                onClick={deletion.confirm}>{c.deleteConfirm}</button>
+              <button type="button" className="session-confirm-cancel" onClick={deletion.cancel}>{c.deleteCancel}</button>
+            </div>
+          </div>
+        );
+        const running = deletion?.running(id) ?? false;
         return (
           <div key={searchResultKey(session)} className="session-item-shell" data-active={active}
             style={row ? { position: "absolute", top: row.offset } : undefined}>
@@ -386,6 +447,8 @@ function SessionGroup({
               data-active={active}
               data-search-result={onSelectResult ? searchResultKey(session) : undefined}
               data-session-key={searchResultKey(session)}
+              data-session-id={deletion?.available ? id : undefined}
+              aria-keyshortcuts={deletion?.available && !running ? "Delete" : undefined}
               data-search-index={row?.index}
               aria-current={active ? "true" : undefined}
               onClick={() => onSelectResult ? onSelectResult(session) : onSelect?.(id)}
@@ -397,6 +460,13 @@ function SessionGroup({
                 match ? <>{snippet.slice(0, match.index)}<mark>{match[0]}</mark>{snippet.slice(match.index + match[0].length)}</> : snippet
               }</span> : null}</span>
             </button>
+            {deletion?.available ? (
+              <button type="button" className="session-item-delete" tabIndex={-1} disabled={running}
+                aria-label={`${c.deleteSession}: ${title}`} title={running ? c.deleteRunning : c.deleteSession}
+                onClick={() => deletion.ask(id)}>
+                <Trash2 size={14} aria-hidden="true" />
+              </button>
+            ) : null}
           </div>
         );
       })}

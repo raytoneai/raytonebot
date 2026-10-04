@@ -13,6 +13,7 @@
 ## 沙箱持久化
 
 - **timeout 设 7 天被截断/拒绝** → 平台上限 50 小时 → 用 50 h，到期自动暂停。
+- **续期返回 204、`endAt` 却不变**（2026-10-05）→ 单次运行窗口从启动（或最近一次恢复）起算最多 50 小时，`set_timeout` 不能延到 `startedAt + 50h` 之后，且不报错；与自动暂停无关（两个临时沙箱对照均可续期） → 先 `POST /sandboxes/{id}/pause`，再 `POST /sandboxes/{id}/resume` 带 `{"timeout": 180000, "autoPause": true}`，窗口从恢复时重算；内存快照保留进程与 Telegram 连接，生命周期设置不变。续期后用 `GET /sandboxes/{id}` 核对 `endAt`。
 - **想给现有沙箱开自动暂停** → 生命周期只能在创建时设置 → 新建沙箱再部署。
 - **`autoResume: true` 报 400** → 该字段是对象 → `{"autoPause": true, "autoResume": {"enabled": true}}`。
 - **暂停后访问 URL 得到 502** → 平台代理不唤醒 → 本机 `sandbox.py wake`。

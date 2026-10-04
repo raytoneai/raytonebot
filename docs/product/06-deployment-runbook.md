@@ -9,7 +9,7 @@
 | **只能用 E2B SDK 1.x**（实测 Python `e2b==1.11.1`；Node `e2b@^1`）；2.x 报 `404: method not allowed` | 部署脚本锁定 1.x |
 | 必须设 `E2B_DOMAIN=agentsphere.run`，否则 SDK 连官方 e2b.dev | 脚本启动时断言 |
 | 不能用 e2b CLI 登录 | 只用 SDK 脚本 |
-| 到 timeout 时：自动暂停实例被暂停，普通实例被回收；`set_timeout(n)` 从调用时起算，单次上限 50 h | 用 `sandbox.py create` 建自动暂停实例 |
+| 到 timeout 时：自动暂停实例被暂停，普通实例被回收；`set_timeout(n)` 从调用时起算，但不超过本次启动/恢复后的 50 h（超出时返回成功而不生效） | 用 `sandbox.py create` 建自动暂停实例；窗口用尽前暂停再带 timeout 恢复以重算（见 09） |
 | 单机、`SANDBOX_RECOVERY_ENABLED=false` | 沙箱随时可能消失；数据必须定期拉回本机 |
 | 公网端口地址 `https://<port>-<sandboxId>.agentsphere.run` | 应用 `RAYTONEBOT_PUBLIC_ORIGIN` 与之一致 |
 | 模板 `agentmatrix-v1`：2C/4G、Linux x86_64、Node 24 | 无需在沙箱装 Node |
@@ -139,7 +139,7 @@ sb.set_timeout(3600)          # 从现在起约 1 小时
 2. **本机定时续期**：本机 cron/launchd 每 30–50 分钟 `renew`。电脑关机后实例会过期——与“电脑关机仍在”的目标冲突。
 3. **长 timeout**：平台接受 `set_timeout(86400)`（24 小时，2026-10-03 实测）；更长的上限未验证。部署时直接设长并定期 `backup`。
 
-关掉浏览器后任务在云端继续跑（2026-10-03 起）；但沙箱暂停期间 Agent 不运行，单次运行窗口最长 50 小时，长任务前先 `renew`。
+关掉浏览器后任务在云端继续跑（2026-10-03 起）；但沙箱暂停期间 Agent 不运行，单次运行窗口最长 50 小时，长任务前先 `renew`；`renew` 延不过启动/恢复后 50 h，接近时改用暂停后带 timeout 恢复（见 [09](09-lessons.md)）。
 
 ## 守护、日志与外部备份定时器
 

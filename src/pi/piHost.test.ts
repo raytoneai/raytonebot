@@ -800,3 +800,53 @@ test("a configuration waiting on a reset does not change the model of a turn tha
     await run;
   } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
 });
+
+test("a new conversation gets its model title after the first turn, never mid-run; a running one cannot be deleted", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-title-"));
+  const { createServer } = await import("node:http");
+  const asked: string[] = [];
+  const service = createServer((req, res) => {
+    let body = "";
+    req.on("data", (chunk) => { body += chunk; });
+    req.on("end", () => {
+      asked.push(JSON.parse(body).messages[1].content);
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ choices: [{ message: { content: "「季度销售分析」" } }] }));
+    });
+  });
+  await new Promise<void>((resolve) => service.listen(0, "127.0.0.1", resolve));
+  const { factory, release } = fakeBridges();
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  const providerDefinition = { id: "local", name: "Local", protocol: "openai-compatible" as const,
+    baseUrl: `http://127.0.0.1:${(service.address() as { port: number }).port}/v1`, models: ["m"], authMode: "required" as const };
+  const saved = () => JSON.parse(readFileSync(join(dataDir, "conversations", "a.json"), "utf8"));
+  try {
+    await controller.configure({ conversationId: "a", provider: "local", model: "m", apiKey: "k", providerDefinition });
+    const run = controller.runPrompt({ conversationId: "a", requestId: "r1", prompt: "帮我分析一下这个季度的销售数据", provider: "local", model: "m" }, () => undefined);
+    for (let i = 0; i < 50 && !asked.length; i++) await tick();
+    await tick();
+    assert.deepEqual(asked, ["帮我分析一下这个季度的销售数据"]);
+    assert.equal(saved().title, "帮我分析一下这个季度的销售数据");
+    assert.throws(() => controller.deleteConversation("a"), /already active/);
+    release.get("a")!();
+    release.delete("a");
+    await run;
+    assert.equal(saved().title, "季度销售分析");
+    assert.equal(controller.getConversation("a")?.titleSource, "summary");
+
+    // Later turns keep the title and do not ask again.
+    const second = controller.runPrompt({ conversationId: "a", requestId: "r2", prompt: "再看看下个月", provider: "local", model: "m" }, () => undefined);
+    for (let i = 0; i < 20 && !release.has("a"); i++) await tick();
+    release.get("a")!();
+    await second;
+    await tick();
+    assert.equal(asked.length, 1);
+    controller.deleteConversation("a");
+    assert.equal(controller.getConversation("a"), undefined);
+  } finally {
+    controller.dispose();
+    service.closeAllConnections();
+    service.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});

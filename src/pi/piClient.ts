@@ -150,6 +150,8 @@ export type StoredConversationSummary = {
   createdAt: number;
   updatedAt: number;
   agentPreset: AgentPresetId;
+  /** "summary": the host's model wrote the title. */
+  titleSource?: "summary";
   eventCount: number;
   snippet?: string;
   textId?: string;
@@ -179,6 +181,17 @@ export async function getStoredConversation(
   const timeout = AbortSignal.timeout(15_000);
   return requestJson(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, undefined,
     signal ? AbortSignal.any([signal, timeout]) : timeout);
+}
+
+/** Title and metadata only; used to pick up the model-written title after a first turn. */
+export async function getStoredConversationSummary(id: string, fetcher: typeof fetch = fetch): Promise<StoredConversationSummary> {
+  return requestJson(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}?summary=1`, undefined, AbortSignal.timeout(15_000));
+}
+
+/** Removes the saved transcript. The host refuses (409) while a run is active in it. */
+export async function deleteStoredConversation(id: string, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher(`${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
 }
 
 export async function getPiRuntimeState(fetcher: typeof fetch = fetch): Promise<PiRuntimeState> {

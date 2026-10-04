@@ -38,6 +38,8 @@ import {
   configurePiRuntime,
   getPiRuntimeState,
   getStoredConversation,
+  getStoredConversationSummary,
+  deleteStoredConversation,
   followPiTurn,
   listStoredConversations,
   searchStoredConversations,
@@ -770,6 +772,8 @@ export function AgentApp() {
         }
       }
       commit.flush();
+      // The host titles a new conversation with its model during the first turn.
+      if (turnStartEventCount === 0) refreshConversationTitle(conversationId);
       // The turn already delivered its terminal; a metadata refresh failure must not reattach it.
       await refreshPiRuntime().catch(() => undefined);
     } catch (error) {
@@ -874,6 +878,8 @@ export function AgentApp() {
           }
           if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
           commit.flush();
+          // A first turn started elsewhere (IM, another tab) is titled by the host as it ends.
+          if (current.events.filter((event) => event.type === "run.started").length === 1) refreshConversationTitle(conversationId);
           break;
         } catch (error) {
           if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
@@ -1033,6 +1039,24 @@ export function AgentApp() {
    * Leaving the artifact panel populated would show products of a conversation that is no
    * longer on screen.
    */
+  /** A slow title service may still be answering when the turn ends: look once more a little later. */
+  function refreshConversationTitle(id: string, retry = true) {
+    void getStoredConversationSummary(id).then(({ title, titleSource }) => {
+      setPiConversations((current) => current.map((entry) => entry.id === id && entry.title !== title ? { ...entry, title } : entry));
+      if (titleSource !== "summary" && retry) setTimeout(() => refreshConversationTitle(id, false), 4_000);
+    }).catch(() => undefined);
+  }
+
+  /** The host deletes the transcript; this page then forgets the conversation, its draft and queue. */
+  async function deletePiConversation(id: string) {
+    await deleteStoredConversation(id);
+    const conversation = piConversations.find((entry) => entry.id === id);
+    if (conversation) void composer.update(conversation, () => ({ prompt: "", attachments: [] }), () => ({ items: [] }));
+    storedRunIds.current.delete(id);
+    if (activeConversationIdRef.current === id) await startNewSession();
+    setPiConversations((current) => current.filter((entry) => entry.id !== id));
+  }
+
   async function startNewSession() {
     navigatedRef.current = true;
     // A run in flight keeps going in its own conversation; it only draws while on screen.
@@ -1191,6 +1215,8 @@ export function AgentApp() {
       />
     ),
     searchConversations: streamId ? undefined : searchConversations,
+    onDeleteSession: streamId ? undefined : deletePiConversation,
+    runningSessionIds: runningConversationIds,
     onSelectSearchResult: (session) => {
       setSearchTarget(session.textId ? { conversationId: session.id, textId: session.textId, nonce: crypto.randomUUID() } : undefined);
       selectPiConversation(session.id);

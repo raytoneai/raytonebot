@@ -53,6 +53,7 @@ import type { UserInputRequest } from "./userInputTool.ts";
 import type { UserAnswers } from "../runtime/userInput.ts";
 import { runLimits, runtimeLogger, type RunLimits } from "./hostOperations.ts";
 import { createChannelManager, type ConnectorFactories } from "./imChannels/channelManager.ts";
+import { summarizeConversationTitle } from "./conversationTitle.ts";
 import { ChannelSetupError, createChannelSetup, type ChannelSetupResult, type ChannelSetupRun } from "./imChannels/channelSetup.ts";
 import type { ChannelSetupRequest } from "./imChannels/connectChannelTool.ts";
 import { redactCredentials } from "./imChannels/redactCredentials.ts";
@@ -361,6 +362,26 @@ export function createPiRuntimeController(options: {
     const apiKey = providerKeys.get(definition.id)
       ?? (definition.apiKeyEnvVar ? process.env[definition.apiKeyEnvVar]?.trim() : undefined);
     return { definition, apiKey };
+  };
+
+  /** Model titles wait for the run to end: a write during a run would also persist its buffered events. */
+  const pendingTitles = new Map<string, { createdAt: number; title: string }>();
+  const applyTitle = (id: string, createdAt: number, title: string) => {
+    if (runs.has(id)) { pendingTitles.set(id, { createdAt, title }); return; }
+    try {
+      if (store.setSummaryTitle(id, createdAt, title)) log("conversation.titled", { conversationId: id });
+    } catch { log("conversation.title_failed", { conversationId: id, status: "storage" }); }
+  };
+  /** Summarizes a new conversation's first prompt with the turn's own model service. */
+  const titleConversation = async (id: string, createdAt: number, input: PiPromptInput, prompt: string) => {
+    const credentials = providerCredentials(input.provider);
+    if (!credentials || (credentials.definition.authMode !== "none" && !credentials.apiKey)) return;
+    try {
+      const title = await summarizeConversationTitle(credentials.definition, credentials.apiKey,
+        input.model ?? credentials.definition.models[0], prompt);
+      if (title) applyTitle(id, createdAt, title);
+      else log("conversation.title_failed", { conversationId: id, status: "empty" });
+    } catch { log("conversation.title_failed", { conversationId: id, status: "request" }); }
   };
 
   const codexProvider = (providerId?: string, model?: string) => {
@@ -711,8 +732,10 @@ export function createPiRuntimeController(options: {
           if (op === resets.get(conversationId)) await op;
           else await op.catch(() => undefined);
         }
-        store.begin(conversationId, role, prompt);
+        const fresh = !store.get(conversationId);
+        const conversation = store.begin(conversationId, role, prompt);
         opened = true;
+        if (fresh) void titleConversation(conversationId, conversation.createdAt, input, prompt);
         const modelPrompt = withReplyLanguage(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), input.locale);
         store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt,
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
@@ -734,6 +757,8 @@ export function createPiRuntimeController(options: {
           if (opened && !recorder.finish()) terminalStatus = "error";
         } finally { runs.delete(conversationId); settle(); }
         log("run.ended", { conversationId, harness, status: terminalStatus, durationMs: Date.now() - runStartedAt, outputBytes });
+        const stashed = pendingTitles.get(conversationId);
+        if (stashed) { pendingTitles.delete(conversationId); applyTitle(conversationId, stashed.createdAt, stashed.title); }
       }
     },
     listConversations: (query) => store.list(query).map((summary) => ({ ...summary, running: runs.has(summary.id), activeRunId: runs.get(summary.id)?.runId })),
@@ -755,7 +780,7 @@ export function createPiRuntimeController(options: {
     },
     deleteConversation(id) {
       if (runs.has(normalizeConversationId(id))) {
-        throw new Error("Stop the active run before deleting its conversation.");
+        throw new Error("A run is already active in this conversation. Stop it before deleting the conversation.");
       }
       store.remove(normalizeConversationId(id));
     },
@@ -999,7 +1024,10 @@ export function createPiHttpHost(options: {
           const id = decodeURIComponent(url.pathname.slice(`${PI_API_PREFIX}/conversations/`.length));
           if (req.method === "GET") {
             const conversation = controller.getConversation(id);
-            if (conversation) sendJson(res, 200, conversation);
+            if (conversation && url.searchParams.get("summary") === "1") {
+              const { events, cliSession: _cli, piSessionId: _pi, turns: _turns, branch: _branch, ...summary } = conversation;
+              sendJson(res, 200, { ...summary, eventCount: events.length });
+            } else if (conversation) sendJson(res, 200, conversation);
             else sendJson(res, 404, { error: "Conversation not found." });
             return true;
           }

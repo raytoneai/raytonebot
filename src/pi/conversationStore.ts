@@ -20,6 +20,8 @@ import { createConversationCache } from "./conversationCache.ts";
 export type StoredConversation = {
   id: string;
   title: string;
+  /** "summary": the model titled it; absent: the truncated first prompt. */
+  titleSource?: "summary";
   createdAt: number;
   updatedAt: number;
   agentPreset: AgentPresetId;
@@ -146,6 +148,13 @@ export function createConversationStore(dataDir = defaultDataDir()) {
     flush(id: string) {
       const conversation = read(id);
       if (conversation) write(conversation);
+    },
+    /** Only the same conversation (not a later one reusing the id after a reset), titled once. */
+    setSummaryTitle(id: string, createdAt: number, title: string) {
+      const conversation = read(id);
+      if (!conversation || conversation.createdAt !== createdAt || conversation.titleSource) return false;
+      write({ ...conversation, title, titleSource: "summary" });
+      return true;
     },
     setCliSession(id: string, cliSession: StoredConversation["cliSession"]) {
       const conversation = read(id);

@@ -18,7 +18,10 @@ test("Pi resumes the exact native context, refuses missing history, and permits 
   const server = createServer(async (req, res) => {
     const chunks = [];
     for await (const chunk of req) chunks.push(chunk);
-    requests.push(Buffer.concat(chunks).toString());
+    const body = Buffer.concat(chunks).toString();
+    // The host's one-off title request for a new conversation is not an engine turn.
+    if (JSON.parse(body).stream === false) { res.end(JSON.stringify({ choices: [{ message: { content: "Native check" } }] })); return; }
+    requests.push(body);
     res.writeHead(200, { "content-type": "text/event-stream" });
     res.end(`data: ${JSON.stringify({ id: "local", object: "chat.completion.chunk", created: 1,
       model: "deepseek-flash", choices: [{ index: 0, delta: { role: "assistant", content: "Native context retained." }, finish_reason: "stop" }] })}\n\ndata: [DONE]\n\n`);

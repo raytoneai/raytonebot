@@ -22,7 +22,8 @@ export function runLimits(env: NodeJS.ProcessEnv = process.env): RunLimits {
 export function runtimeLogger(dataDir: string) {
   const file = join(dirname(dataDir), "logs", "runtime.jsonl");
   return (event: "run.started" | "run.ended" | "run.limit" | "run.checkpoint_failed" | "approval.resolved"
-    | "channel.connected" | "channel.connect_failed" | "channel.run_failed" | "channel.message_failed", fields: {
+    | "channel.connected" | "channel.connect_failed" | "channel.run_failed" | "channel.message_failed"
+    | "conversation.titled" | "conversation.title_failed", fields: {
     conversationId?: string; platform?: string; harness?: string; status?: string; durationMs?: number; outputBytes?: number;
     limit?: "duration" | "output" | "modelRequests"; decision?: string;
   }) => {
