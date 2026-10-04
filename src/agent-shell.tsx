@@ -116,6 +116,7 @@ import { artifactEventForReplay, refreshArtifactItems } from "./runtime/artifact
 import { displayTaskPlans } from "./runtime/taskPlan";
 import { historyFeedbackEvents, type HistoryNotice } from "./runtime/historyFeedback";
 import { hasComposerDraft, hasComposerState } from "./runtime/composerDraftStore";
+import { avatarActivity } from "./runtime/avatarActivity";
 import { lastRunOutcome, nextQueueStep, queuedPrompt, type QueuedMessage } from "./runtime/followUpQueue";
 import { useComposerDrafts } from "./runtime/useComposerDrafts";
 import { branchReplayEvents, useMessageBranch } from "./runtime/useMessageBranch";
@@ -209,7 +210,7 @@ export function AgentApp() {
   const [followProblems, setFollowProblems] = useState<Record<string, HistoryNotice | undefined>>({});
   const [historyListFailed, setHistoryListFailed] = useState(false);
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
-  const [celebrating, setCelebrating] = useState(false);
+  const [runOutcome, setRunOutcome] = useState<"success" | "error">();
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Mounted from the first open on, so later opens and closes keep their animation. */
   const [settingsMounted, setSettingsMounted] = useState(false);
@@ -309,21 +310,29 @@ export function AgentApp() {
   const liveApprovalTool = pendingApprovalTool && approvalKey !== dismissedApprovalKey
     ? pendingApprovalTool
     : undefined;
-  // A finished run gets a moment of the "done" face before settling back to idle.
+  // A finished run shows its outcome on the face for a moment before settling back to idle.
   // Only for the conversation on screen finishing, not for switching away from a running one.
   useEffect(() => {
     const previous = wasRunningRef.current;
     wasRunningRef.current = { id: activePiConversationId, running: piRunning };
     if (previous.id === activePiConversationId && previous.running && !piRunning) {
-      setCelebrating(true);
-      const timer = setTimeout(() => setCelebrating(false), 1400);
+      const outcome = lastRunOutcome(events)?.status;
+      if (outcome !== "success" && outcome !== "error") return;
+      setRunOutcome(outcome);
+      const timer = setTimeout(() => setRunOutcome(undefined), outcome === "error" ? 2400 : 1400);
       return () => clearTimeout(timer);
     }
   }, [piRunning, activePiConversationId]);
   const persona: AgentPersona = {
     kind: PRESET_AVATARS[agentSettings.presetId],
     name: copy.composer.agentSettings.presets[agentSettings.presetId].name,
-    state: liveApprovalTool || pendingQuestion ? "warning" : piRunning ? "waiting" : celebrating ? "success" : "idle",
+    state: avatarActivity({
+      running: piRunning,
+      awaitingUser: Boolean(liveApprovalTool || pendingQuestion),
+      outcome: runOutcome,
+      drafting: Boolean(composer.drafts[activePiConversationId]?.prompt.trim()),
+      timeline: displayViewModel.timeline,
+    }),
   };
   const approveLive = async (toolCallId: string, decision: ApprovalDecision) => {
     // Dismissed once the host has the answer, or says it is no longer pending (a stopped run

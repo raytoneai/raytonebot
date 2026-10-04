@@ -4,8 +4,15 @@
   flex: none;
   line-height: 0;
   border-radius: 999px;
-  background: #fff7e8;
+  /* A cool plate under a warm face: the cream skin would otherwise dissolve into white UI.
+     The hairline ring keeps the edge on tinted surfaces (sidebar, hover rows). */
+  background: #e6ecf6;
+  box-shadow: inset 0 0 0 1px rgb(12 36 88 / 0.1);
   overflow: hidden;
+}
+.preview-frame[data-appearance="dark"] .raytone-avatar {
+  background: #23304b;
+  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
 }
 
 .raytone-avatar[data-interactive="true"] {
@@ -13,6 +20,15 @@
   touch-action: none;
   overflow: visible;
   background: transparent;
+  box-shadow: none;
+}
+/* The large face stands free: a hairline contour from its own silhouette, and a soft shadow
+   below so it reads as lifted off the page rather than printed on it. */
+.raytone-avatar[data-interactive="true"] svg {
+  filter: drop-shadow(0 0 1px rgb(12 36 88 / 0.5)) drop-shadow(0 5px 9px rgb(12 36 88 / 0.14));
+}
+.preview-frame[data-appearance="dark"] .raytone-avatar[data-interactive="true"] svg {
+  filter: drop-shadow(0 6px 12px rgb(0 0 0 / 0.35));
 }
 
 .raytone-avatar[data-interactive="true"][data-dragging="true"] {
@@ -39,41 +55,133 @@
 
 .raytone-avatar .drag-group,
 .raytone-avatar .follow-group,
-.raytone-avatar .action-group {
+.raytone-avatar .action-group,
+.raytone-avatar .gesture-group {
   transform-box: view-box;
   transform-origin: 200px 235px;
 }
-.raytone-avatar .follow-group,
-.raytone-avatar .gaze { transition: transform 160ms var(--ease-out); }
-.raytone-avatar .action-group { transition: transform 240ms var(--ease-out); }
+/* Eyes jump, the head catches up: the head's transition is the slower one. */
+.raytone-avatar .gaze { transition: transform 140ms cubic-bezier(.2, .8, .2, 1); }
+.raytone-avatar .follow-group { transition: transform 420ms cubic-bezier(.2, .8, .2, 1); }
+.raytone-avatar .action-group,
+.raytone-avatar .thinking-gaze { transition: transform 240ms cubic-bezier(.2, .8, .2, 1); }
 .raytone-avatar .blink,
 .raytone-avatar .expression { transform-origin: 0 0; }
-.raytone-avatar .expression { transition: transform 240ms var(--ease-out); }
+.raytone-avatar .expression { transition: transform 200ms cubic-bezier(.2, .8, .2, 1); }
 .raytone-avatar .happy-eye { opacity: 0; }
 .raytone-avatar .open-eye,
 .raytone-avatar .happy-eye { transition: opacity 120ms ease; }
+.raytone-avatar .signal { transition: opacity 200ms ease; }
 
-.raytone-avatar[data-state="success"] .action-group { transform: translateY(-9px) rotate(-4deg); }
+/* Listening: leans in toward what the user is typing, eyes a little rounder. */
+.raytone-avatar[data-state="listening"] .action-group { transform: translateY(4px) rotate(-4.5deg); }
+.raytone-avatar[data-state="listening"] .expression { transform: scale(1.08); }
+
+/* Thinking: looks up and away, holding each side like turning a thought over. */
+.raytone-avatar[data-state="thinking"] .action-group { animation: raytone-ponder 3.2s cubic-bezier(.45, 0, .25, 1) infinite; }
+.raytone-avatar[data-state="thinking"] .thinking-gaze { animation: raytone-look-up 3.2s cubic-bezier(.45, 0, .25, 1) infinite; }
+.raytone-avatar[data-state="thinking"] .signal { animation: raytone-signal 1.6s ease-in-out infinite; }
+
+/* Working (a tool runs): narrowed, focused eyes scanning side to side. */
+.raytone-avatar[data-state="working"] .action-group { transform: translateY(9px); }
+.raytone-avatar[data-state="working"] .expression { transform: scale(1.05, 0.5); }
+.raytone-avatar[data-state="working"] .thinking-gaze { animation: raytone-scan 1.8s cubic-bezier(.65, 0, .35, 1) infinite; }
+.raytone-avatar[data-state="working"] .signal { animation: raytone-signal 0.8s ease-in-out infinite; }
+
+/* Reading (a file, a search): eyes run down the page line by line. */
+.raytone-avatar[data-state="reading"] .action-group { transform: translateY(6px) rotate(-4.5deg); }
+.raytone-avatar[data-state="reading"] .thinking-gaze { animation: raytone-read 2.4s linear infinite; }
+.raytone-avatar[data-state="reading"] .signal { animation: raytone-signal 1.2s ease-in-out infinite; }
+
+/* Editing a file: head down over the work, eyes stepping along like a caret, a small
+   bob for each keystroke burst; the brand marks blink like a cursor. */
+.raytone-avatar[data-state="editing"] .action-group { animation: raytone-type 0.9s cubic-bezier(.2, .8, .2, 1) infinite; }
+.raytone-avatar[data-state="editing"] .expression { transform: scale(1.02, 0.77); }
+.raytone-avatar[data-state="editing"] .thinking-gaze { animation: raytone-caret 2.7s steps(1, end) infinite; }
+.raytone-avatar[data-state="editing"] .signal { animation: raytone-signal 1s steps(2, jump-none) infinite; }
+
+/* Writing the answer: eyes on the user, an easy nod as it talks. */
+.raytone-avatar[data-state="writing"] .thinking-gaze { transform: translate(0px, 4px); }
+.raytone-avatar[data-state="writing"] .expression { transform: scale(1, 0.9); }
+.raytone-avatar[data-state="writing"] .action-group { animation: raytone-talk 1.4s cubic-bezier(.45, 0, .25, 1) infinite; }
+.raytone-avatar[data-state="writing"] .signal { animation: raytone-signal 1.6s ease-in-out infinite; }
+
+/* Asking (approval or a question): head tilted, wide eyes on the user. */
+.raytone-avatar[data-state="asking"] .action-group { animation: raytone-curious 2.6s cubic-bezier(.45, 0, .25, 1) infinite; }
+.raytone-avatar[data-state="asking"] .thinking-gaze { transform: translate(0px, 8px); }
+.raytone-avatar[data-state="asking"] .expression { transform: scale(1.17); }
+.raytone-avatar[data-state="asking"] .signal { animation: raytone-signal 0.9s steps(2, jump-none) infinite; }
+
+.raytone-avatar[data-state="success"] .action-group { transform: translateY(-8px) rotate(-6deg); }
 .raytone-avatar[data-state="success"] .open-eye { opacity: 0; }
 .raytone-avatar[data-state="success"] .happy-eye { opacity: 1; }
-.raytone-avatar[data-state="warning"] .action-group { transform: rotate(-8deg); }
-.raytone-avatar[data-state="warning"] .expression { transform: scale(1.1, 0.66); }
+
+/* Error: the shake is a gesture; afterwards the head droops and the eyes drop. */
+.raytone-avatar[data-state="error"] .action-group { transform: translateY(10px) rotate(7.5deg); }
+.raytone-avatar[data-state="error"] .thinking-gaze { transform: translate(-4px, 9px); }
+.raytone-avatar[data-state="error"] .expression { transform: scale(1.05, 0.65); }
+.raytone-avatar[data-state="error"] .signal { opacity: 0.3; }
+
 .raytone-avatar[data-state="sleep"] .action-group { transform: translateY(9px) rotate(8deg); }
 .raytone-avatar[data-state="sleep"] .expression { transform: scale(1.1, 0.12); }
-.raytone-avatar[data-state="waiting"] .action-group { animation: raytone-breathe 3.6s var(--ease-in-out) infinite; }
-.raytone-avatar[data-state="waiting"] .thinking-gaze { animation: raytone-thinking 2.8s var(--ease-in-out) infinite; }
-.raytone-avatar[data-state="waiting"] .signal { animation: raytone-signal 1.6s ease-in-out infinite; }
 .raytone-avatar[data-dragging="true"] .gaze,
 .raytone-avatar[data-dragging="true"] .follow-group { transition: none; }
 .raytone-avatar[data-hidden="true"] * { animation-play-state: paused !important; }
 
-@keyframes raytone-breathe { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-4px); } }
-@keyframes raytone-thinking { 0%, 100% { transform: translate(-5px, -3px); } 50% { transform: translate(5px, -3px); } }
+@keyframes raytone-ponder {
+  0%, 40% { transform: rotate(-6deg) translateY(-6px); }
+  50%, 90% { transform: rotate(6deg) translateY(-6px); }
+  100% { transform: rotate(-6deg) translateY(-6px); }
+}
+@keyframes raytone-look-up {
+  0%, 40% { transform: translate(-20px, -11px); }
+  50%, 90% { transform: translate(20px, -10px); }
+  100% { transform: translate(-20px, -11px); }
+}
+@keyframes raytone-scan {
+  0%, 30% { transform: translate(-22px, 3px); }
+  50%, 80% { transform: translate(22px, 3px); }
+  100% { transform: translate(-22px, 3px); }
+}
+@keyframes raytone-read {
+  0% { transform: translate(-21px, -8px); }
+  28% { transform: translate(21px, -8px); }
+  33% { transform: translate(-21px, 0px); }
+  61% { transform: translate(21px, 0px); }
+  66% { transform: translate(-21px, 8px); }
+  94% { transform: translate(21px, 8px); }
+  100% { transform: translate(-21px, -8px); }
+}
+@keyframes raytone-caret {
+  0% { transform: translate(-19px, 10px); }
+  15% { transform: translate(-11px, 10px); }
+  30% { transform: translate(-4px, 10px); }
+  45% { transform: translate(4px, 10px); }
+  60% { transform: translate(-6px, 10px); }
+  75% { transform: translate(1px, 10px); }
+  90% { transform: translate(10px, 10px); }
+}
+@keyframes raytone-type {
+  0%, 100% { transform: translateY(12px) rotate(-4.5deg); }
+  30% { transform: translateY(21px) rotate(-4.5deg); }
+  55% { transform: translateY(12px) rotate(-4.5deg); }
+}
+@keyframes raytone-talk {
+  0%, 100% { transform: translateY(0) rotate(0deg); }
+  25% { transform: translateY(9px) rotate(-4deg); }
+  50% { transform: translateY(0) rotate(0deg); }
+  75% { transform: translateY(6px) rotate(4deg); }
+}
+@keyframes raytone-curious {
+  0%, 100% { transform: rotate(-12deg); }
+  50% { transform: rotate(-7.5deg) translateY(-3px); }
+}
 @keyframes raytone-signal { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 
 @media (prefers-reduced-motion: reduce) {
   .raytone-avatar * { animation: none !important; transition: none !important; }
   .raytone-avatar .action-group,
+  .raytone-avatar .gesture-group,
   .raytone-avatar .follow-group,
   .raytone-avatar .gaze,
   .raytone-avatar .thinking-gaze { transform: none !important; }

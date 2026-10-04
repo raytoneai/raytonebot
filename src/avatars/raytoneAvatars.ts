@@ -53,9 +53,9 @@ export function avatarSVG(kind: AvatarKind): string {
       <path d="M186 243Q204 229 219 243M94 241L65 234M311 241L337 234"/></g>`;
   const dashes = [0, 1, 2].map(i => `<rect class="signal" x="${man ? 309 : 292 + i * 3}" y="${(man ? 218 : 150) + i * (man ? 12 : 17)}" width="${man ? 20 : 43 - i * 6}" height="${man ? 7 : 10}" rx="5" fill="${gold}" style="animation-delay:${i * 160}ms"/>`).join('');
   return `<svg viewBox="0 0 400 400" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-    <g class="drag-group"><g class="follow-group"><g class="action-group"><g transform="translate(0 -6) rotate(12 200 235) scale(.94)">
+    <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group"><g transform="translate(0 -6) rotate(12 200 235) scale(.94)">
       ${pony}${back}${face}${fringe}
       <g class="gaze"><g class="thinking-gaze">${eyes}</g></g>
       <g class="glasses">${glasses}</g><g class="brand-marks">${dashes}</g>
-    </g></g></g></g></svg>`;
+    </g></g></g></g></g></svg>`;
 }

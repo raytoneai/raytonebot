@@ -2,19 +2,88 @@ import { animate } from "motion";
 
 /**
  * Blink, gaze and state motion for a `avatarSVG()` element. Ported from the avatar study in
- * output/raytone-avatars/animated/motion.js; `interactive: false` skips every pointer
- * listener so the many small avatars in a transcript cost one blink timer each, not a
- * window-wide pointermove handler each.
+ * output/raytone-avatars/animated/motion.js, with the behaviour of agent-robot-avatar
+ * (CX-ArtLab): eyes that wander and glance between fixations, a head that lags the eyes, and a
+ * short gesture whenever the agent's activity changes. `interactive: false` skips every pointer
+ * listener so a small avatar costs a couple of timers, not a window-wide pointermove handler.
+ *
+ * Layers, outermost first: `.drag-group` (drag), `.follow-group` (head turn from gaze or
+ * pointer), `.action-group` (the state's pose, CSS), `.gesture-group` (one-shot gestures,
+ * WAAPI); eyes: `.gaze` (glances, pointer) > `.thinking-gaze` (state loops, CSS) > `.blink`.
  */
-export type AvatarState = "idle" | "waiting" | "success" | "warning" | "sleep";
+export type AvatarState =
+  | "idle"
+  | "listening"
+  | "thinking"
+  | "reading"
+  | "editing"
+  | "working"
+  | "writing"
+  | "asking"
+  | "success"
+  | "error"
+  | "sleep";
 
 export type AvatarMotion = {
   setState(next: AvatarState): void;
   destroy(): void;
 };
 
+/** States in which a turn is still in progress or waiting on the user. */
+const BUSY = new Set<AvatarState>(["thinking", "reading", "editing", "working", "writing", "asking"]);
+export const avatarBusy = (state: AvatarState) => BUSY.has(state);
+
 const clamp = (n: number, limit: number) => Math.max(-limit, Math.min(limit, n));
+const between = (min: number, max: number) => min + Math.random() * (max - min);
 const spring = { type: "spring", duration: 0.5, bounce: 0.2 } as const;
+const settle = "cubic-bezier(.2,.8,.2,1)";
+
+/** A short gesture as the activity changes; the pose itself is CSS on `.action-group`. */
+function gestureFor(previous: AvatarState, next: AvatarState): { frames: Keyframe[]; duration: number } | undefined {
+  if (avatarBusy(next) && next !== "asking" && !avatarBusy(previous)) {
+    // Sent: a small nod, "got it".
+    return { duration: 380, frames: [
+      { transform: "translateY(0px)" },
+      { transform: "translateY(14px) scale(1.01, 0.98)", offset: 0.45 },
+      { transform: "translateY(0px)" },
+    ] };
+  }
+  if (next === "asking") {
+    return { duration: 340, frames: [
+      { transform: "scale(1)" },
+      { transform: "translateY(-9px) scale(1.08)", offset: 0.4 },
+      { transform: "scale(1)" },
+    ] };
+  }
+  if (next === "success") {
+    return { duration: 640, frames: [
+      { transform: "translateY(0px) scale(1, 1)" },
+      { transform: "translateY(6px) scale(1.05, 0.93)", offset: 0.14 },
+      { transform: "translateY(-27px) scale(0.97, 1.04)", offset: 0.4 },
+      { transform: "translateY(0px) scale(1.04, 0.96)", offset: 0.66 },
+      { transform: "translateY(-6px) scale(1, 1)", offset: 0.82 },
+      { transform: "translateY(0px) scale(1, 1)" },
+    ] };
+  }
+  if (next === "error") {
+    return { duration: 560, frames: [
+      { transform: "translateX(0px) rotate(0deg)" },
+      { transform: "translateX(-14px) rotate(-3deg)", offset: 0.18 },
+      { transform: "translateX(12px) rotate(3deg)", offset: 0.4 },
+      { transform: "translateX(-8px) rotate(-1.5deg)", offset: 0.62 },
+      { transform: "translateX(4px) rotate(0deg)", offset: 0.82 },
+      { transform: "translateX(0px) rotate(0deg)" },
+    ] };
+  }
+  if (next === "listening" && previous === "idle") {
+    return { duration: 300, frames: [
+      { transform: "translateY(0px)" },
+      { transform: "translateY(-8px)", offset: 0.45 },
+      { transform: "translateY(0px)" },
+    ] };
+  }
+  return undefined;
+}
 
 export function mountAvatarMotion(root: HTMLElement, options: { interactive: boolean }): AvatarMotion {
   const abort = new AbortController();
@@ -23,38 +92,79 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
   const fineQuery = matchMedia("(hover: hover) and (pointer: fine)");
   const head = root.querySelector<SVGGElement>(".drag-group");
   const follow = root.querySelector<SVGGElement>(".follow-group");
+  const gesture = root.querySelector<SVGGElement>(".gesture-group");
   const gaze = root.querySelector<SVGGElement>(".gaze");
   const lids = [...root.querySelectorAll<SVGGElement>(".blink")];
   let state: AvatarState = "idle";
   let reduced = reduceQuery.matches;
   let blinkTimer: ReturnType<typeof setTimeout> | undefined;
+  let glanceTimer: ReturnType<typeof setTimeout> | undefined;
   let resetTimer: ReturnType<typeof setTimeout> | undefined;
+  let pointerAt = 0;
   let drag: { id: number; x: number; y: number; width: number; moved: boolean } | null = null;
   let release: { stop(): void } | undefined;
   let destroyed = false;
 
+  const still = () => destroyed || reduced || document.hidden;
   const stopTimers = () => {
     clearTimeout(blinkTimer);
+    clearTimeout(glanceTimer);
     clearTimeout(resetTimer);
   };
-  const centerGaze = () => {
-    if (gaze) gaze.style.transform = "translate(0px, 0px)";
-    if (follow) follow.style.transform = "rotate(0deg)";
+  const look = (x: number, y: number, turn = x / 3.5) => {
+    if (gaze) gaze.style.transform = `translate(${x}px, ${y}px)`;
+    if (follow) follow.style.transform = `translate(${x / 3}px, ${y / 4}px) rotate(${turn}deg)`;
+  };
+  const centerGaze = () => look(0, 0, 0);
+  const blink = () => {
+    if (state === "success" || state === "sleep") return;
+    for (const lid of lids) {
+      lid.animate(
+        [{ transform: "scaleY(1)" }, { transform: "scaleY(.08)" }, { transform: "scaleY(1)" }],
+        { duration: 150 + Math.random() * 60, easing: "cubic-bezier(.45,0,.25,1)" },
+      );
+    }
   };
   const queueBlink = () => {
     clearTimeout(blinkTimer);
-    if (destroyed || reduced || document.hidden || state === "sleep") return;
+    if (still() || state === "sleep") return;
     blinkTimer = setTimeout(() => {
-      if (state !== "success") {
-        for (const lid of lids) {
-          lid.animate(
-            [{ transform: "scaleY(1)" }, { transform: "scaleY(.08)" }, { transform: "scaleY(1)" }],
-            { duration: 180, easing: "cubic-bezier(.45,0,.25,1)" },
-          );
-        }
-      }
+      blink();
+      // Now and then a double blink, the way a person resets their eyes.
+      if (Math.random() < 0.18) setTimeout(() => { if (!still()) blink(); }, 260);
       queueBlink();
-    }, 2800 + Math.random() * 2600);
+    }, 2200 + Math.random() * 2800);
+  };
+  /**
+   * Idle eyes do not stare: they hold a point, then jump to the next one, and the head
+   * follows a little later (its transition is slower than the eyes'). Listening keeps the
+   * glances low and short, toward the composer the user is typing in.
+   */
+  const queueGlance = () => {
+    clearTimeout(glanceTimer);
+    if (still() || (state !== "idle" && state !== "listening")) return;
+    const listening = state === "listening";
+    glanceTimer = setTimeout(() => {
+      const pointerDriven = options.interactive && performance.now() - pointerAt < 1400;
+      if (!drag && !pointerDriven && (state === "idle" || state === "listening")) {
+        if (listening) look(between(-17, 17), between(6, 11), between(-3, 3));
+        else if (Math.random() < 0.3) centerGaze();
+        else {
+          const x = between(-22, 22), y = between(-9, 8);
+          // Occasionally a curious head tilt that the eyes do not explain.
+          look(x, y, Math.random() < 0.12 ? (x < 0 ? -8 : 8) : x / 3.5);
+        }
+        if (Math.random() < 0.22) setTimeout(() => { if (!still()) blink(); }, 40);
+      }
+      queueGlance();
+    }, listening ? between(500, 1300) : between(1100, 3200));
+  };
+  const playGesture = (previous: AvatarState, next: AvatarState) => {
+    if (!gesture || still() || !gesture.animate) return;
+    const plan = gestureFor(previous, next);
+    if (!plan) return;
+    for (const running of gesture.getAnimations()) running.cancel();
+    gesture.animate(plan.frames, { duration: plan.duration, easing: settle });
   };
   const endDrag = (cancelled = false) => {
     if (!drag || !head) return;
@@ -63,18 +173,22 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     root.dataset.dragging = "false";
     if (root.hasPointerCapture(previous.id)) root.releasePointerCapture(previous.id);
     release?.stop();
-    if (reduced || document.hidden || destroyed) head.style.transform = "none";
+    if (still()) head.style.transform = "none";
     else release = animate(head, { transform: "translate(0px, 0px) rotate(0deg) scale(1, 1)" }, spring);
     if (!cancelled && !previous.moved) setState("success");
   };
   const setState = (next: AvatarState) => {
     if (destroyed) return;
+    const previous = state;
     stopTimers();
     endDrag(true);
     state = next;
     root.dataset.state = next;
-    centerGaze();
+    if (next === "listening") look(0, 8, 0);
+    else centerGaze();
+    if (previous !== next) playGesture(previous, next);
     queueBlink();
+    queueGlance();
     if (next === "success") resetTimer = setTimeout(() => setState("idle"), 1400);
   };
   const syncReduced = () => {
@@ -88,6 +202,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
       centerGaze();
     }
     queueBlink();
+    queueGlance();
   };
 
   if (options.interactive && head) {
@@ -102,11 +217,13 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
         return;
       }
       if (!fineQuery.matches || event.pointerType === "touch" || state !== "idle" || !gaze || !follow) return;
+      pointerAt = performance.now();
       const bounds = root.getBoundingClientRect();
-      const x = clamp((event.clientX - bounds.left - bounds.width / 2) / (bounds.width / 2), 1);
-      const y = clamp((event.clientY - bounds.top - bounds.height / 2) / (bounds.height / 2), 1);
-      gaze.style.transform = `translate(${x * 7}px, ${y * 5}px)`;
-      follow.style.transform = `rotate(${x * 3}deg)`;
+      // Falls off with distance: a pointer across the window gets a glance, not a stare.
+      const reach = Math.max(bounds.width * 6, 480);
+      const dx = event.clientX - bounds.left - bounds.width / 2;
+      const dy = event.clientY - bounds.top - bounds.height / 2;
+      look(clamp(dx / reach, 1) * 22, clamp(dy / reach, 1) * 10);
     };
     root.addEventListener("pointerdown", (event) => {
       if (event.button !== 0 || !event.isPrimary || reduced) return;
@@ -123,7 +240,10 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     }, listen);
     root.addEventListener("pointercancel", () => endDrag(true), listen);
     root.addEventListener("lostpointercapture", () => endDrag(true), listen);
-    document.documentElement.addEventListener("pointerleave", centerGaze, listen);
+    document.documentElement.addEventListener("pointerleave", () => {
+      pointerAt = 0;
+      centerGaze();
+    }, listen);
     window.addEventListener("blur", () => {
       endDrag(true);
       centerGaze();
@@ -137,6 +257,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
       centerGaze();
     }
     queueBlink();
+    queueGlance();
   }, listen);
   reduceQuery.addEventListener("change", syncReduced, listen);
   root.dataset.hidden = String(document.hidden);

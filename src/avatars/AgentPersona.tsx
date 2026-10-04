@@ -4,7 +4,7 @@ import { mountAvatarMotion, type AvatarMotion, type AvatarState } from "./avatar
 import { avatarSVG, type AvatarKind } from "./raytoneAvatars";
 import "./raytoneAvatar.css";
 
-export type { AvatarState } from "./avatarMotion";
+export { avatarBusy, type AvatarState } from "./avatarMotion";
 export type { AvatarKind } from "./raytoneAvatars";
 
 /** The agent currently answering: its face, display name and live state. */

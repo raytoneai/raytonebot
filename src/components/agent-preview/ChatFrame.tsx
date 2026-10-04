@@ -1,5 +1,5 @@
 import type { AgentUXTimelineItem, AgentUXToolTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
-import { AgentAvatar, useAgentPersona } from "../../avatars/AgentPersona";
+import { AgentAvatar, avatarBusy, useAgentPersona } from "../../avatars/AgentPersona";
 import { useShellExtras } from "../shell/ShellExtras";
 import { cloneElement, type ReactElement } from "react";
 import { useTranscriptScroll } from "../../runtime/useTranscriptScroll";
@@ -321,7 +321,7 @@ function TimelineItem({
       const isAssistant = item.role === "assistant";
       // History (opened or restored) shows at once; an answer that appears during a run types out,
       // even when a short one is already finished by the time it reaches the screen.
-      const settled = item.status === "done" && persona?.state !== "waiting" && persona?.state !== "warning";
+      const settled = item.status === "done" && !(persona && avatarBusy(persona.state));
       const text = item.text || copy.chat.message.streaming;
       return (
         <article className="message-bubble lane-message" data-role={item.role} data-message-id={item.id}>
