@@ -76,6 +76,12 @@ export class ChannelStore {
     return next;
   }
 
+  /** Puts back settings read earlier with `get`, credentials included (undoing a failed connect). */
+  restore(platform: ChannelPlatform, settings: ChannelSettings) {
+    this.data.channels[platform] = normalize(platform, settings);
+    this.save();
+  }
+
   conversationFor(chatKey: string): string | undefined {
     return this.data.chats[chatKey];
   }

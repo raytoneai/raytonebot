@@ -54,7 +54,8 @@ type ChannelBridgeOptions = {
   store: ChannelStore;
   settings: () => ChannelSettings;
   defaultPermissionMode: PiPermissionMode;
-  onDenied(sender: { id: string; name?: string }): void;
+  /** May return the reply to send instead of the usual one (a setup in progress, say). */
+  onDenied(sender: { id: string; name?: string }): string | undefined | void;
   log?: ReturnType<typeof runtimeLogger>;
 };
 
@@ -82,9 +83,9 @@ export class ChannelBridge {
     if (!text || (message.chatType === "group" && !message.mentioned)) return;
     const settings = this.options.settings();
     if (settings.access === "allowlist" && !settings.allowUsers.includes(message.senderId)) {
-      this.options.onDenied({ id: message.senderId, name: message.senderName });
+      const reply = this.options.onDenied({ id: message.senderId, name: message.senderName });
       if (message.chatType === "direct") {
-        await message.reply.send(`你还没有使用权限。请在 RaytoneBot 设置 → IM 频道中允许这个用户 ID：\n${message.senderId}`);
+        await message.reply.send(reply || `你还没有使用权限。请在 RaytoneBot 设置 → IM 频道中允许这个用户 ID：\n${message.senderId}`);
       }
       return;
     }

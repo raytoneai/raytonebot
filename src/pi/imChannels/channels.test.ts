@@ -87,3 +87,72 @@ test("the channels endpoint saves settings, reports status, and never returns a 
     rmSync(dir, { recursive: true, force: true });
   }
 });
+
+test("connect_channel: the token goes from the card to the channel store, never into events, transcript or the tool result", async () => {
+  const { createPiHttpHost } = await import("../piHost.ts");
+  const dir = mkdtempSync(join(tmpdir(), "rtb-setup-"));
+  const TOKEN = "123456789:AAbbCCddEEffGGhhIIjjKKllMMnnOOppQQr";
+  let deliver: ((message: InboundMessage) => void) | undefined;
+  const fail = { start: async () => { throw new Error("unused"); }, stop: () => {} };
+  const factories: ConnectorFactories = {
+    telegram: (input) => ({ async start() {
+      if (input.credentials.botToken !== TOKEN) throw new Error("Telegram getMe: Unauthorized");
+      deliver = input.onMessage;
+      return { botName: "@rtb_bot" };
+    }, stop: () => {} }),
+    feishu: () => fail, dingtalk: () => fail, wecom: () => fail,
+  };
+  const results: unknown[] = [];
+  const host = createPiHttpHost({ cwd: dir, dataDir: dir, channelFactories: factories, bridgeFactory: async (input) => ({
+    subscribe: () => () => undefined,
+    async prompt(text) { if (text.includes("connect")) results.push(await input.onChannelSetup!({ toolCallId: "t1", platform: "telegram", signal: new AbortController().signal })); },
+    abort: async () => undefined, dispose: () => undefined, configure: async () => undefined,
+    state: async () => ({ models: [], tools: [] }) as never, newSession: async () => undefined,
+  }) });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+  const answer = (body: Record<string, unknown>) => fetch(`${base}/channels/setup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const events: { type: string; payload: Record<string, any> }[] = [];
+  try {
+    const run = host.controller.runPrompt({ conversationId: "web-1", requestId: "r1", prompt: "connect my telegram" }, (event) => events.push(event as never));
+    await tick();
+    const card = () => events.filter((event) => event.type === "run.awaiting_input").at(-1)!.payload;
+    assert.equal(card().channelSetup.stage, "credentials");
+    const requestId = card().requestId;
+    const wrong = await answer({ conversationId: "web-1", requestId, action: "submit", fields: { botToken: "1:bad" } });
+    assert.equal(wrong.status, 400);
+    assert.match(card().channelSetup.error, /Unauthorized/);
+    const afterWrong = (await (await fetch(`${base}/channels`)).json()).channels.find((entry: { platform: string }) => entry.platform === "telegram");
+    assert.deepEqual([afterWrong.enabled, afterWrong.secretsSet.botToken], [false, false], "a failed token leaves the earlier settings in place");
+    assert.equal((await answer({ conversationId: "other", requestId, action: "submit", fields: { botToken: TOKEN } })).status, 409, "another conversation cannot answer");
+    assert.equal((await answer({ conversationId: "web-1", requestId, action: "submit", fields: { botToken: TOKEN } })).status, 200);
+    assert.deepEqual([card().channelSetup.stage, card().channelSetup.botName], ["pairing", "@rtb_bot"]);
+
+    const replies: string[] = [];
+    deliver!({ messageId: "m1", chatId: "7", chatType: "direct", senderId: "7", senderName: "@ann", text: "hi", mentioned: true,
+      reply: { send: async (text) => { replies.push(text); } } });
+    await tick();
+    assert.match(replies[0], /允许/);
+    assert.deepEqual(card().channelSetup.candidate, { id: "7", name: "@ann" });
+    assert.equal((await answer({ conversationId: "web-1", requestId, action: "allow" })).status, 200);
+    await run;
+    assert.deepEqual(results, [{ status: "connected", platform: "telegram", bot: "@rtb_bot", allowedUser: "@ann" }]);
+    const channel = (await (await fetch(`${base}/channels`)).json()).channels.find((entry: { platform: string }) => entry.platform === "telegram");
+    assert.deepEqual([channel.enabled, channel.allowUsers, channel.secretsSet.botToken], [true, ["7"], true]);
+    assert.ok(events.some((event) => event.type === "tool.call.progress" && event.payload.inputRequestId === requestId), "the card closes");
+    const transcript = JSON.stringify(host.controller.getConversation("web-1"));
+    assert.ok(!JSON.stringify(events).includes(TOKEN) && !transcript.includes(TOKEN) && !JSON.stringify(results).includes(TOKEN));
+
+    // A token typed into chat is cut before it is saved or reaches the model.
+    await host.controller.runPrompt({ conversationId: "web-2", requestId: "r2", prompt: `my token ${TOKEN}` }, () => {});
+    assert.ok(!JSON.stringify(host.controller.getConversation("web-2")).includes(TOKEN));
+    // An IM chat gets no card: credentials are never collected there.
+    await host.controller.runPrompt({ conversationId: "im-telegram-x", requestId: "r3", prompt: "connect" }, () => {});
+    assert.equal((results.at(-1) as { status: string }).status, "open_in_browser");
+  } finally {
+    host.dispose();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    rmSync(dir, { recursive: true, force: true });
+  }
+});

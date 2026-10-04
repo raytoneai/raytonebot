@@ -40,6 +40,23 @@ export type ChannelView = {
   denied: { id: string; name?: string; at: number }[];
 };
 
+/**
+ * One `connect_channel` request as the chat shows it. Never holds a credential: the token is
+ * posted by the browser straight to the host's channel API.
+ */
+export type ChannelSetupState = {
+  platform: ChannelPlatform;
+  /** credentials: waiting for the token. pairing: connected, waiting for the owner's first message. */
+  stage: "credentials" | "pairing";
+  botName?: string;
+  /** Who messaged the new bot; the owner confirms it is them before they are allowlisted. */
+  candidate?: { id: string; name?: string };
+  error?: string;
+};
+
+/** Platforms `connect_channel` can set up from chat; the rest stay in Settings for now. */
+export const CHAT_SETUP_PLATFORMS: readonly ChannelPlatform[] = ["telegram"];
+
 export type ChannelPatch = {
   enabled?: boolean;
   /** Empty string keeps a saved secret; non-secret fields are replaced as given. */

@@ -215,6 +215,12 @@ export async function updateImChannel(platform: ChannelPlatform, patch: ChannelP
   return body.channels;
 }
 
+/** Answers a `connect_channel` card. `fields` (the token) goes to the channel store only. */
+export async function answerChannelSetup(conversationId: string, requestId: string, action: "submit" | "allow" | "reject" | "skip",
+  fields?: Record<string, string>, fetcher: typeof fetch = fetch): Promise<void> {
+  await requestJson(fetcher, `${PI_API_PREFIX}/channels/setup`, { conversationId, requestId, action, ...(fields ? { fields } : {}) }, AbortSignal.timeout(30_000));
+}
+
 /** Stops one conversation's run; other conversations keep running. */
 export async function abortPiRun(conversationId?: string, fetcher: typeof fetch = fetch, runId?: string): Promise<void> {
   await requestJson(fetcher, `${PI_API_PREFIX}/abort`, { conversationId, runId }, AbortSignal.timeout(15_000));

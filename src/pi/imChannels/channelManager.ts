@@ -19,6 +19,11 @@ const defaultFactories = async (): Promise<ConnectorFactories> => {
 export type ChannelManager = {
   list(): ChannelView[];
   update(platform: ChannelPlatform, patch: ChannelPatch): ChannelView[];
+  /** Saves and turns the channel on, resolving once it is connected (rejects with the reason). */
+  connect(platform: ChannelPlatform, patch: ChannelPatch): Promise<ChannelView>;
+  allow(platform: ChannelPlatform, userId: string): ChannelView;
+  /** Hears senders the allowlist turns away; a listener's text replaces the usual reply. */
+  watchDenied(platform: ChannelPlatform, listener: (sender: { id: string; name?: string }) => string | undefined): () => void;
   dispose(): void;
 };
 
@@ -32,8 +37,14 @@ export function createChannelManager(options: {
 }): ChannelManager {
   const store = new ChannelStore(join(options.dataDir, "im-channels.json"));
   const factories = options.factories ? Promise.resolve(options.factories) : defaultFactories();
-  type Slot = { connector?: ChannelConnector; generation: number; status: ChannelView["status"]; denied: ChannelView["denied"] };
-  const slots = Object.fromEntries(CHANNEL_PLATFORMS.map((platform) => [platform, { generation: 0, status: { state: "off" }, denied: [] } as Slot])) as Record<ChannelPlatform, Slot>;
+  type Slot = {
+    connector?: ChannelConnector; generation: number; status: ChannelView["status"]; denied: ChannelView["denied"];
+    /** The current connection attempt; settles once connected or failed. */
+    ready: Promise<void>;
+    watchers: Set<(sender: { id: string; name?: string }) => string | undefined>;
+  };
+  const slots = Object.fromEntries(CHANNEL_PLATFORMS.map((platform) => [platform,
+    { generation: 0, status: { state: "off" }, denied: [], ready: Promise.resolve(), watchers: new Set() } as Slot])) as Record<ChannelPlatform, Slot>;
   const bridges = Object.fromEntries(CHANNEL_PLATFORMS.map((platform) => [platform, new ChannelBridge({
     platform,
     runtime: options.runtime,
@@ -44,6 +55,9 @@ export function createChannelManager(options: {
     onDenied(sender) {
       const slot = slots[platform];
       slot.denied = [{ ...sender, at: Date.now() }, ...slot.denied.filter((entry) => entry.id !== sender.id)].slice(0, 10);
+      let reply: string | undefined;
+      for (const watcher of slot.watchers) reply = watcher(sender) ?? reply;
+      return reply;
     },
   })])) as Record<ChannelPlatform, ChannelBridge>;
 
@@ -59,7 +73,7 @@ export function createChannelManager(options: {
     }
     slot.status = { state: "connecting", since: Date.now() };
     const current = () => slot.generation === generation;
-    void factories.then(async (factory) => {
+    slot.ready = factories.then(async (factory) => {
       if (!current()) return;
       const connector = factory[platform]({
         credentials: settings.credentials,
@@ -118,6 +132,27 @@ export function createChannelManager(options: {
       if (before.enabled !== after.enabled || JSON.stringify(before.credentials) !== JSON.stringify(after.credentials)
         || (after.enabled && slots[platform].status.state === "error" && patch.enabled === true)) restart(platform);
       return CHANNEL_PLATFORMS.map(view);
+    },
+    async connect(platform, patch) {
+      const before = store.get(platform);
+      store.update(platform, { ...patch, enabled: true });
+      restart(platform);
+      await slots[platform].ready;
+      const result = view(platform);
+      if (result.status.state === "connected") return result;
+      // A wrong token must not replace one that worked: put the previous settings back.
+      store.restore(platform, before);
+      restart(platform);
+      throw new Error(result.status.error ?? "The channel did not connect.");
+    },
+    allow(platform, userId) {
+      const settings = store.get(platform);
+      if (!settings.allowUsers.includes(userId)) store.update(platform, { allowUsers: [...settings.allowUsers, userId] });
+      return view(platform);
+    },
+    watchDenied(platform, listener) {
+      slots[platform].watchers.add(listener);
+      return () => slots[platform].watchers.delete(listener);
     },
     dispose() {
       for (const slot of Object.values(slots)) {

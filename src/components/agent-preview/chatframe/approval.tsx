@@ -13,6 +13,8 @@ export type InlineApprovalPromptOption = {
   title: string;
   body?: string;
   answerPlaceholder?: boolean;
+  /** The answer field is a credential: masked, never autocompleted or spell-checked. */
+  secret?: boolean;
   disabled?: boolean;
   selected?: boolean;
   onSelect?: () => void;
@@ -89,7 +91,9 @@ export function InlineApprovalPrompt({
             {option.answerPlaceholder ? (
               <input
                 className="inline-approval-answer"
-                type="text"
+                type={option.secret ? "password" : "text"}
+                autoComplete={option.secret ? "off" : undefined}
+                spellCheck={option.secret ? false : undefined}
                 maxLength={4000}
                 value={answer}
                 placeholder={option.title}

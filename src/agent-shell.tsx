@@ -57,6 +57,8 @@ import type { TranscriptScroll } from "./runtime/useTranscriptScroll";
 import { InlineApprovalPrompt } from "./components/agent-preview/chatframe/approval";
 import { pendingUserInput, userInputEventsForReplay } from "./runtime/userInput";
 import { useUserInput } from "./runtime/useUserInput";
+import { pendingChannelSetup } from "./runtime/channelSetup";
+import { useChannelSetup } from "./runtime/useChannelSetup";
 import { approvalRequestKey } from "./runtime/approvalSubmission";
 import { approvalForReplay, identityEventForReplay } from "./runtime/replayIdentity";
 import { questionCopy } from "./i18n/copy/questions";
@@ -268,6 +270,8 @@ export function AgentApp() {
     : historyProblem ? historyCopy.historyFailed : historyListFailed ? historyCopy.listFailed : undefined);
   const pendingQuestion = useMemo(() => pendingUserInput(events), [events]);
   const questionProps = useUserInput(pendingQuestion, activePiConversationId, locale);
+  const pendingSetup = useMemo(() => pendingChannelSetup(events), [events]);
+  const setupProps = useChannelSetup(pendingSetup, activePiConversationId, locale);
   const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(historyFeedbackEvents(events, activePiConversationId, historyMessage), questionCopy[locale].skipped))
     .map(identityEventForReplay).map(artifactEventForReplay), [events, activePiConversationId, historyMessage, locale]);
   // Render the selected history immediately; an effect replay exposes the previous branch for one render.
@@ -340,6 +344,10 @@ export function AgentApp() {
   const userInputOverlay = questionProps ? (
     <div className="preview-approval-overlay" data-preview-region="approval-overlay" data-approval-kind="user-input">
       <InlineApprovalPrompt key={JSON.stringify([activePiConversationId, pendingQuestion?.requestId])} {...questionProps} />
+    </div>
+  ) : setupProps ? (
+    <div className="preview-approval-overlay" data-preview-region="approval-overlay" data-approval-kind="channel-setup">
+      <InlineApprovalPrompt key={JSON.stringify([activePiConversationId, pendingSetup?.requestId, pendingSetup?.stage, pendingSetup?.candidate?.id])} {...setupProps} />
     </div>
   ) : null;
   const externalApprovalOverlay = liveApprovalTool && activeProject.toolCalls.approval === "hidden" ? (

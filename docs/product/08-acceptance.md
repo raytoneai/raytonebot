@@ -636,3 +636,9 @@
 - 真实 DeepSeek（本机 5188，临时对话测后删除）："这个产品是什么""怎么连接飞书""agent 运行在哪里"均零工具调用、成功结束，答案与本机部署（本机模式、`/tmp/raytone-demo-workspace` 路径）一致；飞书步骤与设置页一致。菜单名改为中英并列以匹配界面。
 - 瘦身（同日）：角色说明、写作规则、FAQ、默认 SOUL.md 与 AGENTS.md 改为精简英语并去重；每角色 4.6 → 3.2 KB，AGENTS.md 547 → 291 B；未改过的旧中文 SOUL.md 与旧 AGENTS.md 自动更新。153 项测试通过；真实 DeepSeek "hello""怎么连接飞书""权限模式区别"零工具、答案正确。
 - 云端（同日）：`8adbb06` 部署到 `id705on7k0a1ya1d90icj`，部署前备份 `backups/id705on7k0a1ya1d90icj-20261004-221143-774780.tgz`；自检全过，云端 SOUL.md 已换为英文默认。真实 DeepSeek "hello""怎么连接飞书""agent 运行在哪里"零工具、成功；运行位置答为云沙箱与 `/home/user/workspace` 路径。发现一处措辞误差：模型把"key 在服务器"理解成"不在沙箱里"（实际在沙箱内、仅 bot 可读），待改 FAQ 措辞。
+
+## AW 组：聊天中连接 Telegram（2026-10-04，工作树）
+
+- 154 项测试：工具→卡片→错误 token 400 且卡片显示原因、恢复原设置→跨会话答复 409→正确 token 连接→新机器人收到私聊后卡片显示候选、该用户收到"回网页点允许"→允许后工具结果仅含状态/机器人/用户名、白名单加入→事件、对话记录、工具结果均不含 token；对话中粘贴的 token 存档前打码；IM 会话返回 open_in_browser。`check:local` 增加 `connect_channel`（10 个工具）。
+- 真实链路：独立 5199 实例 + 真实 DeepSeek + headless Chromium：对 Raer 说"帮我连接 Telegram"，Raer 一句话说明 @BotFather 后调用 `connect_channel`，卡片为密码输入并说明不经模型；假 token 显示"未连接 · Telegram getMe: Unauthorized"；侧栏显示"等你确认"。
+- 未做：真实 token 的配对全流程（需用户的机器人）、云端部署、手机宽度截图。

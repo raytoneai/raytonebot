@@ -52,6 +52,9 @@ import type { UserInputRequest } from "./userInputTool.ts";
 import type { UserAnswers } from "../runtime/userInput.ts";
 import { runLimits, runtimeLogger, type RunLimits } from "./hostOperations.ts";
 import { createChannelManager, type ConnectorFactories } from "./imChannels/channelManager.ts";
+import { ChannelSetupError, createChannelSetup, type ChannelSetupResult, type ChannelSetupRun } from "./imChannels/channelSetup.ts";
+import type { ChannelSetupRequest } from "./imChannels/connectChannelTool.ts";
+import { redactCredentials } from "./imChannels/redactCredentials.ts";
 import { CHANNEL_PLATFORMS, type ChannelPatch, type ChannelPlatform } from "./imChannels/types.ts";
 import { createModelGateway } from "./runtime/modelGateway.ts";
 import { isolatePiTool } from "./runtime/isolatedPiTools.ts";
@@ -84,6 +87,8 @@ export type PiBridgeFactory = (input: {
   /** Where this conversation's Pi session lives on disk; in memory when omitted. */
   sessionDir?: string;
   onUserInput(request: UserInputRequest): Promise<UserAnswers>;
+  /** `connect_channel`: absent when the host has no channel setup (tests, previews). */
+  onChannelSetup?(request: ChannelSetupRequest): Promise<ChannelSetupResult>;
 }) => Promise<PiSessionBridge>;
 
 export type PiRuntimeController = {
@@ -130,6 +135,8 @@ export function createPiRuntimeController(options: {
   store?: ConversationStore;
   bridgeFactory?: PiBridgeFactory;
   limits?: RunLimits;
+  /** Connecting an IM channel from chat; the host binds it to its channel manager. */
+  channelSetup?: (run: ChannelSetupRun) => Promise<ChannelSetupResult>;
 }): PiRuntimeController {
   const { cwd } = options;
   const dataDir = options.dataDir ?? defaultDataDir();
@@ -241,6 +248,14 @@ export function createPiRuntimeController(options: {
       if (pending && answers === undefined) adapter.apply({ type: "user_input_resolved", requestId: pending.requestId, toolCallId });
     }
   };
+  const setupChannel = (conversationId: string, { toolCallId, platform, signal }: ChannelSetupRequest) => {
+    const adapter = runs.get(conversationId)?.adapter;
+    if (!adapter || !options.channelSetup) throw new Error("Channel setup is not available in this run.");
+    return options.channelSetup({ conversationId, platform, signal,
+      announce: (requestId, state) => adapter.apply({ type: "channel_setup", requestId, toolCallId, state }),
+      resolved: (requestId) => adapter.apply({ type: "channel_setup_resolved", requestId, toolCallId }),
+    });
+  };
   /** A run registers how to stop it once it has started; a stop that arrived earlier applies now. */
   const registerStop = async (conversationId: string, adapter: PiEventAdapter, stop: () => Promise<void>) => {
     const slot = runs.get(conversationId);
@@ -266,7 +281,8 @@ export function createPiRuntimeController(options: {
       bridgePromises.set(id, existing);
       return existing;
     }
-    const created = bridgeFactory({ cwd, approvalGate: gateFor(id), sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)), onUserInput: (request) => askUser(id, request) }).catch((error) => {
+    const created = bridgeFactory({ cwd, approvalGate: gateFor(id), sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)), onUserInput: (request) => askUser(id, request),
+      ...(options.channelSetup ? { onChannelSetup: (request: ChannelSetupRequest) => setupChannel(id, request) } : {}) }).catch((error) => {
       bridgePromises.delete(id);
       throw error;
     });
@@ -600,7 +616,7 @@ export function createPiRuntimeController(options: {
       return state(conversationId);
     },
     async runPrompt(input, onEvent, options) {
-      const prompt = input.prompt?.trim();
+      const prompt = input.prompt?.trim() ? redactCredentials(input.prompt.trim()) : undefined;
       if (!prompt) throw new Error("Pi prompt is empty.");
       const conversationId = normalizeConversationId(input.conversationId);
       input = { ...input, requestId: input.requestId ?? `run_${randomUUID()}` };
@@ -780,10 +796,13 @@ export function createPiHttpHost(options: {
 }) {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: options.cwd });
   const privatePaths = [options.dataDir ?? defaultDataDir()];
-  const controller = createPiRuntimeController({ ...options, layout });
+  // Bound below: the setup needs the channel manager, which needs the controller.
+  let channelSetup: ReturnType<typeof createChannelSetup> | undefined;
+  const controller = createPiRuntimeController({ ...options, layout, channelSetup: (run) => channelSetup!.run(run) });
   const dataDir = options.dataDir ?? defaultDataDir();
   // Only when something talks to this host; the vite plugin creates it on the first request.
   const channels = createChannelManager({ runtime: controller, dataDir, defaultPermissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir), factories: options.channelFactories });
+  channelSetup = createChannelSetup(channels);
 
   return {
     controller,
@@ -834,6 +853,23 @@ export function createPiHttpHost(options: {
         }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/channels`) {
           sendJson(res, 200, { channels: channels.list() });
+          return true;
+        }
+        if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/channels/setup`) {
+          // Carries the bot token: answered from the channel store, never logged or put in events.
+          const body = await readJson(req);
+          const action = body.action;
+          const conversationId = stringField(body, "conversationId"), requestId = stringField(body, "requestId");
+          if (!conversationId || !requestId || (action !== "submit" && action !== "allow" && action !== "reject" && action !== "skip")) {
+            sendJson(res, 400, { error: "conversationId, requestId and a valid action are required." });
+          } else {
+            try {
+              sendJson(res, 200, { state: await channelSetup.answer(normalizeConversationId(conversationId), requestId, action, channelPatch(body).fields) ?? null });
+            } catch (error) {
+              if (!(error instanceof ChannelSetupError)) throw error;
+              sendJson(res, error.status, { error: error.message });
+            }
+          }
           return true;
         }
         const channelMatch = url.pathname.match(new RegExp(`^${PI_API_PREFIX}/channels/([a-z]+)$`));
@@ -1050,11 +1086,13 @@ async function createDefaultPiBridge(input: {
   sessionId?: string | null; hasHistory: boolean; onSessionId(id: string, beforeEntryId: string | null): void;
   branch?: { sessionDir: string; sessionId: string; entryId: string };
   onUserInput(request: UserInputRequest): Promise<UserAnswers>;
+  onChannelSetup?(request: ChannelSetupRequest): Promise<ChannelSetupResult>;
   modelLease(provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic"): Promise<{ baseUrl: string; apiKey: string; revoke(): void }>;
 }): Promise<PiSessionBridge> {
   const pi = await import("@earendil-works/pi-coding-agent");
   const { planTool } = await import("./planTool.ts");
   const { userInputTool } = await import("./userInputTool.ts");
+  const { connectChannelTool } = await import("./imChannels/connectChannelTool.ts");
   const { InMemoryCredentialStore } = await import("@earendil-works/pi-ai");
   const modelRuntime = await pi.ModelRuntime.create({
     allowModelNetwork: false,
@@ -1088,6 +1126,7 @@ async function createDefaultPiBridge(input: {
       pi.createLsToolDefinition(input.cwd),
     ].map((definition) => guardTool(isolatePiTool(definition, input.cwd), input.approvalGate)) as ToolDefinition<any, any, any>[];
     definitions.push(planTool, userInputTool(input.onUserInput));
+    if (input.onChannelSetup) definitions.push(connectChannelTool(input.onChannelSetup));
     const result = await pi.createAgentSession({
       cwd: input.cwd,
       modelRuntime,

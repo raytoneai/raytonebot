@@ -68,7 +68,7 @@ function setup(access: "allowlist" | "open" = "open") {
   const fake = fakeRuntime();
   const denied: string[] = [];
   const bridge = new ChannelBridge({ platform: "telegram", runtime: fake.runtime, store, settings: () => store.get("telegram"),
-    defaultPermissionMode: "request", onDenied: (sender) => denied.push(sender.id) });
+    defaultPermissionMode: "request", onDenied: (sender) => { denied.push(sender.id); } });
   return { ...fake, dir, store, bridge, denied, cleanup: () => rmSync(dir, { recursive: true, force: true }) };
 }
 
