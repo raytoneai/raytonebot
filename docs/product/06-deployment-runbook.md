@@ -54,7 +54,7 @@ $S restore FILE      # 推回沙箱后运行 deploy.py --skip-build
 
 备份应在任务空闲时执行：严格读取、tar 失败及 gzip 校验会阻止损坏包被当作成功，但这不是跨文件事务快照。`data` 与 `workspace` 必须存在；CLI 原生目录可缺省，覆盖旧 `/home/user` 及隔离后的 `/home/raytone-agent` 下 `.claude/projects`、`.claude/tasks`、`.codex/sessions`。Claude task id 对应的任务文件必须与 session 一起迁移；只恢复产品计划快照不能恢复原生任务状态。包不包含 env、CLI 登录凭据或整个 home。自定义 `CODEX_HOME` / `CLAUDE_CONFIG_DIR` 需另行迁移。
 
-恢复先验证路径、链接与归档完整性并暂存，再停止 supervisor、cloud-preview 及其子进程，替换包内目录；替换失败回滚。独立 Claude/Codex 进程存在时拒绝恢复，需先停止。备份 worker 使用远端 `sudo -n` 读取不同 UID 的会话并停止写入进程，恢复按目录重设 bot/Agent 的 owner 和工作区共享 group。新实例恢复隔离后的包前，先部署以建立 Agent 系统用户。旧包不含 CLI 目录时保留目标中的这些目录；新旧原生会话目录都有非空内容时迁移拒绝覆盖，需人工决定保留哪份。需要远端 Python 支持 `tarfile.data_filter`（模板已实测支持）。新实例仍须单独配置模型 key/访问密码。2026-10-04 已把独立 UID 版 source 备份恢复到另一个测试实例，验证原生 session IDs、输出文件、bot/Agent 目录 owner 一致，三个引擎在新进程无工具续接旧口令全部通过；操作前两个实例的原始备份均已保留，生产实例未覆盖。
+恢复后被替换的数据保留在 `/home/user/.rtb-restore-previous`（root 所有、0700，Agent 不可读；取回需 `sudo`），下一次恢复时覆盖。恢复先验证路径、链接与归档完整性并暂存，再停止 supervisor、cloud-preview 及其子进程，替换包内目录；替换失败回滚。独立 Claude/Codex 进程存在时拒绝恢复，需先停止。备份 worker 使用远端 `sudo -n` 读取不同 UID 的会话并停止写入进程，恢复按目录重设 bot/Agent 的 owner 和工作区共享 group。新实例恢复隔离后的包前，先部署以建立 Agent 系统用户。旧包不含 CLI 目录时保留目标中的这些目录；新旧原生会话目录都有非空内容时迁移拒绝覆盖，需人工决定保留哪份。需要远端 Python 支持 `tarfile.data_filter`（模板已实测支持）。新实例仍须单独配置模型 key/访问密码。2026-10-04 已把独立 UID 版 source 备份恢复到另一个测试实例，验证原生 session IDs、输出文件、bot/Agent 目录 owner 一致，三个引擎在新进程无工具续接旧口令全部通过；操作前两个实例的原始备份均已保留，生产实例未覆盖。
 
 ## 部署（2026-10-03 起用脚本）
 

@@ -570,3 +570,15 @@
 - 边界：本轮只保证预览不再改写收到的产物文本；原有 100,000 字符事件上限及截断提示不变，显式文件入口读取当前工作文件，不是历史文件快照。未新增通用表单、action 回传、跨实例产物历史或外部模型验收；未提交、推送或部署，整体 95% 未达到。
 
 清理：确认无运行后退出独立主机，私有测试目录已删除、5237 已释放；两张验收页关闭，临时视口还原。
+
+## 审查修复云端验收（2026-10-04）
+
+- 测试实例 `i20iqwm9s8me1809e9tw6`（独立 state dir），部署 `main` @ `4b79813` 前后各备份一次；生产实例未改动，验收后已暂停。
+- 部署自检通过（鉴权/外站/health/沙箱模式/隔离），三引擎可用：Claude Code 2.1.267、Codex 0.154.0、Pi。
+- `check-isolation.mjs`（含新增 home 不可列、dotfile 不可读）与 `workspaceFiles` 测试通过。
+- home 白名单：`/home/user` 710，Agent 不可列；27 个 home 条目中 Agent 可读文件为 0；app 可读、workspace 可写。
+- Agent 环境经 stdin 传入：带随机标记的子进程运行期间，所有 `/proc/*/cmdline` 均无标记，子进程正确取得变量且后续 stdin 完整。
+- 真实 DeepSeek `deepseek-flash`：Pi / Claude Code / Codex 各一轮无工具回复，均 `run.finished` 且无错误，确认 stdin 前导不影响 stream-json 与 app-server。
+- 恢复往返：上传目录已清理，`.rtb-restore-previous` 为 root 0700，恢复后重新部署成功。
+- 未覆盖：长任务触顶提示与“continue”续跑、allow-all 刷新回落的浏览器实测。
+
