@@ -267,13 +267,18 @@ def cmd_restore(args) -> None:
     validate_archive(source)
     sid = sandbox_id(state())
     sandbox = connect(sid)
-    upload = f"/home/user/.rtb-restore-{uuid.uuid4().hex}.tgz"
-    sandbox.files.write(upload, source.read_bytes())
+    # The archive holds every conversation: it lands in a bot-only directory, never readable by
+    # the agent UID while writers are still running.
+    private = f"/home/user/.rtb-upload-{uuid.uuid4().hex}"
+    upload = f"{private}/restore.tgz"
+    run(sandbox, f"mkdir -m 700 {shlex.quote(private)}")
     try:
+        sandbox.files.write(upload, source.read_bytes())
         archive_worker(sandbox, "restore", upload)
     finally:
-        run(sandbox, f"rm -f {shlex.quote(upload)}")
-    print("restored; run deploy.py --skip-build to start the app again")
+        run(sandbox, f"rm -rf {shlex.quote(private)}")
+    print("restored; replaced data kept in /home/user/.rtb-restore-previous until the next restore")
+    print("run deploy.py --skip-build to start the app again")
 
 
 def main() -> None:

@@ -46,6 +46,9 @@ class BackupRecoveryTest(unittest.TestCase):
             restore_archive(archive, target, before_restore=stop)
             self.assertEqual(stopped, [True])
             self.assertFalse((old_workspace / "stale.txt").exists())
+            undo = target / "home/user/.rtb-restore-previous"
+            self.assertTrue((undo / old_workspace.relative_to(target) / "stale.txt").exists())
+            self.assertEqual(undo.stat().st_mode & 0o777, 0o700)
             self.assertEqual(env.read_text(), "keep-existing-secret")
             for index, name in enumerate(DATA_PATHS):
                 self.assertEqual((target / name.lstrip("/") / "session.json").read_text(), f"session-{index}")

@@ -99,10 +99,19 @@ def main() -> None:
     run("chown", "-R", f"{AGENT}:user", str(AGENT_HOME))
     run("chmod", "-R", "g+rwX,o-rwx", str(AGENT_HOME))
     run("find", str(AGENT_HOME), "-type", "d", "-exec", "chmod", "g+s", "{}", "+")
-    for relative in (".ssh", ".aws", ".netrc", ".git-credentials", ".config/gh", ".codex", ".claude", ".claude.json", ".pi", ".npmrc", ".pypirc", ".bash_history"):
-        protected = Path("/home/user") / relative
-        if protected.exists() and not protected.is_symlink():
-            run("chmod", "go-rwx", str(protected))
+    # Allow-list the bot's home instead of deny-listing known secrets: the agent may only traverse
+    # to the app, the workspace and the runtime binaries. Everything else (logs, dotfiles, uploads)
+    # loses group/other access, and the home itself cannot be listed.
+    home = Path("/home/user")
+    executables = [shutil.which(binary) if not os.path.isabs(binary) else binary
+                   for binary in (args.node_bin, args.claude_bin, args.codex_bin)]
+    shared = {home / Path(path).relative_to(home).parts[0]
+              for path in [app, workspace, *(Path(item).resolve() for item in executables if item)]
+              if home in Path(path).parents}
+    for entry in home.iterdir():
+        if entry not in shared and not entry.is_symlink():
+            run("chmod", "go-rwx", str(entry))
+    run("chmod", "710", str(home))
     # resolved's public D-Bus/Varlink sockets can perform DNS for another UID, bypassing packet
     # ownership rules. Deny only the agent at their stable parent directories; other services keep
     # their existing access, and recreating a socket inside these directories cannot reopen it.
@@ -151,6 +160,7 @@ def main() -> None:
     launch = ["sudo", "-n", "-u", AGENT, "--", "setpriv", "--no-new-privs"]
     run(*launch, "test", "!", "-w", str(app))
     run(*launch, "test", "!", "-r", str(config))
+    run(*launch, "test", "!", "-r", str(home))
     for binary in (args.node_bin, args.claude_bin, args.codex_bin):
         executable = shutil.which(binary) if not os.path.isabs(binary) else binary
         if not executable:

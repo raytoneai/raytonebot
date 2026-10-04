@@ -180,6 +180,13 @@ def restore_archive(archive: Path, root: Path = Path("/"), before_restore=None, 
                 cleanup = False
                 raise OSError(f"restore rollback failed; original data retained under {stage}/previous") from error
             raise
+        # Keep exactly one undo: the replaced data stays private under the bot's home until the next
+        # restore, instead of being deleted with the stage.
+        undo = home / ".rtb-restore-previous"
+        if undo.exists():
+            shutil.rmtree(undo)
+        (stage / "previous").rename(undo)
+        undo.chmod(0o700)
     finally:
         if cleanup:
             shutil.rmtree(stage)

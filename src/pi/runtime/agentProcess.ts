@@ -73,18 +73,35 @@ export function cleanupAgentDirectory(path: string): void {
   execFileSync("/usr/bin/sudo", ["-n", "-u", "raytone-agent", "--", "/usr/bin/rm", "-rf", "--", path]);
 }
 
+// Reads KEY=value lines from stdin up to a blank line, then execs the real command on the rest of
+// stdin. Values never reach argv, so /proc/*/cmdline and sudo's log do not see lease tokens.
+export const ENV_PREAMBLE = 'while IFS= read -r line && [ -n "$line" ]; do export "$line"; done; exec "$@"';
+
 export function agentCommand(command: string, args: readonly string[], env: NodeJS.ProcessEnv) {
   const childEnv = agentEnvironment(env);
-  if (!agentIsolationEnabled()) return { command, args: [...args], env: childEnv };
+  if (!agentIsolationEnabled()) return { command, args: [...args], env: childEnv, preamble: "" };
   return {
     command: "/usr/bin/sudo",
     args: ["-n", "-u", "raytone-agent", "--", "/usr/bin/setpriv", "--no-new-privs", "/usr/bin/env", "-i",
-      ...Object.entries(childEnv).filter(([, value]) => value !== undefined).map(([key, value]) => `${key}=${value}`), command, ...args],
+      "/bin/sh", "-c", ENV_PREAMBLE, "sh", command, ...args],
     env: scrubSecretEnv(process.env),
+    preamble: envPreamble(childEnv),
   };
+}
+
+export function envPreamble(env: NodeJS.ProcessEnv): string {
+  let text = "";
+  for (const [key, value] of Object.entries(env)) {
+    // sh cannot export these; the old `env -i` argv form could, but none are deliberate inputs.
+    if (value === undefined || !/^[A-Za-z_][A-Za-z0-9_]*$/.test(key) || /[\n\0]/.test(value)) continue;
+    text += `${key}=${value}\n`;
+  }
+  return `${text}\n`;
 }
 
 export function spawnAgentProcess(command: string, args: readonly string[], options: SpawnOptionsWithoutStdio & { env: NodeJS.ProcessEnv }) {
   const launch = agentCommand(command, args, options.env);
-  return spawn(launch.command, launch.args, { ...options, env: launch.env, stdio: ["pipe", "pipe", "pipe"] });
+  const child = spawn(launch.command, launch.args, { ...options, env: launch.env, stdio: ["pipe", "pipe", "pipe"] });
+  if (launch.preamble) child.stdin.write(launch.preamble);
+  return child;
 }
