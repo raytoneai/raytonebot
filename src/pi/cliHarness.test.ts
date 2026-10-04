@@ -196,6 +196,31 @@ test("CLI output limit stops an unterminated stdout line before readline can gro
   }
 });
 
+test("CLI output limit counts complete events, not streaming deltas", async () => {
+  const dir = mkdtempSync("/tmp/raytone-cli-delta-test-");
+  const saved = { bin: process.env.RAYTONEBOT_CODEX_BIN, home: process.env.HOME, limit: process.env.RAYTONEBOT_RUN_OUTPUT_BYTES };
+  const run = async (method: string) => {
+    const executable = `${dir}/fake-codex-${method.replace(/\W/g, "")}`;
+    writeFileSync(executable, `#!/usr/bin/env node\nconst line = JSON.stringify({ method: ${JSON.stringify(method)}, params: { delta: 'x'.repeat(200) } }) + '\\n';\nprocess.stdout.write(line.repeat(1000));\n`);
+    chmodSync(executable, 0o700);
+    process.env.RAYTONEBOT_CODEX_BIN = executable;
+    return runCodex({ cwd: dir, prompt: "unused", permissionMode: "request", signal: AbortSignal.timeout(5000),
+      emit() {}, onSessionId() {}, onPermission: async () => true }).then(() => "", (error: Error) => error.message);
+  };
+  process.env.HOME = dir;
+  process.env.RAYTONEBOT_RUN_OUTPUT_BYTES = "65536";
+  try {
+    assert.doesNotMatch(await run("item/agentMessage/delta"), /turn output limit/);
+    assert.match(await run("item/updated"), /65536 byte turn output limit/);
+  } finally {
+    for (const [key, value] of [["RAYTONEBOT_CODEX_BIN", saved.bin], ["HOME", saved.home], ["RAYTONEBOT_RUN_OUTPUT_BYTES", saved.limit]] as const) {
+      if (value === undefined) delete process.env[key];
+      else process.env[key] = value;
+    }
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test("missing native history never silently retries the prompt in a fresh CLI session", async () => {
   const dir = mkdtempSync("/tmp/raytone-missing-session-");
   const executable = `${dir}/fake-cli`, calls = `${dir}/calls`;

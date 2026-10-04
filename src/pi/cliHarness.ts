@@ -262,17 +262,22 @@ async function runCliProcess(params: {
   child.stderr.on("data", (chunk: string) => {
     stderrTail = appendRecentStderr(stderrTail, chunk);
   });
-  // Bound raw bytes before readline can retain a single unbounded model/tool output line.
-  let stdoutBytes = 0;
+  // The budget counts complete events, not streaming deltas: Claude's partial messages and Codex's
+  // */delta notifications repeat text the final item carries again, and would cap long turns at
+  // a fraction of the limit. Raw bytes still bound one unterminated line before readline buffers it.
+  let outputBytes = 0;
+  let unterminatedBytes = 0;
   let outputLimit = false;
+  const exceedOutput = () => {
+    outputLimit = true;
+    lines.close();
+    child.stdout.destroy();
+    terminate("abort");
+  };
   child.stdout.on("data", (chunk: Buffer) => {
-    stdoutBytes += chunk.length;
-    if (stdoutBytes > maxOutputBytes) {
-      outputLimit = true;
-      lines.close();
-      child.stdout.destroy();
-      terminate("abort");
-    }
+    const newline = chunk.lastIndexOf(10);
+    unterminatedBytes = newline < 0 ? unterminatedBytes + chunk.length : chunk.length - newline - 1;
+    if (unterminatedBytes > maxOutputBytes) exceedOutput();
   });
   const exit = new Promise<{ code: number | null; signal: NodeJS.Signals | null }>((resolve, reject) => {
     child.once("error", reject);
@@ -300,7 +305,12 @@ async function runCliProcess(params: {
         continue;
       }
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) continue;
-      params.onLine(parsed as JsonLine, child.stdin);
+      const line = parsed as JsonLine;
+      if (line.type !== "stream_event" && !(typeof line.method === "string" && /delta$/i.test(line.method))) {
+        outputBytes += Buffer.byteLength(text);
+        if (outputBytes > maxOutputBytes) { exceedOutput(); break; }
+      }
+      params.onLine(line, child.stdin);
       if (params.isFinished?.()) endInput();
     }
     const result = await exit;

@@ -349,8 +349,10 @@ export function AgentApp() {
   const messageBranch = useMessageBranch({ conversation: activePiConversation, enabled: !streamId, running: piRunning,
     async onReady(conversation, draft, action, sourceId) {
       setPiConversations(current => replacePiConversation(current, conversation));
+      // A branch inherits the source's choice, except allow-all: that stays with the page it was armed on.
+      const sourceMode = composer.drafts[sourceId]?.runOptions?.permissionMode;
       const options: ComposerRunOptions = {
-        permissionMode: composer.drafts[sourceId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
+        permissionMode: (sourceMode === "allow-all" ? undefined : sourceMode) ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
         budgetMode: composer.drafts[sourceId]?.runOptions?.budgetMode ?? "medium",
       };
       await composer.update(conversation, () => ({ ...draft, runOptions: options }));

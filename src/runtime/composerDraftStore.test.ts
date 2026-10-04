@@ -19,7 +19,9 @@ test("old drafts follow defaults, while malformed persisted options cannot resto
   assert.equal(savedRunOptions(undefined), undefined);
   assert.equal(savedRunOptions({}), undefined);
   assert.deepEqual(savedRunOptions({ budgetMode: "fast", unrelated: "secret" }), { budgetMode: "fast" });
-  assert.deepEqual(savedRunOptions({ permissionMode: "allow-all", budgetMode: "expert" }), { permissionMode: "allow-all", budgetMode: "expert" });
+  assert.deepEqual(savedRunOptions({ permissionMode: "allow-all", budgetMode: "expert" }), { budgetMode: "expert" });
+  assert.equal(savedRunOptions({ permissionMode: "allow-all" }), undefined);
+  assert.deepEqual(savedRunOptions({ permissionMode: "auto" }), { permissionMode: "auto" });
   assert.deepEqual(savedRunOptions({ permissionMode: "administrator", budgetMode: "unlimited" }), { permissionMode: "request", budgetMode: "medium" });
   assert.deepEqual(savedRunOptions(["allow-all"]), { permissionMode: "request" });
   assert.equal(hasComposerState({ prompt: "", attachments: [] }), false);

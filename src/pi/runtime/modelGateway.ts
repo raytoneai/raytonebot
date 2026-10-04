@@ -6,6 +6,9 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { gatewayPort } from "./agentProcess.ts";
 
+// The limits are a safety net, not a verdict on the task: say how to continue.
+const BUDGET_MESSAGE = "This turn reached its model request limit (RAYTONEBOT_RUN_MODEL_REQUESTS). Work so far is kept; send \"continue\" to resume.";
+const DURATION_MESSAGE = "This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send \"continue\" to resume.";
 const PACKAGE_HOSTS = ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org"];
 type LeaseInput = {
   baseUrl: string; apiKey: string; model: string; protocol: "openai" | "anthropic";
@@ -81,7 +84,7 @@ export async function createModelGateway(options: {
     const allowedQuery = !requestUrl.search || (lease.protocol === "anthropic" && requestUrl.search === "?beta=true");
     if (req.method !== "POST" || !req.url?.startsWith("/model/") || !allowed.test(suffix) || !allowedQuery) return reply(res, 403, "Model route is not allowed.");
     if (lease.limited || Date.now() >= lease.expires || lease.requests >= (lease.maxRequests ?? 100)) {
-      limit(lease, "Model request or duration budget exhausted.");
+      limit(lease, BUDGET_MESSAGE);
       return reply(res, 429, "Model request or duration budget exhausted.");
     }
     const chunks: Buffer[] = [];
@@ -98,15 +101,16 @@ export async function createModelGateway(options: {
     if (typeof token !== "string" || leases.get(token) !== lease) return reply(res, 401, "Invalid or expired model lease.");
     // Check again after reading the body: parallel uploads cannot overrun a lease's request cap.
     if (lease.limited || Date.now() >= lease.expires || lease.requests >= (lease.maxRequests ?? 100)) {
-      limit(lease, "Model request or duration budget exhausted.");
+      limit(lease, BUDGET_MESSAGE);
       return reply(res, 429, "Model request or duration budget exhausted.");
     }
-    lease.requests += 1;
+    // Token counting is bookkeeping, not a model step; only generations spend the budget.
+    if (!suffix.endsWith("/count_tokens")) lease.requests += 1;
     const controller = new AbortController();
     lease.active.add(controller);
     const disconnected = () => { if (!res.writableEnded) controller.abort(); };
     res.once("close", disconnected);
-    const timer = setTimeout(() => { limit(lease, "Model duration budget exhausted."); }, Math.max(1, lease.expires - Date.now()));
+    const timer = setTimeout(() => { limit(lease, DURATION_MESSAGE); }, Math.max(1, lease.expires - Date.now()));
     timer.unref();
     try {
       const headers: Record<string, string> = { "content-type": "application/json", authorization: `Bearer ${lease.apiKey}` };

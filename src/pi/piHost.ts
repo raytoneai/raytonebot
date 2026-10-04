@@ -29,7 +29,7 @@ import { sendWorkspaceFile } from "./workspaceDownload.ts";
 import { createConversationRecorder } from "./conversationRecorder.ts";
 import { assertPiSessionFile, openPiSession } from "./nativeSession.ts";
 import { conversationSearchPage, SearchPageError } from "./conversationSearchPage.ts";
-import { ConversationBranchError } from "./conversationBranch.ts";
+import { ConversationBranchError, type NativeTurnCheckpoint } from "./conversationBranch.ts";
 import {
   createConversationStore,
   defaultDataDir,
@@ -461,8 +461,12 @@ export function createPiRuntimeController(options: {
       cliSessions.set(conversationId, { harness, id });
     };
     const emit = (event: PiWireEvent) => adapter.apply(event);
-    const onNativeTurn = ({ sessionId, id }: { sessionId: string; id: string }) => store.saveNativeTurn(conversationId, input.requestId!,
-      harness === "claude-code" ? { harness, sessionId, afterMessageId: id } : { harness, sessionId, turnId: id });
+    // Claude reports a checkpoint for every assistant message; only the last one is a branch point,
+    // so keep it in memory and write the conversation once when the run ends.
+    let nativeTurn: NativeTurnCheckpoint | undefined;
+    const onNativeTurn = ({ sessionId, id }: { sessionId: string; id: string }) => {
+      nativeTurn = harness === "claude-code" ? { harness, sessionId, afterMessageId: id } : { harness, sessionId, turnId: id };
+    };
     const onUserInput = (request: UserInputRequest) => askUser(conversationId, request);
     let lease: { revoke(): void } | undefined;
     /** Put a call on hold and wait for the user. Throws when it is denied or the run stops. */
@@ -553,6 +557,10 @@ export function createPiRuntimeController(options: {
       if (run.signal.aborted) adapter.finish("cancelled");
       else adapter.apply({ type: "extension_error", message: errorMessage(error) });
     } finally {
+      if (nativeTurn) {
+        try { store.saveNativeTurn(conversationId, input.requestId!, nativeTurn); }
+        catch { log("run.checkpoint_failed", { conversationId, harness }); }
+      }
       run.abort();
       lease?.revoke();
       approvalGate.cancelAll();
@@ -617,7 +625,7 @@ export function createPiRuntimeController(options: {
           void abortRuns(conversationId, slot.runId).catch(() => undefined);
         });
       };
-      const deadline = setTimeout(() => exceed("duration", "Task stopped: maximum run duration reached."), limits.durationMs);
+      const deadline = setTimeout(() => exceed("duration", "This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send \"continue\" to resume."), limits.durationMs);
       deadline.unref();
       log("run.started", { conversationId, harness });
       let opened = false;
@@ -632,12 +640,16 @@ export function createPiRuntimeController(options: {
         if (recorder.ended) return;
         const terminal = event.type === "run.finished" || event.type === "run.error";
         if (!terminal) {
-          const bytes = Buffer.byteLength(JSON.stringify(event));
+          // A streaming delta costs its text, not its envelope; otherwise token-sized events
+          // exhaust the budget long before the transcript holds that much content.
+          const bytes = event.type.endsWith(".delta")
+            ? Object.values((event.payload ?? {}) as Record<string, unknown>).reduce<number>((total, value) => total + (typeof value === "string" ? Buffer.byteLength(value) : 0), 0)
+            : Buffer.byteLength(JSON.stringify(event));
           // Preserve small block closures after stopping, never another chunk of model/tool output.
           if (slot.limit && (!/^(text|reasoning|step)\.finished$|^tool\.call\.error$/.test(event.type) || bytes > 4096)) return;
           if (!slot.limit) outputBytes += bytes;
           if (!slot.limit && outputBytes > limits.outputBytes) {
-            exceed("output", "Task stopped: maximum event output size reached.");
+            exceed("output", "This turn reached its output limit (RAYTONEBOT_RUN_OUTPUT_BYTES). Work so far is kept; send \"continue\" to resume.");
             return;
           }
         } else {

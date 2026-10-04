@@ -19,7 +19,9 @@ export function savedRunOptions(value: unknown): ComposerDraft["runOptions"] {
   if (value === undefined) return undefined;
   if (!value || typeof value !== "object" || Array.isArray(value)) return { permissionMode: "request" };
   const record = value as Record<string, unknown>, options: NonNullable<ComposerDraft["runOptions"]> = {};
-  if (record.permissionMode !== undefined) options.permissionMode = record.permissionMode === "auto" || record.permissionMode === "allow-all" ? record.permissionMode : "request";
+  // Allow-all lives only in this page's memory: a reload falls back to the settings default
+  // instead of silently re-arming unattended access.
+  if (record.permissionMode !== undefined && record.permissionMode !== "allow-all") options.permissionMode = record.permissionMode === "auto" ? "auto" : "request";
   if (record.budgetMode !== undefined) options.budgetMode = record.budgetMode === "fast" || record.budgetMode === "expert" ? record.budgetMode : "medium";
   return Object.keys(options).length ? options : undefined;
 }

@@ -670,7 +670,7 @@ test("run duration and output limits stop the engine and persist one visible fai
       assert.equal(controller.health().activeRuns, 0);
       const events = controller.getConversation("limited")!.events;
       assert.deepEqual(events.filter((event) => event.type === "run.error" || event.type === "run.finished").map((event) => event.type), ["run.error"]);
-      assert.match(JSON.stringify(events.at(-1)), /maximum/);
+      assert.match(JSON.stringify(events.at(-1)), /reached its (time|output) limit/);
     } finally {
       controller.dispose();
       rmSync(root, { recursive: true, force: true });
@@ -721,7 +721,7 @@ test("synchronous engine completion cannot turn an exceeded output budget into s
     const terminals = controller.getConversation("a")!.events.filter((event) => ["run.error", "run.finished"].includes(event.type));
     assert.equal(terminals.length, 1);
     assert.equal(terminals[0].type, "run.error");
-    assert.match(JSON.stringify(terminals[0]), /maximum event output/);
+    assert.match(JSON.stringify(terminals[0]), /reached its output limit/);
   } finally {
     controller.dispose();
     rmSync(root, { recursive: true, force: true });
