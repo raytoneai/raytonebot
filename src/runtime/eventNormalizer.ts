@@ -2,7 +2,7 @@
 // React-facing surface and `App.test.tsx` mocks it wholesale, which would leave this module
 // without an event-type list and silently reject every event.
 import { AGENT_UX_EVENT_TYPES, type AgentUXEvent } from "@agent-ux/protocol";
-import { limitEventText } from "./eventLimits";
+import { limitEventText } from "./eventLimits.ts";
 
 /**
  * Admission layer: our protocol and our components are the contract.
@@ -51,13 +51,10 @@ export const TOOL_CONCEPT_ALIASES: Record<ToolConcept, readonly string[]> = {
   "read-image": ["read_image", "view_image", "image"],
   "edit-file": ["edit_file", "edit", "str_replace", "str_replace_editor", "apply_patch", "patch"],
   "write-file": ["write_file", "write", "create_file", "append_file", "modify_file", "save_file", "put_file"],
-  // No bare "run", and no "run_tests": token matching would pull in every `run_*` tool. It
-  // took `run_checks` (which the component's own matcher reads as a validation, correctly) and
-  // relabelled it a plain command. The table must not out-guess `resolveToolAction` on an
-  // ambiguous name — it is for spellings that are unambiguous.
+  // No bare "run": token matching would misclassify validation tools as shell commands.
   "run-command": ["bash", "sh", "shell", "shell.exec", "run_command", "exec", "terminal", "start_server"],
   search: ["search", "grep", "ripgrep", "rg", "glob", "find", "codebase_search"],
-  validate: ["validate", "test", "check", "verify", "lint", "typecheck"],
+  validate: ["validate", "test", "check", "verify", "lint", "typecheck", "run_tests", "run_checks"],
   fetch: ["fetch", "web.fetch", "web_search", "http", "curl", "browse"],
   delete: ["rm", "delete", "delete_file", "remove_file", "filesystem.rm"],
   // Plans / todo lists are common in modern agents but this UI has no component for them

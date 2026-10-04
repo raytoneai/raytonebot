@@ -6,7 +6,13 @@ export type OutputPanelItem = {
   language?: string;
   body?: string;
   imageSrc?: string;
+  mediaSrc?: string;
   mediaStyle?: string;
+  downloadUrl?: string;
+  /** An actual tool/file reference, never inferred from a display title. */
+  workspacePath?: string;
+  /** Follow the live artifact by identity, even when its title changes. */
+  artifactId?: string;
 };
 
 export type OutputPanelOpenRequest = string | Omit<OutputPanelItem, "id"> & { id?: string };
@@ -56,7 +62,7 @@ export function normalizeOutputPanelRequest(request: OutputPanelOpenRequest): Ou
       title,
       subtitle: request,
       language: languageFromFileName(title),
-      body: fallbackOutputPanelBody(title),
+      workspacePath: request,
     };
   }
   return {

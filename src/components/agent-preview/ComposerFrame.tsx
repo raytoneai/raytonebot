@@ -1,7 +1,8 @@
 import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, MessageSquareText, Mic, Paperclip, Plus, Rocket, Search, Send, ShieldCheck, ShieldHalf, ShieldOff, Sparkles, Square, X } from "lucide-react";
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { useShellExtras } from "../shell/ShellExtras";
-import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode } from "react";
+import type { PiPromptAttachment } from "../../pi/piClient";
+import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
 import {
   defaultProviderConnection,
   enabledProviderConnections,
@@ -52,17 +53,28 @@ const permissionHintKey = (mode: PermissionMode) =>
       ? "toolPermissionAutoHint" as const
       : "toolPermissionAllowAllHint" as const;
 
-export type ComposerSubmitAttachment = {
+export type ComposerSubmitAttachment = ({ file: File; reference?: never } | { file?: never; reference: PiPromptAttachment }) & {
   name: string;
   isImage: boolean;
   imageSrc?: string;
+};
+
+export type ComposerDraft = {
+  prompt: string;
+  attachments: (ComposerSubmitAttachment & { id: string })[];
+  runOptions?: Partial<ComposerRunOptions>;
 };
 
 export type ComposerSubmitContext = {
   attachments: readonly ComposerSubmitAttachment[];
   permissionMode: PermissionMode;
   budgetMode: ThinkingBudgetMode;
+  draftSnapshot?: { prompt: string; attachmentIds: string[] };
+  /** Clear the draft only after the host accepts the turn. */
+  onAccepted?: () => void;
 };
+
+export type ComposerRunOptions = Pick<ComposerSubmitContext, "permissionMode" | "budgetMode">;
 
 type SpeechRecognitionEventLike = {
   resultIndex: number;
@@ -108,7 +120,7 @@ export function ComposerFrame({
 }: {
   project: AgentFrontendProject;
   modelOptions: readonly string[];
-  onSubmit: (prompt: string, context?: ComposerSubmitContext) => void;
+  onSubmit: (prompt: string, context?: ComposerSubmitContext) => void | Promise<boolean | void>;
   onProviderChange: (providerId: ProviderConnectionId) => void;
   onModelChange: (model: string) => void;
   isRunning?: boolean;
@@ -119,26 +131,44 @@ export function ComposerFrame({
   defaultPermissionMode?: PermissionMode;
 }) {
   const copy = useCopy();
-  const { composerPlaceholder } = useShellExtras();
+  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus } = useShellExtras();
   const promptShortcuts = [
     { label: copy.composer.frame.shortcuts.inspectFiles, Icon: Search },
     { label: copy.composer.frame.shortcuts.fixTest, Icon: Bug },
     { label: copy.composer.frame.shortcuts.explainChange, Icon: MessageSquareText },
   ] as const;
   const textareaRef = useRef<HTMLTextAreaElement>(null);
+  useEffect(() => { if (composerFocus) textareaRef.current?.focus(); }, [composerFocus]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const speechRecognitionRef = useRef<SpeechRecognitionLike | null>(null);
-  const [promptValue, setPromptValue] = useState("");
-  const [attachedFiles, setAttachedFiles] = useState<{ id: string; name: string; isImage: boolean; imageSrc?: string }[]>([]);
-  const [permissionMode, setPermissionMode] = useState<PermissionMode>(defaultPermissionMode);
+  const [localDraft, setLocalDraft] = useState<ComposerDraft>({ prompt: "", attachments: [] });
+  const draft = composerDraft?.value ?? localDraft;
+  const updateDraft = composerDraft?.onChange ?? setLocalDraft;
+  const promptValue = draft.prompt;
+  const attachedFiles = draft.attachments;
+  const setPromptValue = (value: SetStateAction<string>) => updateDraft((current) => ({
+    ...current, prompt: typeof value === "function" ? value(current.prompt) : value,
+  }));
+  const setAttachedFiles = (value: SetStateAction<ComposerDraft["attachments"]>) => updateDraft((current) => ({
+    ...current, attachments: typeof value === "function" ? value(current.attachments) : value,
+  }));
+  const [localPermissionMode, setLocalPermissionMode] = useState<PermissionMode>(defaultPermissionMode);
+  const permissionMode = composerOptions?.value.permissionMode ?? localPermissionMode;
+  const setPermissionMode = (value: PermissionMode) => composerOptions
+    ? composerOptions.onChange({ permissionMode: value }) : setLocalPermissionMode(value);
   const permissionModeChosen = useRef(false);
   // The host reports its default after mount; follow it until the user picks a mode.
   useEffect(() => {
-    if (!permissionModeChosen.current) setPermissionMode(defaultPermissionMode);
+    if (!permissionModeChosen.current) setLocalPermissionMode(defaultPermissionMode);
   }, [defaultPermissionMode]);
-  const [budgetMode, setBudgetMode] = useState<ThinkingBudgetMode>("medium");
+  const [localBudgetMode, setLocalBudgetMode] = useState<ThinkingBudgetMode>("medium");
+  const budgetMode = composerOptions?.value.budgetMode ?? localBudgetMode;
+  const setBudgetMode = (value: ThinkingBudgetMode) => composerOptions
+    ? composerOptions.onChange({ budgetMode: value }) : setLocalBudgetMode(value);
   const [isListening, setIsListening] = useState(false);
-  const canSubmit = promptValue.trim().length > 0 || attachedFiles.length > 0;
+  const restoringDrafts = composerDraft?.status === "loading";
+  const stopFeedback = stopStatus === "pending" ? copy.composer.frame.stopping : stopStatus === "failed" ? copy.composer.frame.stopFailed : undefined;
+  const canSubmit = !restoringDrafts && (promptValue.trim().length > 0 || attachedFiles.length > 0);
   const isMinimalStyle = project.theme.stylePreset === "illustrated";
   const showCombinedModelBudget = isMinimalStyle && Boolean(project.composer.thinkingBudget || project.composer.modelSwitcher);
   const hasToolsAfterUpload = Boolean(project.composer.thinkingBudget || project.composer.modelSwitcher);
@@ -185,18 +215,27 @@ export function ComposerFrame({
     project.composer.thinkingBudget ? selectedBudget.label : undefined,
   ].filter(Boolean).join(" ");
 
-  function submit(event: FormEvent<HTMLFormElement>) {
+  async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    if (restoringDrafts) return;
     if (isRunning) {
+      textareaRef.current?.focus({ preventScroll: true });
       onStop?.();
       return;
     }
-    const attachments = attachedFiles.map(({ name, isImage, imageSrc }) => ({ name, isImage, imageSrc }));
+    const attachments = attachedFiles.map(({ id: _id, ...attachment }) => attachment);
     const prompt = promptValue.trim() || attachments.map((file) => file.name).join(", ");
     if (prompt) {
-      setAttachedFiles([]);
-      setPromptValue("");
-      onSubmit(prompt, { attachments, permissionMode, budgetMode });
+      const submittedIds = new Set(attachedFiles.map((file) => file.id));
+      let accepted = false;
+      const onAccepted = () => {
+        if (accepted) return;
+        accepted = true;
+        setAttachedFiles((current) => current.filter((file) => !submittedIds.has(file.id)));
+        setPromptValue((current) => current === promptValue ? "" : current);
+      };
+      if (await onSubmit(prompt, { attachments, permissionMode, budgetMode, onAccepted,
+        draftSnapshot: { prompt: promptValue, attachmentIds: [...submittedIds] } }) !== false) onAccepted();
     }
   }
 
@@ -312,7 +351,7 @@ export function ComposerFrame({
       {project.composer.promptShortcuts ? (
         <div className="prompt-shortcuts" aria-label={copy.composer.frame.promptShortcutsLabel}>
           {promptShortcuts.map(({ label, Icon }) => (
-            <Button key={label} variant="ghost" type="button" onClick={() => fillShortcut(label)}>
+            <Button key={label} variant="ghost" type="button" disabled={restoringDrafts} onClick={() => fillShortcut(label)}>
               <Icon size={13} />
               {label}
             </Button>
@@ -347,6 +386,7 @@ export function ComposerFrame({
             name="prompt"
             placeholder={composerPlaceholder ?? copy.composer.frame.placeholder}
             rows={2}
+            readOnly={restoringDrafts}
             value={promptValue}
             onChange={(event) => setPromptValue(event.currentTarget.value)}
             onKeyDown={submitOnEnter}
@@ -362,14 +402,13 @@ export function ComposerFrame({
                 multiple
                 hidden
                 onChange={async (event) => {
-                  // Real upload interaction: add the picked files/images to the
-                  // composer as attachment chips (by their real names).
                   const input = event.currentTarget;
                   const picked = Array.from(input.files ?? []);
                   if (picked.length > 0) {
                     const timestamp = Date.now();
                     const nextFiles = await Promise.all(picked.map(async (file, index) => ({
                       id: `${file.name}-${timestamp}-${index}`,
+                      file,
                       name: file.name,
                       isImage: file.type.startsWith("image/"),
                       imageSrc: await imagePreviewSource(file),
@@ -385,6 +424,7 @@ export function ComposerFrame({
               <IconButton
                 className="icon-button composer-upload"
                 label={copy.composer.frame.attachFiles}
+                disabled={restoringDrafts}
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
               >
@@ -404,6 +444,7 @@ export function ComposerFrame({
                   className="permission-mode-trigger"
                   type="button"
                   aria-label={copy.composer.frame.tools}
+                  disabled={restoringDrafts}
                 >
                   <PermissionModeIcon size={15} />
                   <span>{copy.composer.frame[permissionLabelKey(permissionMode)]}</span>
@@ -445,6 +486,7 @@ export function ComposerFrame({
                   className="budget-mode-trigger"
                   type="button"
                   aria-label={copy.composer.frame.thinkingBudget}
+                  disabled={restoringDrafts}
                 >
                   <SelectedBudgetIcon size={15} />
                   <span>{selectedBudget.label}</span>
@@ -500,6 +542,7 @@ export function ComposerFrame({
                     className="combined-model-budget-trigger"
                     type="button"
                     aria-label={combinedModelBudgetLabel}
+                    disabled={restoringDrafts}
                   >
                     {project.composer.modelSwitcher ? (
                       <span className="combined-model-budget-model">{defaultProvider.defaultModel}</span>
@@ -568,6 +611,7 @@ export function ComposerFrame({
                 className="icon-button composer-voice"
                 data-listening={isListening ? "true" : undefined}
                 label={copy.composer.frame.voiceInput}
+                disabled={restoringDrafts}
                 type="button"
                 onClick={toggleVoiceInput}
               >
@@ -584,16 +628,27 @@ export function ComposerFrame({
             <Button
               className="send-button"
               variant={isRunning ? "danger" : "primary"}
-              disabled={!isRunning && !canSubmit}
+              disabled={isRunning ? stopStatus === "pending" : !canSubmit}
               type={isRunning ? "button" : "submit"}
-              onClick={isRunning ? onStop : undefined}
+              onClick={isRunning ? (event) => {
+                // Abort can turn this into a submit button before the click's default action.
+                event.preventDefault();
+                textareaRef.current?.focus({ preventScroll: true });
+                onStop?.();
+              } : undefined}
             >
               {isRunning ? <Square size={15} /> : <Send size={16} />}
-              {isRunning ? copy.composer.frame.stop : copy.composer.frame.send}
+              {isRunning ? stopStatus === "pending" ? copy.composer.frame.stopping : copy.composer.frame.stop : copy.composer.frame.send}
             </Button>
           </div>
         </div>
       </div>
+      {stopStatus === "pending" || stopStatus === "failed" || composerDraft?.status && (canSubmit || draft.runOptions || composerDraft.status !== "saved") ? (
+        <small className="composer-draft-status" role="status">
+          {[stopFeedback, composerDraft?.status && (canSubmit || draft.runOptions || composerDraft.status !== "saved")
+            ? copy.composer.frame.draftStatus[composerDraft.status] : undefined].filter(Boolean).join(" ")}
+        </small>
+      ) : null}
     </form>
   );
 }

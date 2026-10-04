@@ -1,5 +1,5 @@
 import * as RadixDialog from "@radix-ui/react-dialog";
-import { Check, ChevronDown, Copy, Info, Palette, Plus, Server, ShieldCheck, X } from "lucide-react";
+import { Check, ChevronDown, CircleAlert, Copy, Info, Palette, Plus, Server, ShieldCheck, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useCopy, useLocale } from "../../i18n/LocaleContext";
@@ -19,6 +19,9 @@ import {
 } from "../../schema/agentuxConfig";
 import { themeTokens, type ThemePresetId } from "../../theme/themeTokens";
 import { Button, Input, SelectMenu, Switch } from "../ui";
+import { useClipboardFeedback } from "../../runtime/useClipboardFeedback";
+import type { ProviderSettingsStatus } from "../../runtime/useProviderSettings";
+import type { ProviderPatch } from "../../runtime/providerSettings";
 import "./settings.css";
 
 /**
@@ -29,9 +32,7 @@ import "./settings.css";
  */
 
 export type PermissionMode = "request" | "auto" | "allow-all";
-export type ProviderPatch = Partial<Pick<ProviderConnection, "baseUrl" | "defaultModel" | "models" | "enabled">> & {
-  authEnvVar?: string;
-};
+export type { ProviderPatch } from "../../runtime/providerSettings";
 
 export type SettingsSectionId = "providers" | "permissions" | "appearance" | "about";
 type SectionId = SettingsSectionId;
@@ -49,6 +50,7 @@ export type SettingsDialogProps = {
   /** Section shown when the dialog opens. */
   initialSection?: SettingsSectionId;
   project: AgentFrontendProject;
+  providerSettingsStatus?: ProviderSettingsStatus;
   runtime?: PiRuntimeState;
   isRunning: boolean;
   sessionKeys: Record<string, string>;
@@ -119,7 +121,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
 type SectionProps = SettingsDialogProps & { t: SettingsCopy };
 
 function ProvidersSection({
-  t, project, runtime, sessionKeys, onSessionKeyChange, onUpdateProvider, onSetDefaultProvider, isRunning,
+  t, project, runtime, sessionKeys, onSessionKeyChange, onUpdateProvider, onSetDefaultProvider, isRunning, providerSettingsStatus = "idle",
 }: SectionProps) {
   const [expanded, setExpanded] = useState<string | undefined>();
   const [adding, setAdding] = useState(false);
@@ -130,6 +132,9 @@ function ProvidersSection({
   return (
     <>
       <p className="settings-intro">{t.providers.intro}</p>
+      {providerSettingsStatus !== "idle" ? <p className="settings-status" data-tone={providerSettingsStatus === "saved" ? "ok" : "error"} role="status">
+        {t.providers.persistence[providerSettingsStatus]}
+      </p> : null}
       <div className="settings-list">
         {enabled.map((provider) => (
           <ProviderRow
@@ -538,21 +543,18 @@ function Segmented<T extends string>({ value, options, onChange, ariaLabel, disa
 }
 
 function CopyButton({ t, value }: { t: { copy: string; copied: string }; value: string }) {
-  const [copied, setCopied] = useState(false);
+  const clipboard = useClipboardFeedback(value);
+  const failure = useCopy().chat.message.actions.copyFailed;
+  const label = clipboard.status === "copied" ? t.copied : clipboard.status === "failed" ? failure : t.copy;
   return (
     <button
       type="button"
       className="settings-copy"
-      aria-label={copied ? t.copied : t.copy}
-      title={copied ? t.copied : t.copy}
-      onClick={() => {
-        void navigator.clipboard?.writeText(value).then(() => {
-          setCopied(true);
-          setTimeout(() => setCopied(false), 1200);
-        });
-      }}
+      aria-label={label}
+      title={label}
+      onClick={() => void clipboard.copy()}
     >
-      {copied ? <Check size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
+      {clipboard.status === "copied" ? <Check size={13} aria-hidden="true" /> : clipboard.status === "failed" ? <CircleAlert size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
     </button>
   );
 }

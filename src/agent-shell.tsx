@@ -1,7 +1,7 @@
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentUXEvent } from "@agent-ux/protocol";
-import type { AgentUXToolTimelineItem } from "@agent-ux/render-core";
-import { useAgentUXReplay } from "@agent-ux/react";
+import { createAgentUXViewModel, type AgentUXToolTimelineItem } from "@agent-ux/render-core";
+import { replayAgentUXEvents } from "@agent-ux/runtime";
 import { PanelLeft, PanelRight } from "lucide-react";
 
 import {
@@ -12,7 +12,7 @@ import {
 import type { SettingsSectionId } from "./components/settings/SettingsDialog";
 import { AgentSwitcher, HeaderAgent, ShellExtrasProvider, SidebarFooter, type AgentRunStatus, type ShellExtras } from "./components/shell/ShellExtras";
 import { settingsCopy } from "./i18n/copy/settings";
-import type { ComposerSubmitContext } from "./components/agent-preview/ComposerFrame";
+import type { ComposerDraft, ComposerRunOptions, ComposerSubmitContext } from "./components/agent-preview/ComposerFrame";
 import { ExternalApprovalSurface, InlineApprovalSurface } from "./components/agent-preview/ChatFrame";
 import type { ApprovalDecision } from "./components/agent-preview/ToolCallCard";
 import { RightSidebarRailIcon, SidebarRailIcon } from "./components/common/RailIcons";
@@ -34,26 +34,47 @@ import { themeTokens, type ThemePresetId } from "./theme/themeTokens";
 import { isFixtureMode, useEventSource } from "./event-source";
 import { project } from "./exported-project";
 import {
-  abortPiRun,
+  checkPiAttachment,
   configurePiRuntime,
   getPiRuntimeState,
   getStoredConversation,
   followPiTurn,
   listStoredConversations,
+  searchStoredConversations,
   resolvePiApproval,
   runPiTurn,
+  uploadPiFile,
   startNewPiSession,
   PiRequestError,
+  type PiFileReference,
+  type PiPromptAttachment,
   type PiRuntimeState,
 } from "./pi/piClient";
 import { piRuntimeConfigurationForProvider } from "./pi/piProviderSync";
 import { isAgentPresetId, loadAgentSettings, saveAgentSettings, settingsUseProvider, type AgentPresetId, type AgentSettings } from "./pi/harnessCatalog";
 import { AgentPersonaProvider, type AgentPersona, type AvatarKind } from "./avatars/AgentPersona";
+import type { TranscriptScroll } from "./runtime/useTranscriptScroll";
+import { InlineApprovalPrompt } from "./components/agent-preview/chatframe/approval";
+import { pendingUserInput, userInputEventsForReplay } from "./runtime/userInput";
+import { useUserInput } from "./runtime/useUserInput";
+import { approvalRequestKey } from "./runtime/approvalSubmission";
+import { approvalForReplay, identityEventForReplay } from "./runtime/replayIdentity";
+import { questionCopy } from "./i18n/copy/questions";
+import { useRunStop } from "./runtime/runStop";
+import { useProviderSettings } from "./runtime/useProviderSettings";
 
 const THEME_KEY = "raytonebot.theme";
 /** Events after which a tool call is no longer waiting on the user. */
 const APPROVAL_SETTLED_EVENTS = new Set(["tool.call.running", "tool.call.result", "tool.call.error", "tool.call.finished", "run.finished"]);
 const PERMISSION_DEFAULT_KEY = "raytonebot.permissionDefault";
+
+// Rejected requests also synthesize run.started + user text, so those are not acceptance.
+// Any terminal other than a rejection means the host saved the prompt in the conversation.
+const confirmsPromptAccepted = (event: AgentUXEvent) => event.type.startsWith("tool.call.")
+  || event.type.startsWith("reasoning.")
+  || (event.type === "text.started" && (event.payload as { role?: string }).role === "assistant")
+  || event.type === "run.finished"
+  || (event.type === "run.error" && (event.payload as { code?: string }).code !== PROMPT_REJECTED);
 
 function readSetting(key: string): string | undefined {
   try {
@@ -86,7 +107,14 @@ import {
   titlePiConversation,
   type EphemeralPiConversation,
 } from "./pi/piConversationState";
-import { piErrorTurnEvents } from "./pi/piErrorTurn";
+import { piErrorTurnEvents, PROMPT_REJECTED } from "./pi/piErrorTurn";
+import { workspaceFileUrl } from "./runtime/filePreview";
+import { artifactEventForReplay, refreshArtifactItems } from "./runtime/artifactContent";
+import { displayTaskPlans } from "./runtime/taskPlan";
+import { historyFeedbackEvents, type HistoryNotice } from "./runtime/historyFeedback";
+import { hasComposerState } from "./runtime/composerDraftStore";
+import { useComposerDrafts } from "./runtime/useComposerDrafts";
+import { branchReplayEvents, useMessageBranch } from "./runtime/useMessageBranch";
 import { piCancelledTurnEvents } from "./pi/piCancelledTurn";
 import { createPiFrameCommit } from "./pi/piFrameCommit";
 
@@ -110,6 +138,7 @@ function waitForReconnect(signal: AbortSignal, delay: number): Promise<void> {
 // output panel are closed when a conversation opens.
 const SettingsDialog = lazy(() => import("./components/settings/SettingsDialog").then((module) => ({ default: module.SettingsDialog })));
 const OutputPanelModal = lazy(() => import("./components/agent-preview/outputframe/OutputPanelModal").then((module) => ({ default: module.OutputPanelModal })));
+const OutputFrame = lazy(() => import("./components/agent-preview/OutputFrame").then((module) => ({ default: module.OutputFrame })));
 const RightPanelLayout = lazy(() => import("./components/shell/RightPanelLayout").then((module) => ({ default: module.RightPanelLayout })));
 const PREVIEW_RESPONSIVE_WIDTHS = {
   hideRightPanel: 860,
@@ -150,20 +179,27 @@ export function AgentApp() {
   const [outputPanelItems, setOutputPanelItems] = useState<OutputPanelItem[]>([]);
   const [activeOutputPanelItemId, setActiveOutputPanelItemId] = useState<string | undefined>(undefined);
   const [outputModalOpen, setOutputModalOpen] = useState(false);
+  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [outputSource, setOutputSource] = useState(project.output.source);
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
-  const [configuredProject, setConfiguredProject] = useState(project);
+  const { project: configuredProject, setProject: setConfiguredProject, status: providerSettingsStatus } = useProviderSettings(project);
   const [piEvents, setPiEvents] = useState<AgentUXEvent[] | undefined>(undefined);
   const [piConversations, setPiConversations] = useState<readonly EphemeralPiConversation[]>(() => [
     createEphemeralPiConversation(),
   ]);
   const [activePiConversationId, setActivePiConversationId] = useState(() => piConversations[0].id);
+  const composer = useComposerDrafts();
+  const [composerFocus, setComposerFocus] = useState<string>();
+  const navigatedRef = useRef(false);
   /** Conversations with a turn in flight. Each runs on its own; switching away does not stop it. */
   const [runningConversationIds, setRunningConversationIds] = useState<ReadonlySet<string>>(() => new Set());
   /** Running conversations currently held on a tool approval, including ones not on screen. */
   const [awaitingConversationIds, setAwaitingConversationIds] = useState<ReadonlySet<string>>(() => new Set());
   const piRunning = runningConversationIds.has(activePiConversationId);
   const [piRuntimeState, setPiRuntimeState] = useState<PiRuntimeState>();
+  const [historyProblems, setHistoryProblems] = useState<Record<string, "failed" | "missing" | "incomplete" | undefined>>({});
+  const [followProblems, setFollowProblems] = useState<Record<string, HistoryNotice | undefined>>({});
+  const [historyListFailed, setHistoryListFailed] = useState(false);
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
   const [celebrating, setCelebrating] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -185,20 +221,28 @@ export function AgentApp() {
     return stored === "request" || stored === "auto" || stored === "allow-all" ? stored : undefined;
   });
   const wasRunningRef = useRef<{ id: string; running: boolean }>({ id: "", running: false });
-  const [dismissedApprovalId, setDismissedApprovalId] = useState<string | null>(null);
+  const [dismissedApprovalKey, setDismissedApprovalKey] = useState<string | null>(null);
   const piAbortRefs = useRef(new Map<string, AbortController>());
+  const storedRunIds = useRef(new Map<string, Set<string>>());
+  const preparingPiRefs = useRef(new Set<string>());
+  const runStop = useRunStop(piAbortRefs, preparingPiRefs);
+  /** Uploaded copies of draft attachments, so retrying a failed submission does not upload them again. */
+  const uploadedFilesRef = useRef(new WeakMap<File, PiFileReference>());
 
   // Single entry for both modes: fixture replay (dev/preview) or the live backend
   // stream. Components never learn which one they got.
   const { events: sourceEvents, streams, streamId, setStreamId } = useEventSource();
-  const events = piEvents ?? sourceEvents;
+  const events = streamId ? sourceEvents : piEvents ?? sourceEvents;
   const activePiConversation = useMemo(
     () => piConversations.find((conversation) => conversation.id === activePiConversationId) ?? piConversations[0],
     [activePiConversationId, piConversations],
   );
   const piSessionItems = useMemo(
-    () => piConversationSidebarItems(piConversations.filter((conversation) => conversation.events.length > 0 || conversation.stored)),
-    [piConversations],
+    () => piConversationSidebarItems(piConversations
+      .filter((conversation) => conversation.events.length > 0 || conversation.stored || hasComposerState(composer.drafts[conversation.id]))
+      .map((conversation) => titlePiConversation(conversation, composer.drafts[conversation.id]?.prompt
+        || composer.drafts[conversation.id]?.attachments.map((file) => file.name).join(", ") || ""))),
+    [piConversations, composer.drafts],
   );
 
   // Mirrors the configurator's policy derivation so reasoning / tool / error states
@@ -211,15 +255,26 @@ export function AgentApp() {
     }),
     [],
   );
-  const { viewModel } = useAgentUXReplay(events, {
+  const historyCopy = copy.workspace.sessionSidebar;
+  const historyProblem = historyProblems[activePiConversationId];
+  const historyMessage = streamId ? undefined : followProblems[activePiConversationId] ?? (historyProblem === "missing" ? historyCopy.historyMissing
+    : historyProblem === "incomplete" ? historyCopy.historyIncomplete
+    : historyProblem ? historyCopy.historyFailed : historyListFailed ? historyCopy.listFailed : undefined);
+  const pendingQuestion = useMemo(() => pendingUserInput(events), [events]);
+  const questionProps = useUserInput(pendingQuestion, activePiConversationId, locale);
+  const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(historyFeedbackEvents(events, activePiConversationId, historyMessage), questionCopy[locale].skipped))
+    .map(identityEventForReplay).map(artifactEventForReplay), [events, activePiConversationId, historyMessage, locale]);
+  // Render the selected history immediately; an effect replay exposes the previous branch for one render.
+  const viewModel = useMemo(() => createAgentUXViewModel(replayAgentUXEvents(replayEvents), {
     policy: {
       reasoning: reasoningRenderPolicy,
       tool: toolRenderPolicy,
       error: { showDeveloperMessage: !project.blocks.errorCollapse, showRawError: false },
       visibility: { show: "developer" },
     },
-  });
-  const displayViewModel = useMemo(() => localizePreviewViewModel(viewModel, locale), [locale, viewModel]);
+  }), [replayEvents, reasoningRenderPolicy, toolRenderPolicy]);
+  const displayViewModel = useMemo(() => displayTaskPlans(localizePreviewViewModel(viewModel, locale), events, locale), [locale, viewModel, events]);
+  const liveOutputPanelItems = useMemo(() => refreshArtifactItems(outputPanelItems, displayViewModel.timeline), [outputPanelItems, displayViewModel]);
   const isWelcome = displayViewModel.timeline.length === 0;
 
   const activeProject = useMemo(
@@ -232,7 +287,10 @@ export function AgentApp() {
   const pendingApprovalTool = displayViewModel.timeline.find((item): item is AgentUXToolTimelineItem =>
     item.kind === "tool" && item.status === "awaiting_approval" && Boolean(item.approval),
   );
-  const liveApprovalTool = pendingApprovalTool && pendingApprovalTool.id !== dismissedApprovalId
+  const approvalKey = pendingApprovalTool ? approvalRequestKey(activePiConversationId, pendingApprovalTool.id, replayEvents) : undefined;
+  const activeApprovalKey = useRef(approvalKey);
+  activeApprovalKey.current = approvalKey;
+  const liveApprovalTool = pendingApprovalTool && approvalKey !== dismissedApprovalKey
     ? pendingApprovalTool
     : undefined;
   // A finished run gets a moment of the "done" face before settling back to idle.
@@ -249,27 +307,33 @@ export function AgentApp() {
   const persona: AgentPersona = {
     kind: PRESET_AVATARS[agentSettings.presetId],
     name: copy.composer.agentSettings.presets[agentSettings.presetId].name,
-    state: liveApprovalTool ? "warning" : piRunning ? "waiting" : celebrating ? "success" : "idle",
+    state: liveApprovalTool || pendingQuestion ? "warning" : piRunning ? "waiting" : celebrating ? "success" : "idle",
   };
   const approveLive = async (toolCallId: string, decision: ApprovalDecision) => {
     // Dismissed once the host has the answer, or says it is no longer pending (a stopped run
     // answers 409). A transport failure throws instead: the surface stays up for a retry.
-    await resolvePiApproval(toolCallId, decision, activePiConversationId);
-    setDismissedApprovalId(toolCallId);
+    const approval = approvalForReplay(toolCallId, events);
+    await resolvePiApproval(approval.toolCallId, decision, activePiConversationId, approval.runId);
+    if (approvalKey && activeApprovalKey.current === approvalKey) setDismissedApprovalKey(approvalKey);
   };
   const inlineApprovalOverlay = liveApprovalTool && activeProject.toolCalls.approval === "inline" ? (
     <div className="preview-approval-overlay" data-preview-region="approval-overlay" data-approval-kind="inline-runtime">
       <InlineApprovalSurface
-        key={liveApprovalTool.id}
+        key={approvalKey}
         tool={liveApprovalTool}
         onConfirm={(decision) => approveLive(liveApprovalTool.id, decision)}
       />
     </div>
   ) : null;
+  const userInputOverlay = questionProps ? (
+    <div className="preview-approval-overlay" data-preview-region="approval-overlay" data-approval-kind="user-input">
+      <InlineApprovalPrompt key={JSON.stringify([activePiConversationId, pendingQuestion?.requestId])} {...questionProps} />
+    </div>
+  ) : null;
   const externalApprovalOverlay = liveApprovalTool && activeProject.toolCalls.approval === "hidden" ? (
     <div className="preview-approval-overlay" data-preview-region="approval-overlay">
       <ExternalApprovalSurface
-        key={liveApprovalTool.id}
+        key={approvalKey}
         tool={liveApprovalTool}
         onConfirm={(decision) => approveLive(liveApprovalTool.id, decision)}
       />
@@ -277,13 +341,85 @@ export function AgentApp() {
   ) : null;
 
   const activeConversationIdRef = useRef(activePiConversationId);
+  const transcriptScroll = useRef<TranscriptScroll | undefined>(undefined);
+  const [searchTarget, setSearchTarget] = useState<{ conversationId: string; textId: string; nonce: string }>();
   activeConversationIdRef.current = activePiConversationId;
+  const activeStreamIdRef = useRef(streamId);
+  activeStreamIdRef.current = streamId;
+  const messageBranch = useMessageBranch({ conversation: activePiConversation, enabled: !streamId, running: piRunning,
+    async onReady(conversation, draft, action, sourceId) {
+      setPiConversations(current => replacePiConversation(current, conversation));
+      const options: ComposerRunOptions = {
+        permissionMode: composer.drafts[sourceId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
+        budgetMode: composer.drafts[sourceId]?.runOptions?.budgetMode ?? "medium",
+      };
+      await composer.update(conversation, () => ({ ...draft, runOptions: options }));
+      // A delayed fork must not steal navigation or run after the user has left its source.
+      if (activeConversationIdRef.current !== sourceId || activeStreamIdRef.current) return;
+      navigatedRef.current = true;
+      activeConversationIdRef.current = conversation.id;
+      setActivePiConversationId(conversation.id); setPiEvents([...conversation.events]);
+      setOutputPanelItems([]); setActiveOutputPanelItemId(undefined); setOutputModalOpen(false);
+      setComposerFocus(conversation.id);
+      if (action === "regenerate") void submitToPi(draft.prompt, { ...options, attachments: draft.attachments,
+        draftSnapshot: { prompt: draft.prompt, attachmentIds: draft.attachments.map(file => file.id) } }, conversation);
+    },
+  });
+
+  useEffect(() => {
+    if (!composer.restored.length) return;
+    setPiConversations((current) => {
+      const known = new Set(current.map((entry) => entry.id));
+      return [...current, ...composer.restored.filter((record) => !known.has(record.id)).map((record) => ({
+        ...record.conversation, events: [], stored: record.hasHistory || Boolean(record.submission),
+      }))];
+    });
+    // Resume the most recently edited draft only if the user has not already navigated/typed.
+    if (!navigatedRef.current && !hasComposerState(composer.drafts[activeConversationIdRef.current])) {
+      const { conversation } = composer.restored[0];
+      activeConversationIdRef.current = conversation.id;
+      setActivePiConversationId(conversation.id);
+      setPiEvents([]);
+      if (isAgentPresetId(conversation.agentPreset)) {
+        setAgentSettings((current) => ({ ...current, presetId: conversation.agentPreset as AgentPresetId }));
+      }
+    }
+  }, [composer.restored]);
+
+  useEffect(() => {
+    if (activePiConversation.stored && !piAbortRefs.current.has(activePiConversation.id)) {
+      void loadStoredConversation(activePiConversation).catch(() => undefined);
+    }
+  }, [activePiConversation.id, activePiConversation.stored]);
+
+  useEffect(() => {
+    // After a reload, the host transcript decides whether a pending draft was accepted.
+    for (const record of composer.restored) {
+      if (!record.submission) continue;
+      const conversation = piConversations.find((entry) => entry.id === record.id);
+      if (conversation) composer.accepted(conversation, storedRunIds.current.get(record.id) ?? new Set());
+    }
+  }, [composer.restored, piConversations]);
+
+  const searchConversations = useCallback(async (query: string, signal: AbortSignal, cursor?: string) => {
+    const result = await searchStoredConversations(query, signal, undefined, cursor);
+    if (!signal.aborted) setPiConversations((current) => {
+      const known = new Set(current.map(entry => entry.id));
+      const added = result.conversations.filter(entry => !known.has(entry.id));
+      return added.length ? [...current, ...added.map(entry => ({ ...entry, events: [], stored: true }))] : current;
+    });
+    if (!signal.aborted) for (const entry of result.conversations) {
+      if (entry.running) void followRun({ ...entry, events: [], stored: true });
+    }
+    return result;
+  }, []);
 
   // Conversations saved by the host (earlier visits, other browsers, before a restart) appear in
   // the sidebar at once; their transcripts load when opened.
   useEffect(() => {
     void listStoredConversations()
-      .then((stored) => {
+      .then(({ conversations: stored, unreadable }) => {
+        setHistoryListFailed(unreadable.length > 0);
         const stubs = stored
           .filter((entry) => entry.eventCount > 0)
           .map((entry): EphemeralPiConversation => ({
@@ -291,22 +427,24 @@ export function AgentApp() {
             title: entry.title,
             createdAt: entry.createdAt,
             agentPreset: entry.agentPreset,
+            activeRunId: entry.activeRunId,
             events: [],
             stored: true,
           }));
         setPiConversations((current) => {
           const known = new Set(current.map((entry) => entry.id));
-          return [...current, ...stubs.filter((stub) => !known.has(stub.id))];
+          return [...current.map((entry) => entry.events.length ? entry : stubs.find((stub) => stub.id === entry.id) ?? entry),
+            ...stubs.filter((stub) => !known.has(stub.id))];
         });
         // Turns that kept running on the host while this page was closed: pick them up.
         const running = new Set(stored.filter((entry) => entry.running).map((entry) => entry.id));
         for (const stub of stubs) if (running.has(stub.id)) void followRun(stub);
       })
-      .catch(() => undefined);
+      .catch(() => setHistoryListFailed(true));
   }, []);
 
   useEffect(() => {
-    const provider = defaultProviderConnection(project);
+    const provider = defaultProviderConnection(configuredProject);
     void configurePiRuntime({
       ...piRuntimeConfigurationForProvider(provider),
       conversationId: activePiConversationId,
@@ -377,6 +515,10 @@ export function AgentApp() {
 
   function openArtifact(request: OutputPanelOpenRequest) {
     const item = normalizeOutputPanelRequest(request);
+    const path = typeof request === "string" ? request : request.workspacePath;
+    if (item.kind === "file" && path && !item.downloadUrl) {
+      item.downloadUrl = workspaceFileUrl(path, agentSettings.presetId, piRuntimeState?.workspace);
+    }
     setOutputPanelItems((current) => {
       const index = current.findIndex((entry) => entry.id === item.id);
       if (index >= 0) {
@@ -386,6 +528,7 @@ export function AgentApp() {
       }
       return [...current, item];
     });
+    setWorkspaceModalOpen(false);
     setActiveOutputPanelItemId(item.id);
     setOutputSource("artifact");
     if (rightPanelAvailable) {
@@ -418,6 +561,7 @@ export function AgentApp() {
   async function synchronizePiRuntime(
     projectSnapshot = activeProject,
     conversationId = activePiConversationId,
+    signal?: AbortSignal,
   ) {
     const provider = defaultProviderConnection(projectSnapshot);
     const state = await configurePiRuntime(
@@ -425,6 +569,8 @@ export function AgentApp() {
         ...piRuntimeConfigurationForProvider(provider, sessionKeys[provider.id]),
         conversationId,
       },
+      fetch,
+      signal,
     );
     if (!state.available) throw new Error(state.error ?? "Pi runtime is unavailable.");
     if (state.provider !== provider.id || state.model !== provider.defaultModel) {
@@ -447,7 +593,11 @@ export function AgentApp() {
     if (pending) return pending;
     const load = getStoredConversation(conversation.id)
       .then((stored) => {
-        const loaded = { ...conversation, title: stored.title, events: stored.events, stored: false };
+        setFollowProblems((current) => ({ ...current, [conversation.id]: undefined }));
+        setHistoryProblems((current) => ({ ...current, [conversation.id]: stored.incomplete ? "incomplete" : undefined }));
+        storedRunIds.current.set(conversation.id, new Set(stored.events.flatMap((event) => event.runId ? [event.runId] : [])));
+        const loaded = { ...conversation, title: stored.title, events: stored.events, stored: false, activeRunId: stored.activeRunId };
+        composer.accepted(loaded, storedRunIds.current.get(conversation.id)!);
         setPiConversations((current) => current.map((entry) => (
           entry.id === loaded.id && entry.events.length === 0 ? loaded : entry
         )));
@@ -457,6 +607,19 @@ export function AgentApp() {
             : current
         ));
         return loaded;
+      })
+      .catch((error) => {
+        const missing = error instanceof PiRequestError && error.status === 404;
+        const unacceptedDraft = composer.restored.some((record) => record.id === conversation.id && !record.hasHistory);
+        if (!missing || !unacceptedDraft) {
+          setHistoryProblems((current) => ({ ...current, [conversation.id]: missing ? "missing" : "failed" }));
+          throw error;
+        }
+        // A saved draft may belong to a submission that never reached the host.
+        setHistoryProblems((current) => ({ ...current, [conversation.id]: undefined }));
+        const unsaved = { ...conversation, stored: false };
+        setPiConversations((current) => current.map((entry) => entry.id === unsaved.id && !entry.events.length ? unsaved : entry));
+        return unsaved;
       })
       .finally(() => historyLoadsRef.current.delete(conversation.id));
     historyLoadsRef.current.set(conversation.id, load);
@@ -472,19 +635,20 @@ export function AgentApp() {
     return next;
   };
 
-  async function submitToPi(prompt: string, context?: ComposerSubmitContext) {
-    if (piRunning) return;
+  async function submitToPi(prompt: string, context?: ComposerSubmitContext, target = activePiConversation) {
+    if (runningConversationIds.has(target.id)) return false;
     const normalizedPrompt = prompt.trim();
-    if (!normalizedPrompt) return;
-    const conversationId = activePiConversation.id;
+    if (!normalizedPrompt) return false;
+    const conversationId = target.id;
     // Synchronous guard: state updates land later, so a double submit could slip past `piRunning`.
-    if (piAbortRefs.current.has(conversationId)) return;
+    if (piAbortRefs.current.has(conversationId)) return false;
     const provider = defaultProviderConnection(activeProject);
     const controller = new AbortController();
     piAbortRefs.current.set(conversationId, controller);
+    preparingPiRefs.current.add(conversationId);
     setRunningConversationIds((current) => toggleIn(current, conversationId, true));
     let nextConversation: EphemeralPiConversation = {
-      ...titlePiConversation(activePiConversation, normalizedPrompt),
+      ...titlePiConversation(target, normalizedPrompt),
       agentPreset: agentSettings.presetId,
     };
     let turnStartEventCount = nextConversation.events.length;
@@ -495,6 +659,14 @@ export function AgentApp() {
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
     };
     const runId = "pi_export_" + crypto.randomUUID();
+    runStop.bind(controller, runId);
+    // The composer callback is bound to this conversation's draft, even after switching away.
+    const onAccepted = () => {
+      setFollowProblems((current) => ({ ...current, [conversationId]: undefined }));
+      setHistoryProblems((current) => current[conversationId] === "incomplete" ? { ...current, [conversationId]: undefined } : current);
+      composer.accepted(nextConversation, new Set([runId]));
+      context?.onAccepted?.();
+    };
     // Same coalescing as the configurator, from the same module, so a long reply does not slow
     // down as it grows here either. The conversation is still appended one event at a time.
     const commit = createPiFrameCommit<EphemeralPiConversation>((conversation) => {
@@ -507,17 +679,35 @@ export function AgentApp() {
         nextConversation = await loadStoredConversation(nextConversation);
         turnStartEventCount = nextConversation.events.length;
       }
-      if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return;
+      if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
       setPiConversations((current) => replacePiConversation(current, nextConversation));
       showIfActive(nextConversation);
       // Codex and a locally logged-in Claude Code bring their own model; only roles that run
       // on the configured model service need it registered (and its key handed over) first.
-      if (settingsUseProvider(agentSettings)) await synchronizePiRuntime(activeProject, nextConversation.id);
+      if (settingsUseProvider(agentSettings)) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal);
+      const attachments: PiPromptAttachment[] = [];
+      for (const attachment of context?.attachments ?? []) {
+        if (attachment.reference) {
+          await checkPiAttachment(attachment.reference, controller.signal);
+          attachments.push(attachment.reference); continue;
+        }
+        let uploaded = uploadedFilesRef.current.get(attachment.file);
+        if (uploaded?.scope !== agentSettings.presetId) {
+          uploaded = await uploadPiFile(attachment.file, agentSettings.presetId, controller.signal);
+          uploadedFilesRef.current.set(attachment.file, uploaded);
+        }
+        attachments.push(uploaded);
+      }
+      if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
+      if (context?.draftSnapshot) await composer.submitted(nextConversation, { requestId: runId, ...context.draftSnapshot });
+      if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
+      preparingPiRefs.current.delete(conversationId);
       promptAttempted = true;
       for await (const event of runPiTurn({
         conversationId: nextConversation.id,
         requestId: runId,
         prompt: normalizedPrompt,
+        attachments,
         provider: provider.id,
         model: provider.defaultModel,
         thinkingLevel: context?.budgetMode === "fast" ? "low" : context?.budgetMode === "expert" ? "high" : "medium",
@@ -528,15 +718,16 @@ export function AgentApp() {
       }, { signal: controller.signal })) {
         if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
           commit.cancel();
-          return;
+          return false;
         }
+        if (confirmsPromptAccepted(event)) onAccepted();
         nextConversation = appendPiConversationEvents(nextConversation, [event]);
         commit.push(nextConversation);
-        if (event.type === "tool.call.awaiting_approval") {
+        if (event.type === "tool.call.awaiting_approval" || event.type === "run.awaiting_input") {
           // Waiting on the user, so it cannot wait on a frame.
           commit.flush();
           setAwaitingConversationIds((current) => toggleIn(current, conversationId, true));
-        } else if (APPROVAL_SETTLED_EVENTS.has(event.type)) {
+        } else if (APPROVAL_SETTLED_EVENTS.has(event.type) || event.payload.inputRequestId) {
           setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
         }
       }
@@ -552,7 +743,7 @@ export function AgentApp() {
         // The abort severed the stream, so the server's own wrap-up events never arrive.
         // Close whatever is still open locally (text/tool/reasoning blocks + a cancelled
         // run terminal) so the transcript never keeps a half-finished turn.
-        const closed = appendPiConversationEvents(nextConversation, piCancelledTurnEvents(nextConversation.events));
+        const closed = appendPiConversationEvents(nextConversation, promptAttempted ? piCancelledTurnEvents(nextConversation.events) : []);
         setPiConversations((current) => replacePiConversation(current, closed));
         showIfActive(closed);
       } else if (promptAttempted && !(error instanceof PiRequestError)) {
@@ -574,6 +765,7 @@ export function AgentApp() {
         showIfActive(nextConversation);
       }
     } finally {
+      preparingPiRefs.current.delete(conversationId);
       if (piAbortRefs.current.get(conversationId) === controller) {
         piAbortRefs.current.delete(conversationId);
         if (!reattach) {
@@ -582,7 +774,9 @@ export function AgentApp() {
         }
       }
     }
-    if (reattach) void followRun(nextConversation, { requestId: runId, prompt: normalizedPrompt });
+    if (reattach) void followRun(nextConversation, { requestId: runId, prompt: normalizedPrompt, onAccepted });
+    // Acceptance clears the composer explicitly; failures before it preserve the draft/files.
+    return false;
   }
 
   /**
@@ -590,11 +784,12 @@ export function AgentApp() {
    * tab, a dropped connection). The saved transcript replaces the local one, then live events
    * follow from exactly where it ends, so nothing is shown twice or skipped.
    */
-  async function followRun(conversation: EphemeralPiConversation, submission?: { requestId: string; prompt: string }) {
+  async function followRun(conversation: EphemeralPiConversation, submission?: { requestId: string; prompt: string; onAccepted?: () => void }) {
     const conversationId = conversation.id;
     if (piAbortRefs.current.has(conversationId)) return;
     const controller = new AbortController();
     piAbortRefs.current.set(conversationId, controller);
+    runStop.bind(controller, submission?.requestId ?? conversation.activeRunId);
     setRunningConversationIds((current) => toggleIn(current, conversationId, true));
     const showIfActive = (next: EphemeralPiConversation) => {
       if (activeConversationIdRef.current === next.id) setPiEvents([...next.events]);
@@ -612,6 +807,9 @@ export function AgentApp() {
           current = await loadStoredConversation(current);
           if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
           if (controller.signal.aborted) break;
+          runStop.bind(controller, current.activeRunId ?? [...current.events].reverse().find(event => event.type === "run.started")?.runId);
+          // Saved and live events are the host's stored transcript; rejected prompts are never saved.
+          if (submission && current.events.some((event) => event.runId === submission.requestId)) submission.onAccepted?.();
           setPiConversations((list) => replacePiConversation(list, current));
           showIfActive(current);
           const requestId = submission && !current.events.some((event) => event.runId === submission.requestId)
@@ -619,13 +817,15 @@ export function AgentApp() {
           for await (const event of followPiTurn(conversationId, current.events.length, { signal: controller.signal, requestId })) {
             if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
             if (controller.signal.aborted) break;
+            if (event.type === "run.started") runStop.bind(controller, event.runId);
+            if (submission && event.runId === submission.requestId) submission.onAccepted?.();
             retries = 0;
             current = appendPiConversationEvents(current, [event]);
             commit.push(current);
-            if (event.type === "tool.call.awaiting_approval") {
+            if (event.type === "tool.call.awaiting_approval" || event.type === "run.awaiting_input") {
               commit.flush();
               setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, true));
-            } else if (APPROVAL_SETTLED_EVENTS.has(event.type)) {
+            } else if (APPROVAL_SETTLED_EVENTS.has(event.type) || event.payload.inputRequestId) {
               setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, false));
             }
           }
@@ -638,7 +838,7 @@ export function AgentApp() {
           if (controller.signal.aborted) break;
           // A missing conversation or denied access is definitive; a network failure/5xx is not.
           if (error instanceof PiRequestError && error.status < 500) throw error;
-          if (++retries >= 5) throw new Error("连续 5 次无法连接主机，已停止本地重连；未确认主机任务已停止。恢复连接后请刷新查看任务。");
+          if (++retries >= 5) throw new Error("连续 5 次无法连接主机，已停止本地重连；未确认主机任务已停止。恢复连接后请从侧栏重新选择此会话。");
           await waitForReconnect(controller.signal, Math.min(1000 * 2 ** (retries - 1), 5000));
         }
       }
@@ -650,15 +850,14 @@ export function AgentApp() {
       }
     } catch (error) {
       if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
-      const failed = appendPiConversationEvents(current, piErrorTurnEvents({
+      // Connection failure is not a host terminal and must never advance its event cursor.
+      setFollowProblems((problems) => ({ ...problems, [conversationId]: {
         message: error instanceof Error ? error.message : "Pi runtime failed.",
         prompt: submission && !current.events.some((event) => event.runId === submission.requestId && event.type === "text.started"
           && (event.payload as { role?: string }).role === "user") ? submission.prompt : undefined,
         runId: submission?.requestId ?? [...current.events].reverse().find((event) => event.type === "run.started")?.runId
           ?? `pi_follow_${Date.now().toString(36)}`,
-      }));
-      setPiConversations((list) => replacePiConversation(list, failed));
-      showIfActive(failed);
+      } }));
     } finally {
       if (piAbortRefs.current.get(conversationId) === controller) {
         piAbortRefs.current.delete(conversationId);
@@ -669,17 +868,7 @@ export function AgentApp() {
   }
 
   /** Stops the conversation on screen; runs in other conversations continue. */
-  async function stopPi(conversationId = activePiConversationId) {
-    const controller = piAbortRefs.current.get(conversationId);
-    try {
-      await abortPiRun(conversationId);
-    } catch {
-      // The host may still be executing. Keep watching and leave Stop available for a retry.
-      return;
-    }
-    // A late response for an earlier turn must not cancel a newer local subscription.
-    if (piAbortRefs.current.get(conversationId) === controller) controller?.abort();
-  }
+  const stopPi = (conversationId = activePiConversationId) => runStop.stop(conversationId);
 
   async function selectProvider(id: ProviderConnectionId) {
     const provider = activeProject.providers.connections.find((entry) => entry.id === id && entry.enabled);
@@ -735,6 +924,7 @@ export function AgentApp() {
    * longer on screen.
    */
   async function startNewSession() {
+    navigatedRef.current = true;
     // A run in flight keeps going in its own conversation; it only draws while on screen.
     const conversation = createEphemeralPiConversation();
     setStreamId("");
@@ -760,23 +950,26 @@ export function AgentApp() {
    * switching agents starts fresh instead of pretending the new one remembers.
    */
   function changeAgentSettings(next: AgentSettings) {
+    navigatedRef.current = true;
     const presetChanged = next.presetId !== agentSettings.presetId;
     setAgentSettings(next);
     saveAgentSettings(next);
-    if (presetChanged && activePiConversation.events.length > 0) void startNewSession();
+    if (presetChanged && (activePiConversation.events.length > 0 || hasComposerState(composer.drafts[activePiConversationId]))) void startNewSession();
   }
 
   /** Clicking an agent is how a new conversation starts (there is no separate "new chat" button).
    *  An empty conversation on screen is reused rather than stacking another blank one. */
   function startConversationWith(presetId: AgentPresetId) {
+    navigatedRef.current = true;
     setDrawerOpen(false);
     const next = { ...agentSettings, presetId };
     setAgentSettings(next);
     saveAgentSettings(next);
-    if (activePiConversation.events.length > 0 || piRunning) void startNewSession();
+    if (activePiConversation.events.length > 0 || piRunning || hasComposerState(composer.drafts[activePiConversationId])) void startNewSession();
   }
 
   function selectPiConversation(conversationId: string) {
+    navigatedRef.current = true;
     setDrawerOpen(false);
     const conversation = piConversations.find((entry) => entry.id === conversationId);
     if (!conversation) return;
@@ -790,9 +983,9 @@ export function AgentApp() {
       setAgentSettings(next);
       saveAgentSettings(next);
     }
-    if (conversation.stored && conversation.events.length === 0 && !piAbortRefs.current.has(conversation.id)) {
-      void loadStoredConversation(conversation).catch(() => undefined);
-    }
+    // Cached history may have changed while detached or in another tab. This shared reader
+    // reserves the subscription synchronously and only reads/attaches; it never resends a prompt.
+    if (conversation.stored || conversation.events.length || followProblems[conversation.id]) void followRun(conversation);
     setOutputPanelItems([]);
     setActiveOutputPanelItemId(undefined);
     setOutputModalOpen(false);
@@ -824,13 +1017,11 @@ export function AgentApp() {
     onGitCommit: noop,
     onProviderChange: (id) => void selectProvider(id),
     onModelChange: (model) => void selectModel(model),
-    onApprovalDecision: async (toolCallId, decision) => {
-      await resolvePiApproval(toolCallId, decision, activePiConversationId);
-    },
+    onApprovalDecision: approveLive,
     onCollapseLeft: () => setLeftCollapsed(true),
     onCollapseRight: () => setRightCollapsed(true),
     onOpenArtifact: openArtifact,
-    outputPanelItems,
+    outputPanelItems: liveOutputPanelItems,
     activeOutputPanelItemId,
     onSelectOutputPanelItem: setActiveOutputPanelItemId,
     onCloseOutputPanelItem: closeOutputPanelItem,
@@ -848,16 +1039,26 @@ export function AgentApp() {
   };
 
   const defaultProvider = defaultProviderConnection(activeProject);
+  const changeComposerDraft = (update: (draft: ComposerDraft) => ComposerDraft) => {
+    const conversation = { ...activePiConversation, agentPreset: agentSettings.presetId };
+    if (activePiConversation.agentPreset !== conversation.agentPreset) {
+      setPiConversations(current => current.map(entry => entry.id === conversation.id ? { ...entry, agentPreset: conversation.agentPreset } : entry));
+    }
+    void composer.update(conversation, update);
+  };
   // Every agent with a conversation in flight shows it, not only the one on screen.
   const agentStatuses: Partial<Record<AgentPresetId, AgentRunStatus>> = {};
   for (const conversation of piConversations) {
     if (!runningConversationIds.has(conversation.id) || !isAgentPresetId(conversation.agentPreset)) continue;
-    const waiting = awaitingConversationIds.has(conversation.id)
+    const waiting = awaitingConversationIds.has(conversation.id) || Boolean(pendingUserInput(conversation.events))
       || (conversation.id === activePiConversationId && Boolean(liveApprovalTool));
     if (waiting) agentStatuses[conversation.agentPreset] = "needs-you";
     else agentStatuses[conversation.agentPreset] ??= "running";
   }
   const shellExtras: ShellExtras = {
+    messageBranch,
+    composerFocus: activePiConversationId === composerFocus ? composerFocus : undefined,
+    transcriptScroll,
     agentSwitcher: (
       <AgentSwitcher
         avatars={PRESET_AVATARS}
@@ -877,12 +1078,36 @@ export function AgentApp() {
         onManageProviders={() => openSettings("providers")}
       />
     ),
+    searchConversations: streamId ? undefined : searchConversations,
+    onSelectSearchResult: (session) => {
+      setSearchTarget(session.textId ? { conversationId: session.id, textId: session.textId, nonce: crypto.randomUUID() } : undefined);
+      selectPiConversation(session.id);
+    },
+    transcriptTarget: !streamId && searchTarget?.conversationId === activePiConversationId ? searchTarget : undefined,
     sessionAvatars: Object.fromEntries(
       piConversations.flatMap((conversation) => (
         isAgentPresetId(conversation.agentPreset) ? [[conversation.id, PRESET_AVATARS[conversation.agentPreset]]] : []
       )),
     ),
     composerPlaceholder: settingsCopy[locale].shell.messageTo(copy.composer.agentSettings.presets[agentSettings.presetId].name),
+    stopStatus: !streamId && piRunning ? runStop.statusFor(activePiConversationId) : undefined,
+    composerOptions: {
+      value: {
+        permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
+        budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
+      },
+      onChange: update => changeComposerDraft(current => ({ ...current, runOptions: { ...current.runOptions, ...update } })),
+    },
+    composerDraft: {
+      value: composer.drafts[activePiConversationId] ?? { prompt: "", attachments: [] },
+      status: composer.statusFor(activePiConversationId),
+      onChange: changeComposerDraft,
+    },
+    workspaceScope: agentSettings.presetId,
+    workspaceRevision: piRunning,
+    workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),
+    workspace: piRuntimeState?.workspace,
+    onOpenFile: openArtifact,
   };
 
   const previewOverlaySlots = renderSlots(
@@ -900,6 +1125,7 @@ export function AgentApp() {
     <section className="preview-stack preview-stack-solo" data-welcome={isWelcome ? "true" : undefined}>
       {renderSlots(visibleLayoutSlots, "main", slotContext)}
       {inlineApprovalOverlay}
+      {userInputOverlay}
       {externalApprovalOverlay}
       {renderSlots(visibleLayoutSlots, "composer", slotContext)}
     </section>
@@ -918,6 +1144,7 @@ export function AgentApp() {
       <>
         <div
           className="preview-frame"
+          data-conversation-id={activePiConversationId}
           data-has-sidebar={hasSidebar}
           data-has-right-panel={rightPanelVisible}
           data-left-collapsed={leftCollapsed}
@@ -956,6 +1183,7 @@ export function AgentApp() {
                   <section className="preview-stack" data-welcome={isWelcome ? "true" : undefined}>
                     {renderSlots(visibleLayoutSlots, "main", slotContext)}
                     {inlineApprovalOverlay}
+                    {userInputOverlay}
                     {externalApprovalOverlay}
                     {renderSlots(visibleLayoutSlots, "composer", slotContext)}
                   </section>
@@ -976,22 +1204,27 @@ export function AgentApp() {
               <span className="legacy-rail-icon"><PanelLeft size={15} /></span>
             </button>
           ) : null}
-          {hasRightPanel && rightCollapsed && !autoHiddenRails.right && !isWelcome ? (
+          {hasRightPanel && (autoHiddenRails.right || (rightPanelAvailable && rightCollapsed)) ? (
             <button
               type="button"
               className="rail-icon-btn preview-rail-float"
               data-side="right"
               aria-label={copy.shell.editor.expandPanel}
-              onClick={() => setRightCollapsed(false)}
+              onClick={() => autoHiddenRails.right ? setWorkspaceModalOpen(true) : setRightCollapsed(false)}
             >
               <span className="native-rail-icon"><RightSidebarRailIcon size={15} /></span>
               <span className="legacy-rail-icon"><PanelRight size={15} /></span>
             </button>
           ) : null}
+          {workspaceModalOpen ? (
+            <Suspense fallback={null}>
+              <OutputFrame project={activeProject} viewModel={displayViewModel} fullscreen onCollapse={() => setWorkspaceModalOpen(false)} />
+            </Suspense>
+          ) : null}
           {outputModalOpen ? (
             <Suspense fallback={null}>
               <OutputPanelModal
-                items={outputPanelItems}
+                items={liveOutputPanelItems}
                 activeId={activeOutputPanelItemId}
                 onSelectItem={setActiveOutputPanelItemId}
                 onCloseItem={closeOutputPanelItem}
@@ -1031,7 +1264,11 @@ export function AgentApp() {
           <SelectMenu
             size="sm"
             value={streamId}
-            onValueChange={setStreamId}
+            onValueChange={(value) => {
+              navigatedRef.current = true;
+              setPiEvents(undefined);
+              setStreamId(value);
+            }}
             ariaLabel={copy.shell.editor.eventStreamAria}
             // The empty option is what "new conversation" returns to, and what the app opens
             // on. Without it the picker could never get back to the welcome screen.
@@ -1050,6 +1287,7 @@ export function AgentApp() {
               onOpenChange={setSettingsOpen}
               initialSection={settingsSection}
             project={activeProject}
+            providerSettingsStatus={providerSettingsStatus}
             runtime={piRuntimeState}
             isRunning={piRunning}
             sessionKeys={sessionKeys}

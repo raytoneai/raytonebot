@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { ConcreteArtifactRenderer } from "./types";
 import type { OutputPanelItem } from "./panelItem";
 
-export type OpenedOutputRenderKind = "image" | "audio" | "video" | "html" | "markdown" | "data" | "code";
+export type OpenedOutputRenderKind = "image" | "audio" | "video" | "pdf" | "html" | "markdown" | "data" | "code";
 
 export function languageFromTitle(title: string): string {
   const ext = title.split(".").pop()?.toLowerCase();
@@ -18,8 +18,10 @@ export function languageFromTitle(title: string): string {
 }
 
 export function outputItemRenderKind(item: OutputPanelItem): OpenedOutputRenderKind {
+  if (item.kind === "review") return "code";
   const language = (item.language ?? languageFromTitle(item.title)).toLowerCase();
   const title = item.title.toLowerCase();
+  if (title.endsWith(".pdf") || language === "pdf") return "pdf";
   if (/\.(png|jpe?g|gif|webp|avif|svg)$/.test(title) || ["png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "image"].includes(language)) {
     return "image";
   }
@@ -55,7 +57,7 @@ export function outputItemIcon(item: OutputPanelItem, size = 13): ReactNode {
   if (kind === "html") {
     return <PanelsTopLeft size={size} />;
   }
-  if (kind === "markdown") {
+  if (kind === "markdown" || kind === "pdf") {
     return <FileText size={size} />;
   }
   if (kind === "data") {
@@ -72,7 +74,7 @@ export function outputItemModalRenderer(item: OutputPanelItem): ConcreteArtifact
   if (kind === "data") {
     return "data";
   }
-  if (kind === "image" || kind === "audio" || kind === "video" || kind === "html") {
+  if (kind === "image" || kind === "audio" || kind === "video" || kind === "html" || kind === "pdf") {
     return "preview";
   }
   return "code";

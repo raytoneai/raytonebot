@@ -1,10 +1,12 @@
 import type { AgentUXToolTimelineItem } from "@agent-ux/render-core";
-import { useState } from "react";
+import { useLayoutEffect, useRef, useState } from "react";
 
 import { StateIcon, type IconSlot } from "../../../agentmatrix";
 import { useCopy } from "../../../i18n/LocaleContext";
 import type { UiCopy } from "../../../i18n/uiCopy";
 import type { ApprovalDecision } from "../ToolCallCard";
+import { useApprovalSubmission } from "../../../runtime/approvalSubmission";
+import { usePromptFocus } from "../../../runtime/usePromptFocus";
 
 export type InlineApprovalPromptOption = {
   id: string;
@@ -12,6 +14,7 @@ export type InlineApprovalPromptOption = {
   body?: string;
   answerPlaceholder?: boolean;
   disabled?: boolean;
+  selected?: boolean;
   onSelect?: () => void;
 };
 
@@ -27,6 +30,9 @@ export function InlineApprovalPrompt({
   approvalSurface,
   onSecondary,
   onPrimary,
+  primaryDisabled = false,
+  answer: controlledAnswer,
+  onAnswerChange,
 }: {
   ariaLabel: string;
   kicker: string;
@@ -38,12 +44,27 @@ export function InlineApprovalPrompt({
   pending?: boolean;
   approvalSurface?: "inline";
   onSecondary?: () => void;
-  onPrimary?: () => void;
+  onPrimary?: (answer: string) => void;
+  primaryDisabled?: boolean;
+  answer?: string;
+  onAnswerChange?: (answer: string) => void;
 }) {
-  const [answer, setAnswer] = useState("");
+  const [localAnswer, setAnswer] = useState("");
+  const answer = controlledAnswer ?? localAnswer;
+  const panel = usePromptFocus(pending);
+  const heading = useRef<HTMLElement>(null);
+  const advanceFocus = useRef(false);
+  useLayoutEffect(() => {
+    // A question change removes the old input. Keep keyboard navigation inside the form.
+    if (advanceFocus.current) heading.current?.focus();
+    advanceFocus.current = false;
+  }, [question]);
+  const primary = () => { advanceFocus.current = true; onPrimary?.(answer); };
+  const secondary = () => { advanceFocus.current = true; onSecondary?.(); };
 
   return (
     <aside
+      ref={panel}
       className="inline-approval-panel"
       data-approval-surface={approvalSurface}
       data-preview-anchor="external-approval"
@@ -53,7 +74,7 @@ export function InlineApprovalPrompt({
       <div className="inline-approval-head">
         <div>
           <span>{kicker}</span>
-          <strong>{question}</strong>
+          <strong ref={heading} tabIndex={-1}>{question}</strong>
         </div>
       </div>
 
@@ -69,16 +90,25 @@ export function InlineApprovalPrompt({
               <input
                 className="inline-approval-answer"
                 type="text"
+                maxLength={4000}
                 value={answer}
                 placeholder={option.title}
                 aria-label={option.title}
-                onChange={(event) => setAnswer(event.target.value)}
+                disabled={pending}
+                onChange={(event) => { setAnswer(event.target.value); onAnswerChange?.(event.target.value); }}
+                onKeyDown={(event) => {
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing && !pending && !primaryDisabled) {
+                    event.preventDefault();
+                    primary();
+                  }
+                }}
               />
             ) : option.onSelect ? (
               <button
                 type="button"
                 className="inline-approval-option-button"
                 data-approval-action={option.id}
+                aria-pressed={option.selected}
                 disabled={pending || option.disabled}
                 onClick={option.onSelect}
               >
@@ -96,7 +126,7 @@ export function InlineApprovalPrompt({
       </ol>
 
       <footer className="inline-approval-footer">
-        <span>
+        <span role="status">
           <span className="inline-approval-info" aria-hidden="true">i</span>
           {hint}
         </span>
@@ -105,15 +135,15 @@ export function InlineApprovalPrompt({
             type="button"
             className="inline-approval-secondary"
             disabled={pending}
-            onClick={onSecondary}
+            onClick={secondary}
           >
             {secondaryLabel}
           </button>
           <button
             type="button"
             className="inline-approval-primary"
-            disabled={pending}
-            onClick={onPrimary}
+            disabled={pending || primaryDisabled}
+            onClick={primary}
           >
             {primaryLabel}
           </button>
@@ -131,21 +161,9 @@ export function InlineApprovalSurface({
   onConfirm?: (decision: ApprovalDecision) => void | Promise<void>;
 }) {
   const copy = useCopy();
-  const [pending, setPending] = useState(false);
+  const { pending, failed, submit: confirm } = useApprovalSubmission(onConfirm);
   const choices = approvalChoices(copy);
   const prompt = tool.approval?.prompt ?? copy.chat.approval.promptFallback;
-
-  async function confirm(decision: ApprovalChoice) {
-    if (pending) return;
-    setPending(true);
-    try {
-      await onConfirm?.(decision);
-    } catch {
-      // The owner reports transport failures. Leave the prompt mounted and enabled for retry.
-    } finally {
-      setPending(false);
-    }
-  }
 
   return (
     <InlineApprovalPrompt
@@ -158,7 +176,7 @@ export function InlineApprovalSurface({
         body: choice.hint,
         onSelect: () => void confirm(choice.id),
       }))}
-      hint={copy.chat.approval.chooseHint}
+      hint={pending ? copy.chat.approval.sending : failed ? copy.chat.approval.failed : copy.chat.approval.chooseHint}
       secondaryLabel={copy.chat.approval.no}
       primaryLabel={copy.chat.approval.yes}
       pending={pending}
@@ -180,15 +198,19 @@ export function ExternalApprovalSurface({
 }) {
   const copy = useCopy();
   const [selected, setSelected] = useState<ApprovalChoice>("yes");
+  const { pending, failed, submit } = useApprovalSubmission(onConfirm);
+  const panel = usePromptFocus(pending);
   const choices = approvalChoices(copy);
   // Same precedence as the inline card: the backend's own question, else the dictionary's.
   const prompt = tool.approval?.prompt ?? copy.chat.approval.promptFallback;
   return (
     <aside
+      ref={panel}
       className="external-approval-panel"
       data-approval-surface="external"
       data-preview-anchor="external-approval"
       aria-label={copy.chat.approval.externalLabel}
+      aria-busy={pending}
     >
       <div className="external-approval-head">
         <div>
@@ -218,6 +240,7 @@ export function ExternalApprovalSurface({
             type="button"
             data-approval-action={choice.id}
             data-selected={selected === choice.id}
+            disabled={pending}
             onClick={() => setSelected(choice.id)}
           >
             <span className="external-approval-index">{index + 1}.</span>
@@ -230,13 +253,14 @@ export function ExternalApprovalSurface({
       </div>
 
       <div className="external-approval-footer">
-        <span>
-          {copy.chat.approval.chooseHint}
+        <span role="status">
+          {pending ? copy.chat.approval.sending : failed ? copy.chat.approval.failed : copy.chat.approval.chooseHint}
         </span>
         <button
           type="button"
           className="external-approval-confirm"
-          onClick={() => void Promise.resolve(onConfirm?.(selected)).catch(() => undefined)}
+          disabled={pending}
+          onClick={() => void submit(selected)}
         >
           {copy.chat.approval.confirm}
         </button>

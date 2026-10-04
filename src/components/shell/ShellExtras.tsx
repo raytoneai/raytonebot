@@ -1,11 +1,17 @@
 import * as RadixPopover from "@radix-ui/react-popover";
 import { ChevronDown, Settings } from "lucide-react";
-import { createContext, useContext, type ReactNode } from "react";
+import { createContext, useContext, type ReactNode, type RefObject } from "react";
+import type { TranscriptScroll } from "../../runtime/useTranscriptScroll";
+import type { BranchAction } from "../../runtime/useMessageBranch";
+import type { ConversationSearch, SearchSession } from "../../runtime/useConversationSearch";
 
 import { AgentAvatar, type AvatarKind } from "../../avatars/AgentPersona";
 import { useCopy, useLocale } from "../../i18n/LocaleContext";
 import { settingsCopy } from "../../i18n/copy/settings";
 import { appVersionLabel } from "../../appVersion";
+import type { ComposerDraft, ComposerRunOptions } from "../agent-preview/ComposerFrame";
+import type { OutputPanelOpenRequest } from "../agent-preview/outputframe/panelItem";
+import type { PiRuntimeState } from "../../pi/piClient";
 import {
   AGENT_PRESETS,
   agentPreset,
@@ -33,8 +39,26 @@ export type ShellExtras = {
   headerAgent?: ReactNode;
   /** Conversation id → the face of the role that answered it. */
   sessionAvatars?: Record<string, AvatarKind>;
+  searchConversations?: ConversationSearch;
+  onSelectSearchResult?: (session: SearchSession) => void;
+  transcriptTarget?: { textId: string; nonce: string };
   /** Composer placeholder naming the current agent. */
   composerPlaceholder?: string;
+  /** The shell keeps each conversation's files and draft across layout remounts. */
+  composerDraft?: { value: ComposerDraft; status?: "loading" | "saving" | "saved" | "unavailable" | "conflict"; onChange: (update: (current: ComposerDraft) => ComposerDraft) => void };
+  /** Explicit choices belong to the conversation, not a remountable layout slot. */
+  composerOptions?: { value: ComposerRunOptions; onChange: (update: Partial<ComposerRunOptions>) => void };
+  composerFocus?: string;
+  stopStatus?: "pending" | "failed" | "idle";
+  messageBranch?: { canBranch: (messageId?: string) => boolean; run: (messageId: string, action: BranchAction) => Promise<void> };
+  /** Layout switches may remount the transcript while the user is reading history. */
+  transcriptScroll?: RefObject<TranscriptScroll | undefined>;
+  workspaceScope?: AgentPresetId;
+  /** Refresh the visible directory when a run starts or finishes. */
+  workspaceRevision?: boolean;
+  workspaceSharedAvailable?: boolean;
+  workspace?: PiRuntimeState["workspace"];
+  onOpenFile?: (request: OutputPanelOpenRequest) => void;
 };
 
 const ShellExtrasContext = createContext<ShellExtras>({});

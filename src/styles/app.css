@@ -3236,6 +3236,23 @@ textarea:focus-visible {
   pointer-events: auto;
 }
 
+.preview-approval-overlay[data-approval-kind="user-input"] .inline-approval-panel {
+  max-height: 55dvh;
+  overflow: auto;
+  overflow-wrap: anywhere;
+  align-content: start;
+}
+
+.preview-approval-overlay[data-approval-kind="user-input"] .inline-approval-head > div,
+.preview-approval-overlay[data-approval-kind="user-input"] .inline-approval-footer {
+  flex-wrap: wrap;
+}
+
+.preview-approval-overlay[data-approval-kind="user-input"] .inline-approval-head span:first-child {
+  max-width: 100%;
+  line-height: 1.3;
+}
+
 .preview-frame .utility-card {
   border: 0;
   border-radius: 0;
@@ -3464,7 +3481,7 @@ textarea:focus-visible {
 .session-search-overlay {
   position: absolute;
   inset: 0;
-  z-index: 20;
+  z-index: 22;
   display: grid;
   place-items: center;
   overflow: hidden;
@@ -3476,6 +3493,7 @@ textarea:focus-visible {
   position: relative;
   z-index: 1;
   display: grid;
+  grid-template-rows: auto minmax(0, 1fr);
   gap: 10px;
   width: min(520px, calc(100% - 24px));
   max-height: min(72%, 460px);
@@ -3486,6 +3504,13 @@ textarea:focus-visible {
   padding: 13px 10px 12px;
   box-shadow: 0 18px 46px rgba(13, 18, 28, 0.14);
   transform: none;
+}
+
+.session-search-results > [role="status"] {
+  margin: 8px 10px;
+  color: var(--text-muted);
+  font-size: 13px;
+  line-height: 1.5;
 }
 
 .session-search {
@@ -3514,10 +3539,17 @@ textarea:focus-visible {
 
 .session-search-results {
   display: grid;
+  align-content: start;
   gap: 8px;
   min-height: 0;
   overflow: auto;
+  overflow-anchor: none;
   padding: 0 6px 3px;
+}
+
+.session-group[data-windowed="true"] {
+  display: block;
+  position: relative;
 }
 
 .session-search-popover :is(.session-group) {
@@ -3546,6 +3578,30 @@ textarea:focus-visible {
   font-size: 14px;
 }
 
+.session-search-snippet {
+  display: block;
+  margin-block: 4px 6px;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.4;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.session-search-author { color: var(--text-muted); font-size: 12px; }
+
+.message-bubble[data-search-match="true"] .msg-surface {
+  outline: 2px solid var(--border-subtle);
+  outline-offset: 4px;
+  border-radius: 8px;
+}
+
+.session-search-snippet mark {
+  background: color-mix(in srgb, var(--text-primary) 12%, transparent);
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
 .session-list {
   display: grid;
   align-content: start;
@@ -3559,6 +3615,7 @@ textarea:focus-visible {
   margin-inline: calc(-1 * var(--session-row-bleed));
   padding-inline: var(--session-row-bleed);
   overflow: auto;
+  overflow-anchor: none;
 }
 
 /* Session sidebar brand/title — bold agent name at the top (Codex-like). The
@@ -4687,6 +4744,13 @@ textarea:focus-visible {
   display: flex;
   flex-wrap: wrap;
   gap: 5px;
+}
+
+.clipboard-feedback {
+  align-self: center;
+  color: var(--text-secondary);
+  font-size: 12px;
+  overflow-wrap: anywhere;
 }
 
 .message-action-icon,
@@ -6813,6 +6877,7 @@ pre {
 
 .markdown-preview {
   display: grid;
+  align-content: start;
   gap: 6px;
   border-radius: calc(var(--radius) - 2px);
   background: var(--surface-inset);
@@ -7869,6 +7934,10 @@ pre {
   line-height: 1.3;
 }
 
+.preview-frame .tool-preview {
+  margin-inline-start: 4px;
+}
+
 .preview-frame .tool-card[data-action] .tool-title {
   color: var(--text-muted);
 }
@@ -8740,6 +8809,10 @@ pre {
   white-space: nowrap;
 }
 
+.preview-frame[data-compact="true"] .opened-output-item .artifact-title em {
+  display: none;
+}
+
 .preview-frame .opened-output-item pre {
   margin: 0;
 }
@@ -9082,8 +9155,57 @@ pre {
   border-radius: 10px;
 }
 
+/* HTML owns the remaining panel height; the document scrolls inside its iframe. */
+.preview-frame .artifact-frame:has(.html-output-preview) {
+  display: flex;
+  flex-direction: column;
+  flex: 1 1 0;
+}
+
+.preview-frame .artifact-content:has(.html-output-preview) {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.preview-frame .artifact-content:has(.html-output-preview) > .output-tabs {
+  flex: none;
+}
+
+.preview-frame .opened-output-item:has(> .html-output-preview) {
+  flex: 1;
+  min-height: 0;
+  grid-template-rows: auto minmax(0, 1fr);
+}
+
 .preview-frame .html-output-preview {
-  height: 280px;
+  height: 100%;
+  min-height: 0;
+}
+
+.preview-frame .pdf-output-preview {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+  height: min(70dvh, 720px);
+}
+
+.preview-frame .pdf-output-preview p {
+  margin: 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.preview-frame .pdf-output-preview iframe {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  border: 1px solid var(--preview-soft-line);
+  border-radius: 14px;
 }
 
 .preview-frame .markdown-preview,
@@ -10138,6 +10260,15 @@ pre {
   background: var(--text-inverse);
   -webkit-mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20V6'/%3E%3Cpath d='M6 12l6-6 6 6'/%3E%3C/svg%3E") center / 18px 18px no-repeat;
   mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23fff' stroke-width='2.4' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M12 20V6'/%3E%3Cpath d='M6 12l6-6 6 6'/%3E%3C/svg%3E") center / 18px 18px no-repeat;
+}
+
+/* The themed send mask must not disguise the running turn's stop action. */
+.preview-frame:is([data-style-preset="native"], [data-style-preset="illustrated"]) .ui-button.send-button[data-size][data-variant="danger"]::after {
+  inset: 10px;
+  border-radius: 2px;
+  transform: none;
+  -webkit-mask: none;
+  mask: none;
 }
 
 .preview-frame[data-style-preset="illustrated"] :is(
@@ -12232,3 +12363,21 @@ pre {
 .preview-frame[data-compact="true"] .composer-frame .ui-textarea {
   font-size: 16px;
 }
+
+/* Workspace browsing reuses the output panel and its header controls. */
+.workspace-files { overflow: auto; }
+.workspace-files-path { display: flex; align-items: center; gap: 8px; margin: 12px 0; min-width: 0; }
+.workspace-files-path code { overflow-wrap: anywhere; }
+.workspace-file-list { list-style: none; margin: 0; padding: 0; }
+.workspace-file-list a, .workspace-file-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 4px; border: 0; background: transparent; color: inherit; text-align: left; text-decoration: none; font: inherit; cursor: pointer; }
+.workspace-file-list a:hover, .workspace-file-list button:hover { background: var(--surface-inset); }
+.workspace-file-list svg { flex: 0 0 auto; }
+.workspace-file-list span { flex: 1; overflow-wrap: anywhere; min-width: 0; }
+.workspace-file-list small { flex: 0 0 auto; opacity: .6; }
+.workspace-file-list li { display: flex; align-items: center; }
+.workspace-file-list button { min-width: 0; flex: 1; }
+.workspace-file-list a.workspace-file-download { flex: 0 0 auto; width: auto; padding: 10px; }
+.preview-frame .image-output-preview img { width: 100%; height: auto; max-height: 65vh; object-fit: contain; }
+.preview-frame .audio-output-preview audio,
+.preview-frame .video-output-preview video { width: 100%; max-height: 65vh; }
+.composer-draft-status { display: block; padding: 6px 12px 0; color: var(--text-muted); font-size: 12px; }

@@ -1,14 +1,15 @@
-import { Braces, Copy, FileCode2, FileText, PanelsTopLeft, TerminalSquare } from "lucide-react";
+import { Braces, Check, CircleAlert, Copy, FileCode2, FileText, PanelsTopLeft, TerminalSquare } from "lucide-react";
 import type { AgentUXArtifactTimelineItem } from "@agent-ux/render-core";
 
 import type { AgentFrontendProject, OutputSource } from "../../../schema/agentuxConfig";
 import type { ConsoleLogEntry } from "../../../runtime/toolDisplaySpec";
 import type { ConcreteArtifactRenderer, OutputFrameCopy } from "./types";
 import type { OutputPanelItem } from "./panelItem";
-import { languageFromTitle, outputItemRenderKind } from "./renderKind";
+import { outputItemRenderKind } from "./renderKind";
 import { renderMarkdownPreview } from "./openedItemBody";
-import { renderOpenedOutputBody } from "./openedItemBody";
 import { OpenedOutputItem, OutputTabs } from "./OutputTabs";
+import { useClipboardFeedback } from "../../../runtime/useClipboardFeedback";
+import { useCopy } from "../../../i18n/LocaleContext";
 import {
   artifactCodePreview,
   artifactDataPreview,
@@ -41,6 +42,10 @@ export function OutputContent({
   onSelectOpenItem?: (id: string) => void;
   onCloseOpenItem?: (id: string) => void;
 }) {
+  const code = artifact && renderer === "code" ? artifactCodePreview(artifact, copy) : undefined;
+  const clipboard = useClipboardFeedback(source === "artifact" && !openItems.length ? code?.code ?? "" : "");
+  const labels = useCopy().chat.message.actions;
+  const feedback = clipboard.status === "copied" ? labels.copied : clipboard.status === "failed" ? labels.copyFailed : undefined;
   if (source === "console") {
     return <ConsoleOutput copy={copy} entries={consoleEntries} />;
   }
@@ -66,8 +71,7 @@ export function OutputContent({
     return <div className="empty-state">{copy.emptyNoArtifact}</div>;
   }
 
-  if (renderer === "code") {
-    const code = artifactCodePreview(artifact, copy);
+  if (code) {
     return (
       <div className="artifact-content code-output">
         <div className="artifact-title">
@@ -77,12 +81,15 @@ export function OutputContent({
           <button
             className="code-copy-button"
             type="button"
-            aria-label={copy.copyCode}
-            onClick={() => void navigator.clipboard?.writeText(code.code)}
+            aria-label={feedback ?? copy.copyCode}
+            title={feedback ?? copy.copyCode}
+            disabled={!code.code}
+            onClick={() => void clipboard.copy()}
           >
-            <Copy size={14} />
+            {clipboard.status === "copied" ? <Check size={14} /> : clipboard.status === "failed" ? <CircleAlert size={14} /> : <Copy size={14} />}
           </button>
         </div>
+        {feedback ? <span className="clipboard-feedback" role="status">{feedback}</span> : null}
         <pre data-language={code.lang}>{code.code}</pre>
       </div>
     );
@@ -104,10 +111,10 @@ export function OutputContent({
   if (renderer === "preview") {
     const artifactItem = outputPanelItemFromRenderedArtifact(artifact, project);
     const artifactRenderKind = outputItemRenderKind(artifactItem);
-    if (artifactRenderKind === "image" || artifactRenderKind === "audio" || artifactRenderKind === "video") {
+    if (artifactRenderKind === "image" || artifactRenderKind === "audio" || artifactRenderKind === "video" || artifactRenderKind === "html" || artifactRenderKind === "pdf") {
       return (
         <div className="artifact-content preview-output media-preview-output" data-render-kind={artifactRenderKind}>
-          {renderOpenedOutputBody(artifactItem, artifactRenderKind, artifactItem.language ?? languageFromTitle(artifactItem.title), copy)}
+          <OpenedOutputItem item={artifactItem} copy={copy} />
         </div>
       );
     }

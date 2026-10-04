@@ -1,10 +1,13 @@
-import { X } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Download, RefreshCw, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 
 import type { OutputFrameCopy } from "./types";
 import type { OutputPanelItem } from "./panelItem";
 import { languageFromTitle, outputItemIcon, outputItemRenderKind } from "./renderKind";
 import { renderOpenedOutputBody } from "./openedItemBody";
+import { useFilePreview } from "./useFilePreview";
+import { workspaceFileUrl } from "../../../runtime/filePreview";
+import { useShellExtras } from "../../shell/ShellExtras";
 
 export function OutputTabs({
   items,
@@ -69,6 +72,11 @@ export function OutputTabs({
 }
 
 export function OpenedOutputItem({ item, copy }: { item: OutputPanelItem; copy: OutputFrameCopy }) {
+  const { workspace, workspaceScope } = useShellExtras();
+  const downloadUrl = item.downloadUrl ?? (item.workspacePath && workspaceScope ? workspaceFileUrl(item.workspacePath, workspaceScope, workspace) : undefined);
+  const preview = useFilePreview(item, downloadUrl);
+  const [failedKey, setFailedKey] = useState<object>();
+  const failed = failedKey === preview.key || Boolean(preview.error);
   const language = item.language ?? languageFromTitle(item.title);
   const renderKind = outputItemRenderKind(item);
   return (
@@ -78,8 +86,10 @@ export function OpenedOutputItem({ item, copy }: { item: OutputPanelItem; copy: 
         <span>{item.title}</span>
         {item.subtitle ? <em>{item.subtitle}</em> : null}
         <code>{language}</code>
+        {downloadUrl || preview.contentUrl ? <a className="rail-icon-btn" href={downloadUrl ?? preview.contentUrl} download={item.title} aria-label={copy.download}><Download size={16} /></a> : null}
+        {downloadUrl || failed ? <button className="rail-icon-btn" type="button" aria-label={copy.retryPreview} onClick={preview.retry}><RefreshCw size={16} /></button> : null}
       </div>
-      {renderOpenedOutputBody(item, renderKind, language, copy)}
+      {preview.loading ? <p role="status">{copy.loadingFiles}</p> : failed ? <p role="alert">{preview.error === "too-large" ? copy.previewTooLarge : copy.previewFailed}</p> : renderOpenedOutputBody({ ...item, body: preview.body, mediaSrc: preview.mediaSrc }, renderKind, language, copy, () => setFailedKey(preview.key))}
     </div>
   );
 }

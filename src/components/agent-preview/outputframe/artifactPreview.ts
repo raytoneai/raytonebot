@@ -4,6 +4,7 @@ import type { AgentFrontendProject, ArtifactRenderer } from "../../../schema/age
 import type { ConcreteArtifactRenderer, OutputFrameCopy } from "./types";
 import { languageFromFileName } from "./panelItem";
 import { languageFromTitle, outputItemRenderKind } from "./renderKind";
+import { artifactBody } from "../../../runtime/artifactContent";
 
 export function resolveArtifactRenderer(
   artifact: AgentUXArtifactTimelineItem | undefined,
@@ -21,20 +22,19 @@ export function resolveArtifactRenderer(
   const kind = String(artifact.artifactKind ?? "").toLowerCase();
   const text = artifact.content ?? "";
 
+  if (artifact.data !== undefined) return "data";
+
   if (kind.includes("diff") || mimeType.includes("patch") || text.startsWith("--- ")) {
     return "diff";
   }
   if (mimeType.includes("markdown") || title.endsWith(".md") || text.startsWith("# ")) {
     return "markdown";
   }
-  if (mimeType.startsWith("image/") || mimeType.startsWith("audio/") || mimeType.startsWith("video/") || /\.(png|jpe?g|gif|webp|avif|svg|mp3|wav|m4a|aac|ogg|flac|mp4|webm|mov|m4v)$/.test(title)) {
+  if (mimeType.startsWith("image/") || mimeType.startsWith("audio/") || mimeType.startsWith("video/") || mimeType === "application/pdf" || /\.(pdf|png|jpe?g|gif|webp|avif|svg|mp3|wav|m4a|aac|ogg|flac|mp4|webm|mov|m4v)$/.test(title)) {
     return "preview";
   }
-  if (kind.includes("ui") || kind.includes("html") || mimeType.includes("html")) {
+  if (kind.includes("ui") || kind.includes("html") || mimeType.includes("html") || /\.html?$/.test(title)) {
     return "preview";
-  }
-  if (artifact.data && !artifact.content) {
-    return "data";
   }
   if (kind.includes("code") || /\.(tsx?|jsx?|css|json|yaml|yml|py|go|rs)$/.test(title)) {
     return "code";
@@ -47,17 +47,11 @@ function artifactMimeType(artifact: AgentUXArtifactTimelineItem): string {
 }
 
 export function artifactText(artifact: AgentUXArtifactTimelineItem, copy: OutputFrameCopy): string {
-  if (artifact.content) {
-    return artifact.content;
-  }
-  if (artifact.data) {
-    return JSON.stringify(artifact.data, null, 2);
-  }
-  return copy.artifactMetadataEmpty;
+  return artifactBody(artifact) ?? copy.artifactMetadataEmpty;
 }
 
 export function artifactDiffPreview(artifact: AgentUXArtifactTimelineItem, copy: OutputFrameCopy): string {
-  return `--- ${artifact.title ?? artifact.id}\n+++ ${artifact.title ?? artifact.id}\n+ ${artifact.content ?? "artifact content"}\n- ${copy.previousImplementation}`;
+  return artifactText(artifact, copy);
 }
 
 export function artifactDataPreview(artifact: AgentUXArtifactTimelineItem): string {
@@ -74,12 +68,10 @@ export function artifactDataPreview(artifact: AgentUXArtifactTimelineItem): stri
 }
 
 export function artifactCodePreview(artifact: AgentUXArtifactTimelineItem, copy: OutputFrameCopy): { code: string; lang: string } {
-  const text = artifactText(artifact, copy);
-  const fenced = text.match(/```([a-zA-Z0-9_-]+)?\n([\s\S]*?)```/);
-  const lang = normalizeLanguage(fenced?.[1] ?? languageFromTitle(artifact.title ?? artifact.id));
+  // Artifact content is already source, not a Markdown message to extract code from.
   return {
-    code: (fenced?.[2] ?? text).trim(),
-    lang,
+    code: artifactText(artifact, copy),
+    lang: normalizeLanguage(languageFromTitle(artifact.title ?? artifact.id)),
   };
 }
 
@@ -97,8 +89,10 @@ export function outputPanelItemFromRenderedArtifact(artifact: AgentUXArtifactTim
     kind: "file" as const,
     title,
     subtitle: originalTitle,
+    workspacePath: artifact.uri?.startsWith("file://") ? artifact.uri.slice(7) : undefined,
+    mediaSrc: artifact.uri,
     language: languageFromFileName(title),
-    body: artifact.content ?? (artifact.data ? JSON.stringify(artifact.data, null, 2) : undefined),
+    body: artifactBody(artifact),
     mediaStyle:
       renderKind === "image"
         ? project.mediaGeneration.imageStyle

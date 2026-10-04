@@ -1,7 +1,8 @@
 import type { AgentUXTimelineItem, AgentUXToolTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
 import { AgentAvatar, useAgentPersona } from "../../avatars/AgentPersona";
 import { useShellExtras } from "../shell/ShellExtras";
-import { cloneElement, useEffect, useLayoutEffect, useRef, type ReactElement } from "react";
+import { cloneElement, type ReactElement } from "react";
+import { useTranscriptScroll } from "../../runtime/useTranscriptScroll";
 
 import { StateIcon, errorDomainSlot, incidentSlot, runtimeOpSlot, useIconSet, type IconSlot } from "../../agentmatrix";
 import { useCopy } from "../../i18n/LocaleContext";
@@ -54,8 +55,8 @@ export function ChatFrame({
   const copy = useCopy();
   const promptHistory = previewPrompts?.filter((prompt) => prompt.trim().length > 0);
 
-  const { headerAgent } = useShellExtras();
-  const listRef = useStickToBottom(viewModel.timeline);
+  const { headerAgent, transcriptScroll, transcriptTarget } = useShellExtras();
+  const listRef = useTranscriptScroll(viewModel.timeline, transcriptScroll, transcriptTarget);
   return (
     <section
       className="chat-frame"
@@ -185,7 +186,7 @@ function renderConversation(
     }
     if (entry.item.kind === "message" && entry.item.role === "user") {
       flushLane();
-      rows.push(<UserPromptBubble key={`msg:${entry.item.id}`} project={project} prompt={entry.item.text || ""} />);
+      rows.push(<UserPromptBubble key={`msg:${entry.item.id}`} project={project} prompt={entry.item.text || ""} messageId={entry.item.id} />);
       continue;
     }
     lane.push(entry.item);
@@ -260,59 +261,6 @@ function AssistantTurn({
   );
 }
 
-/** Within this many pixels of the end still counts as "reading the latest". */
-const STICK_THRESHOLD_PX = 80;
-
-/**
- * Keep the transcript on its newest line while the reader is there.
- *
- * Text reveals inside `WritingText` without a view-model change, so growth is watched on the DOM
- * itself. Scrolling up to read history releases the pin; sending a message or opening another
- * conversation takes the reader back to the end.
- */
-function useStickToBottom(timeline: readonly AgentUXTimelineItem[]) {
-  const listRef = useRef<HTMLDivElement>(null);
-  const pinned = useRef(true);
-  const conversationKey = timeline[0]?.id;
-  const userMessages = timeline.filter((item) => item.kind === "message" && item.role === "user").length;
-
-  const toBottom = () => {
-    const list = listRef.current;
-    if (list) list.scrollTop = list.scrollHeight;
-  };
-
-  // Another conversation, or a message just sent: follow from the end again.
-  useLayoutEffect(() => {
-    pinned.current = true;
-    toBottom();
-  }, [conversationKey, userMessages]);
-
-  useEffect(() => {
-    const list = listRef.current;
-    if (!list) return;
-    const onScroll = () => {
-      pinned.current = list.scrollHeight - list.scrollTop - list.clientHeight < STICK_THRESHOLD_PX;
-    };
-    let frame = 0;
-    const follow = new MutationObserver(() => {
-      if (!pinned.current || frame) return;
-      frame = requestAnimationFrame(() => {
-        frame = 0;
-        if (pinned.current) toBottom();
-      });
-    });
-    list.addEventListener("scroll", onScroll, { passive: true });
-    follow.observe(list, { childList: true, subtree: true, characterData: true });
-    return () => {
-      list.removeEventListener("scroll", onScroll);
-      follow.disconnect();
-      if (frame) cancelAnimationFrame(frame);
-    };
-  }, []);
-
-  return listRef;
-}
-
 function displayOrderForAssistantTurn(items: readonly AgentUXTimelineItem[]): AgentUXTimelineItem[] {
   const ordered: AgentUXTimelineItem[] = [];
   for (let index = 0; index < items.length; index += 1) {
@@ -328,17 +276,17 @@ function displayOrderForAssistantTurn(items: readonly AgentUXTimelineItem[]): Ag
   return ordered;
 }
 
-function UserPromptBubble({ project, prompt }: { project: AgentFrontendProject; prompt: string }) {
+function UserPromptBubble({ project, prompt, messageId }: { project: AgentFrontendProject; prompt: string; messageId?: string }) {
   const copy = useCopy();
   return (
-    <article className="message-item message-bubble" data-role="user" data-preview-anchor="conversation">
+    <article className="message-item message-bubble" data-role="user" data-preview-anchor="conversation" data-message-id={messageId}>
       {project.conversation.userAvatar ? (
         <span className="msg-avatar" data-role="user" aria-hidden="true"><StateIcon slot="author.user" size={16} /></span>
       ) : null}
       <div className="msg-stack">
         {project.conversation.speakerLabels ? <div className="message-role">{copy.chat.speakers.user}</div> : null}
         <div className="msg-surface"><p>{prompt}</p></div>
-        <MessageActions project={project} role="user" />
+        <MessageActions project={project} role="user" text={prompt} messageId={messageId} />
       </div>
     </article>
   );
@@ -376,14 +324,14 @@ function TimelineItem({
       const settled = item.status === "done" && persona?.state !== "waiting" && persona?.state !== "warning";
       const text = item.text || copy.chat.message.streaming;
       return (
-        <article className="message-bubble lane-message" data-role={item.role}>
+        <article className="message-bubble lane-message" data-role={item.role} data-message-id={item.id}>
           {project.conversation.speakerLabels ? <div className="message-role">{messageRoleLabel(item.role, copy)}</div> : null}
           <div className="msg-surface">
             {isAssistant ? (
               <WritingText project={project} text={text} replayKey={writingReplayKey} settled={settled} />
             ) : <p>{text}</p>}
           </div>
-          <MessageActions project={project} role={isAssistant ? "assistant" : "user"} />
+          <MessageActions project={project} role={isAssistant ? "assistant" : "user"} text={item.text ?? ""} messageId={item.id} />
         </article>
       );
     }
@@ -431,7 +379,9 @@ function TimelineItem({
       // Incident states (retrying / exhausted / terminal) show a readable,
       // state-matching title instead of the raw error code.
       const incidentTitle =
-        item.category === "retrying"
+        item.code === "history_load_failed"
+          ? copy.workspace.sessionSidebar.historyTitle
+          : item.category === "retrying"
           ? copy.chat.error.incident.retrying
           : item.category === "exhausted"
             ? copy.chat.error.incident.exhausted

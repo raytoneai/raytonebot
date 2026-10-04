@@ -36,7 +36,10 @@ const en = {
     voiceInput: "Voice input",
     promptContextLabel: "Prompt context",
     stop: "Stop",
+    stopping: "Stopping…",
+    stopFailed: "Stop was not confirmed. The host may still be running; retry Stop.",
     send: "Send",
+    draftStatus: { loading: "Restoring drafts and run options…", saving: "Saving draft and run options…", saved: "Draft and chosen run options saved in this browser", unavailable: "Draft or run options not saved — keep this page open", conflict: "Draft or run options changed in another tab. Keep a copy of your edits here before reloading." },
   },
   floatingSettings: {
     settings: "Provider settings",
@@ -139,7 +142,10 @@ const zh: typeof en = {
     voiceInput: "语音输入",
     promptContextLabel: "提示词上下文",
     stop: "停止",
+    stopping: "正在停止…",
+    stopFailed: "未确认主机已停止；任务可能仍在运行，请重试停止。",
     send: "发送",
+    draftStatus: { loading: "正在恢复草稿和运行选项…", saving: "正在保存草稿和运行选项…", saved: "草稿和所选运行选项已保存在此浏览器", unavailable: "草稿或运行选项未保存，请保留此页面", conflict: "其他标签页已更新草稿或运行选项；刷新前请先复制这里的修改。" },
   },
   floatingSettings: {
     settings: "提供方设置",
@@ -238,7 +244,10 @@ const ja: typeof en = {
     voiceInput: "音声入力",
     promptContextLabel: "プロンプトのコンテキスト",
     stop: "停止",
+    stopping: "停止を確認中…",
+    stopFailed: "停止を確認できません。ホストで実行中の可能性があります。もう一度停止してください。",
     send: "送信",
+    draftStatus: { loading: "下書きと実行設定を復元中…", saving: "下書きと実行設定を保存中…", saved: "下書きと選択した実行設定をこのブラウザーに保存しました", unavailable: "下書きまたは実行設定を保存できません。このページを開いたままにしてください", conflict: "別のタブで下書きまたは実行設定が更新されました。再読み込みする前に、ここの編集内容をコピーしてください。" },
   },
   floatingSettings: {
     settings: "プロバイダー設定",

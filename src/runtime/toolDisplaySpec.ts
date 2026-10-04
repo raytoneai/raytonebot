@@ -1,4 +1,5 @@
 import type { AgentUXToolTimelineItem } from "@agent-ux/render-core";
+import { resolveToolConcept } from "./eventNormalizer.ts";
 
 export type DisplayBlock =
   | { kind: "code"; lang: string; code: string }
@@ -13,6 +14,7 @@ export type ToolDisplaySpec = {
 export function buildToolDisplaySpec(tool: AgentUXToolTimelineItem): ToolDisplaySpec {
   const args = toRecord(tool.args) ?? tryParseRecord(tool.argsText ?? "") ?? toRecord(tool.approval?.argsPreview);
   const output = stringifyResult(tool.result) || (tool.status === "awaiting_approval" ? "" : tool.preview || "");
+  const concept = resolveToolConcept(tool.name);
 
   if (isShellTool(tool.name)) {
     const command = getString(args, "command") || getString(args, "cmd");
@@ -22,45 +24,35 @@ export function buildToolDisplaySpec(tool: AgentUXToolTimelineItem): ToolDisplay
     };
   }
 
-  if (tool.name === "write_file" || tool.name === "append_file") {
+  if (concept === "write-file" && tool.name !== "modify_file") {
     const path = getString(args, "path");
     const content = getString(args, "content");
     return {
-      inputBlock: content
+      inputBlock: typeof args?.content === "string"
         ? { kind: "code", lang: languageFromPath(path), code: content }
         : fallbackInput(tool),
       outputBlock: output ? { kind: "plain", text: output } : undefined,
     };
   }
 
-  if (tool.name === "edit_file") {
+  if (concept === "edit-file" || tool.name === "modify_file") {
     const path = getString(args, "path");
+    const oldCode = args?.oldText ?? args?.old_string;
+    const newCode = args?.newText ?? args?.new_string;
     return {
-      outputBlock: {
+      // A requested edit is input, even if the operation fails or is refused.
+      inputBlock: typeof oldCode === "string" && typeof newCode === "string" ? {
         kind: "diff",
-        oldCode: getString(args, "old_string"),
-        newCode: getString(args, "new_string"),
+        oldCode,
+        newCode,
         lang: languageFromPath(path),
         path: path || undefined,
-      },
+      } : fallbackInput(tool),
+      outputBlock: output ? { kind: "plain", text: output } : undefined,
     };
   }
 
-  if (tool.name === "apply_patch" || tool.name === "modify_file") {
-    const path = getString(args, "path");
-    return {
-      inputBlock: path ? { kind: "plain", text: path } : fallbackInput(tool),
-      outputBlock: {
-        kind: "diff",
-        oldCode: getString(args, "old_string"),
-        newCode: getString(args, "new_string"),
-        lang: languageFromPath(path),
-        path: path || undefined,
-      },
-    };
-  }
-
-  if (tool.name === "read_file") {
+  if (concept === "read-file") {
     const path = getString(args, "path");
     return {
       inputBlock: { kind: "plain", text: path || tool.argsText || tool.name },
@@ -68,7 +60,7 @@ export function buildToolDisplaySpec(tool: AgentUXToolTimelineItem): ToolDisplay
     };
   }
 
-  if (tool.name === "read_image") {
+  if (concept === "read-image") {
     const path = getString(args, "path") || getString(args, "file");
     return {
       inputBlock: { kind: "plain", text: path || tool.argsText || tool.name },
@@ -76,7 +68,7 @@ export function buildToolDisplaySpec(tool: AgentUXToolTimelineItem): ToolDisplay
     };
   }
 
-  if (tool.name === "validate" || tool.name === "run_tests") {
+  if (concept === "validate") {
     const command = getString(args, "command") || getString(args, "cmd");
     return {
       inputBlock: command ? { kind: "code", lang: "bash", code: command } : fallbackInput(tool),
@@ -103,7 +95,7 @@ export function buildToolDisplaySpec(tool: AgentUXToolTimelineItem): ToolDisplay
     };
   }
 
-  if (tool.name === "search") {
+  if (concept === "search") {
     const pattern = getString(args, "pattern") || getString(args, "query");
     return {
       inputBlock: { kind: "plain", text: pattern ? `pattern: ${pattern}` : tool.argsText || tool.name },
@@ -123,7 +115,7 @@ export function buildToolDisplaySpec(tool: AgentUXToolTimelineItem): ToolDisplay
  * surface needs, rather than keeping a second copy of these four names that could drift.
  */
 export function isShellTool(name: string): boolean {
-  return name === "bash" || name === "run_command" || name === "start_server" || name === "shell.exec";
+  return resolveToolConcept(name) === "run-command";
 }
 
 export type ConsoleLogEntry = {
@@ -169,7 +161,9 @@ export function consoleLogEntries(
 }
 
 function fallbackInput(tool: AgentUXToolTimelineItem): DisplayBlock | undefined {
-  return tool.argsText ? { kind: "plain", text: tool.argsText } : undefined;
+  const args = tool.args ?? tool.approval?.argsPreview;
+  return args ? { kind: "code", lang: "json", code: JSON.stringify(args, null, 2) }
+    : tool.argsText ? { kind: "plain", text: tool.argsText } : undefined;
 }
 
 function toRecord(value: unknown): Record<string, unknown> | undefined {
@@ -206,6 +200,10 @@ function stringifyResult(value: unknown): string {
   }
   if (value === undefined || value === null) {
     return "";
+  }
+  const content = toRecord(value)?.content;
+  if (Array.isArray(content) && content.every((part) => toRecord(part)?.type === "text" && typeof toRecord(part)?.text === "string")) {
+    return content.map((part) => part.text).join("\n");
   }
   try {
     return JSON.stringify(value, null, 2);

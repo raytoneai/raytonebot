@@ -31,6 +31,11 @@ const en = {
   },
   providers: {
     intro: "The default service powers Raer, and Tonny and Bob when they use a model service.",
+    persistence: {
+      saved: "Settings saved in this browser. Session keys stay in memory only.",
+      "load-failed": "Saved model settings could not be restored. Project defaults are in use.",
+      "save-failed": "Changes apply to this page but were not saved. Check browser storage and use an address without credentials, query parameters or a fragment.",
+    },
     add: "Add model service",
     addTitle: "Choose a service",
     addHint: "Presets fill the address and models. Only the key is needed.",
@@ -139,6 +144,11 @@ const zh: typeof en = {
   },
   providers: {
     intro: "默认服务供 Raer 使用；Tonny、Bob 选择模型服务时也用它。",
+    persistence: {
+      saved: "设置已保存在此浏览器；会话密钥仍只保留在内存中。",
+      "load-failed": "无法恢复已保存的模型服务设置，当前使用项目默认值。",
+      "save-failed": "更改仅在本页生效，尚未保存。请检查浏览器存储权限；服务地址不能包含账号密码、查询参数或片段。",
+    },
     add: "添加模型服务",
     addTitle: "选择服务",
     addHint: "预设已填好地址和模型，只需填写密钥。",
@@ -247,6 +257,11 @@ const ja: typeof en = {
   },
   providers: {
     intro: "既定のサービスは Raer と、モデルサービスを選んだ Tonny・Bob が使います。",
+    persistence: {
+      saved: "設定はこのブラウザーに保存済みです。セッションキーはメモリ内だけに保持します。",
+      "load-failed": "保存済みのモデル設定を復元できませんでした。プロジェクトの既定値を使用しています。",
+      "save-failed": "変更はこのページでのみ有効で、未保存です。ブラウザーの保存権限を確認し、認証情報・クエリー・フラグメントを含まないアドレスを指定してください。",
+    },
     add: "モデルサービスを追加",
     addTitle: "サービスを選ぶ",
     addHint: "プリセットにアドレスとモデルが入っています。キーだけ入力してください。",
