@@ -16,6 +16,7 @@ test("Telegram skips the backlog on first start, strips the bot mention and edit
   const dir = mkdtempSync(join(tmpdir(), "rtb-telegram-"));
   const calls: { method: string; body: Record<string, any> }[] = [];
   let polls = 0;
+  let failedEdit = false;
   const fetcher = (async (url: string, init: RequestInit) => {
     const method = url.split("/").pop()!;
     const body = JSON.parse(String(init.body));
@@ -29,6 +30,10 @@ test("Telegram skips the backlog on first start, strips the bot mention and edit
       throw new Error("aborted");
     }
     if (method === "sendMessage") return ok({ message_id: 77 });
+    if (method === "editMessageText" && body.text === "flaky" && !failedEdit) {
+      failedEdit = true;
+      return new Response(JSON.stringify({ ok: false, description: "Too Many Requests" }), { status: 429 });
+    }
     return ok(true);
   }) as typeof fetch;
   const store = new ChannelStore(join(dir, "im-channels.json"));
@@ -47,6 +52,11 @@ test("Telegram skips the backlog on first start, strips the bot mention and edit
     await stream.finish("done");
     const edit = calls.find((call) => call.method === "editMessageText")!;
     assert.deepEqual([edit.body.message_id, edit.body.text], [77, "done"]);
+    // A failed update is not counted as shown: the same final text is sent again.
+    const retried = await received[0].reply.stream!("思考中…");
+    await assert.rejects(retried.update("flaky"));
+    await retried.finish("flaky");
+    assert.equal(calls.filter((call) => call.method === "editMessageText" && call.body.text === "flaky").length, 2);
   } finally {
     await connector.stop();
     rmSync(dir, { recursive: true, force: true });
@@ -147,9 +157,18 @@ test("connect_channel: the token goes from the card to the channel store, never 
     // A token typed into chat is cut before it is saved or reaches the model.
     await host.controller.runPrompt({ conversationId: "web-2", requestId: "r2", prompt: `my token ${TOKEN}` }, () => {});
     assert.ok(!JSON.stringify(host.controller.getConversation("web-2")).includes(TOKEN));
-    // An IM chat gets no card: credentials are never collected there.
-    await host.controller.runPrompt({ conversationId: "im-telegram-x", requestId: "r3", prompt: "connect" }, () => {});
+    // A turn sent from an IM chat gets no card: credentials are never collected there.
+    await host.controller.runPrompt({ conversationId: "im-telegram-x", requestId: "r3", prompt: "connect" }, () => {}, { fromChannel: true });
     assert.equal((results.at(-1) as { status: string }).status, "open_in_browser");
+    // The same Telegram-started conversation, continued in the web app, does get the card.
+    const webEvents: typeof events = [];
+    const webRun = host.controller.runPrompt({ conversationId: "im-telegram-x", requestId: "r4", prompt: "connect" }, (event) => webEvents.push(event as never));
+    await tick();
+    const webCard = webEvents.filter((event) => event.type === "run.awaiting_input").at(-1)!.payload;
+    assert.equal(webCard.channelSetup.stage, "credentials");
+    assert.equal((await answer({ conversationId: "im-telegram-x", requestId: webCard.requestId, action: "skip" })).status, 200);
+    await webRun;
+    assert.equal((results.at(-1) as { status: string }).status, "cancelled");
   } finally {
     host.dispose();
     await new Promise<void>((resolve) => server.close(() => resolve()));

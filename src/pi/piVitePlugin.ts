@@ -43,11 +43,15 @@ export function piRuntimePlugin(options: { cwd?: string } = {}): Plugin {
 
   return {
     name: "agentcanvas-pi-runtime",
+    // Created when the server starts, not on the first request: enabled IM channels must
+    // reconnect after a restart even if nobody opens the page. `vite build` runs neither hook.
     configureServer(server) {
       mount(server.middlewares);
+      getHost();
     },
     configurePreviewServer(server) {
       mount(server.middlewares);
+      getHost();
     },
     closeBundle() {
       host?.dispose();

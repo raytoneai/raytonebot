@@ -727,3 +727,76 @@ test("synchronous engine completion cannot turn an exceeded output budget into s
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("a turn sent while a new session is being set up waits for it instead of running inside the reset", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-reset-"));
+  const order: string[] = [];
+  let finishReset!: () => void;
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: async () => ({
+    subscribe: () => () => undefined,
+    async prompt() { order.push("prompt"); },
+    async newSession() { order.push("reset:start"); await new Promise<void>((resolve) => { finishReset = resolve; }); order.push("reset:end"); },
+    abort: async () => undefined, dispose: () => undefined, configure: async () => undefined,
+    state: async () => ({ models: [], tools: [] }) as never,
+  }) });
+  try {
+    const reset = controller.newSession("a");
+    await tick();
+    const run = controller.runPrompt({ conversationId: "a", requestId: "r1", prompt: "hi" }, () => undefined);
+    await tick();
+    assert.deepEqual(order, ["reset:start"]);
+    finishReset();
+    await reset;
+    await run;
+    assert.deepEqual(order, ["reset:start", "reset:end", "prompt"]);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("a turn queued behind a failed session reset fails instead of running in the unknown session", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-reset-fail-"));
+  let fail!: () => void, prompts = 0;
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: async () => ({
+    subscribe: () => () => undefined,
+    async prompt() { prompts++; },
+    async newSession() { await new Promise<void>((resolve) => { fail = resolve; }); throw new Error("reset failed"); },
+    abort: async () => undefined, dispose: () => undefined, configure: async () => undefined,
+    state: async () => ({ models: [], tools: [] }) as never,
+  }) });
+  try {
+    const reset = controller.newSession("a");
+    await tick();
+    const run = controller.runPrompt({ conversationId: "a", requestId: "r1", prompt: "hi" }, () => undefined);
+    fail();
+    await assert.rejects(reset, /reset failed/);
+    await assert.rejects(run, /reset failed/);
+    assert.equal(prompts, 0);
+    assert.equal(controller.health().activeRuns, 0);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("a configuration waiting on a reset does not change the model of a turn that started meanwhile", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-config-race-"));
+  let finishReset!: () => void, finishPrompt!: () => void, model: string | undefined;
+  const configured: string[] = [];
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: async () => ({
+    subscribe: () => () => undefined,
+    async prompt() { await new Promise<void>((resolve) => { finishPrompt = resolve; }); },
+    async newSession() { await new Promise<void>((resolve) => { finishReset = resolve; }); },
+    async configure(input) { configured.push(String(input.model)); model = input.model; },
+    abort: async () => finishPrompt?.(), dispose: () => undefined,
+    state: async () => ({ models: [], tools: [], model }) as never,
+  }) });
+  try {
+    const reset = controller.newSession("a");
+    await tick();
+    const config = controller.configure({ conversationId: "a", model: "old" });
+    const run = controller.runPrompt({ conversationId: "a", requestId: "r1", prompt: "work", model: "new" }, () => undefined);
+    finishReset();
+    await reset;
+    await assert.rejects(config, /Stop this conversation's run/);
+    await tick();
+    assert.ok(!configured.includes("old"), "the late configuration never reaches the running session");
+    finishPrompt();
+    await run;
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});

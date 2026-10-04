@@ -99,8 +99,9 @@ export type PiRuntimeController = {
   state(conversationId?: string): Promise<PiRuntimeState>;
   configure(input: PiRuntimeConfiguration): Promise<PiRuntimeState>;
   /** `signal` belongs to the caller's stream: aborting it stops this run, and only once the run
-   *  holds its slot (a rejected duplicate must not stop the turn already in progress). */
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal }): Promise<void>;
+   *  holds its slot (a rejected duplicate must not stop the turn already in progress).
+   *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards. */
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
@@ -224,6 +225,7 @@ export function createPiRuntimeController(options: {
   const maxConcurrentRuns = 3;
   type RunSlot = {
     runId: string;
+    fromChannel?: boolean;
     adapter?: PiEventAdapter;
     stop?: () => Promise<void>;
     stopRequested: boolean;
@@ -233,6 +235,18 @@ export function createPiRuntimeController(options: {
     done: Promise<void>;
   };
   const runs = new Map<string, RunSlot>();
+  /** Session resets and configurations in flight, one at a time per conversation. A turn waits
+   *  for both; a reset that fails also fails the turns queued behind it. */
+  const resets = new Map<string, Promise<void>>();
+  const configuring = new Map<string, Promise<void>>();
+  const sessionOp = (id: string) => resets.get(id) ?? configuring.get(id);
+  /** Keeps `op` as the conversation's current one until it settles. */
+  const track = (ops: Map<string, Promise<void>>, id: string, op: Promise<void>) => {
+    ops.set(id, op);
+    const clear = () => { if (ops.get(id) === op) ops.delete(id); };
+    void op.then(clear, clear);
+    return op;
+  };
   const askUser = async (conversationId: string, { toolCallId, questions, signal }: UserInputRequest) => {
     const adapter = runs.get(conversationId)?.adapter;
     if (!adapter) throw new Error("The question's run is no longer active.");
@@ -251,9 +265,9 @@ export function createPiRuntimeController(options: {
     }
   };
   const setupChannel = (conversationId: string, { toolCallId, platform, signal }: ChannelSetupRequest) => {
-    const adapter = runs.get(conversationId)?.adapter;
+    const slot = runs.get(conversationId), adapter = slot?.adapter;
     if (!adapter || !options.channelSetup) throw new Error("Channel setup is not available in this run.");
-    return options.channelSetup({ conversationId, platform, signal,
+    return options.channelSetup({ conversationId, platform, signal, fromChannel: slot?.fromChannel === true,
       announce: (requestId, state) => adapter.apply({ type: "channel_setup", requestId, toolCallId, state }),
       resolved: (requestId) => adapter.apply({ type: "channel_setup_resolved", requestId, toolCallId }),
     });
@@ -609,12 +623,18 @@ export function createPiRuntimeController(options: {
     health: () => ({ status: "ok", activeRuns: runs.size, maxConcurrentRuns, uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000) }),
     async configure(input) {
       const conversationId = normalizeConversationId(input.conversationId);
-      if (runs.has(conversationId)) throw new Error("Stop this conversation's run before changing its configuration.");
-      if (input.providerDefinition) providerDefinitions.set(input.providerDefinition.id, input.providerDefinition);
-      if (input.provider && input.apiKey) providerKeys.set(input.provider, input.apiKey);
-      else if (input.provider && input.clearApiKey) providerKeys.delete(input.provider);
-      const current = await bridge(conversationId);
-      await current.configure(input);
+      const idle = () => { if (runs.has(conversationId)) throw new Error("Stop this conversation's run before changing its configuration."); };
+      idle();
+      // Checked again after waiting, with nothing awaited before this configuration registers.
+      for (let op = sessionOp(conversationId); op; op = sessionOp(conversationId)) await op.catch(() => undefined);
+      idle();
+      await track(configuring, conversationId, (async () => {
+        if (input.providerDefinition) providerDefinitions.set(input.providerDefinition.id, input.providerDefinition);
+        if (input.provider && input.apiKey) providerKeys.set(input.provider, input.apiKey);
+        else if (input.provider && input.clearApiKey) providerKeys.delete(input.provider);
+        const current = await bridge(conversationId);
+        await current.configure(input);
+      })());
       return state(conversationId);
     },
     async runPrompt(input, onEvent, options) {
@@ -629,7 +649,7 @@ export function createPiRuntimeController(options: {
       if (store.get(conversationId)?.turns?.some(turn => turn.runId === input.requestId)) throw new Error("This request id has already been submitted.");
       // Reserved before any await, so a second prompt for the same conversation cannot slip in.
       let settle!: () => void;
-      const slot: RunSlot = { runId: input.requestId!, stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
+      const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
       const stopOnSignal = () => void abortRuns(conversationId, slot.runId).catch(() => undefined);
       if (options?.signal?.aborted) stopOnSignal();
@@ -686,6 +706,11 @@ export function createPiRuntimeController(options: {
         recorder.record(event);
       };
       try {
+        for (let op = sessionOp(conversationId); op; op = sessionOp(conversationId)) {
+          // The session a failed reset leaves behind is unknown; this turn must not run in it.
+          if (op === resets.get(conversationId)) await op;
+          else await op.catch(() => undefined);
+        }
         store.begin(conversationId, role, prompt);
         opened = true;
         const modelPrompt = withReplyLanguage(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), input.locale);
@@ -762,14 +787,19 @@ export function createPiRuntimeController(options: {
     },
     async newSession(conversationId) {
       const id = normalizeConversationId(conversationId);
-      if (runs.has(id)) throw new Error("Stop this conversation's run before starting a new session.");
-      cliSessions.delete(id);
-      store.reset(id);
-      const current = await bridge(id);
-      await current.newSession();
-      // A new session starts with an empty transcript, so its tool set has to be announced
-      // again or `CapabilityTray` would stay empty for the rest of the conversation's life.
-      announcedCapabilities.delete(id);
+      const idle = () => { if (runs.has(id)) throw new Error("Stop this conversation's run before starting a new session."); };
+      idle();
+      for (let op = sessionOp(id); op; op = sessionOp(id)) await op.catch(() => undefined);
+      idle();
+      await track(resets, id, (async () => {
+        cliSessions.delete(id);
+        store.reset(id);
+        const current = await bridge(id);
+        await current.newSession();
+        // A new session starts with an empty transcript, so its tool set has to be announced
+        // again or `CapabilityTray` would stay empty for the rest of the conversation's life.
+        announcedCapabilities.delete(id);
+      })());
       return state(id);
     },
     clearApprovals(agentPreset) {
@@ -802,7 +832,7 @@ export function createPiHttpHost(options: {
   let channelSetup: ReturnType<typeof createChannelSetup> | undefined;
   const controller = createPiRuntimeController({ ...options, layout, channelSetup: (run) => channelSetup!.run(run) });
   const dataDir = options.dataDir ?? defaultDataDir();
-  // Only when something talks to this host; the vite plugin creates it on the first request.
+  // Starts the enabled channels; the vite plugin creates this host when its server starts.
   const channels = createChannelManager({ runtime: controller, dataDir, defaultPermissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir), factories: options.channelFactories });
   channelSetup = createChannelSetup(channels);
 

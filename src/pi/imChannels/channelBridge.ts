@@ -36,6 +36,9 @@ export type ChannelRuntime = Pick<PiRuntimeController, "runPrompt" | "configure"
 type Pending = {
   conversationId: string;
   runId: string;
+  /** Set once the run is handed to the runtime; before that, /stop cancels it here. */
+  started?: boolean;
+  stopped?: boolean;
   approval?: { toolCallId: string; name: string };
   input?: { requestId: string; questions: UserQuestion[] };
 };
@@ -94,7 +97,8 @@ export class ChannelBridge {
     const command = /^\/([a-z]+)(?:@\S+)?\s*$/i.exec(text)?.[1]?.toLowerCase();
     if (command === "help" || command === "start") return message.reply.send(HELP);
     if (command === "stop") {
-      const stopped = pending ? await this.options.runtime.abort(pending.conversationId, pending.runId) : false;
+      if (pending && !pending.started) pending.stopped = true;
+      const stopped = pending ? pending.stopped || await this.options.runtime.abort(pending.conversationId, pending.runId) : false;
       return message.reply.send(stopped ? "已停止当前任务。" : "当前没有正在运行的任务。");
     }
     if (command === "new") {
@@ -162,61 +166,66 @@ export class ChannelBridge {
       if (model) {
         await this.options.runtime.configure({ conversationId, providerDefinition: model.definition, provider: model.definition.id, model: model.model });
       }
-      await this.options.runtime.runPrompt({
-        conversationId,
-        requestId: runId,
-        prompt,
-        provider: model?.definition.id,
-        model: model?.model,
-        permissionMode: this.options.defaultPermissionMode,
-        agentPreset: settings.agentPreset,
-      }, (event: AgentUXEvent) => {
-        const payload = (event.payload ?? {}) as Record<string, any>;
-        switch (event.type) {
-          case "text.started":
-            if (payload.role === "assistant") {
-              assistantTexts.add(payload.textId);
-              if (answer && !answer.endsWith("\n\n")) answer += "\n\n";
-            }
-            break;
-          case "text.delta":
-            if (assistantTexts.has(payload.textId) && typeof payload.delta === "string") {
-              answer += payload.delta;
-              status = "";
+      // A /stop that arrived while the reply and model were being prepared.
+      if (pending.stopped) cancelled = true;
+      else {
+        pending.started = true;
+        await this.options.runtime.runPrompt({
+          conversationId,
+          requestId: runId,
+          prompt,
+          provider: model?.definition.id,
+          model: model?.model,
+          permissionMode: this.options.defaultPermissionMode,
+          agentPreset: settings.agentPreset,
+        }, (event: AgentUXEvent) => {
+          const payload = (event.payload ?? {}) as Record<string, any>;
+          switch (event.type) {
+            case "text.started":
+              if (payload.role === "assistant") {
+                assistantTexts.add(payload.textId);
+                if (answer && !answer.endsWith("\n\n")) answer += "\n\n";
+              }
+              break;
+            case "text.delta":
+              if (assistantTexts.has(payload.textId) && typeof payload.delta === "string") {
+                answer += payload.delta;
+                status = "";
+                scheduleFlush();
+              }
+              break;
+            case "tool.call.started":
+              toolNames.set(String(payload.toolCallId), String(payload.title ?? payload.name ?? "工具"));
+              status = `正在使用 ${payload.title ?? payload.name ?? "工具"}…`;
               scheduleFlush();
+              break;
+            case "tool.call.awaiting_approval": {
+              const name = String(payload.title ?? payload.name ?? toolNames.get(String(payload.toolCallId)) ?? "工具");
+              pending.approval = { toolCallId: String(payload.toolCallId), name };
+              notify(`需要你的批准：${name}\n${argsPreview(payload.argsPreview)}\n回复「同意」「总是允许」或「拒绝」。`);
+              break;
             }
-            break;
-          case "tool.call.started":
-            toolNames.set(String(payload.toolCallId), String(payload.title ?? payload.name ?? "工具"));
-            status = `正在使用 ${payload.title ?? payload.name ?? "工具"}…`;
-            scheduleFlush();
-            break;
-          case "tool.call.awaiting_approval": {
-            const name = String(payload.title ?? payload.name ?? toolNames.get(String(payload.toolCallId)) ?? "工具");
-            pending.approval = { toolCallId: String(payload.toolCallId), name };
-            notify(`需要你的批准：${name}\n${argsPreview(payload.argsPreview)}\n回复「同意」「总是允许」或「拒绝」。`);
-            break;
+            case "tool.call.finished":
+              if (pending.approval?.toolCallId === payload.toolCallId) pending.approval = undefined;
+              break;
+            case "run.awaiting_input":
+              if (Array.isArray(payload.questions)) {
+                pending.input = { requestId: String(payload.requestId), questions: payload.questions };
+                notify(questionsText(payload.questions));
+              }
+              break;
+            case "tool.call.progress":
+              if (payload.inputRequestId && pending.input?.requestId === payload.inputRequestId) pending.input = undefined;
+              break;
+            case "run.error":
+              failure = String(payload.userMessage ?? payload.message ?? "任务失败。");
+              break;
+            case "run.finished":
+              cancelled = payload.status === "cancelled";
+              break;
           }
-          case "tool.call.finished":
-            if (pending.approval?.toolCallId === payload.toolCallId) pending.approval = undefined;
-            break;
-          case "run.awaiting_input":
-            if (Array.isArray(payload.questions)) {
-              pending.input = { requestId: String(payload.requestId), questions: payload.questions };
-              notify(questionsText(payload.questions));
-            }
-            break;
-          case "tool.call.progress":
-            if (payload.inputRequestId && pending.input?.requestId === payload.inputRequestId) pending.input = undefined;
-            break;
-          case "run.error":
-            failure = String(payload.userMessage ?? payload.message ?? "任务失败。");
-            break;
-          case "run.finished":
-            cancelled = payload.status === "cancelled";
-            break;
-        }
-      });
+        }, { fromChannel: true });
+      }
     } catch (error) {
       failure = errorMessage(error);
     } finally {

@@ -78,8 +78,9 @@ export function telegramConnector(input: ConnectorInput, fetcher: typeof fetch =
         const edit = async (body: string) => {
           const text = body.slice(0, LIMIT);
           if (text === shown) return;
-          shown = text;
           await api("editMessageText", { chat_id: chatId, message_id: sent.message_id, text });
+          // Only once Telegram has it: after a failed edit, the same text must be sent again.
+          shown = text;
         };
         return {
           update: edit,

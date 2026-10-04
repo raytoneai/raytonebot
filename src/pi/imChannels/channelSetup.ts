@@ -12,6 +12,9 @@ export type ChannelSetupRun = {
   conversationId: string;
   platform: ChannelPlatform;
   signal: AbortSignal;
+  /** The turn came from an IM chat. Where the turn came from decides, not the conversation: a
+   *  Telegram-started conversation opened in the web app still gets the card. */
+  fromChannel: boolean;
   /** Shows a stage in the chat (never a credential). */
   announce(requestId: string, state: ChannelSetupState): void;
   resolved(requestId: string): void;
@@ -48,7 +51,7 @@ export function createChannelSetup(manager: ChannelManager) {
         return Promise.resolve({ status: "unsupported", platform, message: "Set this platform up in Settings → IM channels." });
       }
       // An IM chat cannot show the secure card, and a token typed there would reach the model.
-      if (input.conversationId.startsWith("im-")) {
+      if (input.fromChannel) {
         return Promise.resolve({ status: "open_in_browser", platform, message: "Credentials are never accepted in chat. Ask Raer in the RaytoneBot web app, or use Settings → IM channels." });
       }
       const requestId = randomUUID();

@@ -157,3 +157,22 @@ test("long replies split on line breaks within the limit", () => {
   assert.deepEqual(pieces, ["aaaaaa", "bbbbbb"]);
   assert.ok(splitText("x".repeat(20), 8).every((piece) => piece.length <= 8));
 });
+
+test("/stop while the reply is still being prepared cancels the turn before it starts", async () => {
+  const { bridge, calls, cleanup } = setup();
+  const { sent, streamed, message } = chat();
+  let open!: () => void;
+  const opened = new Promise<void>((resolve) => { open = resolve; });
+  const slow = message("hello", {});
+  const stream = slow.reply.stream!;
+  slow.reply.stream = async (initial) => { await opened; return stream(initial); };
+  try {
+    await bridge.handle(slow);
+    await bridge.handle(message("/stop"));
+    assert.equal(sent.at(-1), "已停止当前任务。");
+    open();
+    await tick();
+    assert.equal(calls.length, 0, "the stopped turn never reaches the runtime");
+    assert.match(streamed.at(-1)!, /已停止/);
+  } finally { cleanup(); }
+});
