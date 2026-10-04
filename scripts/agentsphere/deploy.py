@@ -7,7 +7,7 @@ Usage (from the project root):
 
 What it does: build locally, upload the app (never node_modules, .agentsphere or .env files),
 `npm ci` only when the lockfile changed, write ~/.raytonebot/env (mode 600) inside the sandbox,
-restart the protected preview with `exec`, and check the public URL.
+restart the protected preview under a bounded supervisor, and check authenticated health.
 
 Credentials come only from this machine's environment and the untracked .agentsphere/ folder;
 nothing secret is printed. The E2B team key never enters the sandbox.
@@ -27,6 +27,7 @@ import tarfile
 import time
 import urllib.error
 import urllib.request
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -36,6 +37,9 @@ APP_DIR = "/home/user/raytonebot"
 CONFIG_DIR = "/home/user/.raytonebot"
 WORKSPACE_ROOT = "/home/user/workspace"
 PORT = 5188
+# Official fd 10.3.0 release asset digest; Ubuntu's 8.3 lacks Pi's --no-require-git.
+FD_ARCHIVE = "fd-v10.3.0-x86_64-unknown-linux-gnu"
+FD_SHA256 = "c3c2bc79f838e780173fc8f18b337ec273e7ba17c7ff8f551be29fc3c19b7916"
 UPLOAD = ["dist", "src", "scripts", "vendor", "public", "index.html", "package.json",
           "package-lock.json", "tsconfig.json", "vite.config.ts", "LICENSE", "THIRD_PARTY_NOTICES.md"]
 
@@ -76,19 +80,27 @@ def http(url: str, password: str | None, extra: dict | None = None) -> tuple[int
     if password is not None:
         headers["Authorization"] = "Basic " + base64.b64encode(f"raytonebot:{password}".encode()).decode()
     request = urllib.request.Request(url, headers=headers)
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *_args, **_kwargs):
+            return None
     try:
-        with urllib.request.urlopen(request, timeout=20) as response:
+        with urllib.request.build_opener(NoRedirect).open(request, timeout=20) as response:
             return response.status, response.read()
     except urllib.error.HTTPError as error:
-        return error.code, error.read()
+        with error:
+            return error.code, error.read()
 
 
 def main() -> None:
+    global STATE_DIR
     parser = argparse.ArgumentParser()
     parser.add_argument("--sandbox", help="sandbox id (default: .agentsphere/deployment.json)")
     parser.add_argument("--timeout", type=int, default=0, help="also extend the sandbox lifetime (seconds)")
     parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--state-dir", type=Path, default=STATE_DIR, help="separate access/deployment state for an isolated instance")
     args = parser.parse_args()
+    STATE_DIR = args.state_dir.resolve()
+    STATE_DIR.mkdir(parents=True, exist_ok=True)
 
     if os.environ.get("E2B_DOMAIN") != "agentsphere.run":
         fail("set E2B_DOMAIN=agentsphere.run (otherwise the SDK talks to e2b.dev)")
@@ -123,7 +135,10 @@ def main() -> None:
     run(sandbox, " && ".join([
         "rm -rf /home/user/.rtb-stage && mkdir -p /home/user/.rtb-stage",
         f"tar xzf {upload_path} -C /home/user/.rtb-stage",
-        f"mkdir -p {APP_DIR}",
+        # Stop the supervisor too: otherwise it restarts against a half-replaced app.
+        "sudo -n python3 /home/user/.rtb-stage/scripts/agentsphere/backup_data.py stop",
+        f"sudo -n mkdir -p {APP_DIR}",
+        f"sudo -n chown -R user:user {APP_DIR}",
         f"find {APP_DIR} -mindepth 1 -maxdepth 1 ! -name node_modules -exec rm -rf {{}} +",
         f"cp -a /home/user/.rtb-stage/. {APP_DIR}/",
         f"rm -rf /home/user/.rtb-stage {upload_path}",
@@ -134,13 +149,47 @@ def main() -> None:
     else:
         print("deps: unchanged, npm ci skipped")
 
-    # Env file inside the protected ~/.raytonebot directory; agents cannot read it without asking.
+    # Pi's grep/find must not download executables through the agent's restricted network.
+    if run(sandbox, "command -v rg >/dev/null && (command -v fd >/dev/null || command -v fdfind >/dev/null) && command -v setfacl >/dev/null && command -v getfacl >/dev/null", check=False).exit_code:
+        run(sandbox, "sudo -n apt-get update && sudo -n env DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ripgrep fd-find acl", timeout=300)
+    if run(sandbox, "command -v fd >/dev/null", check=False).exit_code:
+        run(sandbox, "sudo -n ln -s /usr/bin/fdfind /usr/local/bin/fd")
+    if "--no-require-git" not in run(sandbox, "fd --help").stdout:
+        with urllib.request.urlopen(f"https://github.com/sharkdp/fd/releases/download/v10.3.0/{FD_ARCHIVE}.tar.gz", timeout=60) as response:
+            archive = response.read()
+        if hashlib.sha256(archive).hexdigest() != FD_SHA256:
+            fail("fd release checksum mismatch")
+        with tarfile.open(fileobj=io.BytesIO(archive), mode="r:gz") as bundle:
+            binary = bundle.extractfile(f"{FD_ARCHIVE}/fd").read()
+        uploaded_fd = f"/home/user/.rtb-fd-{uuid.uuid4().hex}"
+        sandbox.files.write(uploaded_fd, binary)
+        try:
+            run(sandbox, f"sudo -n install -m 755 {uploaded_fd} /usr/local/bin/fd")
+        finally:
+            run(sandbox, f"rm -f {uploaded_fd}")
+        if "--no-require-git" not in run(sandbox, "fd --help").stdout:
+            fail("fd version does not support the Pi find tool")
+
+    binaries = {name: run(sandbox, f"command -v {name}").stdout.strip() for name in ("node", "claude", "codex")}
+    setup = ["sudo", "-n", "python3", f"{APP_DIR}/scripts/agentsphere/setup_isolation.py",
+             "--app-dir", APP_DIR, "--workspace-root", WORKSPACE_ROOT, "--config-dir", CONFIG_DIR,
+             "--port", "5190"]
+    for name, binary in binaries.items():
+        setup.extend([f"--{name}-bin", binary])
+    run(sandbox, shlex.join(setup))
+    print("isolation: native boundary verified")
+
+    # Env file inside the bot-only ~/.raytonebot directory.
     env = {
         "RAYTONEBOT_PUBLIC_ORIGIN": origin,
         "RAYTONEBOT_PASSWORD": password,
         "RAYTONEBOT_SANDBOX": "1",
         "RAYTONEBOT_WORKSPACE_ROOT": WORKSPACE_ROOT,
         "PI_CODING_AGENT_DIR": f"{CONFIG_DIR}/pi",
+        "RAYTONEBOT_AGENT_USER": "raytone-agent",
+        "RAYTONEBOT_AGENT_HOME": "/home/raytone-agent",
+        "RAYTONEBOT_GATEWAY_PORT": "5190",
+        "RAYTONEBOT_ISOLATION_READY": "1",
     }
     # Model keys: a value in this machine's environment wins; otherwise keep the sandbox's current
     # one, so a redeploy from a shell without the key does not silently disable the models.
@@ -168,23 +217,19 @@ def main() -> None:
     ]))
     print(f"env: written ({', '.join(sorted(env))})")
 
-    # Stop the old server (every instance), then start one whose PID is the node process itself.
-    run(sandbox, "pkill -f 'scripts/[c]loud-preview.mjs' || true; sleep 1", check=False)
-    # Fully detached (setsid + nohup): a process left attached to the SDK's command session is
-    # killed when that session is cleaned up after this script exits. setsid and nohup exec, so
-    # the recorded PID is node itself.
+    # Fully detached: the SDK must not clean up the supervisor with its command session.
     start = (f"set -a; . {CONFIG_DIR}/env; set +a; cd {APP_DIR}; "
-             f"setsid nohup node scripts/cloud-preview.mjs >> /home/user/raytonebot-preview.log 2>&1 < /dev/null &")
+             "setsid nohup python3 scripts/supervisor.py > /dev/null 2>&1 < /dev/null &")
     run(sandbox, f"bash -c {shlex.quote(start)}")
     pid = ""
     for _ in range(30):
         time.sleep(1)
         listening = run(sandbox, f"ss -ltnp 2>/dev/null | grep ':{PORT} ' || true", check=False).stdout
-        pid = run(sandbox, "pgrep -f 'scripts/[c]loud-preview.mjs' | head -1", check=False).stdout.strip()
+        pid = run(sandbox, "pgrep -f 'scripts/[s]upervisor.py' | head -1", check=False).stdout.strip()
         if listening and pid:
             break
     if not pid:
-        log = run(sandbox, "tail -20 /home/user/raytonebot-preview.log", check=False).stdout
+        log = run(sandbox, f"tail -20 {CONFIG_DIR}/logs/supervisor.jsonl", check=False).stdout
         fail(f"server did not start\n{log}")
     print(f"start: pid {pid}")
 
@@ -199,6 +244,9 @@ def main() -> None:
     expect("authenticated page", status == 200 and b"RaytoneBot" in body)
     expect("unauthenticated page blocked", http(f"{origin}/", None)[0] == 401)
     expect("wrong password blocked", http(f"{origin}/", "x" * 24)[0] == 401)
+    status, body = http(f"{origin}/__agentcanvas/pi/health", password)
+    expect("application health", status == 200 and json.loads(body).get("status") == "ok")
+    expect("unauthenticated health blocked", http(f"{origin}/__agentcanvas/pi/health", None)[0] == 401)
     status, body = http(f"{origin}/__agentcanvas/pi/state", password)
     expect("Pi state", status == 200)
     state = json.loads(body)
@@ -208,10 +256,11 @@ def main() -> None:
     expect("foreign origin blocked", http(f"{origin}/__agentcanvas/pi/state", password, {"Origin": "https://attacker.example"})[0] == 403)
 
     info = sandbox.get_info()
+    deployment.pop("processId", None)
     deployment.update({
         "sandboxId": sandbox_id,
         "url": origin,
-        "processId": int(pid),
+        "supervisorPid": int(pid),
         "expiresAt": info.end_at.isoformat() if hasattr(info.end_at, "isoformat") else str(info.end_at),
         "deployedAt": datetime.now(timezone.utc).isoformat(),
     })

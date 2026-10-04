@@ -12,7 +12,7 @@ const stateResponse = await request('/__agentcanvas/pi/state');
 assert.equal(stateResponse.status, 200);
 const state = await stateResponse.json();
 assert.equal(state.available, true, state.error);
-for (const tool of ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls']) {
+for (const tool of ['read', 'bash', 'edit', 'write', 'grep', 'find', 'ls', 'update_plan', 'ask_user']) {
   assert.ok(state.tools.includes(tool), `Missing tool: ${tool}`);
 }
 const empty = await request('/__agentcanvas/pi/prompt', {
@@ -23,4 +23,4 @@ const foreign = await request('/__agentcanvas/pi/prompt', {
   method: 'POST', headers: { origin: 'https://example.com', 'content-type': 'application/json' }, body: '{}',
 });
 assert.equal(foreign.status, 403);
-console.log('PASS: UI, Pi SDK, 7 tools, empty-prompt validation, cross-origin rejection. No model request made.');
+console.log('PASS: UI, Pi SDK, 9 tools, empty-prompt validation, cross-origin rejection. No model request made.');
