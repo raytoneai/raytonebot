@@ -106,7 +106,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 | --- | --- | --- |
 | 本机开发未设 `RAYTONEBOT_WORKSPACE(_ROOT)` 时 cwd = 应用目录 | `piVitePlugin.ts` | 本机 Agent 能改/删应用自身 |
 | 会话 LRU 上限 12（运行中的不淘汰），并行运行上限 3 | `piHost.ts` | 单用户可接受；多用户前必须重做 |
-| 外部唤醒/调度服务未接入 | `scripts/agentsphere/external_jobs.py` | 已有调用入口；现有登录 Web server 需完成鉴权、bot 归属校验与调度，见 `issue.md` |
+| 外部唤醒/调度服务未接入 | `scripts/agentsphere/sandbox.py wake` | 仅有唤醒入口；调度入口待外部服务接入时再加（ADR-016），见 `issue.md` |
 
 ## 多引擎与权限（2026-10-03 新增）
 
@@ -148,7 +148,6 @@ AgentSphere 沙箱
    scripts/agentsphere/deploy.py   构建 → 上传 → npm ci → 写 env → 启动 → 自检
    scripts/agentsphere/sandbox.py  create / status / wake / pause / renew / backup / restore
    backups/                        拉回 data + workspace + Claude/Codex 原生会话的 tgz
-   scripts/agentsphere/external_jobs.py  唤醒后等 health；调度 occurrence 只提交一次，断流只查询结果
 ```
 
 要点：
@@ -175,7 +174,7 @@ AgentSphere 沙箱
 | `src/runtime/filePreview.ts`、`mediaType.ts`、`outputframe/useFilePreview.ts` | 自有 | 文件引用、MIME 与文本/图片/PDF 的有界读取；音视频使用鉴权流，临时 URL 不写回对话 |
 | `src/pi/workspaceDownload.ts` | 自有 | 已校验文件描述符的 GET/HEAD、单段 Range 与流关闭；路径边界仍由 workspaceFiles 管理 |
 | `src/exported-project.ts` | 自有 | 品牌、布局、面板、默认模型 |
-| `src/components/**`、`src/slots/**` | 自有但冻结 | 只修缺陷；T2.4 例外允许复用 Composer/Output 接入文件上传、浏览与下载，不扩展其他功能或新增并行组件；`slotRegistry` 必须完整 |
+| `src/components/**`、`src/slots/**` | 自有，按所有者扩展 | 修缺陷，或按 AGENTS.md 白名单扩展所属组件（ADR-025）；不新增并行组件、不改 slot 布局；`slotRegistry` 必须完整 |
 | `vendor/**` | 冻结的第三方构建产物（MIT） | 不改；需要改时按 [04](04-dependency-exit.md) 先迁入 |
 | `src/fixtures/**`、`demo-events.ts` | 测试数据 | 只供 `?devtools=1` 和测试 |
 | `src/agentmatrix/**`、`src/export/**`、`src/preview-runner/**` | 导出残留 | 不扩展；按 [04](04-dependency-exit.md) 处理 |

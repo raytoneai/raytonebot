@@ -21,12 +21,32 @@ there and the page renders blank.
 
 ## The rule that matters
 
-**Do not build new UI components, and do not restructure the existing ones.**
+**Agent states never need a new component. Product features extend the component that already
+owns their surface. Nothing gets a parallel component.**
 
 Every state a real agent produces already has a component: streaming text, reasoning, the full
 tool-call lifecycle including approval, artifacts, errors, retries, interrupts, output panel.
 If something does not appear on screen, the event you emitted is wrong. It is never a missing
 component. Fix the translation, not the view.
+
+Product features that have no entry point yet extend their owner, and only these (ADR-025):
+
+| Feature | Owner |
+| --- | --- |
+| Follow-up queue (visible, ordered, paused by stop, never silently resent) | `ComposerFrame` |
+| History management: search, rename, delete, archive, branches | `SessionSidebar`, `MessageActions` |
+| Interactive artifacts, file/PDF/HTML previews, workspace files (T2.4) | Output panel (`OutputFrame`, `outputframe/`) |
+| Browser / computer takeover | Output panel source; connect only while visible |
+| Questions to the user and approvals | `chatframe/approval.tsx` |
+
+How to extend:
+
+- Add optional props with defaults; devtools fixtures must keep rendering unchanged. Helpers go
+  inside the owner's folder (`chatframe/`, `outputframe/`) and are rendered only by that owner.
+- State comes from the host or the event stream; components stay presentational, logic goes in
+  `src/runtime/`. Every new state must be reachable from a `?devtools=1` fixture or a test.
+- Never a second panel, modal, browser view or file browser. A feature not in the table needs
+  a one-page spec in `docs/product/03-roadmap.md` (entry point, state owner, acceptance) first.
 
 ## Where your work goes
 
@@ -55,10 +75,8 @@ permission model: `docs/product/10-agents-and-permissions.md`.
 - `src/slots/slotRegistry.tsx` — an exhaustive registry over every slot component. Removing
   an entry breaks the build; `src/components/agent-preview/ExportFrame.tsx` is an
   intentional stub that exists only to satisfy it.
-- `src/components/**` — fix defects only; no parallel components. T2.4 exception: workspace
-  file browsing is an Output panel source; reuse the existing Composer/Output controls for
-  file upload, browsing and download. This does not permit unrelated component features or
-  a second file browser/modal implementation.
+- `src/components/**` — fix defects, or extend an owner listed above. No parallel components,
+  no restructuring of the slot layout.
 - Fixtures under `src/` are preview and test data, never product data. `src/event-source.ts`
   loads them with a dynamic import so the live path never requests that chunk. Do not import
   a fixture from a component to make something appear.

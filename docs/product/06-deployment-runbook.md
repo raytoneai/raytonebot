@@ -155,13 +155,4 @@ sb.set_timeout(3600)          # 从现在起约 1 小时
 
 外部定时器自行注入环境变量并收集 JSON 结果。命令不唤醒暂停实例、不续期、不删除旧包；忙碌时等待下次调度，health 不可达或备份损坏时非零退出供外部告警。若需要跨文件强一致快照，再增加维护锁。备份归档可能包含用户敏感文件，应限制外部存储访问；E2B key 始终不进入沙箱。
 
-外部 web server 完成用户认证后，调用 `external_jobs.py wake`；只有认证后的应用 health 已恢复，它才返回 bot URL。已有定时器可调用 `run`，相同触发重试必须复用同一 `--occurrence`，例如计划触发的 UTC 时间。
-
-```bash
-/path/to/python /path/to/RaytoneBot/scripts/agentsphere/external_jobs.py wake
-/path/to/python /path/to/RaytoneBot/scripts/agentsphere/external_jobs.py run /private/job.json --occurrence 2026-10-04T09:00:00Z
-```
-
-`job.json` 包含稳定的 `id`、`prompt`、`agentPreset`、`permissionMode`、`model`、`providerDefinition`，可指定 `conversationId`；模型沿用 DeepSeek `deepseek-flash`。服务定义使用现有 `id/name/protocol/baseUrl/models/authMode/apiKeyEnvVar` 字段，`apiKeyEnvVar` 引用沙箱已有 `DEEPSEEK_API_KEY`，不在任务文件写实际 key、密码或 token。需要审批的任务仍等待用户在现有会话界面确认。
-
-外部主机必须持久保存 `.agentsphere/jobs/` 的提交记录。同一 job 与 occurrence 只发一次 prompt；结果未知时只查询已保存事件，不自动重发，返回 `unconfirmed` 供人工处理。此文件锁适用于一个外部执行主机；多副本运行前接入该 web server 已有的持久任务存储。当前没有启动外部 scheduler，也没有新增 web 服务或注册登录系统。
+外部 web server 完成用户认证后调用 `sandbox.py wake`，再自行等待 `/health` 恢复后转入 bot。外部任务调度入口（`external_jobs.py`，提交 `96cc8cd`）已于 2026-10-04 移出主线：在外部服务实际接入前不保留无调用方的调度代码，接入时从该提交取回并按其持久任务存储重做（ADR-016）。
