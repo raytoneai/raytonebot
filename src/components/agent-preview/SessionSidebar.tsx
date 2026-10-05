@@ -441,6 +441,7 @@ function SessionGroup({
           </div>
         );
         const running = deletion?.running(id) ?? false;
+        const preview = !onSelectResult && !snippet ? groupPreviews?.[id] : undefined;
         return (
           <div key={searchResultKey(session)} className="session-item-shell" data-active={active}
             style={row ? { position: "absolute", top: row.offset } : undefined}>
@@ -455,14 +456,15 @@ function SessionGroup({
               aria-keyshortcuts={deletion?.available && !running ? "Delete" : undefined}
               data-search-index={row?.index}
               aria-current={active ? "true" : undefined}
+              title={preview ? `${title}\n${preview}` : undefined}
               onClick={() => onSelectResult ? onSelectResult(session) : onSelect?.(id)}
             >
               {id.startsWith("group_") ? (
-                <span className="session-item-avatar" aria-hidden="true" style={{ width: 26, height: 26, overflow: "visible" }}><GroupFace size={26} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
+                <span className="session-item-avatar" data-group="true" aria-hidden="true"><GroupFace size={20} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
               ) : avatars?.[id] ? (
                 <span className="session-item-avatar" aria-hidden="true"><AgentAvatar size={18} kind={avatars[id]} /></span>
               ) : null}
-              <span className="session-item-label">{title}{!snippet && groupPreviews?.[id] ? <span className="session-search-snippet" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBlock: "2px 0" }}>{groupPreviews[id]}</span> : null}{role ? <span className="session-search-author"> · {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
+              <span className="session-item-label">{preview || title}{role ? <span className="session-search-author"> · {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
                 match ? <>{snippet.slice(0, match.index)}<mark>{match[0]}</mark>{snippet.slice(match.index + match[0].length)}</> : snippet
               }</span> : null}</span>
             </button>

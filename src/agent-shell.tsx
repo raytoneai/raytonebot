@@ -1268,8 +1268,10 @@ export function AgentApp() {
       <GroupWelcome avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)}
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
     ) : undefined,
-    groupPreviews: Object.fromEntries(piConversations.flatMap((entry) => entry.groupPreview
-      ? [[entry.id, `${entry.groupPreview.author === "user" ? "我" : copy.composer.agentSettings.presets[entry.groupPreview.author as AgentPresetId]?.name ?? ""}：${entry.groupPreview.text}`]] : [])),
+    // Only groups still titled with their roster: the last thing said names the row instead.
+    groupPreviews: Object.fromEntries(piConversations.flatMap((entry) => entry.groupPreview && entry.id.startsWith("group_")
+      && entry.title === ["我", ...groupMembersOf(entry).map((m) => copy.composer.agentSettings.presets[m].name)].join("、")
+      ? [[entry.id, entry.groupPreview.text.replace(/\s+/g, " ").trim()]] : [])),
     groupFaces: Object.fromEntries(piConversations.filter((entry) => entry.id.startsWith("group_"))
       .map((entry) => [entry.id, groupMembersOf(entry).map((m) => PRESET_AVATARS[m])])),
     sidebarFooter: <SidebarFooter onOpenSettings={() => openSettings("providers")} />,

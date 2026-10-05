@@ -42,7 +42,7 @@ export type ShellExtras = {
   sidebarAction?: ReactNode;
   /** Group chat: the group member working on this turn who has not shown any output yet. */
   groupTyping?: AgentPresetId;
-  /** Group chat: group conversation id → "Bob：last message", shown under the title. */
+  /** Group chat: untitled group id (title is still the roster) → last message, shown as the row title. */
   groupPreviews?: Record<string, string>;
   /** Group chat: group conversation id → its members' faces. */
   groupFaces?: Record<string, AvatarKind[]>;
@@ -167,7 +167,8 @@ export function AgentSwitcher({
       {onNewGroup ? (
         <button type="button" className="shell-agent" data-active={groupActive} aria-current={groupActive ? "true" : undefined}
           disabled={disabled} title="新建 Group：我、Raer、Tonny、Bob" onClick={onNewGroup}>
-          <span className="shell-agent-face" data-status={groupStatus ?? "idle"}>
+          {/* The 30px face overhangs a 26px slot so "Group" starts where the agent names do. */}
+          <span className="shell-agent-face" data-status={groupStatus ?? "idle"} style={{ width: 26, justifyContent: "center" }}>
             <GroupFace size={30} kinds={[avatars.assistant, avatars.planner, avatars.builder]} />
             {groupStatus ? <span className="shell-agent-dot" data-status={groupStatus} aria-hidden="true" /> : null}
           </span>
