@@ -1,11 +1,19 @@
 import type { AgentUXTimelineItem, AgentUXToolTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
-import { AgentAvatar, avatarBusy, useAgentPersona } from "../../avatars/AgentPersona";
+import { AgentAvatar, AgentPersonaProvider, avatarBusy, useAgentPersona, type AvatarKind } from "../../avatars/AgentPersona";
+
+// Group chat: member items carry ids tagged "<role>~…" (see src/pi/groupChat.ts).
+const GROUP_AUTHORS: Record<string, { kind: AvatarKind; name: string }> = {
+  assistant: { kind: "woman", name: "Raer" }, planner: { kind: "man", name: "Tonny" }, builder: { kind: "boy", name: "Bob" },
+};
+// Tool and artifact ids are wrapped as JSON [runId, field, id] by replayIdentity, so match inside too.
+const itemAuthor = (item: AgentUXTimelineItem) => /(?:^|")(assistant|planner|builder)~/.exec(String(item.id))?.[1];
 import { useShellExtras } from "../shell/ShellExtras";
 import { cloneElement, type ReactElement } from "react";
 import { useTranscriptScroll } from "../../runtime/useTranscriptScroll";
 
 import { StateIcon, errorDomainSlot, incidentSlot, runtimeOpSlot, useIconSet, type IconSlot } from "../../agentmatrix";
 import { useCopy } from "../../i18n/LocaleContext";
+import { ShimmerText } from "../ShimmerText";
 import type { UiCopy } from "../../i18n/uiCopy";
 import type { AgentFrontendProject } from "../../schema/agentuxConfig";
 import { ArtifactLaunchCard } from "./chatframe/ArtifactLaunch";
@@ -55,7 +63,7 @@ export function ChatFrame({
   const copy = useCopy();
   const promptHistory = previewPrompts?.filter((prompt) => prompt.trim().length > 0);
 
-  const { headerAgent, transcriptScroll, transcriptTarget } = useShellExtras();
+  const { headerAgent, transcriptScroll, transcriptTarget, groupTyping } = useShellExtras();
   const listRef = useTranscriptScroll(viewModel.timeline, transcriptScroll, transcriptTarget);
   return (
     <section
@@ -89,6 +97,7 @@ export function ChatFrame({
             onApprovalDecision,
           )
         )}
+        {groupTyping ? <GroupTypingRow member={groupTyping} /> : null}
       </div>
     </section>
   );
@@ -151,6 +160,8 @@ function renderConversation(
 ): ReactElement[] {
   const rows: ReactElement[] = [];
   let lane: AgentUXTimelineItem[] = [];
+  const groupMode = entries.some((entry) => entry.kind === "item" && Boolean(itemAuthor(entry.item)));
+  let laneAuthor: string | undefined;
   let turnIndex = 0;
   let latestTurnRow = -1;
 
@@ -159,6 +170,7 @@ function renderConversation(
       return;
     }
     const laneItems = lane;
+    const author = laneAuthor;
     lane = [];
     latestTurnRow = rows.length;
     rows.push(
@@ -173,6 +185,7 @@ function renderConversation(
         forceToolsOpen={forceToolsOpen}
         toolCollapseSignal={toolCollapseSignal}
         onApprovalDecision={onApprovalDecision}
+        groupAuthor={groupMode ? author ?? "coordinator" : undefined}
       />,
     );
     turnIndex += 1;
@@ -189,6 +202,9 @@ function renderConversation(
       rows.push(<UserPromptBubble key={`msg:${entry.item.id}`} project={project} prompt={entry.item.text || ""} messageId={entry.item.id} />);
       continue;
     }
+    const author = itemAuthor(entry.item);
+    if (groupMode && lane.length && author !== laneAuthor) flushLane();
+    laneAuthor = author;
     lane.push(entry.item);
   }
   flushLane();
@@ -196,6 +212,27 @@ function renderConversation(
   // Only the newest answer's avatar is alive; older ones stay still drawings.
   if (latestTurnRow >= 0) rows[latestTurnRow] = cloneElement(rows[latestTurnRow] as ReactElement<{ live?: boolean }>, { live: true });
   return rows;
+}
+
+/** Group chat: the member who is working but has not said anything yet — face and "thinking", nothing else. */
+function GroupTypingRow({ member }: { member: string }) {
+  const outer = useAgentPersona();
+  const face = GROUP_AUTHORS[member];
+  if (!face) return null;
+  const persona = { ...(outer ?? { state: "thinking" as const }), ...face, state: "thinking" as const };
+  return (
+    <AgentPersonaProvider persona={persona}>
+      <div className="assistant-turn" data-group-typing={member}>
+        <span className="msg-avatar" data-role="assistant" data-persona="true" aria-hidden="true">
+          <AgentAvatar size={32} live />
+        </span>
+        <div className="assistant-lane">
+          <div className="assistant-turn-label">{face.name}</div>
+          <ShimmerText className="reasoning-title" text="正在思考…" />
+        </div>
+      </div>
+    </AgentPersonaProvider>
+  );
 }
 
 function AssistantTurn({
@@ -209,12 +246,47 @@ function AssistantTurn({
   toolCollapseSignal,
   onApprovalDecision,
   live = false,
+  groupAuthor,
 }: {
+  groupAuthor?: string;
   project: AgentFrontendProject;
   items: readonly AgentUXTimelineItem[];
   showDebugBadges: boolean;
   writingReplayKey: number;
   live?: boolean;
+  onOpenArtifact?: (artifact: OutputPanelOpenRequest) => void;
+  externalApprovalPlacement: "timeline" | "overlay";
+  forceToolsOpen: boolean;
+  toolCollapseSignal: number;
+  onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision) => void | Promise<void>;
+}) {
+  const outer = useAgentPersona();
+  if (groupAuthor && outer) {
+    const member = GROUP_AUTHORS[groupAuthor];
+    const persona = member ? { ...outer, ...member, state: live ? outer.state : "idle" as const }
+      : { ...outer, name: "群聊编排", kind: undefined as unknown as AvatarKind };
+    return (
+      <AgentPersonaProvider persona={persona}>
+        <AssistantTurnBody {...{ project, items, showDebugBadges, writingReplayKey, onOpenArtifact, externalApprovalPlacement,
+          forceToolsOpen, toolCollapseSignal, onApprovalDecision, live }} forceLabel hideAvatar={!member} />
+      </AgentPersonaProvider>
+    );
+  }
+  return <AssistantTurnBody {...{ project, items, showDebugBadges, writingReplayKey, onOpenArtifact, externalApprovalPlacement,
+    forceToolsOpen, toolCollapseSignal, onApprovalDecision, live }} />;
+}
+
+function AssistantTurnBody({
+  project, items, showDebugBadges, writingReplayKey, onOpenArtifact, externalApprovalPlacement,
+  forceToolsOpen, toolCollapseSignal, onApprovalDecision, live = false, forceLabel = false, hideAvatar = false,
+}: {
+  hideAvatar?: boolean;
+  project: AgentFrontendProject;
+  items: readonly AgentUXTimelineItem[];
+  showDebugBadges: boolean;
+  writingReplayKey: number;
+  live?: boolean;
+  forceLabel?: boolean;
   onOpenArtifact?: (artifact: OutputPanelOpenRequest) => void;
   externalApprovalPlacement: "timeline" | "overlay";
   forceToolsOpen: boolean;
@@ -233,13 +305,13 @@ function AssistantTurn({
 
   return (
     <div className="assistant-turn" data-single-line-message={isSingleLineAssistantMessage ? "true" : undefined}>
-      {project.conversation.agentAvatar ? (
+      {project.conversation.agentAvatar && !hideAvatar ? (
         <span className="msg-avatar" data-role="assistant" data-persona={persona ? "true" : undefined} aria-hidden="true">
           <AgentAvatar size={32} live={live} fallback={<StateIcon slot="author.agent" size={15} />} />
         </span>
       ) : null}
       <div className="assistant-lane">
-        {project.conversation.speakerLabels ? (
+        {project.conversation.speakerLabels || forceLabel ? (
           <div className="assistant-turn-label" aria-label={copy.chat.speakers.agentOutputLabel}>{persona?.name ?? copy.chat.speakers.agent}</div>
         ) : null}
         {orderedItems.map((item) => (

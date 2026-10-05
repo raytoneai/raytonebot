@@ -1,0 +1,1167 @@
+{
+"note": "Independently written routing cases (docs/multi-agent-collaboration-research.md). Only the deterministic layer is tested from them; model routing is evaluated offline.",
+"cases": [
+{
+"set": "h3",
+"id": "h3-raer-01",
+"message": "帮我把这句翻成英文：下周三之前请把季度报告发我一份",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-raer-02",
+"message": "remind me tomorrow 3pm to sync with finance about the expense claims",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-raer-03",
+"message": "谢谢大家，今天辛苦了🙏",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-raer-04",
+"message": "这段周报帮我改得正式点，别那么口语：本周主要搞定了登录页，下周接着弄支付",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-raer-05",
+"message": "幂等性到底是啥意思？通俗点讲讲",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-raer-06",
+"message": "这周工单数 周一12 周二8 周三15 周四9 周五11，算下日均和环比上周的52",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-raer-07",
+"message": "Can you summarize this thread into 3 bullets for my boss? Long story short, vendor slipped two weeks, we pushed the launch, QA is still waiting on the build.",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-raer-08",
+"message": "飞书能接进来吗，想在飞书群里也能直接找你们",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-raer-09",
+"message": "下周一站会挪到十点，帮我改下日程",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-ctx-01",
+"message": "再短一点，两三句就够",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-ctx-02",
+"message": "日语也来一版",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-tonny-01",
+"message": "下个版本要做的东西拆成清单吧，按优先级排一下",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-tonny-02",
+"message": "先别改代码，帮我分析下登录接口为啥偶尔超时",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-tonny-03",
+"message": "PR #412 帮忙看下，主要看设计上有没有坑",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-tonny-04",
+"message": "消息队列用Redis还是直接Postgres，各自利弊说说",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-tonny-05",
+"message": "Could you put together a migration plan for moving us off Webpack to Vite? Plan only, don't change anything yet.",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-tonny-06",
+"message": "缓存这块的设计文档我写完了，帮我挑挑毛病",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-tonny-07",
+"message": "Tonny你觉得三周做完支付重构这个排期靠谱吗",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-tonny-08",
+"message": "CI这两天老是红，查下原因就行，不用动",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-ctx-03",
+"message": "能不能先把可能的原因理一理，别急着动",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-ctx-04",
+"message": "第二步再展开细一点",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-bob-01",
+"message": "设置页保存按钮点了没反应，修一下",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-bob-02",
+"message": "给 utils/date.ts 补点单测，跑一遍确认都过",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-bob-03",
+"message": "做一下导出CSV，写完顺手把测试补上跑通",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-bob-04",
+"message": "就按昨天Tonny出的那个方案开干吧",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-bob-05",
+"message": "README 里的安装命令改成 pnpm",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-bob-06",
+"message": "Bump axios to 1.7 and make sure the build still passes",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-bob-07",
+"message": ".env.example 里加个 REDIS_URL",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-bob-08",
+"message": "lint 报了一堆 warning，清一下",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-bob-09",
+"message": "Rename getUserInfo to fetchUserProfile everywhere in the repo",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-ctx-05",
+"message": "行，就这么改",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-ctx-06",
+"message": "注册页也是一样的毛病，一起弄掉",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-ctx-07",
+"message": "ok thanks, that's exactly what I needed",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h3",
+"id": "h3-ctx-08",
+"message": "那这个风险你觉得要不要现在就处理",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-ctx-09",
+"message": "顺便把这个按钮颜色也改成主题色",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-par-01",
+"message": "新产品取啥名好？大家各自说一个",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-par-02",
+"message": "要不要做暗黑模式，你们三个都说说看法",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-par-03",
+"message": "What does each of you think about moving to a monorepo? Opinions only, don't touch anything.",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-par-04",
+"message": "Raer、Tonny、Bob 每人出一个提升团队效率的点子",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-par-05",
+"message": "周会要不要取消，每个人都讲讲自己的想法",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-tb-01",
+"message": "先排查下支付回调为什么丢单，找到原因直接修掉",
+"mode": "sequential",
+"members": [
+"tonny",
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-tb-02",
+"message": "先出个方案，然后照着方案把权限模块重构了",
+"mode": "sequential",
+"members": [
+"tonny",
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-tb-03",
+"message": "Figure out why search results come back out of order, then fix it.",
+"mode": "sequential",
+"members": [
+"tonny",
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-tb-04",
+"message": "让Tonny先把消息已读功能拆一下任务，再交给Bob实现",
+"mode": "sequential",
+"members": [
+"tonny",
+"bob"
+]
+},
+{
+"set": "h3",
+"id": "h3-bt-01",
+"message": "先把分页接口写出来，写完找Tonny review一下",
+"mode": "sequential",
+"members": [
+"bob",
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-bt-02",
+"message": "Bob先把这个空指针修了，修完再让Tonny检查下有没有漏的地方",
+"mode": "sequential",
+"members": [
+"bob",
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-bt-03",
+"message": "Add a rate-limiting middleware, and once it's in, have someone review whether the design holds up.",
+"mode": "sequential",
+"members": [
+"bob",
+"tonny"
+]
+},
+{
+"set": "h3",
+"id": "h3-sup-01",
+"message": "你们看着办吧",
+"mode": "supervisor",
+"members": []
+},
+{
+"set": "h3",
+"id": "h3-sup-02",
+"message": "这事交给你们了，谁合适谁上",
+"mode": "supervisor",
+"members": []
+},
+{
+"set": "h3",
+"id": "h3-sup-03",
+"message": "下季度要从零做个海外版App，市场调研、规划、开发到上线整套你们包了",
+"mode": "supervisor",
+"members": []
+},
+{
+"set": "h4",
+"id": "h4-rr-01",
+"message": "来来来，三位报个数，看看人齐没",
+"mode": "round_robin",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-rr-02",
+"message": "从 Bob 开始报数吧",
+"mode": "round_robin",
+"members": [
+"bob",
+"raer",
+"tonny"
+]
+},
+{
+"set": "h4",
+"id": "h4-rr-03",
+"message": "成语接龙走起，Tonny 先来，第一个词'一马当先'",
+"mode": "round_robin",
+"members": [
+"tonny",
+"raer",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-rr-04",
+"message": "新同事刚进群，你们仨挨个自我介绍一下，后面的别重复前面说过的",
+"mode": "round_robin",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-rr-05",
+"message": "我们来编个故事，每人一句，接着上一个人往下说：从前有个程序员加班到凌晨……",
+"mode": "round_robin",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-rr-06",
+"message": "Let's do a word chain game — Raer starts, then Bob, then Tonny. Each word must start with the last letter of the previous one.",
+"mode": "round_robin",
+"members": [
+"raer",
+"bob",
+"tonny"
+]
+},
+{
+"set": "h4",
+"id": "h4-rr-07",
+"message": "按 tonny、bob、raer 的顺序轮流说一句今天的工作感想，后面的人接着前面的话说",
+"mode": "round_robin",
+"members": [
+"tonny",
+"bob",
+"raer"
+]
+},
+{
+"set": "h4",
+"id": "h4-rr-08",
+"message": "无聊了，玩个词语接龙吧，我先出：周报",
+"mode": "round_robin",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-rr-09",
+"message": "Go around one by one and each add one more item to the packing list for the offsite, building on what's already there.",
+"mode": "round_robin",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-rr-10",
+"message": "1到10数数，一人一个数，Bob 你第一个，然后轮着来",
+"mode": "round_robin",
+"members": [
+"bob",
+"raer",
+"tonny"
+]
+},
+{
+"set": "h4",
+"id": "h4-disc-01",
+"message": "下周的版本要不要把灰度发布砍掉直接全量？你们讨论一下给我个结论",
+"mode": "discussion",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-disc-02",
+"message": "Tonny 和 Bob 你俩商量一下，缓存层是用 Redis 还是直接本地内存，商量完告诉我",
+"mode": "discussion",
+"members": [
+"tonny",
+"bob",
+"raer"
+]
+},
+{
+"set": "h4",
+"id": "h4-disc-03",
+"message": "我想把周会改成异步周报，你们几个互相挑挑毛病，辩一辩到底行不行",
+"mode": "discussion",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-disc-04",
+"message": "Can you three debate whether we should migrate the monorepo to pnpm workspaces? Push back on each other and land on a recommendation.",
+"mode": "discussion",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-disc-05",
+"message": "Bob 先说说你的看法，然后 Raer 和 Tonny 针对他的观点反驳或者补充，来回几轮，最后定一下要不要上 TypeScript strict 模式",
+"mode": "discussion",
+"members": [
+"bob",
+"raer",
+"tonny"
+]
+},
+{
+"set": "h4",
+"id": "h4-disc-06",
+"message": "这个外包报价方案，大家一起权衡下利弊，聊到有共识为止",
+"mode": "discussion",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-disc-07",
+"message": "关于要不要给客户开放 API，你们三个先吵一架再说，吵出个结果来",
+"mode": "discussion",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-par-01",
+"message": "团建去哪儿？每人说一个点子就行",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-par-02",
+"message": "新产品取名，你们各自想一个，不用管别人说啥",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-par-03",
+"message": "投个票：下次分享会主题选 A 大模型应用 还是 B 数据治理？每人投一票",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-par-04",
+"message": "Quick poll: what's the one thing you'd improve about our onboarding doc? One answer each.",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-par-05",
+"message": "大家都说说，你们觉得这次项目延期最主要的原因是啥，各说各的",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-par-06",
+"message": "各位给这段 slogan 打个分，1到10分：'让工作像聊天一样简单'",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-par-07",
+"message": "年会节目有啥想法？三位都出个主意",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-sgl-01",
+"message": "帮我把这段话翻成英文：本周五下午系统维护，期间服务不可用",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h4",
+"id": "h4-sgl-02",
+"message": "Tonny，你觉得我们这个季度的OKR定得是不是太激进了？",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h4",
+"id": "h4-sgl-03",
+"message": "登录页那个验证码不刷新的 bug 修一下",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-sgl-04",
+"message": "明天上午十点提醒我给财务交报销单",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h4",
+"id": "h4-sgl-05",
+"message": "我们讨论一下，下周一的会议室订好了没？",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h4",
+"id": "h4-sgl-06",
+"message": "Bob, what do you think — is it worth adding e2e tests for the checkout flow?",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-sgl-07",
+"message": "把发布上线拆成一个检查清单给我",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h4",
+"id": "h4-sgl-08",
+"message": "大家好，谁能帮我总结一下上面这段会议记录？",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h4",
+"id": "h4-seq-tb-01",
+"message": "导出 Excel 偶尔超时，先帮我分析一下原因，找到了再改代码修掉",
+"mode": "sequential",
+"members": [
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-seq-tb-02",
+"message": "要加一个按部门筛选的功能，Tonny 先出个实现方案，方案定了让 Bob 去写",
+"mode": "sequential",
+"members": [
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-seq-tb-03",
+"message": "First break down the work for the notification settings page, then go ahead and build it.",
+"mode": "sequential",
+"members": [
+"tonny",
+"bob"
+]
+},
+{
+"set": "h4",
+"id": "h4-seq-bt-01",
+"message": "Bob 把分页接口改成游标分页，改完让 Tonny 帮忙 review 一下",
+"mode": "sequential",
+"members": [
+"bob",
+"tonny"
+]
+},
+{
+"set": "h4",
+"id": "h4-seq-bt-02",
+"message": "先把单元测试补上，写完了再整体评审一下有没有漏掉的边界情况",
+"mode": "sequential",
+"members": [
+"bob",
+"tonny"
+]
+},
+{
+"set": "h4",
+"id": "h4-sup-01",
+"message": "你们看着办吧",
+"mode": "supervisor",
+"members": []
+},
+{
+"set": "h4",
+"id": "h4-sup-02",
+"message": "帮我从市场调研开始，做个竞品分析，出产品规划，然后把 MVP 开发出来并上线",
+"mode": "supervisor",
+"members": []
+},
+{
+"set": "h4",
+"id": "h4-sup-03",
+"message": "嗯嗯",
+"mode": "supervisor",
+"members": []
+},
+{
+"set": "h5",
+"id": "h5-voc-01",
+"message": "Bob，登录页那个按钮点了没反应，你看下是不是事件没绑上",
+"mode": "mention",
+"members": [
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-02",
+"message": "Tonny 你帮我看看这个排期合不合理，下周能不能上线",
+"mode": "mention",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-03",
+"message": "Raer: 把这段话翻译成英文，语气正式一点",
+"mode": "mention",
+"members": [
+"raer"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-04",
+"message": "Bob, what do you think is the fastest way to add a retry to the upload API?",
+"mode": "mention",
+"members": [
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-05",
+"message": "Raer您好，明天下午三点提醒我开周会",
+"mode": "mention",
+"members": [
+"raer"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-06",
+"message": "Tonny: can you weigh the pros and cons of moving to Postgres?",
+"mode": "mention",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-07",
+"message": "Bob 你把 README 里的启动命令改成 npm run dev 吧",
+"mode": "mention",
+"members": [
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-08",
+"message": "Raer, summarize yesterday's meeting notes in five bullets please",
+"mode": "mention",
+"members": [
+"raer"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-09",
+"message": "Tonny，线上接口这两天老超时，你分析下可能的原因",
+"mode": "mention",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-10",
+"message": "Bob：给 parseDate 补几个边界情况的单元测试",
+"mode": "mention",
+"members": [
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-11",
+"message": "Tonny、Bob，你们俩看一下这个需求能不能这周做完",
+"mode": "mention",
+"members": [
+"tonny",
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-12",
+"message": "Raer 和 Tonny，你们帮我对一下这份周报的数据和结论",
+"mode": "mention",
+"members": [
+"raer",
+"tonny"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-13",
+"message": "Bob and Tonny, do you agree the cache layer is the bottleneck?",
+"mode": "mention",
+"members": [
+"bob",
+"tonny"
+]
+},
+{
+"set": "h5",
+"id": "h5-voc-14",
+"message": "Raer、Bob 你们两个说说，这个导出功能用户最常卡在哪",
+"mode": "mention",
+"members": [
+"raer",
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-rr-01",
+"message": "Bob，从你开始报数",
+"mode": "round_robin",
+"members": [
+"bob",
+"raer",
+"tonny"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-rr-02",
+"message": "Tonny 先来，大家轮流用一句话说说这周最大的收获",
+"mode": "round_robin",
+"members": [
+"tonny",
+"raer",
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-rr-03",
+"message": "成语接龙，Raer 起头，然后 Bob，最后 Tonny",
+"mode": "round_robin",
+"members": [
+"raer",
+"bob",
+"tonny"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-rr-04",
+"message": "Let's take turns telling a story, one sentence each, Tonny goes first",
+"mode": "round_robin",
+"members": [
+"tonny",
+"raer",
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-disc-01",
+"message": "Bob，你和大家一起讨论一下要不要把单体拆成微服务，最后给个结论",
+"mode": "discussion",
+"members": [
+"bob",
+"raer",
+"tonny"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-disc-02",
+"message": "Tonny 主持一下，你们三个来回讨论下季度 OKR 怎么定，讨论出一致意见",
+"mode": "discussion",
+"members": [
+"tonny",
+"raer",
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-disc-03",
+"message": "Raer, Tonny, Bob — debate whether we should ship on Friday and agree on a decision",
+"mode": "discussion",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-par-01",
+"message": "Raer、Tonny、Bob 每人各自给一个新功能的点子，不用互相参考",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-par-02",
+"message": "Bob 你也说说，大家各自独立给个看法：新 logo 用蓝色还是绿色好？",
+"mode": "parallel",
+"members": [
+"raer",
+"tonny",
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-3p-01",
+"message": "把这份季度报告转给 Bob 看看",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-3p-02",
+"message": "让 Tonny 出个迁移方案",
+"mode": "single",
+"members": [
+"tonny"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-3p-03",
+"message": "昨天 Bob 提交的代码把首页搞崩了，得赶紧修一下",
+"mode": "single",
+"members": [
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-3p-04",
+"message": "Tonny 上次说的那个风险清单，帮我整理成表格发到群里",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-3p-05",
+"message": "Can someone remind me to sync with Bob's team at 4pm tomorrow?",
+"mode": "single",
+"members": [
+"raer"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-seq-01",
+"message": "这个支付回调的需求，先让 Tonny 拆一下方案，然后 Bob 照着实现",
+"mode": "sequential",
+"members": [
+"tonny",
+"bob"
+]
+},
+{
+"set": "h5",
+"id": "h5-trap-seq-02",
+"message": "日志模块先由 Bob 改完，再交给 Tonny 做一次评审",
+"mode": "sequential",
+"members": [
+"bob",
+"tonny"
+]
+}
+]
+}

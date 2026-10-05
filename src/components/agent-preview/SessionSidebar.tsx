@@ -1,5 +1,6 @@
 import { PanelLeft, Search, Trash2 } from "lucide-react";
 import { AgentAvatar } from "../../avatars/AgentPersona";
+import { GroupFace } from "../../avatars/GroupFace";
 import { useShellExtras } from "../shell/ShellExtras";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, type RefObject } from "react";
@@ -236,6 +237,7 @@ export function SessionSidebar({
               ) : null}
             </div>
           ) : null}
+          {extras.sidebarAction}
           {onCollapse ? (
             <button
               type="button"
@@ -411,6 +413,8 @@ function SessionGroup({
   deletion?: ReturnType<typeof useSessionDeletion>;
 }) {
   const avatars = useShellExtras().sessionAvatars;
+  const groupFaces = useShellExtras().groupFaces;
+  const groupPreviews = useShellExtras().groupPreviews;
   const c = useCopy().workspace.sessionSidebar;
   const pattern = conversationSearchPattern(query ?? "");
   return (
@@ -453,10 +457,12 @@ function SessionGroup({
               aria-current={active ? "true" : undefined}
               onClick={() => onSelectResult ? onSelectResult(session) : onSelect?.(id)}
             >
-              {avatars?.[id] ? (
+              {id.startsWith("group_") ? (
+                <span className="session-item-avatar" aria-hidden="true" style={{ width: 26, height: 26, overflow: "visible" }}><GroupFace size={26} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
+              ) : avatars?.[id] ? (
                 <span className="session-item-avatar" aria-hidden="true"><AgentAvatar size={18} kind={avatars[id]} /></span>
               ) : null}
-              <span className="session-item-label">{title}{role ? <span className="session-search-author"> · {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
+              <span className="session-item-label">{title}{!snippet && groupPreviews?.[id] ? <span className="session-search-snippet" style={{ whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", marginBlock: "2px 0" }}>{groupPreviews[id]}</span> : null}{role ? <span className="session-search-author"> · {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
                 match ? <>{snippet.slice(0, match.index)}<mark>{match[0]}</mark>{snippet.slice(match.index + match[0].length)}</> : snippet
               }</span> : null}</span>
             </button>

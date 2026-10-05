@@ -222,3 +222,12 @@
 - **参考**：Claude Code `language` 设置把值原样写成"始终用 X 回复"，即使用户用别的语言提问也按设置回复；已知读取英文工具输出后会漂回英文，社区用每次工具后再强调的 hook 缓解。OpenClaw 飞书评论："Use the same language as the user's comment or reply, unless the user asks for another language"；其 cron 示例另写"keep URLs, code, and product names unchanged"。nightly openbot 的界面语言只用于界面，不进入提示词。
 - **决定**：浏览器随每轮发送界面语言（`locale`），主机把一行 `[Language note: reply in …, the user's interface language, unless they ask for another.]` 追加到模型收到的提示末尾，不写入产品记录；角色提示的规则改为：有提示按提示，无提示（IM）按用户最新一条消息的语言，用户明确要求才切换，代码、命令、路径和产品名保持原样。
 - **边界**：Pi/CLI 的原生会话会保留这行（模型上下文的一部分）；IM 不知道所有者的界面语言，按消息语言回复。
+
+## ADR-032：群聊用规则 + LLM 单选路由，拓扑由代码锁定，判断不可见（2026-10-05）
+
+- **问题**：一个对话只绑定一个角色和一套原生会话；「跨 Agent 协作」此前只靠共享文件交接，没有群成员、群记录、派发与收口。用户既要多人干活，也要报数、接龙、讨论这类互动，且不希望界面里多出一个「判断者」。
+- **参考**：CopilotKit OpenBot（顺序发言、后者读前者、@ 接力跳数上限）；nightly OpenBot（单负责人、显式委派与回收）；botiverse Raft（常驻成员、认领锁、发言前新消息检查，角色行为靠礼仪提示而非禁令）；本机 TelegramAgent ADR 0007（Sequential/Parallel/Loop 原子流程，成员/顺序/轮次由代码锁定，Main 只在控制面、有决策与 turn 预算）；Grok Bot（`+`/To 建群、成员名作群名、主 Bot 用自然语言提分工并问「要开始吗」）。详见 [群聊调研](../multi-agent-collaboration-research.md)。
+- **决定**：规则层（`@`、句首称呼）先判；未命中用当前模型服务做一次 JSON 单选路由（9 个固定选项），判断不出交给 Raer；每个成员一个隐藏子对话，复用 `runPrompt`、审批闸门、运行上限与原生会话。成员集合、顺序、轮次、并发由代码决定；提示词按模式分层，角色约束只在干活模式出现。多人干活时 Raer 兼任 PM：一句话说明分工、单击确认（即本轮 `auto`）、最后收口；单人与互动类不经过 Raer。路由判断记为 debug 事件与日志，不作为发言显示。
+- **为什么不用 Jev 类判断模型**：本机 Laya 多语版零样本在独立留出集上「谁来回答」仅 10/22，交互形状类小题低于随机；DeepSeek 单选（v3 选项）在独立编写的留出组 3/4/5 上为 50/50、39–40/40、29/30（规则层 + deepseek-flash，中位约 0.8 秒）。商业 Jev 未测；判断模型只保留为将来可选的前置分流，低置信仍走 LLM。
+- **为什么不让 Raer 每条都当路由**：单独路由调用约 0.6–0.8 秒、约 400 输入 token；Raer 完整一轮 1.3–3.4 秒且可能先调用工具，交给 Tonny/Bob 的消息反而更慢，也会把编排混入 Raer 自己的会话。
+- **边界**：评测样例为合成短句；真实准确率以上线后的用户改判统计。外部 IM 群映射、Agent 发起的 `request_next_agent`、Supervisor 逐波编排不在首版。

@@ -156,6 +156,11 @@ export function createConversationStore(dataDir = defaultDataDir()) {
       write({ ...conversation, title, titleSource: "summary" });
       return true;
     },
+    /** Group chat: extra top-level fields (group metadata). */
+    setExtra(id: string, extra: Record<string, unknown>) {
+      const conversation = read(id);
+      if (conversation) write({ ...conversation, ...extra } as StoredConversation);
+    },
     setCliSession(id: string, cliSession: StoredConversation["cliSession"]) {
       const conversation = read(id);
       if (!conversation) return;

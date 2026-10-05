@@ -131,7 +131,7 @@ export function ComposerFrame({
   defaultPermissionMode?: PermissionMode;
 }) {
   const copy = useCopy();
-  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue } = useShellExtras();
+  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup } = useShellExtras();
   const promptShortcuts = [
     { label: copy.composer.frame.shortcuts.inspectFiles, Icon: Search },
     { label: copy.composer.frame.shortcuts.fixTest, Icon: Bug },
@@ -349,7 +349,7 @@ export function ComposerFrame({
       data-has-tools-after-upload={hasToolsAfterUpload ? "true" : "false"}
       onSubmit={submit}
     >
-      {isWelcome && welcomeGreeting ? (
+      {isWelcome && welcomeGroup ? welcomeGroup : isWelcome && welcomeGreeting ? (
         <div className="composer-greeting">
           <span className="composer-greeting-avatar" aria-hidden="true">
             <AgentAvatar size={76} live interactive fallback={<StateIcon slot="author.agent" size={40} />} />

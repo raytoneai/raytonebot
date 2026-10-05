@@ -59,6 +59,7 @@ import type { ChannelSetupRequest } from "./imChannels/connectChannelTool.ts";
 import { redactCredentials } from "./imChannels/redactCredentials.ts";
 import { CHANNEL_PLATFORMS, type ChannelPatch, type ChannelPlatform } from "./imChannels/types.ts";
 import { createModelGateway } from "./runtime/modelGateway.ts";
+import { attachGroupChat, type GroupController } from "./groupChat.ts";
 import { isolatePiTool } from "./runtime/isolatedPiTools.ts";
 import { requireAgentIsolation } from "./runtime/agentProcess.ts";
 
@@ -140,7 +141,7 @@ export function createPiRuntimeController(options: {
   limits?: RunLimits;
   /** Connecting an IM channel from chat; the host binds it to its channel manager. */
   channelSetup?: (run: ChannelSetupRun) => Promise<ChannelSetupResult>;
-}): PiRuntimeController {
+}): GroupController {
   const { cwd } = options;
   const dataDir = options.dataDir ?? defaultDataDir();
   const store = options.store ?? createConversationStore(dataDir);
@@ -638,7 +639,7 @@ export function createPiRuntimeController(options: {
     return true;
   };
 
-  return {
+  const api: PiRuntimeController = {
     state,
     defaultPermissionMode,
     health: () => ({ status: "ok", activeRuns: runs.size, maxConcurrentRuns, uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000) }),
@@ -839,6 +840,14 @@ export function createPiRuntimeController(options: {
       void gatewayPromise?.then((current) => current.close());
     },
   };
+  // Group chat wraps the controller (groupChat.ts, ADR-032).
+  return attachGroupChat(api, { store, userInputGate, credentials: providerCredentials,
+    providerDefinition: (id) => id ? providerDefinitions.get(id) : undefined,
+    providerKey: (id) => id ? providerKeys.get(id) : undefined, log, providerIds: () => [...providerDefinitions.keys()],
+    titleGroup: async (id, input, prompt) => {
+      const conversation = store.get(id);
+      if (conversation) await titleConversation(id, conversation.createdAt, input, prompt);
+    } });
 }
 
 export function createPiHttpHost(options: {
@@ -1055,6 +1064,43 @@ export function createPiHttpHost(options: {
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/session/new`) {
           const body = await readJson(req);
           sendJson(res, 200, await controller.newSession(stringField(body, "conversationId")));
+          return true;
+        }
+        if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/group/prompt`) {
+          const body = await readJson(req);
+          const prompt = stringField(body, "prompt")?.trim();
+          const conversationId = stringField(body, "conversationId");
+          if (!prompt || !conversationId) {
+            sendJson(res, 400, { error: "prompt and conversationId are required." });
+            return true;
+          }
+          res.statusCode = 200;
+          res.setHeader("content-type", "application/x-ndjson; charset=utf-8");
+          res.setHeader("cache-control", "no-store");
+          res.flushHeaders();
+          const requestId = stringField(body, "requestId");
+          const heartbeat = setInterval(() => { if (!res.destroyed) res.write("\n"); }, 5_000);
+          res.once("close", () => clearInterval(heartbeat));
+          try {
+            await controller.runGroupPrompt({
+              conversationId, requestId, prompt,
+              ...(Array.isArray(body.members) ? { members: body.members.filter((m: unknown) => isAgentPresetId(m)) } : {}),
+              provider: stringField(body, "provider"),
+              model: stringField(body, "model"),
+              thinkingLevel: stringField(body, "thinkingLevel"),
+              permissionMode: permissionMode(body.permissionMode),
+              claudeCodeModelSource: body.claudeCodeModelSource === "local-login" ? "local-login" : "provider",
+              codexModelSource: body.codexModelSource === "local-login" ? "local-login" : "provider",
+              locale: isAppLocale(body.locale) ? body.locale : undefined,
+            }, (event) => { if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`); });
+          } catch (error) {
+            for (const event of piErrorTurnEvents({ prompt, message: errorMessage(error), runId: requestId, code: PROMPT_REJECTED })) {
+              if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+            }
+          } finally {
+            clearInterval(heartbeat);
+          }
+          if (!res.destroyed) res.end();
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/prompt`) {

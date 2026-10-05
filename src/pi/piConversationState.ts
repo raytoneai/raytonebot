@@ -11,6 +11,9 @@ export type EphemeralPiConversation = {
   stored?: boolean;
   /** Host-reported active run; never an instruction to start or replay it. */
   activeRunId?: string;
+  /** Group chat: a group's members and the last thing said in it. */
+  groupMembers?: string[];
+  groupPreview?: { author: string; text: string };
 };
 
 export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt">;

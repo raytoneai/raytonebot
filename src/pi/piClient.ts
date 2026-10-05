@@ -287,6 +287,22 @@ export async function* runPiTurn(
   yield* readEventStream(response.body, options.signal);
 }
 
+/** Group chat: a group-chat turn; the host routes it to one or more members. */
+export async function* runGroupTurn(
+  input: PiPromptInput,
+  options: { signal?: AbortSignal; fetcher?: typeof fetch } = {},
+): AsyncGenerator<AgentUXEvent> {
+  const response = await fetchStream(options.fetcher ?? fetch, `${PI_API_PREFIX}/group/prompt`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(input),
+    signal: options.signal,
+  });
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Group prompt failed"));
+  if (!response.body) throw new Error("Group prompt response has no event stream.");
+  yield* readEventStream(response.body, options.signal);
+}
+
 /**
  * Reattach to a turn still running on the host (after a reload, a closed tab or a dropped
  * connection): the events after the first `after`, then live ones until the turn ends.

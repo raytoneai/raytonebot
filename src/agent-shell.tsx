@@ -10,7 +10,7 @@ import {
   type OutputPanelOpenRequest,
 } from "./components/agent-preview/outputframe/panelItem";
 import type { SettingsSectionId } from "./components/settings/SettingsDialog";
-import { AgentSwitcher, HeaderAgent, ShellExtrasProvider, SidebarFooter, type AgentRunStatus, type ShellExtras } from "./components/shell/ShellExtras";
+import { AgentSwitcher, GroupHeader, GroupWelcome, NewChatMenu, HeaderAgent, ShellExtrasProvider, SidebarFooter, type AgentRunStatus, type ShellExtras } from "./components/shell/ShellExtras";
 import { settingsCopy } from "./i18n/copy/settings";
 import type { ComposerDraft, ComposerRunOptions, ComposerSubmitContext } from "./components/agent-preview/ComposerFrame";
 import { ExternalApprovalSurface, InlineApprovalSurface } from "./components/agent-preview/ChatFrame";
@@ -44,7 +44,7 @@ import {
   listStoredConversations,
   searchStoredConversations,
   resolvePiApproval,
-  runPiTurn,
+  runPiTurn, runGroupTurn,
   uploadPiFile,
   startNewPiSession,
   PiRequestError,
@@ -119,6 +119,7 @@ import { displayTaskPlans } from "./runtime/taskPlan";
 import { historyFeedbackEvents, type HistoryNotice } from "./runtime/historyFeedback";
 import { hasComposerDraft, hasComposerState } from "./runtime/composerDraftStore";
 import { avatarActivity } from "./runtime/avatarActivity";
+import { GroupFace } from "./avatars/GroupFace";
 import { lastRunOutcome, nextQueueStep, queuedPrompt, type QueuedMessage } from "./runtime/followUpQueue";
 import { useComposerDrafts } from "./runtime/useComposerDrafts";
 import { branchReplayEvents, useMessageBranch } from "./runtime/useMessageBranch";
@@ -275,8 +276,26 @@ export function AgentApp() {
   const questionProps = useUserInput(pendingQuestion, activePiConversationId, locale);
   const pendingSetup = useMemo(() => pendingChannelSetup(events), [events]);
   const setupProps = useChannelSetup(pendingSetup, activePiConversationId, locale);
-  const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(historyFeedbackEvents(events, activePiConversationId, historyMessage), questionCopy[locale].skipped))
-    .map(identityEventForReplay).map(artifactEventForReplay), [events, activePiConversationId, historyMessage, locale]);
+  // Group chat: a group's routing is a debug event; only ?devtools=1 shows it in the chat.
+  const visibleEvents = useMemo(() => activePiConversationId.startsWith("group_") && !devtoolsRequested()
+    ? events.filter((event) => event.visibility !== "debug") : events, [events, activePiConversationId]);
+  // In a group, the member that started working and has produced nothing visible yet.
+  const groupTyping = useMemo((): AgentPresetId | undefined => {
+    if (!activePiConversationId.startsWith("group_")) return undefined;
+    let pending: AgentPresetId | undefined;
+    for (const event of events) {
+      const payload = (event.payload ?? {}) as Record<string, unknown>;
+      if (event.type === "group.member.started" && isAgentPresetId(payload.member)) pending = payload.member;
+      else if (event.type === "run.finished" || event.type === "run.error") pending = undefined;
+      else if (pending && /^(text|reasoning|tool\.call|artifact)\./.test(event.type)) {
+        const ids = [event.messageId, payload.toolCallId, payload.textId, payload.reasoningId, payload.artifactId];
+        if (ids.some((id) => typeof id === "string" && id.startsWith(`${pending}~`))) pending = undefined;
+      }
+    }
+    return pending;
+  }, [events, activePiConversationId]);
+  const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(historyFeedbackEvents(visibleEvents, activePiConversationId, historyMessage), questionCopy[locale].skipped))
+    .map(identityEventForReplay).map(artifactEventForReplay), [visibleEvents, activePiConversationId, historyMessage, locale]);
   // Render the selected history immediately; an effect replay exposes the previous branch for one render.
   const viewModel = useMemo(() => createAgentUXViewModel(replayAgentUXEvents(replayEvents), {
     policy: {
@@ -463,6 +482,7 @@ export function AgentApp() {
             activeRunId: entry.activeRunId,
             events: [],
             stored: true,
+            ...groupFields(entry),
           }));
         setPiConversations((current) => {
           const known = new Set(current.map((entry) => entry.id));
@@ -674,6 +694,7 @@ export function AgentApp() {
     const normalizedPrompt = prompt.trim();
     if (!normalizedPrompt) return false;
     const conversationId = target.id;
+    const isGroup = conversationId.startsWith("group_");
     // Synchronous guard: state updates land later, so a double submit could slip past `piRunning`.
     if (piAbortRefs.current.has(conversationId)) return false;
     const provider = defaultProviderConnection(activeProject);
@@ -723,9 +744,9 @@ export function AgentApp() {
       showIfActive(nextConversation);
       // Codex and a locally logged-in Claude Code bring their own model; only roles that run
       // on the configured model service need it registered (and its key handed over) first.
-      if (settingsUseProvider({ ...agentSettings, presetId })) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal);
+      if (isGroup || settingsUseProvider({ ...agentSettings, presetId })) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal);
       const attachments: PiPromptAttachment[] = [];
-      for (const attachment of context?.attachments ?? []) {
+      for (const attachment of isGroup ? [] : context?.attachments ?? []) {
         if (attachment.reference) {
           await checkPiAttachment(attachment.reference, controller.signal);
           attachments.push(attachment.reference); continue;
@@ -742,7 +763,8 @@ export function AgentApp() {
       if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
       preparingPiRefs.current.delete(conversationId);
       promptAttempted = true;
-      for await (const event of runPiTurn({
+      for await (const event of (isGroup ? runGroupTurn : runPiTurn)({
+        ...(isGroup ? { members: groupMembersOf(nextConversation) } : {}),
         conversationId: nextConversation.id,
         requestId: runId,
         prompt: normalizedPrompt,
@@ -773,7 +795,7 @@ export function AgentApp() {
       }
       commit.flush();
       // The host titles a new conversation with its model during the first turn.
-      if (turnStartEventCount === 0) refreshConversationTitle(conversationId);
+      if (turnStartEventCount === 0 || isGroup) refreshConversationTitle(conversationId);
       // The turn already delivered its terminal; a metadata refresh failure must not reattach it.
       await refreshPiRuntime().catch(() => undefined);
     } catch (error) {
@@ -1041,8 +1063,10 @@ export function AgentApp() {
    */
   /** A slow title service may still be answering when the turn ends: look once more a little later. */
   function refreshConversationTitle(id: string, retry = true) {
-    void getStoredConversationSummary(id).then(({ title, titleSource }) => {
-      setPiConversations((current) => current.map((entry) => entry.id === id && entry.title !== title ? { ...entry, title } : entry));
+    void getStoredConversationSummary(id).then((summary) => {
+      const { title, titleSource } = summary;
+      setPiConversations((current) => current.map((entry) => entry.id === id && (entry.title !== title || id.startsWith("group_"))
+        ? { ...entry, title, ...groupFields(summary) } : entry));
       if (titleSource !== "summary" && retry) setTimeout(() => refreshConversationTitle(id, false), 4_000);
     }).catch(() => undefined);
   }
@@ -1057,10 +1081,28 @@ export function AgentApp() {
     setPiConversations((current) => current.filter((entry) => entry.id !== id));
   }
 
-  async function startNewSession() {
+  // Group chat: members and the last message come with the host's summary of the conversation.
+  function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupPreview"> {
+    const group = (entry as { group?: { members?: string[]; preview?: { author: string; text: string } } }).group;
+    return group ? { ...(group.members ? { groupMembers: group.members } : {}), ...(group.preview ? { groupPreview: group.preview } : {}) } : {};
+  }
+  // Group chat: members live on the conversation; the host keeps its own copy per turn.
+  function groupMembersOf(conversation: EphemeralPiConversation): AgentPresetId[] {
+    const members = (conversation.groupMembers ?? []).filter(isAgentPresetId);
+    return members.length ? members : ["assistant", "planner", "builder"];
+  }
+  function setGroupMembers(conversationId: string, members: AgentPresetId[]) {
+    const names = ["我", ...members.map((m) => copy.composer.agentSettings.presets[m].name)].join("、");
+    setPiConversations((current) => current.map((entry) => entry.id === conversationId ? { ...entry, groupMembers: members, title: names } : entry));
+  }
+
+  async function startNewSession(group = false, members: AgentPresetId[] = ["assistant", "planner", "builder"]) {
     navigatedRef.current = true;
     // A run in flight keeps going in its own conversation; it only draws while on screen.
-    const conversation = createEphemeralPiConversation();
+    const conversation = group
+      ? { ...createEphemeralPiConversation(`group_${crypto.randomUUID().slice(0, 12)}`),
+        title: ["我", ...members.map((m) => copy.composer.agentSettings.presets[m].name)].join("、"), groupMembers: members }
+      : createEphemeralPiConversation();
     setStreamId("");
     setPiConversations((current) => replacePiConversation(current, conversation));
     // Set at once, not on the next render: a background run's frame must not draw over this view.
@@ -1099,7 +1141,9 @@ export function AgentApp() {
     const next = { ...agentSettings, presetId };
     setAgentSettings(next);
     saveAgentSettings(next);
-    if (activePiConversation.events.length > 0 || piRunning || hasComposerState(composer.drafts[activePiConversationId])) void startNewSession();
+    // A group is never reused as a one-agent chat, even while it is still empty.
+    if (activePiConversationId.startsWith("group_") || activePiConversation.events.length > 0 || piRunning
+      || hasComposerState(composer.drafts[activePiConversationId])) void startNewSession();
   }
 
   function selectPiConversation(conversationId: string) {
@@ -1184,8 +1228,16 @@ export function AgentApp() {
   };
   // Every agent with a conversation in flight shows it, not only the one on screen.
   const agentStatuses: Partial<Record<AgentPresetId, AgentRunStatus>> = {};
+  let groupStatus: AgentRunStatus | undefined;
   for (const conversation of piConversations) {
     if (!runningConversationIds.has(conversation.id) || !isAgentPresetId(conversation.agentPreset)) continue;
+    // Group chat: a group's turn shows on the group row, not on one member's face.
+    if (conversation.id.startsWith("group_")) {
+      const groupWaiting = awaitingConversationIds.has(conversation.id) || Boolean(pendingUserInput(conversation.events))
+        || (conversation.id === activePiConversationId && Boolean(liveApprovalTool));
+      groupStatus = groupWaiting ? "needs-you" : groupStatus ?? "running";
+      continue;
+    }
     const waiting = awaitingConversationIds.has(conversation.id) || Boolean(pendingUserInput(conversation.events))
       || (conversation.id === activePiConversationId && Boolean(liveApprovalTool));
     if (waiting) agentStatuses[conversation.agentPreset] = "needs-you";
@@ -1202,10 +1254,30 @@ export function AgentApp() {
         statuses={agentStatuses}
         harnesses={piRuntimeState?.harnesses}
         onSelect={startConversationWith}
+        onNewGroup={() => { setDrawerOpen(false); void startNewSession(true); }}
+        groupActive={activePiConversationId.startsWith("group_")}
+        groupStatus={groupStatus}
       />
     ),
+    sidebarAction: (
+      <NewChatMenu avatars={PRESET_AVATARS} onNewGroup={(members) => { setDrawerOpen(false); void startNewSession(true, members); }}
+        onSelectAgent={startConversationWith} />
+    ),
+    groupTyping: runningConversationIds.has(activePiConversationId) ? groupTyping : undefined,
+    welcomeGroup: activePiConversationId.startsWith("group_") ? (
+      <GroupWelcome avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)}
+        onChange={(members) => setGroupMembers(activePiConversationId, members)} />
+    ) : undefined,
+    groupPreviews: Object.fromEntries(piConversations.flatMap((entry) => entry.groupPreview
+      ? [[entry.id, `${entry.groupPreview.author === "user" ? "我" : copy.composer.agentSettings.presets[entry.groupPreview.author as AgentPresetId]?.name ?? ""}：${entry.groupPreview.text}`]] : [])),
+    groupFaces: Object.fromEntries(piConversations.filter((entry) => entry.id.startsWith("group_"))
+      .map((entry) => [entry.id, groupMembersOf(entry).map((m) => PRESET_AVATARS[m])])),
     sidebarFooter: <SidebarFooter onOpenSettings={() => openSettings("providers")} />,
-    headerAgent: (
+    headerAgent: activePiConversationId.startsWith("group_") ? (
+      <GroupHeader avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)}
+        draft={activePiConversation.events.length === 0 && !activePiConversation.stored}
+        onChange={(members) => setGroupMembers(activePiConversationId, members)} />
+    ) : (
       <HeaderAgent
         avatars={PRESET_AVATARS}
         settings={agentSettings}
@@ -1227,7 +1299,8 @@ export function AgentApp() {
         isAgentPresetId(conversation.agentPreset) ? [[conversation.id, PRESET_AVATARS[conversation.agentPreset]]] : []
       )),
     ),
-    composerPlaceholder: settingsCopy[locale].shell.messageTo(copy.composer.agentSettings.presets[agentSettings.presetId].name),
+    composerPlaceholder: activePiConversationId.startsWith("group_") ? "发到群里…（可用 @Raer @Tonny @Bob 指定成员）"
+      : settingsCopy[locale].shell.messageTo(copy.composer.agentSettings.presets[agentSettings.presetId].name),
     stopStatus: !streamId && piRunning ? runStop.statusFor(activePiConversationId) : undefined,
     composerOptions: {
       value: {

@@ -3636,7 +3636,7 @@ textarea:focus-visible {
 }
 .session-brand-logo {
   display: block;
-  height: 24px;
+  height: 26px;
   width: auto;
 }
 .preview-frame[data-appearance="dark"] .session-brand-logo[data-variant="light"],
