@@ -458,10 +458,10 @@ export function AgentApp() {
     if (!signal.aborted) setPiConversations((current) => {
       const known = new Set(current.map(entry => entry.id));
       const added = result.conversations.filter(entry => !known.has(entry.id));
-      return added.length ? [...current, ...added.map(entry => ({ ...entry, events: [], stored: true }))] : current;
+      return added.length ? [...current, ...added.map(entry => ({ ...entry, events: [], stored: true, ...groupFields(entry) }))] : current;
     });
     if (!signal.aborted) for (const entry of result.conversations) {
-      if (entry.running) void followRun({ ...entry, events: [], stored: true });
+      if (entry.running) void followRun({ ...entry, events: [], stored: true, ...groupFields(entry) });
     }
     return result;
   }, []);
@@ -649,7 +649,7 @@ export function AgentApp() {
         setFollowProblems((current) => ({ ...current, [conversation.id]: undefined }));
         setHistoryProblems((current) => ({ ...current, [conversation.id]: stored.incomplete ? "incomplete" : undefined }));
         storedRunIds.current.set(conversation.id, new Set(stored.events.flatMap((event) => event.runId ? [event.runId] : [])));
-        const loaded = { ...conversation, title: stored.title, events: stored.events, stored: false, activeRunId: stored.activeRunId };
+        const loaded = { ...conversation, title: stored.title, events: stored.events, stored: false, activeRunId: stored.activeRunId, ...groupFields(stored) };
         composer.accepted(loaded, storedRunIds.current.get(conversation.id)!);
         setPiConversations((current) => current.map((entry) => (
           entry.id === loaded.id && entry.events.length === 0 ? loaded : entry

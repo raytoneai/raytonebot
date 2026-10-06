@@ -1,4 +1,5 @@
 import assert from "node:assert/strict";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, readdirSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
 import { tmpdir } from "node:os";
@@ -7,6 +8,35 @@ import { test } from "node:test";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { createPiRuntimeController } from "./piHost.ts";
 import { openPiSession } from "./nativeSession.ts";
+
+test("reset without environment credentials ignores the SDK placeholder and preserves a configured model", { timeout: 15_000 }, () => {
+  const root = mkdtempSync(join(tmpdir(), "raytone-empty-model-reset-"));
+  try {
+    // A separate process and empty home keep ambient credentials from hiding the placeholder.
+    execFileSync(process.execPath, ["--input-type=module", "-e", `
+      import assert from 'node:assert/strict';
+      import { createPiRuntimeController } from ${JSON.stringify(new URL("./piHost.ts", import.meta.url).href)};
+      const root = process.argv[1];
+      const host = createPiRuntimeController({ cwd: root, dataDir: root + '/data', sandboxed: false });
+      try {
+        const before = await host.state('unconfigured');
+        assert.equal(before.provider, 'unknown');
+        assert.equal(before.model, 'unknown');
+        await host.newSession('unconfigured');
+        await host.newSession('unconfigured');
+        await host.configure({ conversationId: 'unconfigured', provider: 'reset-fixture', model: 'chosen-model', thinkingLevel: 'high',
+          providerDefinition: { id: 'reset-fixture', name: 'Reset fixture', protocol: 'openai-compatible',
+            baseUrl: 'http://127.0.0.1:1/v1', models: ['chosen-model'], authMode: 'none' } });
+        const configured = await host.state('unconfigured');
+        const reset = await host.newSession('unconfigured');
+        assert.equal(reset.provider, 'reset-fixture');
+        assert.equal(reset.model, 'chosen-model');
+        assert.equal(reset.thinkingLevel, configured.thinkingLevel);
+        assert.notEqual(reset.sessionId, configured.sessionId);
+      } finally { host.dispose(); }
+    `, root], { cwd: root, env: { PATH: process.env.PATH, HOME: root, PI_CODING_AGENT_DIR: join(root, "agent") }, timeout: 10_000, stdio: "pipe" });
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
 
 test("Pi resumes the exact native context, refuses missing history, and permits explicit recovery", { timeout: 30_000 }, async () => {
   const root = mkdtempSync(join(tmpdir(), "raytone-native-session-"));

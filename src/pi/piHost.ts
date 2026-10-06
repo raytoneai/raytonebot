@@ -102,8 +102,9 @@ export type PiRuntimeController = {
   configure(input: PiRuntimeConfiguration): Promise<PiRuntimeState>;
   /** `signal` belongs to the caller's stream: aborting it stops this run, and only once the run
    *  holds its slot (a rejected duplicate must not stop the turn already in progress).
-   *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards. */
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean }): Promise<void>;
+   *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards.
+   *  Internal group children may `waitForCapacity`; cancelling that wait leaves no receipt. */
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
@@ -237,6 +238,7 @@ export function createPiRuntimeController(options: {
     done: Promise<void>;
   };
   const runs = new Map<string, RunSlot>();
+  const disposed = new AbortController();
   /** Session resets and configurations in flight, one at a time per conversation. A turn waits
    *  for both; a reset that fails also fails the turns queued behind it. */
   const resets = new Map<string, Promise<void>>();
@@ -664,12 +666,35 @@ export function createPiRuntimeController(options: {
       if (!prompt) throw new Error("Pi prompt is empty.");
       const conversationId = normalizeConversationId(input.conversationId);
       input = { ...input, requestId: input.requestId ?? `run_${randomUUID()}` };
-      if (runs.has(conversationId)) throw new Error("This conversation already has a run in progress.");
-      if (runs.size >= maxConcurrentRuns) {
-        throw new Error(`${maxConcurrentRuns} conversations are already running. Wait for one to finish or stop it.`);
+      for (;;) {
+        disposed.signal.throwIfAborted();
+        if (runs.has(conversationId)) throw new Error("This conversation already has a run in progress.");
+        if (options?.waitForCapacity) options.signal?.throwIfAborted();
+        if (!options?.waitForCapacity && runs.size >= maxConcurrentRuns) {
+          throw new Error(`${maxConcurrentRuns} conversations are already running. Wait for one to finish or stop it.`);
+        }
+        if (store.get(conversationId)?.turns?.some(turn => turn.runId === input.requestId)) throw new Error("This request id has already been submitted.");
+        if (runs.size < maxConcurrentRuns) break;
+        // Completion only wakes us: another waiter may take the free slot first. Waiting does
+        // not own a conversation or attach its signal to any already-running turn.
+        let stopWaiting = () => {};
+        try {
+          await Promise.race([
+            ...[...runs.values()].map(slot => slot.done),
+            new Promise<never>((_, reject) => {
+              const cancel = () => reject(options?.signal?.reason);
+              const shutDown = () => reject(disposed.signal.reason);
+              options?.signal?.addEventListener("abort", cancel, { once: true });
+              disposed.signal.addEventListener("abort", shutDown, { once: true });
+              stopWaiting = () => {
+                options?.signal?.removeEventListener("abort", cancel);
+                disposed.signal.removeEventListener("abort", shutDown);
+              };
+            }),
+          ]);
+        } finally { stopWaiting(); }
       }
-      if (store.get(conversationId)?.turns?.some(turn => turn.runId === input.requestId)) throw new Error("This request id has already been submitted.");
-      // Reserved before any await, so a second prompt for the same conversation cannot slip in.
+      // No await after the final checks: another prompt cannot take this conversation or slot.
       let settle!: () => void;
       const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
@@ -833,6 +858,7 @@ export function createPiRuntimeController(options: {
       return approvalMemory.list();
     },
     dispose() {
+      disposed.abort(new Error("Pi runtime controller is disposed."));
       for (const gate of approvalGates.values()) gate.cancelAll();
       for (const pending of bridgePromises.values()) void pending.then((current) => current.dispose());
       bridgePromises.clear();
@@ -1356,7 +1382,7 @@ async function createDefaultPiBridge(input: {
       };
     },
     async newSession() {
-      const selected = session.model
+      const selected = session.model && !(session.model.provider === "unknown" && session.model.id === "unknown")
         ? { provider: session.model.provider, model: session.model.id, thinkingLevel: session.thinkingLevel }
         : undefined;
       session.dispose();

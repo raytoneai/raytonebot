@@ -9,6 +9,9 @@ import type { AgentPresetId } from "./harnessCatalog.ts";
 import type { PiPromptInput, PiProviderDefinition } from "./piClient.ts";
 import type { PiRuntimeController } from "./piHost.ts";
 import type { UserInputGate } from "./userInputGate.ts";
+import { createConversationRecorder } from "./conversationRecorder.ts";
+import { piErrorTurnEvents } from "./piErrorTurn.ts";
+import { redactCredentials } from "./imChannels/redactCredentials.ts";
 
 /**
  * Group chat (ADR-032). A group is a conversation with `group` metadata; each member runs in a
@@ -261,7 +264,9 @@ export type GroupController = PiRuntimeController & {
 };
 
 export function attachGroupChat(controller: PiRuntimeController, deps: Deps): GroupController {
-  const active = new Map<string, { abort: AbortController; runId: string }>();
+  const active = new Map<string, { abort: AbortController; runId: string; done: Promise<void>;
+    watchers: Set<(event: AgentUXEvent) => void>; children: Map<AgentPresetId, string> }>();
+  const resets = new Map<string, ReturnType<PiRuntimeController["newSession"]>>();
   const backfilled = new Set<string>();
   const groupOf = (id?: string) => {
     if (!id) return undefined;
@@ -271,67 +276,116 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
 
   async function runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void) {
     const groupId = input.conversationId!;
-    const prompt = input.prompt.trim();
+    const prompt = redactCredentials(input.prompt.trim());
+    if (!groupId || !prompt) throw new Error("A group conversation and prompt are required.");
+    for (let reset = resets.get(groupId); reset; reset = resets.get(groupId)) await reset;
     if (active.has(groupId)) throw new Error("This group already has a turn in progress.");
     const groupRunId = input.requestId ?? `group_${randomUUID()}`;
-    const abort = new AbortController();
-    active.set(groupId, { abort, runId: groupRunId });
+    // The persisted user-message receipt is also the group's request ledger, including old groups.
+    if (deps.store.get(groupId)?.events.some((event) => event.runId === groupRunId)) {
+      throw new Error("This request id has already been submitted.");
+    }
     const existing = groupOf(groupId);
-    const meta: GroupMeta = existing?.group ?? { members: [...GROUP_MEMBERS], lines: [] };
+    const abort = new AbortController();
+    let settle!: () => void;
+    const slot = { abort, runId: groupRunId, done: new Promise<void>((resolve) => { settle = resolve; }),
+      watchers: new Set([onEvent]), children: new Map<AgentPresetId, string>() };
+    active.set(groupId, slot);
+    const meta: GroupMeta = structuredClone(existing?.group ?? { members: [...GROUP_MEMBERS], lines: [] });
     // The client sends the group's members (chosen in "To:", edited in the member panel); keep the group order.
     const requested = (input as PiPromptInput & { members?: unknown }).members;
     if (Array.isArray(requested)) {
       const chosen = GROUP_MEMBERS.filter((m) => requested.includes(m));
       if (chosen.length) meta.members = chosen;
     }
-    deps.store.begin(groupId, "assistant", prompt);
     // Until a topic is summarized, a group is named by its members; a summarized topic is kept.
     const named = () => (deps.store.get(groupId)?.titleSource === "summary" ? {} : { title: groupTitle(meta.members) });
-    deps.store.setExtra(groupId, { group: meta, ...named() });
+    const reportFailure = (event: string, error: unknown) => {
+      try { deps.log?.(event, { conversationId: groupId, runId: groupRunId,
+        error: redactCredentials(error instanceof Error ? error.message : String(error)) }); }
+      catch { /* Diagnostics must not change the accepted turn's outcome. */ }
+    };
+    const broadcast = (event: AgentUXEvent) => {
+      for (const watcher of slot.watchers) {
+        try { watcher(event); }
+        catch (error) { slot.watchers.delete(watcher); reportFailure("group.subscriber_failed", error); }
+      }
+    };
+    const recorder = createConversationRecorder({ store: deps.store, conversationId: groupId, runId: groupRunId,
+      broadcast,
+      stop: () => abort.abort(),
+    });
     const emit = (events: AgentUXEvent[]) => {
-      for (const event of events) { deps.store.append(groupId, event); onEvent(event); }
+      for (const event of events) {
+        if (!recorder.ended) recorder.record({ ...event, seq: (deps.store.get(groupId)?.events.length ?? 0) + 1 });
+      }
     };
     // Routing is control-plane detail: a debug event (shown with ?devtools=1) and a log line, never a speaker.
     const debug = (events: AgentUXEvent[]) => emit(events.map((event) => ({ ...event, visibility: "debug" }) as AgentUXEvent));
     const asRaer = (events: AgentUXEvent[]) => emit(events.map((event) => retag(event, "assistant", groupRunId)));
     const adapter = createPiEventAdapter({ runId: groupRunId });
     let status: "success" | "cancelled" | "error" = "success";
+    let opened = false;
+    let memberFailure: unknown;
+    let turnFailure: unknown;
+    let unsavedFailure: AgentUXEvent[] | undefined;
     const outputs: { member: AgentPresetId; text: string }[] = [];
+    let joinLines: GroupLine[] = [];
 
     let permissionMode = input.permissionMode;
     const runMember = async (member: AgentPresetId, memberPromptText: string, record = true) => {
-      const childId = childConversationId(groupId, member);
-      if (member === "assistant") {
-        await controller.configure({ conversationId: childId, provider: input.provider, model: input.model,
-          thinkingLevel: input.thinkingLevel, providerDefinition: deps.providerDefinition(input.provider), apiKey: deps.providerKey(input.provider) });
-      }
-      const childRunId = `${groupRunId}.${member}.${randomUUID().slice(0, 6)}`;
-      // The member's face shows from the moment it starts working (context, thinking), not from its first word.
-      // An unknown event type: the renderer ignores it; the shell derives "who is thinking" from it.
-      emit([{ type: "group.member.started", id: `${childRunId}_typing`, runId: groupRunId, visibility: "debug", payload: { member } } as AgentUXEvent]);
-      let text = "";
-      await controller.runPrompt({ ...input, permissionMode, conversationId: childId, requestId: childRunId, agentPreset: member, prompt: memberPromptText }, (event) => {
-        if (event.type === "run.started" || event.type === "run.finished" || event.type === "capability.attached") return;
-        if (event.messageId === `${childRunId}_user`) return;
-        if (event.type === "run.error") {
-          const message = String((event.payload as { message?: unknown }).message ?? "出错了");
-          const id = `${childRunId}_error`;
-          emit([retag({ ...event, type: "text.started", messageId: id, payload: { textId: `${id}_t`, role: "assistant", format: "markdown" } }, member, groupRunId),
-            retag({ ...event, type: "text.delta", messageId: id, payload: { textId: `${id}_t`, delta: `⚠️ ${message}` } }, member, groupRunId),
-            retag({ ...event, type: "text.finished", messageId: id, payload: { textId: `${id}_t` } }, member, groupRunId)]);
-          return;
+      try {
+        abort.signal.throwIfAborted();
+        const childId = childConversationId(groupId, member);
+        if (member === "assistant") {
+          await controller.configure({ conversationId: childId, provider: input.provider, model: input.model,
+            thinkingLevel: input.thinkingLevel, providerDefinition: deps.providerDefinition(input.provider), apiKey: deps.providerKey(input.provider) });
         }
-        if (event.type === "text.delta" && typeof (event.payload as { delta?: unknown }).delta === "string") text += (event.payload as { delta: string }).delta;
-        emit([retag(event, member, groupRunId, childRunId)]);
-      }, { signal: abort.signal });
-      if (record) outputs.push({ member, text });
-      deps.store.flush(groupId);
-      return text;
+        abort.signal.throwIfAborted();
+        const childRunId = `${groupRunId}.${member}.${randomUUID().slice(0, 6)}`;
+        slot.children.set(member, childRunId);
+        // The member's face shows from the moment it starts working (context, thinking), not from its first word.
+        // An unknown event type: the renderer ignores it; the shell derives "who is thinking" from it.
+        emit([{ type: "group.member.started", id: `${childRunId}_typing`, runId: groupRunId, visibility: "debug", payload: { member } } as AgentUXEvent]);
+        let text = "";
+        let failure: string | undefined;
+        let cancelled = false;
+        await controller.runPrompt({ ...input, permissionMode, conversationId: childId, requestId: childRunId, agentPreset: member, prompt: memberPromptText }, (event) => {
+          if (event.type === "run.finished") {
+            if (event.payload.status === "error") failure ??= "Member run failed.";
+            if (event.payload.status === "cancelled") cancelled = true;
+            return;
+          }
+          if (event.type === "run.started" || event.type === "capability.attached") return;
+          if (event.messageId === `${childRunId}_user`) return;
+          if (event.type === "run.error") {
+            failure = String((event.payload as { message?: unknown }).message ?? "").trim() || "Member run failed.";
+            return;
+          }
+          if (event.type === "text.delta" && typeof (event.payload as { delta?: unknown }).delta === "string") text += (event.payload as { delta: string }).delta;
+          emit([retag(event, member, groupRunId, childRunId)]);
+        }, { signal: abort.signal, waitForCapacity: true });
+        if (failure !== undefined) throw new Error(failure);
+        if (cancelled) abort.abort();
+        abort.signal.throwIfAborted();
+        if (record) outputs.push({ member, text });
+        return text;
+      } catch (error) {
+        if (!abort.signal.aborted) {
+          const message = (error instanceof Error ? error.message : String(error)).trim() || "Member run failed.";
+          memberFailure = new Error(`${MEMBER_NAMES[member]}: ${message}`, { cause: error });
+          status = "error";
+          abort.abort();
+        }
+        throw error;
+      } finally { slot.children.delete(member); }
     };
 
     try {
+      deps.store.begin(groupId, "assistant", prompt);
+      deps.store.setExtra(groupId, { group: meta, ...named() });
+      opened = true;
       emit(adapter.startUserMessage(prompt));
-      deps.store.flush(groupId);
 
       // 1. route (rules, then one JSON call)
       const started = Date.now();
@@ -359,7 +413,6 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       // Groups from before this field existed have already met; only genuinely new members introduce themselves.
       const introduced = meta.introduced ?? (meta.lines.length ? [...meta.members] : []);
       const newcomers = meta.members.filter((m) => !introduced.includes(m));
-      let joinLines: GroupLine[] = [];
       const firstTurn = meta.lines.length === 0;
       if (newcomers.length && firstTurn && isGreeting(prompt) && !mentioned.length && !addressed.length) {
         plan = { mode: "intro", members: [...meta.members], source: "rule", note: "新群的第一句问候" };
@@ -383,7 +436,12 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         }
       } else if (plan.mode !== "sequential") {
         // 2a. one hop: the chosen members just speak.
-        if (plan.mode === "parallel") await Promise.all(plan.members.map((m) => runMember(m, memberPrompt(m, plan, meta.lines, prompt, []))));
+        if (plan.mode === "parallel") {
+          // Keep the group occupied until every child has stopped; no events may follow its terminal.
+          const results = await Promise.allSettled(plan.members.map((m) => runMember(m, memberPrompt(m, plan, meta.lines, prompt, []))));
+          const failed = results.find((result) => result.status === "rejected");
+          if (failed?.status === "rejected") throw memberFailure ?? failed.reason;
+        }
         else if (plan.mode === "discussion") {
           for (let round = 1; round <= DISCUSSION_ROUNDS && !abort.signal.aborted; round++) {
             for (const member of plan.members) {
@@ -428,21 +486,53 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         if (steps.length > 1 && !abort.signal.aborted) await runMember("assistant", pmSummaryPrompt(outputs, prompt));
       }
       if (abort.signal.aborted) status = "cancelled";
-      meta.lines = [...meta.lines, ...joinLines, { author: "user" as const, text: prompt }, ...outputs.map((o) => ({ author: o.member, text: o.text.slice(0, 4000) }))].slice(-20);
     } catch (error) {
-      status = abort.signal.aborted ? "cancelled" : "error";
-      if (status === "error") emit(adapter.apply({ type: "extension_error", message: error instanceof Error ? error.message : String(error) }));
+      if (!opened) throw error;
+      status = memberFailure || !abort.signal.aborted ? "error" : "cancelled";
+      turnFailure = memberFailure ?? error;
     } finally {
-      emit(adapter.finish(status));
-      const last = [...outputs].reverse().find((o) => o.text.trim());
-      meta.preview = last ? { author: last.member, text: last.text.replace(/\s+/g, " ").trim().slice(0, 80) } : { author: "user", text: prompt.slice(0, 80) };
-      deps.store.setExtra(groupId, { group: meta, ...named() });
-      deps.store.flush(groupId);
-      active.delete(groupId);
+      try {
+        if (opened) {
+          if (!recorder.failed) {
+            meta.lines = [...meta.lines, ...joinLines, { author: "user" as const, text: prompt }, ...outputs.map((o) => ({ author: o.member, text: o.text.slice(0, 4000) }))].slice(-20);
+            const last = [...outputs].reverse().find((o) => o.text.trim());
+            meta.preview = last ? { author: last.member, text: last.text.replace(/\s+/g, " ").trim().slice(0, 80) } : { author: "user", text: prompt.slice(0, 80) };
+            try { deps.store.setExtra(groupId, { group: meta, ...named() }); }
+            catch (error) { status = "error"; turnFailure = error; }
+          }
+          if (status === "error") emit(adapter.apply({ type: "extension_error",
+            message: turnFailure instanceof Error ? turnFailure.message : String(turnFailure ?? "Group run failed.") }));
+          emit(adapter.finish(status));
+        }
+      } catch (error) {
+        status = "error";
+        reportFailure("group.finalize_failed", error);
+        // Bypass a broken adapter during finalization. A saved terminal stays authoritative;
+        // disk failures are reported by finish(). Neither means this prompt was rejected.
+        if (!recorder.ended) {
+          const failures = piErrorTurnEvents({ runId: groupRunId, code: "group_runtime_error",
+            message: error instanceof Error ? error.message : String(error) });
+          try { emit(failures); }
+          catch (failure) {
+            reportFailure("group.finalize_failed", failure);
+            if (!recorder.ended) unsavedFailure = failures;
+          }
+        }
+      } finally {
+        try {
+          if (opened) {
+            if (!recorder.finish()) status = "error";
+            else for (const event of unsavedFailure ?? []) broadcast(event);
+          }
+        }
+        finally { active.delete(groupId); settle(); }
+      }
     }
     // The topic comes from the first real request, not from "hello".
-    if (status === "success" && !isGreeting(prompt) && deps.store.get(groupId)?.titleSource !== "summary") {
-      void deps.titleGroup?.(groupId, input, prompt).catch(() => undefined);
+    if (status === "success" && !isGreeting(prompt) && deps.titleGroup) {
+      void Promise.resolve().then(() => {
+        if (deps.store.get(groupId)?.titleSource !== "summary") return deps.titleGroup!(groupId, input, prompt);
+      }).catch((error) => reportFailure("group.title_failed", error));
     }
   }
 
@@ -467,18 +557,36 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
           backfilled.add(entry.id);
           void deps.titleGroup?.(entry.id, { prompt: firstRequest.text, provider }, firstRequest.text).catch(() => undefined);
         }
-        return { ...entry, group: { ...group, preview }, running: entry.running || active.has(entry.id) };
+        return { ...entry, group: { ...group, preview }, running: entry.running || active.has(entry.id),
+          activeRunId: active.get(entry.id)?.runId ?? entry.activeRunId };
       }),
+    followRun(conversationId, after, onEvent) {
+      const slot = active.get(conversationId);
+      if (!slot) return controller.followRun(conversationId, after, onEvent);
+      for (const event of (deps.store.get(conversationId)?.events ?? []).slice(Math.max(0, after))) onEvent(event);
+      slot.watchers.add(onEvent);
+      return { done: slot.done, stop: () => slot.watchers.delete(onEvent) };
+    },
     async abort(conversationId, runId) {
+      if (!conversationId) {
+        const hadGroups = active.size > 0;
+        for (const turn of active.values()) turn.abort.abort();
+        return await controller.abort() || hadGroups;
+      }
       const turn = conversationId ? active.get(conversationId) : undefined;
       if (!turn) return controller.abort(conversationId, runId);
+      if (runId && turn.runId !== runId) return false;
       turn.abort.abort();
-      await Promise.all(GROUP_MEMBERS.map((m) => controller.abort(childConversationId(conversationId!, m)).catch(() => false)));
+      await Promise.all([...turn.children].map(([m, id]) => controller.abort(childConversationId(conversationId, m), id).catch(() => false)));
       return true;
     },
     resolveApproval(toolCallId, decision, conversationId, runId) {
       const child = childOf(conversationId, toolCallId);
-      return child ? controller.resolveApproval(child.id, decision, child.childId) : controller.resolveApproval(toolCallId, decision, conversationId, runId);
+      if (!child) return controller.resolveApproval(toolCallId, decision, conversationId, runId);
+      const turn = active.get(conversationId!);
+      const childRunId = turn?.children.get(untag(toolCallId).member!);
+      if (!turn || !childRunId || runId && turn.runId !== runId) return false;
+      return controller.resolveApproval(child.id, decision, child.childId, childRunId);
     },
     resolveUserInput(conversationId, requestId, answers) {
       // The PM confirmation is asked by the group itself but shown under Raer, so its id is tagged too.
@@ -495,10 +603,26 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         if (deps.store.get(childConversationId(id, member))) controller.deleteConversation(childConversationId(id, member));
       }
     },
+    async newSession(conversationId) {
+      if (conversationId && active.has(conversationId)) {
+        throw new Error("Stop this conversation's run before starting a new session.");
+      }
+      if (!conversationId) return controller.newSession(conversationId);
+      const pending = resets.get(conversationId);
+      if (pending) return pending;
+      const reset = controller.newSession(conversationId);
+      resets.set(conversationId, reset);
+      try { return await reset; }
+      finally { if (resets.get(conversationId) === reset) resets.delete(conversationId); }
+    },
     getConversation(id) {
       const conversation = controller.getConversation(id);
       const turn = active.get(id);
-      return conversation && turn ? { ...conversation, activeRunId: turn.runId } : conversation;
+      return conversation && turn ? { ...conversation, activeRunId: turn.runId, incomplete: false } : conversation;
+    },
+    dispose() {
+      for (const turn of active.values()) turn.abort.abort();
+      controller.dispose();
     },
   };
 }

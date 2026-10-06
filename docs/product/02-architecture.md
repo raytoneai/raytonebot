@@ -38,6 +38,7 @@ Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子�
 | GET | `/__agentcanvas/pi/state?conversationId=` | 模型、工具、会话信息 |
 | POST | `/__agentcanvas/pi/config` | provider/model/thinking/会话 key |
 | POST | `/__agentcanvas/pi/prompt` | 发起一轮，返回 NDJSON 事件流；可选 `requestId` 对应该轮 `runId`，用于断线后核对提交；**连接断开不中止**，只有 `/abort` 停止 |
+| POST | `/__agentcanvas/pi/group/prompt` | 群聊轮次，成员经现有 `runPrompt` 执行；群请求以已落盘事件去重，使用同一 `/live`、`/abort`、`/approval`、`/input` 接口恢复和交互 |
 | GET | `/__agentcanvas/pi/conversations/:id/live?after=N` | 重新接上运行中的一轮：先补发第 N 个之后的已存事件，再推实时事件，轮次结束时关闭；未在运行返回 409 |
 | POST | `/__agentcanvas/pi/abort` | 新界面传 `{conversationId,runId}`，仅停止匹配轮次；过时/已结束返回 409，非法身份返回 400；旧调用省略 runId 沿用按会话停止，空对象仍为管理用停止全部 |
 | POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no`；新界面携带 `conversationId`、`runId` 和原生 `toolCallId`，只匹配对应轮次；409 = 已失效 |
@@ -99,6 +100,12 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 提问与两种审批表面共用 39 行 `usePromptFocus.ts`，只跟踪用户实际聚焦过的卡片。提交失败时恢复原控件；卡片卸载后，在同一会话且用户未转向其他控件时，把焦点交给后续问题标题或 Composer。新问题出现不抢焦点，问题 key 按会话/requestId 隔离；停止按钮在显式点击时聚焦输入框，不用迟到回执触发。此状态仅属于当前 DOM，不写入持久记录。
 
 `replayIdentity.ts`（23 行）在显示回放时以 runId、实体类型和原生 id 的 JSON 元组标识工具及产物，防止跨轮合并参数、结果和文件内容。先处理用户提问过滤，再投影显示身份；原始事件、重连游标和磁盘记录不改。审批从实际 awaiting 事件找回原生工具 id 与 runId，两种现有审批入口共用这条路径；主机先检查轮次再放行 gate。接口兼容旧客户端省略 runId，但此类请求仍沿用旧匹配语义，不能防止跨轮迟到请求；部署时应刷新旧页面。已有产物标签按投影后的 id 更新，无需迁移历史或修改 vendor。
+
+### 群聊运行保障（2026-10-06）
+
+`groupChat.ts` 为父轮次保存 `runId`、成员当前子轮 id、订阅者和完成信号；事件复用 `conversationRecorder.ts`，按群历史连续编号，用户消息、审批/提问等待及终态落盘后再广播。已接收请求通过历史 `runId` 去重，完成与进程重启后仍拒绝重复执行；重启只补中断终态，不重放。`followRun` 同步补齐游标后的事件并注册后续订阅，断开订阅不停止运行；群成员信息随历史/搜索恢复。停止与审批先核对父轮身份，再转发当前子轮身份。成员失败使父轮失败，依赖步骤与汇总停止；并行成员全部退出后才发布唯一终态。元数据写入失败不得先发布成功，清理失败路径仍释放运行槽；群运行期间拒绝重置，群提交等待已在进行的重置，重置失败则不调用成员。
+
+群成员通过内部 `runPrompt(..., { waitForCapacity: true, signal })` 等待已有运行槽完成；醒来后同步重查身份与名额并占槽，总上限仍为 3。等待可取消、不写子轮回执；普通网页/IM 调用仍在满额时直接拒绝，不新增 HTTP 参数或持久队列，也不承诺 FIFO。群广播逐个隔离出错的订阅者；成员失败仅发带成员名的父轮错误卡。首次元数据保存失败属于未接收，收尾与标题异常不得变为 `prompt_rejected`；错误兜底须等 recorder 收尾，避免与 `history_save_failed` 重复发布终态。
 
 ### 当前缺口
 
