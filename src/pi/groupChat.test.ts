@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
-  addressedMembers, childConversationId, GROUP_MEMBERS, isChildConversationId, isGreeting, mentionedMembers,
+  addressedMembers, childConversationId, GROUP_MEMBERS, isChildConversationId, isContinuation, isGreeting, mentionedMembers,
   parseRoute, planFromRoute, soleSpeaker, speakingOrder, untag,
 } from "./groupChat.ts";
 
@@ -110,4 +110,13 @@ test("deleting a group deletes its members' hidden conversations", async () => {
     providerDefinition: () => undefined, providerKey: () => undefined });
   group.deleteConversation("group_a");
   assert.deepEqual(["group_a", "group_a.m.planner", "group_a.m.builder", "solo"].map((id) => Boolean(store.get(id))), [false, false, false, true]);
+});
+
+test("only phrases that depend on the previous answer count as a continuation; work and new questions go to the router", () => {
+  for (const t of ["展开说说", "展开讲讲", "具体一点", "继续说", "还有呢？", "举个例子", "你说错了，群里还有Raer和Bob", "你漏了回滚的情况",
+    "你这个结论有问题", "Go on", "elaborate on the second point", "That's wrong"]) assert.ok(isContinuation(t), t);
+  for (const t of ["为什么天空是蓝的", "不是所有文件都支持预览吗", "不是还有Raer和Bob么", "继续实现吧", "不对，直接改代码", "展开说说然后直接把代码改了",
+    "换个思路实现", "就这么做", "继续说，大家一起讨论", "go on and implement it", "帮我翻译一下这句", "具体一点".repeat(11)]) {
+    assert.ok(!isContinuation(t), t);
+  }
 });

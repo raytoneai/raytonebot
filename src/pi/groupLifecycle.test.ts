@@ -792,3 +792,48 @@ test("a member answering alone is still told the whole group's roster", async ()
     assert.match(bridge.calls[0].prompt, /群成员：Raer（[^）]+）、Tonny（[^）]+）、Bob（[^）]+），以及用户/);
   } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
 });
+
+/** A stand-in model service for the router: counts calls and always answers `route`. */
+async function routerService(route: string) {
+  const calls: string[] = [];
+  const server = createServer(async (req, res) => {
+    let body = "";
+    for await (const chunk of req) body += chunk;
+    calls.push(body);
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ route }) } }] }));
+  });
+  const base = await listen(server);
+  const definition = { id: "router-check", name: "Router check", protocol: "openai-compatible" as const,
+    baseUrl: `${base}/v1`, models: ["flash"], authMode: "none" as const };
+  return { calls, definition, close: () => close(server) };
+}
+
+for (const scenario of ["follow-up", "several answered", "nobody answered yet", "speaker left"] as const) {
+  test(`a continuation goes straight to the lone previous speaker; otherwise the router decides (${scenario})`, async () => {
+    const dataDir = mkdtempSync(join(tmpdir(), "rtb-group-continue-"));
+    const bridge = controlledBridges();
+    const store = createConversationStore(dataDir);
+    const router = await routerService("raer");
+    const controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: bridge.factory });
+    try {
+      await controller.configure({ conversationId: "setup", providerDefinition: router.definition, provider: router.definition.id, model: "flash" });
+      const lines = {
+        "follow-up": [{ author: "user", text: "介绍一下缓存" }, { author: "assistant", text: "缓存把热点数据放在内存里。" }],
+        "several answered": [{ author: "user", text: "讨论缓存" }, { author: "assistant", text: "a" }, { author: "builder", text: "b" }],
+        "nobody answered yet": [{ author: "assistant", text: "a" }, { author: "user", text: "新问题" }],
+        "speaker left": [{ author: "user", text: "评审一下" }, { author: "planner", text: "有三个风险。" }],
+      }[scenario];
+      const members = scenario === "speaker left" ? ["assistant", "builder"] : ["assistant", "planner", "builder"];
+      store.begin(groupId, "assistant", "seed");
+      store.setExtra(groupId, { group: { members, lines, introduced: members } });
+      const request = { conversationId: groupId, requestId: `continue-${scenario}`, prompt: "展开说说", provider: router.definition.id, model: "flash", members };
+      await controller.runGroupPrompt(request, () => {});
+      if (scenario === "follow-up") assert.equal(router.calls.length, 0, "the rule answered without asking the router");
+      else assert.equal(router.calls.length, 1, "no lone previous speaker in the group: the router decides");
+      assert.deepEqual(bridge.calls.map((call) => call.id), [childId], "only Raer ran");
+      const route = controller.getConversation(groupId)!.events.find((event) => event.type === "tool.call.result" && event.visibility === "debug");
+      assert.match(JSON.stringify(route?.payload), scenario === "follow-up" ? /rule · 接着上一位/ : /router\(raer\)/);
+    } finally { controller.dispose(); await router.close(); rmSync(dataDir, { recursive: true, force: true }); }
+  });
+}

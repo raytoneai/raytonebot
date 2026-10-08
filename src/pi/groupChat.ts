@@ -72,13 +72,16 @@ export const ROUTER_OPTIONS: Record<string, string> = {
     + "按已有计划实现其中一步、对上一条方案说“就这么做”，都仍是 Bob 一人",
   parallel: "用户要求多位成员各自独立给出看法、点子或投票，彼此不需要接着前面的人说，不动手修改",
   round_robin: "成员按顺序各说一次，后面的人要接着前面的人说：报数、接龙、成语接龙、轮流自我介绍、每人轮流说一句、一人一句编故事",
-  discussion: "需要成员互相回应、来回讨论几轮再形成结论：讨论方案、辩论、商量一下、互相挑刺、一起评估优劣",
+  discussion: "用户明确要求成员之间互相回应、来回讨论几轮再形成结论：讨论方案、辩论、商量一下、互相挑刺、一起评估优劣；"
+    + "纠正、质疑或追问某位成员说过的话不算",
   plan_then_build: "用户在同一请求里明确要求先出方案或先找原因，然后再动手实现或修复；只说“实现并测试”或已有计划时不算",
   build_then_review: "用户明确要求先动手实现，做完后再评审或检查",
   unclear: "没有明确请求、把决定完全交给别人，或任务横跨调研、规划、实现、上线多个阶段而过于宽泛",
 };
 const ROUTER_SYSTEM = [
   "你是群聊路由器，只决定这条用户消息由谁、以什么方式回答，不回答消息本身。",
+  "用户在追问、纠正、反驳或质疑上一位回答者说的内容时（即使消息里提到了其他成员的名字），选那位成员的单人选项；"
+    + "要求动手执行或换成别的事时，仍按下面各选项判断。",
   "可选项：",
   ...Object.entries(ROUTER_OPTIONS).map(([k, v]) => `- ${k}：${v}`),
   '严格只输出一个 JSON 对象，例如 {"route":"bob"}，不要解释。',
@@ -93,6 +96,8 @@ export function routerState(lines: GroupLine[], text: string, members: AgentPres
     out.push("最近群消息：");
     for (const line of recent) out.push(`- ${line.author === "user" ? "用户" : MEMBER_NAMES[line.author]}：${line.text.slice(0, 300)}`);
   }
+  const previous = soleSpeaker(lines);
+  if (previous && members.includes(previous)) out.push(`上一条用户消息只由 ${MEMBER_NAMES[previous]} 回答。`);
   out.push(`用户最新消息：${text}`);
   return out.join("\n");
 }
@@ -112,6 +117,17 @@ export function speakingOrder(text: string, members: AgentPresetId[], continuing
     .sort((a, b) => a.at - b.at).map((x) => x.m) : [];
   const first = named.length ? named : continuing && members.includes(continuing) ? [continuing] : [];
   return [...first, ...members.filter((m) => !first.includes(m))];
+}
+
+// Phrases that only make sense as a reply to what was just said (nightly OpenBot's continuation rule,
+// widened to Chinese). Kept narrow on purpose: "为什么…" or "不是…" may start a new question, so the
+// router decides those. Anything that asks for work is left to the router too, which knows who builds.
+const CONTINUATION = /^\s*(?:继续说|接着说|接着讲|往下说|展开(?:说说|讲讲|一下|说|讲)?|具体(?:点|一点|说说|讲讲)|详细(?:点|一点|说说|讲讲)|再详细|举个例子|然后呢|还有呢|你(?:说|讲)?错了|你漏了|你说的不对|你这个(?:说法|结论|判断)(?:不对|有问题)|换个说法|go on|keep going|elaborate|tell me more|more detail|for example|you(?:'re| are) wrong|that's (?:wrong|not right))/i;
+const ASKS_FOR_WORK = /实现|改|修|做|写|部署|上线|跑|执行|动手|开始|implement|fix|build|code|change|deploy|run|write|do it/i;
+
+/** Is this short message a follow-up to the member who just answered alone? Then it goes to them. */
+export function isContinuation(text: string): boolean {
+  return text.trim().length <= 40 && CONTINUATION.test(text) && !ASKS_FOR_WORK.test(text) && !WHOLE_GROUP.test(text);
 }
 
 /** The member who alone answered the latest turn in the group record, if exactly one did. */
@@ -177,6 +193,25 @@ export function parseRoute(raw: string | undefined): string | undefined {
     const route = (JSON.parse(match?.[0] ?? raw) as { route?: unknown }).route;
     return typeof route === "string" && route in ROUTER_OPTIONS ? route : undefined;
   } catch { return undefined; }
+}
+
+/**
+ * Who answers a group message, and how: `@` and vocatives first, then a follow-up to the member who
+ * alone answered last, then one JSON choice from the model (`complete`; none means Raer). Shared by
+ * the group run and the routing evaluation, so both judge with the same code.
+ */
+export async function routeGroupMessage(prompt: string, group: Pick<GroupMeta, "members" | "lines">,
+  complete?: (system: string, user: string) => Promise<string | undefined>): Promise<{ plan: GroupPlan; raw?: string }> {
+  const mentioned = mentionedMembers(prompt, group.members);
+  if (mentioned.length) return { plan: { mode: "mention", members: mentioned, source: "mention" } };
+  const addressed = addressedMembers(prompt, group.members);
+  if (addressed.length) return { plan: { mode: "mention", members: addressed, source: "mention", note: "句首称呼" } };
+  const continuing = soleSpeaker(group.lines);
+  if (continuing && group.members.includes(continuing) && isContinuation(prompt)) {
+    return { plan: { mode: "single", members: [continuing], source: "rule", note: "接着上一位" } };
+  }
+  const raw = complete ? await complete(ROUTER_SYSTEM, routerState(group.lines, prompt, group.members)).catch(() => undefined) : undefined;
+  return { plan: planFromRoute(parseRoute(raw), group.members, raw, prompt, continuing), raw };
 }
 
 // ---------- member prompt ----------
@@ -408,19 +443,12 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
 
       // 1. route (rules, then one JSON call)
       const started = Date.now();
-      let plan: GroupPlan;
-      let routerRaw: string | undefined;
-      const mentioned = mentionedMembers(prompt, meta.members);
-      const addressed = mentioned.length ? [] : addressedMembers(prompt, meta.members);
-      if (mentioned.length) plan = { mode: "mention", members: mentioned, source: "mention" };
-      else if (addressed.length) plan = { mode: "mention", members: addressed, source: "mention", note: "句首称呼" };
-      else {
-        const credentials = deps.credentials(input.provider);
-        const raw = credentials ? await completeJson(credentials.definition, credentials.apiKey,
-          input.model ?? credentials.definition.models[0], ROUTER_SYSTEM, routerState(meta.lines, prompt, meta.members)).catch(() => undefined) : undefined;
-        routerRaw = raw;
-        plan = planFromRoute(parseRoute(raw), meta.members, raw, prompt, soleSpeaker(meta.lines));
-      }
+      const credentials = deps.credentials(input.provider);
+      const routed = await routeGroupMessage(prompt, meta, credentials ? (system, user) => completeJson(credentials.definition,
+        credentials.apiKey, input.model ?? credentials.definition.models[0], system, user) : undefined);
+      let plan = routed.plan;
+      const routerRaw = routed.raw;
+      const mentioned = plan.source === "mention" ? plan.members : [];
       const order = plan.members.map((m) => MEMBER_NAMES[m]);
       const routeText = `${plan.mode} ${order.join(" → ")} · ${plan.source}${plan.route ? `(${plan.route})` : ""}${plan.note ? ` · ${plan.note}` : ""} · ${Date.now() - started} ms${routerRaw !== undefined ? ` · raw=${routerRaw.slice(0, 200)}` : ""}`;
       deps.log?.("group.route", { conversationId: groupId, mode: plan.mode, members: plan.members, source: plan.source, route: plan.route, ms: Date.now() - started });
@@ -433,7 +461,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       const introduced = meta.introduced ?? (meta.lines.length ? [...meta.members] : []);
       const newcomers = meta.members.filter((m) => !introduced.includes(m));
       const firstTurn = meta.lines.length === 0;
-      if (newcomers.length && firstTurn && isGreeting(prompt) && !mentioned.length && !addressed.length) {
+      if (newcomers.length && firstTurn && isGreeting(prompt) && !mentioned.length) {
         plan = { mode: "intro", members: [...meta.members], source: "rule", note: "新群的第一句问候" };
         deps.log?.("group.intro", { conversationId: groupId, members: plan.members });
       } else if (newcomers.length && !firstTurn) {
