@@ -337,6 +337,7 @@ function AssistantTurnBody({
             forceToolsOpen={forceToolsOpen}
             toolCollapseSignal={toolCollapseSignal}
             onApprovalDecision={onApprovalDecision}
+            live={live}
           />
         ))}
       </div>
@@ -385,8 +386,11 @@ function TimelineItem({
   forceToolsOpen,
   toolCollapseSignal,
   onApprovalDecision,
+  live = false,
 }: {
   item: AgentUXTimelineItem;
+  /** In the newest turn, which may still be running; older turns are finished history. */
+  live?: boolean;
   project: AgentFrontendProject;
   showDebugBadges: boolean;
   writingReplayKey: number;
@@ -414,7 +418,8 @@ function TimelineItem({
               <WritingText project={project} text={text} replayKey={writingReplayKey} settled={settled} />
             ) : <p>{text}</p>}
           </div>
-          <MessageActions project={project} role={isAssistant ? "assistant" : "user"} text={item.text ?? ""} messageId={item.id} />
+          {/* Copy and regenerate apply to a finished answer: none while the agent is still at work on this turn. */}
+          {!isAssistant || (item.status === "done" && !(live && persona && avatarBusy(persona.state))) ? <MessageActions project={project} role={isAssistant ? "assistant" : "user"} text={item.text ?? ""} messageId={item.id} /> : null}
         </article>
       );
     }

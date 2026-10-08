@@ -4818,6 +4818,9 @@ textarea:focus-visible {
   gap: 5px;
 }
 
+/* The run can finish while the answer is still typing out on screen: wait for the last word. */
+.lane-message:has(.writing-text[data-typing="true"]) .message-actions { display: none; }
+
 .clipboard-feedback {
   align-self: center;
   color: var(--text-secondary);
