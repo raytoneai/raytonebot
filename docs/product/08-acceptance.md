@@ -730,3 +730,11 @@
 - 复核修订（2026-10-08，Codex review）：① 未绑定模型时拒绝创建（工具返回错误）与运行（409），不再退回 Pi 默认模型；② 已接受的 occurrence 存进任务定义（最近 500 个），删除或重置结果对话、再重启后同一 occurrence 仍 409，新 occurrence 照常运行；③ `configure` 失败记为运行失败并计入连续两次自动关闭，忙碌拒绝不计。`routines.test.ts` 增至 10 项；临时去掉 occurrence 检查时删除/重置两项失败，恢复后通过。
 - 第二次复核（2026-10-08，Codex review）：后台收尾 `finish()` 与启动前失败的写盘异常曾成为未处理 Promise rejection，进程退出码 1。改为统一 `record()` 捕获并写 `routine.save_failed` 日志；未保存的收尾不冒充已保存，已接受的 occurrence 仍去重。新增故障注入测试（运行中把 `routines.json.tmp` 换成目录）断言无未处理 rejection、主机继续服务、日志有记录；去掉捕获时该测试失败。`routines.test.ts` 11 项。
 - 云端部署（2026-10-08）：实例 `id705on7k0a1ya1d90icj` 原为暂停状态，`sandbox.py wake` 后 `deploy.py --sandbox … --skip-build`（构建来自 `0c66093`）。脚本自检全部通过（鉴权 401、错误密码 401、跨站 403、health、state、沙箱模式、分角色工作区，三个引擎可用）；另以 Basic Auth 核对 `GET /routines` 200、未登录 401、Raer 工具 11 个含 `create_routine`。未在云端创建或运行任务，未接调度服务，未做云端浏览器走查。
+
+## BI 组：群成员名单与发言顺序（2026-10-08，工作树）
+
+- 起因：云端群聊「看看我们的群聊调度模式是否合理」路由给 Tonny 一人，Tonny 答“本群只有一个 Agent”；用户纠正「不是还有Raer和Bob么」被路由为讨论，顺序 Raer → Bob → Tonny，被纠正的 Tonny 最后发言。
+- 根因 1：`memberPrompt` 的“群成员”取本轮被选中的成员（`plan.members`），单人回答时只列自己。改为全群成员。
+- 根因 2：`speakingOrder` 让消息中出现的任何名字排前。改为仅在有排序词或句首称呼时按名字排序，否则名字只算引用；讨论模式无人被点名时由上一轮唯一回答者（`soleSpeaker`）先开口，轮流类游戏仍按群顺序。路由选项文字未改。
+- 测试：`groupLifecycle.test.ts` 新增单人回答收到全群名单（撤掉修复时失败）；`groupChat.test.ts` 新增引用/排序词/上一位先说/`soleSpeaker` 用例，并以 13 条带名字的轮流/讨论评测样例核对顺序不变。全量 `npm test` 223/223，tsc 通过。
+- 边界：未重跑路由评测（路由选项未改，不受影响）；未用真实模型复现该群聊；未提交/部署。

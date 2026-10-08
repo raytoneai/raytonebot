@@ -779,3 +779,16 @@ test("a group waits for a pending session reset and does not execute if that res
     } finally { finish(); await controller.abort(groupId); controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
   }
 });
+
+test("a member answering alone is still told the whole group's roster", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-group-roster-"));
+  const bridge = controlledBridges();
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
+  try {
+    const request = { ...input("roster"), prompt: "@Raer 看看群聊调度是否合理", members: ["assistant", "planner", "builder"] };
+    await controller.runGroupPrompt(request, () => {});
+    assert.equal(bridge.calls.length, 1);
+    assert.equal(bridge.calls[0].id, childId);
+    assert.match(bridge.calls[0].prompt, /群成员：Raer（[^）]+）、Tonny（[^）]+）、Bob（[^）]+），以及用户/);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});

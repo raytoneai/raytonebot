@@ -97,14 +97,31 @@ export function routerState(lines: GroupLine[], text: string, members: AgentPres
   return out.join("\n");
 }
 
-/** Speaking order: members named in the message (no @) come first in the order named, the rest keep the group order. */
-export function speakingOrder(text: string, members: AgentPresetId[]): AgentPresetId[] {
-  const named = members.map((m) => ({ m, at: text.search(new RegExp(MEMBER_NAMES[m], "i")) })).filter((x) => x.at >= 0)
-    .sort((a, b) => a.at - b.at).map((x) => x.m);
-  return [...named, ...members.filter((m) => !named.includes(m))];
+// Words that make names in the message set the order ("Tonny 先来", "Raer starts, then Bob"). Without one, a
+// name mid-sentence is only a reference ("不是还有Raer和Bob么"), as in nightly OpenBot's mention parsing.
+const ORDER_CUE = /先|首先|开始|起头|开头|第一个|第一位|主持|带头|然后|接着|最后|你俩|你们俩|\b(?:starts?|first|then|next|leads?|kicks? off|goes)\b/i;
+
+/**
+ * Speaking order: members the message puts first (an order word, or names opening it) in the order
+ * named, the rest in group order. Otherwise `continuing`, the member who alone answered the previous
+ * turn, speaks first: the message most likely answers them.
+ */
+export function speakingOrder(text: string, members: AgentPresetId[], continuing?: AgentPresetId): AgentPresetId[] {
+  const ordered = ORDER_CUE.test(text) || VOCATIVE.test(text);
+  const named = ordered ? members.map((m) => ({ m, at: text.search(new RegExp(MEMBER_NAMES[m], "i")) })).filter((x) => x.at >= 0)
+    .sort((a, b) => a.at - b.at).map((x) => x.m) : [];
+  const first = named.length ? named : continuing && members.includes(continuing) ? [continuing] : [];
+  return [...first, ...members.filter((m) => !first.includes(m))];
 }
 
-export function planFromRoute(route: string | undefined, members: AgentPresetId[], raw?: string, text = ""): GroupPlan {
+/** The member who alone answered the latest turn in the group record, if exactly one did. */
+export function soleSpeaker(lines: GroupLine[]): AgentPresetId | undefined {
+  const lastUser = lines.map((line) => line.author).lastIndexOf("user");
+  const authors = new Set(lines.slice(lastUser + 1).map((line) => line.author).filter((author): author is AgentPresetId => author !== "user"));
+  return authors.size === 1 ? [...authors][0] : undefined;
+}
+
+export function planFromRoute(route: string | undefined, members: AgentPresetId[], raw?: string, text = "", continuing?: AgentPresetId): GroupPlan {
   const why = route === "unclear" ? "模型判为 unclear" : raw === undefined ? "路由请求失败" : `输出无法解析：${raw.slice(0, 80)}`;
   const fallback: GroupPlan = { mode: "single", members: ["assistant"], source: "fallback", route, note: `${why}；原型暂由 Raer 代替 Supervisor` };
   const one = (m: AgentPresetId): GroupPlan => members.includes(m) ? { mode: "single", members: [m], source: "router", route } : fallback;
@@ -114,7 +131,7 @@ export function planFromRoute(route: string | undefined, members: AgentPresetId[
     case "bob": return one("builder");
     case "parallel": return { mode: "parallel", members: [...members], source: "router", route };
     case "round_robin": return { mode: "round_robin", members: speakingOrder(text, members), source: "router", route };
-    case "discussion": return { mode: "discussion", members: speakingOrder(text, members), source: "router", route };
+    case "discussion": return { mode: "discussion", members: speakingOrder(text, members, continuing), source: "router", route };
     case "plan_then_build": return members.includes("planner") && members.includes("builder")
       ? { mode: "sequential", members: ["planner", "builder"], source: "router", route } : fallback;
     case "build_then_review": return members.includes("planner") && members.includes("builder")
@@ -166,9 +183,11 @@ export function parseRoute(raw: string | undefined): string | undefined {
 const INTERACTION = "这是群聊互动，不是任务：按用户给的规则简短回复（通常一两句），不调用工具，不读写文件。";
 const DISCUSSION_ROUNDS = 2;
 
-function memberPrompt(member: AgentPresetId, plan: GroupPlan, lines: GroupLine[], text: string,
+function memberPrompt(member: AgentPresetId, group: AgentPresetId[], plan: GroupPlan, lines: GroupLine[], text: string,
   previous: { member: AgentPresetId; text: string }[], round = 1): string {
-  const out = [`[群聊] 你是群里的 ${MEMBER_NAMES[member]}（${MEMBER_ROLES[member]}）。群成员：${roster(GROUP_MEMBERS.filter((m) => plan.members.includes(m) || m === member))}，以及用户。只完成你这一部分，用中文或用户的语言直接回复。`];
+  // The roster is the whole group, not just who speaks this turn: a member answering alone must
+  // not conclude it is the only one here.
+  const out = [`[群聊] 你是群里的 ${MEMBER_NAMES[member]}（${MEMBER_ROLES[member]}）。群成员：${roster(GROUP_MEMBERS.filter((m) => group.includes(m) || m === member))}，以及用户。只完成你这一部分，用中文或用户的语言直接回复。`];
   const recent = lines.slice(-8);
   if (recent.length) {
     out.push("最近群消息：");
@@ -400,7 +419,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         const raw = credentials ? await completeJson(credentials.definition, credentials.apiKey,
           input.model ?? credentials.definition.models[0], ROUTER_SYSTEM, routerState(meta.lines, prompt, meta.members)).catch(() => undefined) : undefined;
         routerRaw = raw;
-        plan = planFromRoute(parseRoute(raw), meta.members, raw, prompt);
+        plan = planFromRoute(parseRoute(raw), meta.members, raw, prompt, soleSpeaker(meta.lines));
       }
       const order = plan.members.map((m) => MEMBER_NAMES[m]);
       const routeText = `${plan.mode} ${order.join(" → ")} · ${plan.source}${plan.route ? `(${plan.route})` : ""}${plan.note ? ` · ${plan.note}` : ""} · ${Date.now() - started} ms${routerRaw !== undefined ? ` · raw=${routerRaw.slice(0, 200)}` : ""}`;
@@ -438,7 +457,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         // 2a. one hop: the chosen members just speak.
         if (plan.mode === "parallel") {
           // Keep the group occupied until every child has stopped; no events may follow its terminal.
-          const results = await Promise.allSettled(plan.members.map((m) => runMember(m, memberPrompt(m, plan, meta.lines, prompt, []))));
+          const results = await Promise.allSettled(plan.members.map((m) => runMember(m, memberPrompt(m, meta.members, plan, meta.lines, prompt, []))));
           const failed = results.find((result) => result.status === "rejected");
           if (failed?.status === "rejected") throw memberFailure ?? failed.reason;
         }
@@ -446,13 +465,13 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
           for (let round = 1; round <= DISCUSSION_ROUNDS && !abort.signal.aborted; round++) {
             for (const member of plan.members) {
               if (abort.signal.aborted) break;
-              await runMember(member, memberPrompt(member, plan, meta.lines, prompt, [...outputs], round));
+              await runMember(member, memberPrompt(member, meta.members, plan, meta.lines, prompt, [...outputs], round));
             }
           }
           if (!abort.signal.aborted) await runMember("assistant", pmSummaryPrompt(outputs, prompt, true));
         } else for (const member of plan.members) {
           if (abort.signal.aborted) break;
-          await runMember(member, memberPrompt(member, plan, meta.lines, prompt, [...outputs]));
+          await runMember(member, memberPrompt(member, meta.members, plan, meta.lines, prompt, [...outputs]));
         }
       } else {
         // 2b. a multi-member task: Raer, as PM, states the split in the group and asks to start.
@@ -480,7 +499,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         if (steps.length && permissionMode === "request") permissionMode = "auto";
         for (const member of steps) {
           if (abort.signal.aborted) break;
-          await runMember(member, memberPrompt(member, executed, meta.lines, prompt, [...outputs]));
+          await runMember(member, memberPrompt(member, meta.members, executed, meta.lines, prompt, [...outputs]));
         }
         // 3. Raer closes the loop with a short summary of what the members produced.
         if (steps.length > 1 && !abort.signal.aborted) await runMember("assistant", pmSummaryPrompt(outputs, prompt));

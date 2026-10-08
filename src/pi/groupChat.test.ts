@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 import {
   addressedMembers, childConversationId, GROUP_MEMBERS, isChildConversationId, isGreeting, mentionedMembers,
-  parseRoute, planFromRoute, speakingOrder, untag,
+  parseRoute, planFromRoute, soleSpeaker, speakingOrder, untag,
 } from "./groupChat.ts";
 
 const ID: Record<string, string> = { raer: "assistant", tonny: "planner", bob: "builder" };
@@ -45,6 +45,25 @@ test("speaking order: members named in the message first, then the group order",
   for (const c of cases.filter((x) => x.mode === "round_robin" || x.mode === "discussion")) {
     assert.deepEqual(speakingOrder(c.message, all), c.members.map((m) => ID[m]), c.id);
   }
+});
+
+test("a name mentioned in passing is a reference; a discussion then starts with whoever alone answered last", () => {
+  const correction = "不是还有Raer和Bob么";
+  assert.deepEqual(speakingOrder(correction, all), all, "no order word: the names do not move anyone");
+  assert.deepEqual(speakingOrder(correction, all, "planner"), ["planner", "assistant", "builder"]);
+  assert.deepEqual(speakingOrder("Bob 先说，不是还有Raer么", all, "planner"), ["builder", "assistant", "planner"], "an order word still wins");
+  for (const c of cases.filter((x) => x.mode === "round_robin" || x.mode === "discussion")) {
+    // Named with an order word: unchanged by who spoke last. Nobody named: the last sole speaker opens.
+    const expected = /Raer|Tonny|Bob/i.test(c.message) ? c.members.map((m) => ID[m]) : ["planner", "assistant", "builder"];
+    assert.deepEqual(speakingOrder(c.message, all, "planner"), expected, c.id);
+  }
+  assert.deepEqual(planFromRoute("discussion", all, '{"route":"discussion"}', correction, "planner").members, ["planner", "assistant", "builder"]);
+  assert.deepEqual(planFromRoute("round_robin", all, '{"route":"round_robin"}', "大家报数", "planner").members, all, "games keep the group order");
+
+  assert.equal(soleSpeaker([{ author: "user", text: "看看" }, { author: "planner", text: "只有一个 Agent" }]), "planner");
+  assert.equal(soleSpeaker([{ author: "user", text: "讨论" }, { author: "assistant", text: "a" }, { author: "builder", text: "b" }]), undefined);
+  assert.equal(soleSpeaker([{ author: "planner", text: "a" }, { author: "user", text: "新问题" }]), undefined, "nobody has answered the latest message yet");
+  assert.equal(soleSpeaker([]), undefined);
 });
 
 test("only a bare greeting counts as one", () => {
