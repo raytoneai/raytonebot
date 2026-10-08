@@ -28,12 +28,14 @@ export function useAgentPersona(): AgentPersona | undefined {
 /**
  * The persona's face. `live` animates (blink and state); otherwise it is a still drawing, so a
  * long transcript does not run a timer per message. `interactive` adds gaze-follow and drag,
- * meant for the one large welcome avatar.
+ * meant for the one large welcome avatar. `calm` is for a live face that is present but not
+ * speaking: slower blinks and glances, and now and then the character's own small habit.
  */
 export function AgentAvatar({
   size,
   live = false,
   interactive = false,
+  calm = false,
   fallback,
   kind: kindOverride,
 }: {
@@ -42,6 +44,7 @@ export function AgentAvatar({
   kind?: AvatarKind;
   live?: boolean;
   interactive?: boolean;
+  calm?: boolean;
   fallback?: ReactNode;
 }) {
   const persona = useAgentPersona();
@@ -54,13 +57,13 @@ export function AgentAvatar({
   useEffect(() => {
     const root = rootRef.current;
     if (!root || !animated) return;
-    const motion = mountAvatarMotion(root, { interactive });
+    const motion = mountAvatarMotion(root, { interactive, calm, kind });
     motionRef.current = motion;
     return () => {
       motion.destroy();
       motionRef.current = undefined;
     };
-  }, [animated, interactive, markup]);
+  }, [animated, interactive, calm, markup]);
 
   const state = persona?.state ?? "idle";
   useEffect(() => {

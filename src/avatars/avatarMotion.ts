@@ -1,5 +1,7 @@
 import { animate } from "motion";
 
+import type { AvatarKind } from "./raytoneAvatars";
+
 /**
  * Blink, gaze and state motion for a `avatarSVG()` element. Ported from the avatar study in
  * output/raytone-avatars/animated/motion.js, with the behaviour of agent-robot-avatar
@@ -85,7 +87,28 @@ function gestureFor(previous: AvatarState, next: AvatarState): { frames: Keyfram
   return undefined;
 }
 
-export function mountAvatarMotion(root: HTMLElement, options: { interactive: boolean }): AvatarMotion {
+/**
+ * Each character's own idle habit, for a calm avatar (in the group but not speaking): a head tilt,
+ * an upward ponder, a small hop, a slow nod. Played rarely, so a transcript of faces looks present
+ * without a row of identical loops.
+ */
+const HABITS: Record<AvatarKind, { frames: Keyframe[]; duration: number; gaze?: [number, number, number] }> = {
+  woman: { duration: 900, frames: [
+    { transform: "rotate(0deg)" }, { transform: "rotate(-5deg)", offset: 0.35 }, { transform: "rotate(2deg)", offset: 0.7 }, { transform: "rotate(0deg)" },
+  ] },
+  man: { duration: 1600, gaze: [-15, -8, -3], frames: [
+    { transform: "translateY(0px)" }, { transform: "translateY(-3px)", offset: 0.3 }, { transform: "translateY(-3px)", offset: 0.75 }, { transform: "translateY(0px)" },
+  ] },
+  boy: { duration: 520, frames: [
+    { transform: "translateY(0px) scale(1, 1)" }, { transform: "translateY(3px) scale(1.03, 0.97)", offset: 0.2 },
+    { transform: "translateY(-9px) scale(0.99, 1.02)", offset: 0.5 }, { transform: "translateY(0px) scale(1, 1)" },
+  ] },
+  elder: { duration: 1100, frames: [
+    { transform: "translateY(0px)" }, { transform: "translateY(6px)", offset: 0.4 }, { transform: "translateY(0px)" },
+  ] },
+};
+
+export function mountAvatarMotion(root: HTMLElement, options: { interactive: boolean; calm?: boolean; kind?: AvatarKind }): AvatarMotion {
   const abort = new AbortController();
   const listen = { signal: abort.signal };
   const reduceQuery = matchMedia("(prefers-reduced-motion: reduce)");
@@ -100,6 +123,9 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
   let blinkTimer: ReturnType<typeof setTimeout> | undefined;
   let glanceTimer: ReturnType<typeof setTimeout> | undefined;
   let resetTimer: ReturnType<typeof setTimeout> | undefined;
+  let habitTimer: ReturnType<typeof setTimeout> | undefined;
+  /** A calm avatar blinks and glances about half as often as the one speaking. */
+  const pace = options.calm ? 2.2 : 1;
   let pointerAt = 0;
   let drag: { id: number; x: number; y: number; width: number; moved: boolean } | null = null;
   let release: { stop(): void } | undefined;
@@ -110,6 +136,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     clearTimeout(blinkTimer);
     clearTimeout(glanceTimer);
     clearTimeout(resetTimer);
+    clearTimeout(habitTimer);
   };
   const look = (x: number, y: number, turn = x / 3.5) => {
     if (gaze) gaze.style.transform = `translate(${x}px, ${y}px)`;
@@ -133,7 +160,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
       // Now and then a double blink, the way a person resets their eyes.
       if (Math.random() < 0.18) setTimeout(() => { if (!still()) blink(); }, 260);
       queueBlink();
-    }, 2200 + Math.random() * 2800);
+    }, (2200 + Math.random() * 2800) * pace);
   };
   /**
    * Idle eyes do not stare: they hold a point, then jump to the next one, and the head
@@ -157,7 +184,23 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
         if (Math.random() < 0.22) setTimeout(() => { if (!still()) blink(); }, 40);
       }
       queueGlance();
-    }, listening ? between(500, 1300) : between(1100, 3200));
+    }, (listening ? between(500, 1300) : between(1100, 3200)) * pace);
+  };
+  const queueHabit = () => {
+    clearTimeout(habitTimer);
+    const habit = options.kind && HABITS[options.kind];
+    if (!options.calm || !habit || still() || state !== "idle") return;
+    habitTimer = setTimeout(() => {
+      if (!still() && state === "idle" && gesture?.animate) {
+        for (const running of gesture.getAnimations()) running.cancel();
+        gesture.animate(habit.frames, { duration: habit.duration, easing: settle });
+        if (habit.gaze) {
+          look(...habit.gaze);
+          setTimeout(() => { if (state === "idle") centerGaze(); }, habit.duration * 0.8);
+        }
+      }
+      queueHabit();
+    }, between(9000, 17000));
   };
   const playGesture = (previous: AvatarState, next: AvatarState) => {
     if (!gesture || still() || !gesture.animate) return;
@@ -189,6 +232,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     if (previous !== next) playGesture(previous, next);
     queueBlink();
     queueGlance();
+    queueHabit();
     if (next === "success") resetTimer = setTimeout(() => setState("idle"), 1400);
   };
   const syncReduced = () => {
@@ -203,6 +247,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     }
     queueBlink();
     queueGlance();
+    queueHabit();
   };
 
   if (options.interactive && head) {
@@ -258,6 +303,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     }
     queueBlink();
     queueGlance();
+    queueHabit();
   }, listen);
   reduceQuery.addEventListener("change", syncReduced, listen);
   root.dataset.hidden = String(document.hidden);

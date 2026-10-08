@@ -164,6 +164,8 @@ function renderConversation(
   let laneAuthor: string | undefined;
   let turnIndex = 0;
   let latestTurnRow = -1;
+  /** Group chat: each member's newest answer, whose face stays present (calmly alive). */
+  const latestByMember = new Map<string, number>();
 
   const flushLane = () => {
     if (lane.length === 0) {
@@ -173,6 +175,7 @@ function renderConversation(
     const author = laneAuthor;
     lane = [];
     latestTurnRow = rows.length;
+    if (groupMode && author && GROUP_AUTHORS[author]) latestByMember.set(author, rows.length);
     rows.push(
       <AssistantTurn
         key={`turn:${turnIndex}`}
@@ -209,8 +212,12 @@ function renderConversation(
   }
   flushLane();
 
-  // Only the newest answer's avatar is alive; older ones stay still drawings.
+  // Only the newest answer's avatar is alive; older ones stay still drawings. In a group, every
+  // member's newest answer also keeps a calm face, so the others still look present.
   if (latestTurnRow >= 0) rows[latestTurnRow] = cloneElement(rows[latestTurnRow] as ReactElement<{ live?: boolean }>, { live: true });
+  for (const row of latestByMember.values()) {
+    if (row !== latestTurnRow) rows[row] = cloneElement(rows[row] as ReactElement<{ present?: boolean }>, { present: true });
+  }
   return rows;
 }
 
@@ -246,9 +253,12 @@ function AssistantTurn({
   toolCollapseSignal,
   onApprovalDecision,
   live = false,
+  present = false,
   groupAuthor,
 }: {
   groupAuthor?: string;
+  /** Group chat: this member's newest answer, not the newest overall; its face idles calmly. */
+  present?: boolean;
   project: AgentFrontendProject;
   items: readonly AgentUXTimelineItem[];
   showDebugBadges: boolean;
@@ -268,7 +278,7 @@ function AssistantTurn({
     return (
       <AgentPersonaProvider persona={persona}>
         <AssistantTurnBody {...{ project, items, showDebugBadges, writingReplayKey, onOpenArtifact, externalApprovalPlacement,
-          forceToolsOpen, toolCollapseSignal, onApprovalDecision, live }} forceLabel hideAvatar={!member} />
+          forceToolsOpen, toolCollapseSignal, onApprovalDecision, live }} present={present && !live} forceLabel hideAvatar={!member} />
       </AgentPersonaProvider>
     );
   }
@@ -278,9 +288,10 @@ function AssistantTurn({
 
 function AssistantTurnBody({
   project, items, showDebugBadges, writingReplayKey, onOpenArtifact, externalApprovalPlacement,
-  forceToolsOpen, toolCollapseSignal, onApprovalDecision, live = false, forceLabel = false, hideAvatar = false,
+  forceToolsOpen, toolCollapseSignal, onApprovalDecision, live = false, present = false, forceLabel = false, hideAvatar = false,
 }: {
   hideAvatar?: boolean;
+  present?: boolean;
   project: AgentFrontendProject;
   items: readonly AgentUXTimelineItem[];
   showDebugBadges: boolean;
@@ -307,7 +318,7 @@ function AssistantTurnBody({
     <div className="assistant-turn" data-single-line-message={isSingleLineAssistantMessage ? "true" : undefined}>
       {project.conversation.agentAvatar && !hideAvatar ? (
         <span className="msg-avatar" data-role="assistant" data-persona={persona ? "true" : undefined} aria-hidden="true">
-          <AgentAvatar size={32} live={live} fallback={<StateIcon slot="author.agent" size={15} />} />
+          <AgentAvatar size={32} live={live || present} calm={present} fallback={<StateIcon slot="author.agent" size={15} />} />
         </span>
       ) : null}
       <div className="assistant-lane">
