@@ -6,6 +6,8 @@ import type { AppLocale } from "../locales";
 
 const en = {
   frame: {
+    mentionLabel: "Group members",
+    mentionRoles: { assistant: "Assistant", planner: "Planner", builder: "Builder" },
     promptShortcutsLabel: "Prompt shortcuts",
     shortcuts: {
       inspectFiles: "Inspect current files",
@@ -113,6 +115,8 @@ const en = {
 
 const zh: typeof en = {
   frame: {
+    mentionLabel: "群成员",
+    mentionRoles: { assistant: "助手", planner: "规划", builder: "实施" },
     promptShortcutsLabel: "提示词快捷方式",
     shortcuts: {
       inspectFiles: "查看当前文件",
@@ -216,6 +220,8 @@ const zh: typeof en = {
 /** PENDING NATIVE REVIEW — see the note in ./shell.ts for the conventions used. */
 const ja: typeof en = {
   frame: {
+    mentionLabel: "グループメンバー",
+    mentionRoles: { assistant: "アシスタント", planner: "プランナー", builder: "ビルダー" },
     promptShortcutsLabel: "プロンプトのショートカット",
     shortcuts: {
       inspectFiles: "現在のファイルを確認",

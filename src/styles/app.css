@@ -12463,3 +12463,15 @@ pre {
 .composer-queue-files { display: inline-flex; flex: none; align-items: center; gap: 2px; color: var(--text-muted); font-size: 12px; font-variant-numeric: tabular-nums; }
 .composer-queue-action { flex: none; }
 @media (hover: none) { .composer-queue-item { min-height: 40px; } }
+
+/* Group chat "@" completion (ComposerFrame): a small list just above the prompt row. */
+.composer-mentions { position: absolute; bottom: calc(100% + 6px); left: 0; z-index: 5; display: grid; gap: 2px; min-width: 200px; margin: 0; padding: 4px; list-style: none;
+  border: 1px solid var(--border-strong); border-radius: var(--radius-md); background: var(--surface-panel); box-shadow: var(--shadow-md);
+  animation: composer-mentions-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.composer-mention { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 4px; border-radius: var(--radius-sm); cursor: pointer; font-size: 13px; color: var(--text-primary); }
+.composer-mention[aria-selected="true"] { background: var(--surface-hover); }
+.composer-mention-name { font-weight: 600; }
+.composer-mention-role { margin-left: auto; color: var(--text-muted); font-size: 12px; }
+@keyframes composer-mentions-in { from { opacity: 0; transform: translateY(4px); } }
+@media (prefers-reduced-motion: reduce) { .composer-mentions { animation: none; } }
+@media (hover: none) { .composer-mention { min-height: 40px; } }

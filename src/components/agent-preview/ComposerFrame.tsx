@@ -1,6 +1,7 @@
 import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, ListPlus, MessageSquareText, Mic, Paperclip, Pencil, Plus, Rocket, Search, Send, ShieldCheck, ShieldHalf, ShieldOff, Sparkles, Square, X } from "lucide-react";
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { useShellExtras } from "../shell/ShellExtras";
+import { applyMention, mentionMatches, mentionQuery } from "../../runtime/mentionCompletion";
 import type { PiPromptAttachment } from "../../pi/piClient";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
 import {
@@ -131,7 +132,7 @@ export function ComposerFrame({
   defaultPermissionMode?: PermissionMode;
 }) {
   const copy = useCopy();
-  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup } = useShellExtras();
+  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions } = useShellExtras();
   const promptShortcuts = [
     { label: copy.composer.frame.shortcuts.inspectFiles, Icon: Search },
     { label: copy.composer.frame.shortcuts.fixTest, Icon: Bug },
@@ -166,6 +167,43 @@ export function ComposerFrame({
   const setBudgetMode = (value: ThinkingBudgetMode) => composerOptions
     ? composerOptions.onChange({ budgetMode: value }) : setLocalBudgetMode(value);
   const [isListening, setIsListening] = useState(false);
+  // Group chat "@" completion: the caret decides which "@word" is being typed.
+  const [caret, setCaret] = useState<number>();
+  const [mentionIndex, setMentionIndex] = useState(0);
+  const [mentionDismissed, setMentionDismissed] = useState<number>();
+  const mention = composerMentions?.length && caret !== undefined ? mentionQuery(promptValue, caret) : undefined;
+  const mentionOptions = mention && mention.start !== mentionDismissed ? mentionMatches(composerMentions ?? [], mention.query) : [];
+  const mentionActive = mentionOptions.length ? Math.min(mentionIndex, mentionOptions.length - 1) : 0;
+  useEffect(() => setMentionIndex(0), [mention?.start, mention?.query]);
+  const trackCaret = (textarea: HTMLTextAreaElement) => setCaret(textarea.selectionStart === textarea.selectionEnd ? textarea.selectionStart : undefined);
+  function pickMention(name: string) {
+    if (!mention) return;
+    const next = applyMention(promptValue, mention, name);
+    setPromptValue(next.text);
+    setCaret(next.caret);
+    requestAnimationFrame(() => textareaRef.current?.setSelectionRange(next.caret, next.caret));
+  }
+  function mentionKeys(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (mentionOptions.length && !event.nativeEvent.isComposing) {
+      const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
+      if (step) {
+        event.preventDefault();
+        setMentionIndex((mentionActive + step + mentionOptions.length) % mentionOptions.length);
+        return;
+      }
+      if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
+        event.preventDefault();
+        pickMention(mentionOptions[mentionActive].name);
+        return;
+      }
+      if (event.key === "Escape") {
+        event.preventDefault();
+        setMentionDismissed(mention?.start);
+        return;
+      }
+    }
+    submitOnEnter(event);
+  }
   const restoringDrafts = composerDraft?.status === "loading";
   const stopFeedback = stopStatus === "pending" ? copy.composer.frame.stopping : stopStatus === "failed" ? copy.composer.frame.stopFailed : undefined;
   const canSubmit = !restoringDrafts && (promptValue.trim().length > 0 || attachedFiles.length > 0);
@@ -438,9 +476,39 @@ export function ComposerFrame({
             rows={2}
             readOnly={restoringDrafts}
             value={promptValue}
-            onChange={(event) => setPromptValue(event.currentTarget.value)}
-            onKeyDown={submitOnEnter}
+            onChange={(event) => {
+              setPromptValue(event.currentTarget.value);
+              trackCaret(event.currentTarget);
+            }}
+            onSelect={(event) => trackCaret(event.currentTarget)}
+            onBlur={() => setCaret(undefined)}
+            onKeyDown={mentionKeys}
+            aria-autocomplete={composerMentions?.length ? "list" : undefined}
+            aria-expanded={composerMentions?.length ? mentionOptions.length > 0 : undefined}
+            aria-controls={mentionOptions.length ? "composer-mentions" : undefined}
+            aria-activedescendant={mentionOptions.length ? `composer-mention-${mentionOptions[mentionActive].id}` : undefined}
           />
+          {mentionOptions.length ? (
+            <ul className="composer-mentions" id="composer-mentions" role="listbox" aria-label={copy.composer.frame.mentionLabel}>
+              {mentionOptions.map((member, index) => (
+                <li
+                  key={member.id}
+                  id={`composer-mention-${member.id}`}
+                  role="option"
+                  aria-selected={index === mentionActive}
+                  className="composer-mention"
+                  // Keep the textarea focused: picking must not blur it and close the list.
+                  onMouseDown={(event) => event.preventDefault()}
+                  onMouseEnter={() => setMentionIndex(index)}
+                  onClick={() => pickMention(member.name)}
+                >
+                  <AgentAvatar size={20} kind={member.kind} />
+                  <span className="composer-mention-name">{member.name}</span>
+                  <span className="composer-mention-role">{copy.composer.frame.mentionRoles[member.id]}</span>
+                </li>
+              ))}
+            </ul>
+          ) : null}
         </div>
         <div className="composer-actions">
           <div className="composer-tools">

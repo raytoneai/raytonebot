@@ -59,6 +59,8 @@ export type ShellExtras = {
   transcriptTarget?: { textId: string; nonce: string };
   /** Composer placeholder naming the current agent. */
   composerPlaceholder?: string;
+  /** Group chat: members the composer offers after "@", in group order. */
+  composerMentions?: readonly { id: AgentPresetId; name: string; kind: AvatarKind }[];
   /** The shell keeps each conversation's files and draft across layout remounts. */
   composerDraft?: { value: ComposerDraft; status?: "loading" | "saving" | "saved" | "unavailable" | "conflict"; onChange: (update: (current: ComposerDraft) => ComposerDraft) => void };
   /** Follow-ups typed while a turn runs. The shell owns order, sending and pausing; the composer only shows and edits. */

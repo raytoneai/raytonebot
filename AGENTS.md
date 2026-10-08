@@ -40,7 +40,7 @@ Product features that have no entry point yet extend their owner, and only these
 | Questions to the user and approvals | `chatframe/approval.tsx` |
 | IM channel settings and status (ADR-026) | `SettingsDialog` (its "channels" section) |
 | Routines: list, on/off, run now, open conversation (ADR-033); created from chat by Raer's `create_routine` | `SettingsDialog` (its "routines" section); host logic in `src/pi/routines.ts` |
-| Group chat: "+"/To member picker, group faces and previews, author per message, PM confirmation (ADR-032) | `SessionSidebar`, `ShellExtras` (header/welcome), `ChatFrame`, `chatframe/approval.tsx`; host logic in `src/pi/groupChat.ts` |
+| Group chat: "+"/To member picker, group faces and previews, author per message, PM confirmation, `@` member completion (ADR-032) | `SessionSidebar`, `ShellExtras` (header/welcome), `ChatFrame`, `ComposerFrame` (`@` list; logic in `src/runtime/mentionCompletion.ts`), `chatframe/approval.tsx`; host logic in `src/pi/groupChat.ts` |
 
 How to extend:
 

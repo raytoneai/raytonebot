@@ -759,3 +759,8 @@
 - 问题：群聊里只有最新一条回答的头像在动，其余成员看起来下线了。
 - 实现：`ChatFrame` 在群聊中给每位成员**最近一条**回答加 `present`，其头像以 `calm` 模式保持活动（`AgentAvatar` → `mountAvatarMotion`）：眨眼与目光游移间隔约为发言者的 2.2 倍，空闲时每 9–17 秒做一次角色自己的小动作——Raer（woman）歪头、Tonny（man）抬眼向左上琢磨、Bob（boy）轻跳，elder 慢点头。最新回答者不变（跟随运行状态）；更早的回答仍是静止图。减少动态效果时不播放（沿用 `still()`）。
 - 验证：隔离实例导入云端群聊记录（8 段回答）：活动头像恰为 Bob、Tonny、Raer 各自最近一段；20 秒内 Tonny 与 Bob 各出现一次各自的小动作（时长约 1.6 s / 0.5 s），最新回答者 Raer 无 calm 动作；页面无错误，布局不变。`npm test` 228/228、build 通过。未做真机/移动端观察；未提交/部署。
+
+## BL 组：群聊输入框 `@` 成员补全（2026-10-08，工作树）
+
+- 实现：`ShellExtras.composerMentions`（群成员，按群顺序）→ `ComposerFrame` 在光标前为 `@词` 时显示成员列表（头像、名字、短角色）；`src/runtime/mentionCompletion.ts` 负责匹配与替换，左边界与服务端 `MENTION` 一致（邮箱不触发）。↑↓ 选择、Enter/Tab 补全为 `@Name `、Esc 关闭当前这个 `@`、鼠标点选不失焦；输入法组字时不拦截；名字已完整输入则不再弹出。非群聊不传成员，行为不变。ARIA：textarea `aria-autocomplete="list"`/`aria-expanded`/`aria-activedescendant`，列表 `role="listbox"`。出现动画 160 ms，减少动态效果时关闭。
+- 测试：`mentionCompletion.test.ts` 3 项（边界与邮箱、前缀匹配与完整名、替换与空格）。隔离浏览器（导入的云端群聊）：`@` 列出 Raer/Tonny/Bob，↓ 移到 Tonny，`@R` 仅 Raer，Enter 得到 `@Raer ` 且未发送（0 次 `/group/prompt`），`@t` 仅 Tonny，Esc 关闭，点击 Bob 得到 `问下 @Bob ` 且仍聚焦，`rick@bo` 不弹出；1280 与 390 px 下列表贴在输入框上方左侧；无页面错误。

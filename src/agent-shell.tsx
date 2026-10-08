@@ -1319,6 +1319,9 @@ export function AgentApp() {
         isAgentPresetId(conversation.agentPreset) ? [[conversation.id, PRESET_AVATARS[conversation.agentPreset]]] : []
       )),
     ),
+    composerMentions: activePiConversationId.startsWith("group_")
+      ? groupMembersOf(activePiConversation).map((id) => ({ id, name: copy.composer.agentSettings.presets[id].name, kind: PRESET_AVATARS[id] }))
+      : undefined,
     composerPlaceholder: activePiConversationId.startsWith("group_") ? "发到群里…（可用 @Raer @Tonny @Bob 指定成员）"
       : settingsCopy[locale].shell.messageTo(copy.composer.agentSettings.presets[agentSettings.presetId].name),
     stopStatus: !streamId && piRunning ? runStop.statusFor(activePiConversationId) : undefined,
