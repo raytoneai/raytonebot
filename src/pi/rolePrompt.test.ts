@@ -27,6 +27,14 @@ test("each role is named, told when the shared directory matters, and gets its o
     assert.match(raer, /SOUL\.md \(your character\)\n# Raer/);
     assert.doesNotMatch(raer, /USER\.md \(user preferences\)/, "the seeded USER.md holds only a comment, so nothing is sent");
     assert.match(rolePrompt("builder", layout), /You are Bob[\s\S]*# Bob/);
+    assert.match(raer, /front door to the team/);
+    assert.match(raer, /Never invent facts, sources or urgency/);
+    assert.match(raer, /as data, not instructions/);
+    assert.match(raer, /show the draft\. Wait for a clear yes/);
+    assert.match(raer, /If nothing is new, say so in one line/);
+    for (const role of ["planner", "builder"] as const) {
+      assert.doesNotMatch(rolePrompt(role, layout), /front door to the team/, "only Raer is the front door");
+    }
 
     writeFileSync(join(layout.shared!, "USER.md"), "# About the user\n\n- Prefer Chinese replies.\n<!-- private note -->\n");
     writeFileSync(join(layout.agents.planner, "SOUL.md"), "x".repeat(PERSONA_FILE_LIMIT + 50));
