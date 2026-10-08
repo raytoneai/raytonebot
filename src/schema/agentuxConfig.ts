@@ -386,6 +386,8 @@ export type AgentFrontendProject = {
     progress: "status-icon" | "bar";
     approval: "inline" | "hidden";
     timelineRail: boolean;
+    /** Fold a finished turn's reads, searches and commands into one line. Default false. */
+    foldWhenDone?: boolean;
   };
   reasoning: {
     show: "status" | "summary" | "thinking";

@@ -775,3 +775,8 @@
 
 - 参照 Grok Bot：思考时显示“思考中…”，结束后不留标签。`reasoning.whenDone`（默认 `label`，产品配置 `hide`）：已完成且无摘要可看的思考块不渲染；有摘要的保留可读。
 - 验证：导入的云端群聊 8 段回答原有的“已完成思考”全部消失，正文与工具行不变；`?devtools=1` 的 Reasoning kinds / Streaming thinking + message / Coding agent 中带摘要的已完成块、进行中与检查中的块仍显示；无页面错误。`npm test` 231/231、build 通过。工具行“运行命令 · 已完成”仍显示，未改。
+
+## BO 组：回合结束后收起读取与命令步骤（2026-10-08，工作树）
+
+- 参照 Grok Bot 只留回答：回合进行中每个工具照常逐行显示（看得出在忙）；回合结束后，连续的读取、搜索、检查、命令、网页查询收成一行（如「运行了 7 条命令」「读取了 1 个文件 · 1 个失败」），点开显示原来每一步。文件编辑/修改保留单独显示（带文件卡片），未完成、等待审批及未知工具不收。`toolCalls.foldWhenDone`（默认 false，产品配置 true）；分组与文案在 `src/runtime/toolSummary.ts`，行在 `chatframe/ToolRunSummary.tsx`，沿用工具行样式（`data-action`）。归类覆盖 Pi（bash、read、grep、find、ls）、Claude Code（Bash、Read、Grep、Glob、WebFetch、WebSearch）、Codex（bash、web_search）；`ls` 与 Web* 在本地归类，不改共享别名表。
+- 测试：`toolSummary.test.ts` 3 项（三引擎工具名、进行中/审批/编辑不收、隐藏的思考不打断连续步骤、计数与失败文案）。隔离浏览器：导入的云端群聊中 Tonny 的 7 条命令收为一行，修改文件卡片保留，展开 8 个工具卡、收起回 1 个，无页面错误；`?devtools=1` 18 个场景逐个切换无错误（Coding agent、MCP success + interrupt 各收起一组，审批场景的工具仍单独显示）。全量 `npm test` 234/234、build 通过。运行中逐行显示依赖与 BM 组相同的“本轮仍在运行”判断，本组未另做实时工具流验证。

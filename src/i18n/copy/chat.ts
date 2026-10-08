@@ -145,6 +145,19 @@ const en = {
       modifyActive: "Modifying",
       modifyDone: "Modified",
     },
+    /** A finished turn's quiet steps folded into one line. */
+    summary: {
+      runCommand: (n: number) => `Ran ${n} command${n === 1 ? "" : "s"}`,
+      readFile: (n: number) => `read ${n} file${n === 1 ? "" : "s"}`,
+      readImage: (n: number) => `viewed ${n} image${n === 1 ? "" : "s"}`,
+      search: (n: number) => `searched ${n} time${n === 1 ? "" : "s"}`,
+      validate: (n: number) => `ran ${n} check${n === 1 ? "" : "s"}`,
+      fetch: (n: number) => `looked up ${n} web page${n === 1 ? "" : "s"}`,
+      failed: (n: number) => `${n} failed`,
+      separator: ", ",
+      expand: "Show steps",
+      collapse: "Hide steps",
+    },
   },
 };
 
@@ -279,6 +292,18 @@ const zh: typeof en = {
       editDone: "已编辑",
       modifyActive: "正在修改",
       modifyDone: "已修改",
+    },
+    summary: {
+      runCommand: (n: number) => `运行了 ${n} 条命令`,
+      readFile: (n: number) => `读取了 ${n} 个文件`,
+      readImage: (n: number) => `查看了 ${n} 张图片`,
+      search: (n: number) => `搜索了 ${n} 次`,
+      validate: (n: number) => `检查了 ${n} 次`,
+      fetch: (n: number) => `查阅了 ${n} 次网页`,
+      failed: (n: number) => `${n} 个失败`,
+      separator: " · ",
+      expand: "展开步骤",
+      collapse: "收起步骤",
     },
   },
 };
@@ -415,6 +440,18 @@ const ja: typeof en = {
       editDone: "編集済み",
       modifyActive: "変更中",
       modifyDone: "変更済み",
+    },
+    summary: {
+      runCommand: (n: number) => `コマンドを ${n} 件実行`,
+      readFile: (n: number) => `ファイルを ${n} 件読み取り`,
+      readImage: (n: number) => `画像を ${n} 件確認`,
+      search: (n: number) => `${n} 回検索`,
+      validate: (n: number) => `${n} 回チェック`,
+      fetch: (n: number) => `Web を ${n} 回参照`,
+      failed: (n: number) => `${n} 件失敗`,
+      separator: "・",
+      expand: "手順を表示",
+      collapse: "手順を隠す",
     },
   },
 };

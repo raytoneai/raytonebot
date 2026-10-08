@@ -19,6 +19,8 @@ import type { AgentFrontendProject } from "../../schema/agentuxConfig";
 import { ArtifactLaunchCard } from "./chatframe/ArtifactLaunch";
 import { ExternalApprovalSurface, isPendingApprovalTool } from "./chatframe/approval";
 import { MessageActions } from "./chatframe/MessageActions";
+import { ToolRunSummary } from "./chatframe/ToolRunSummary";
+import { foldQuietTools } from "../../runtime/toolSummary";
 import type { OutputPanelOpenRequest } from "./OutputFrame";
 import { ReasoningBlock } from "./ReasoningBlock";
 import { ToolCallCard, type ApprovalDecision } from "./ToolCallCard";
@@ -313,6 +315,28 @@ function AssistantTurnBody({
     && orderedItems[0]?.kind === "message"
     && orderedItems[0].role === "assistant"
     && !orderedItems[0].text?.includes("\n");
+  // While the agent works every step shows, so it reads as busy, not stuck; once the turn is done
+  // its quiet steps fold into one line.
+  const working = live && persona !== undefined && avatarBusy(persona.state);
+  const hiddenThought = (item: AgentUXTimelineItem) => item.kind === "reasoning" && item.status === "done"
+    && project.reasoning.whenDone === "hide" && !(project.reasoning.show !== "status" && item.summary);
+  const segments = project.toolCalls.foldWhenDone && !working ? foldQuietTools(orderedItems, hiddenThought)
+    : orderedItems.map((item) => ({ kind: "item" as const, item }));
+  const renderItem = (item: AgentUXTimelineItem) => (
+    <TimelineItem
+      key={`${item.kind}:${item.id}`}
+      item={item}
+      project={project}
+      showDebugBadges={showDebugBadges}
+      writingReplayKey={writingReplayKey}
+      onOpenArtifact={onOpenArtifact}
+      externalApprovalPlacement={externalApprovalPlacement}
+      forceToolsOpen={forceToolsOpen}
+      toolCollapseSignal={toolCollapseSignal}
+      onApprovalDecision={onApprovalDecision}
+      live={live}
+    />
+  );
 
   return (
     <div className="assistant-turn" data-single-line-message={isSingleLineAssistantMessage ? "true" : undefined}>
@@ -325,21 +349,11 @@ function AssistantTurnBody({
         {project.conversation.speakerLabels || forceLabel ? (
           <div className="assistant-turn-label" aria-label={copy.chat.speakers.agentOutputLabel}>{persona?.name ?? copy.chat.speakers.agent}</div>
         ) : null}
-        {orderedItems.map((item) => (
-          <TimelineItem
-            key={`${item.kind}:${item.id}`}
-            item={item}
-            project={project}
-            showDebugBadges={showDebugBadges}
-            writingReplayKey={writingReplayKey}
-            onOpenArtifact={onOpenArtifact}
-            externalApprovalPlacement={externalApprovalPlacement}
-            forceToolsOpen={forceToolsOpen}
-            toolCollapseSignal={toolCollapseSignal}
-            onApprovalDecision={onApprovalDecision}
-            live={live}
-          />
-        ))}
+        {segments.map((segment) => segment.kind === "tools" ? (
+          <ToolRunSummary key={segment.id} tools={segment.tools} forceOpen={forceToolsOpen}>
+            {segment.tools.map(renderItem)}
+          </ToolRunSummary>
+        ) : renderItem(segment.item))}
       </div>
     </div>
   );

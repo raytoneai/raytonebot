@@ -12478,3 +12478,12 @@ pre {
 @keyframes composer-mentions-in { from { opacity: 0; transform: translateY(4px); } }
 @media (prefers-reduced-motion: reduce) { .composer-mentions { animation: none; } }
 @media (hover: none) { .composer-mention { min-height: 40px; } }
+
+/* A finished turn's quiet steps folded into one line (chatframe/ToolRunSummary). */
+/* Child selectors only: the steps inside are ordinary tool cards and keep their own layout. */
+.tool-run-summary > .tool-card-header { grid-template-columns: auto auto minmax(0, 1fr); cursor: pointer; font: inherit; }
+.tool-run-summary > .tool-card-header > .tool-title { color: var(--text-secondary); font-weight: 500; }
+.tool-run-summary > .tool-card-header > .chevron { color: var(--text-muted); transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
+.tool-run-summary > .tool-card-header > .chevron[data-open="true"] { transform: rotate(180deg); }
+.tool-run-steps { display: grid; gap: 2px; padding: 0 0 4px 12px; }
+@media (prefers-reduced-motion: reduce) { .tool-run-summary > .tool-card-header > .chevron { transition: none; } }

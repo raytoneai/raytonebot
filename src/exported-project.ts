@@ -324,7 +324,8 @@ export const project = {
     "detail": "full",
     "progress": "status-icon",
     "approval": "inline",
-    "timelineRail": false
+    "timelineRail": false,
+    "foldWhenDone": true
   },
   "reasoning": {
     "show": "summary",
