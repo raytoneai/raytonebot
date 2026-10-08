@@ -764,3 +764,14 @@
 
 - 实现：`ShellExtras.composerMentions`（群成员，按群顺序）→ `ComposerFrame` 在光标前为 `@词` 时显示成员列表（头像、名字、短角色）；`src/runtime/mentionCompletion.ts` 负责匹配与替换，左边界与服务端 `MENTION` 一致（邮箱不触发）。↑↓ 选择、Enter/Tab 补全为 `@Name `、Esc 关闭当前这个 `@`、鼠标点选不失焦；输入法组字时不拦截；名字已完整输入则不再弹出。非群聊不传成员，行为不变。ARIA：textarea `aria-autocomplete="list"`/`aria-expanded`/`aria-activedescendant`，列表 `role="listbox"`。出现动画 160 ms，减少动态效果时关闭。
 - 测试：`mentionCompletion.test.ts` 3 项（边界与邮箱、前缀匹配与完整名、替换与空格）。隔离浏览器（导入的云端群聊）：`@` 列出 Raer/Tonny/Bob，↓ 移到 Tonny，`@R` 仅 Raer，Enter 得到 `@Raer ` 且未发送（0 次 `/group/prompt`），`@t` 仅 Tonny，Esc 关闭，点击 Bob 得到 `问下 @Bob ` 且仍聚焦，`rick@bo` 不弹出；1280 与 390 px 下列表贴在输入框上方左侧；无页面错误。
+
+## BM 组：回答结束后才出现复制/重发（2026-10-08，工作树）
+
+- 问题：Agent 消息的复制、重发按钮从第一个字起就显示，回合进行中也可点重发。
+- 实现：`ChatFrame` 只在消息 `done` 且不属于仍在运行的最新一轮（`live` 且头像忙）时渲染 Agent 消息的按钮；回合已结束但打字动画未播完时由 CSS（`.writing-text[data-typing="true"]`）暂时隐藏。用户消息按钮不变；旧回合的回答在新一轮运行时照常显示按钮。
+- 验证：隔离实例 + 本地慢速假模型（约 5 秒流式），经例行任务「立即运行」在服务端发起，浏览器跟随：第二轮运行期间新回答无按钮（52 次采样），前三条旧回答一直有按钮；运行结束后全部显示。修正前第一版曾在新一轮运行时把旧回答的按钮也藏起，已改为只看本轮。
+
+## BN 组：思考结束后隐藏空的“已完成思考”（2026-10-08，工作树）
+
+- 参照 Grok Bot：思考时显示“思考中…”，结束后不留标签。`reasoning.whenDone`（默认 `label`，产品配置 `hide`）：已完成且无摘要可看的思考块不渲染；有摘要的保留可读。
+- 验证：导入的云端群聊 8 段回答原有的“已完成思考”全部消失，正文与工具行不变；`?devtools=1` 的 Reasoning kinds / Streaming thinking + message / Coding agent 中带摘要的已完成块、进行中与检查中的块仍显示；无页面错误。`npm test` 231/231、build 通过。工具行“运行命令 · 已完成”仍显示，未改。

@@ -329,7 +329,8 @@ export const project = {
   "reasoning": {
     "show": "summary",
     "collapse": "summary-first",
-    "expandable": true
+    "expandable": true,
+    "whenDone": "hide"
   },
   "blocks": {
     "codeDiff": true,

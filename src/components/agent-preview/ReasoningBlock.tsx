@@ -57,6 +57,9 @@ export function ReasoningBlock({
     );
   }, [reasoning.id, desiredOpen]);
 
+  // Like Grok Bot: thinking shows while it happens; once done, a label with nothing behind it goes.
+  const hidden = !running && !canShowSummary && project.reasoning.whenDone === "hide";
+
   function toggleOpen() {
     if (!canToggleSummary) {
       return;
@@ -65,6 +68,7 @@ export function ReasoningBlock({
     setOpen((value) => !value);
   }
 
+  if (hidden) return null;
   return (
     <section
       className="reasoning-block"

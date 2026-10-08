@@ -391,6 +391,8 @@ export type AgentFrontendProject = {
     show: "status" | "summary" | "thinking";
     collapse: "auto" | "manual" | "summary-first" | "expanded";
     expandable: boolean;
+    /** A finished block with no summary to show: keep its "thought" label, or hide it. Default label. */
+    whenDone?: "label" | "hide";
   };
   blocks: {
     codeDiff: boolean;
