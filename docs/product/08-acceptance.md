@@ -719,3 +719,13 @@
 - 新增原生回归在独立子进程中仅提供 PATH、临时 HOME 和临时 Pi 数据目录，确保不依赖宿主模型凭据。检查无配置时连续两次重置成功、之后可配置模型、再次重置保留 provider/model/思考预算并创建新 session。修复前以 `unknown/unknown` 失败，修复后通过；该用例不调用模型。
 - `env -i PATH="$PATH" HOME="$HOME" node --test src/pi/nativeSession.test.ts`：4/4；同样干净环境的 `npm test`：210/210。`npm run build`、`git diff --check` 与真实 SDK 隔离主机的 `check:local` 通过，保留既有大 chunk 提示。原生历史测试使用 loopback 模型响应，没有外部模型调用。
 - 补丁与群聊改动分别验收记录，随后按用户要求合为一个本地版本，尚未推送或部署。无 UI 改动，本轮未追加浏览器或云端验收。
+
+## BH 组：例行任务（T4.3，2026-10-08，本地提交）
+
+- 实现：`src/pi/routines.ts`（`routines.json` 定义、cron/时区校验、`run` 入口）、`routineTool.ts`（Raer 的 `create_routine`）、`routineTypes.ts`；`piHost.ts` 注入工具与 `/routines` 路由，`runPrompt` 新增内部 `title` 选项；设置页「例行任务」分区与 `useRoutines`；`check:local` 检查 11 个工具。
+- `src/pi/routines.test.ts` 6 项（真实主机、文件存储、HTTP 路由与受控引擎）：cron 五段与范围；聊天创建默认关闭、带当轮模型且文件无密钥、非法计划不保存；关闭时拒绝；同 occurrence 只执行一次（含主机重启后），对话以任务命名，配置不传会话密钥；运行中第二个 occurrence 409 不排队，重启后标中断且不重放；连续两次失败自动关闭并记原因，重新开启清零；任务运行内不能再建任务；删除后 404。
+- 全量 `npm test` 216/216；`npm run build` 通过（保留既有大 chunk 提示）；隔离数据目录 5199 实例 `RAYTONEBOT_URL=http://127.0.0.1:5199 npm run check:local` 通过。
+- 隔离浏览器（临时数据、本地假 OpenAI 兼容模型 127.0.0.1:5299，不连外部服务）：设置 → 例行任务 → 开启 → 立即运行 → 状态「已完成」→ 打开对话，侧栏出现「工作日早报」、回复一次、假模型共收到 1 次请求。失败展示另以未绑定模型的任务验证：Pi 退回默认模型，用本机环境 token 向 Anthropic 发出 1 次请求并得到 401，错误显示在任务行与对话中。390px 下分区可用，行布局与 IM 频道相同；`?devtools=1` 加载无页面错误，未逐个切换 18 个场景。隔离实例的 `/config` 500 来自未配置 DeepSeek 密钥，与本组无关。
+- 边界：未接外部调度服务（开启后不会按时运行）；未做真实模型或云端验收；已本地提交，未部署。
+- 复核修订（2026-10-08，Codex review）：① 未绑定模型时拒绝创建（工具返回错误）与运行（409），不再退回 Pi 默认模型；② 已接受的 occurrence 存进任务定义（最近 500 个），删除或重置结果对话、再重启后同一 occurrence 仍 409，新 occurrence 照常运行；③ `configure` 失败记为运行失败并计入连续两次自动关闭，忙碌拒绝不计。`routines.test.ts` 增至 10 项；临时去掉 occurrence 检查时删除/重置两项失败，恢复后通过。
+- 第二次复核（2026-10-08，Codex review）：后台收尾 `finish()` 与启动前失败的写盘异常曾成为未处理 Promise rejection，进程退出码 1。改为统一 `record()` 捕获并写 `routine.save_failed` 日志；未保存的收尾不冒充已保存，已接受的 occurrence 仍去重。新增故障注入测试（运行中把 `routines.json.tmp` 换成目录）断言无未处理 rejection、主机继续服务、日志有记录；去掉捕获时该测试失败。`routines.test.ts` 11 项。

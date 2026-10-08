@@ -50,6 +50,10 @@ Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子�
 | POST | `/__agentcanvas/pi/provider/test` | 模型服务连通性测试 |
 | GET | `/__agentcanvas/pi/channels` | IM 频道（飞书/钉钉/企业微信/Telegram）设置与连接状态；已保存的密钥只回报是否已设置 |
 | POST | `/__agentcanvas/pi/channels/:platform` | 保存一个频道：`enabled`、`fields`（密钥留空保持不变）、`access`、`allowUsers`、`agentPreset`、`model`（默认模型服务定义，不含 key）；凭据或开关变化时重连 |
+| GET | `/__agentcanvas/pi/routines` | 例行任务列表（ADR-033）：计划、开关、上次运行；模型只回报 provider/model |
+| POST | `/__agentcanvas/pi/routines/:id` | `{enabled}`；开启时清零连续失败 |
+| DELETE | `/__agentcanvas/pi/routines/:id` | 删除任务定义，保留其对话 |
+| POST | `/__agentcanvas/pi/routines/:id/run` | 外部调度入口 `{occurrenceId}`：202 表示已接受、后台执行；重复 occurrence、已关闭、正在运行或并发已满 409，不排队；设置页「立即运行」用 `manual-…` |
 | POST | `/__agentcanvas/pi/approvals/clear` | 清除某 Agent（`agentPreset`）或全部的「始终允许」 |
 
 `/prompt` 可带 `attachments: [{scope,path}]`（最多 10 项）。服务端验证文件属于当前角色或共享工作区，再把绝对路径加入模型上下文；界面与保存的用户消息保留原文。上传失败保留草稿与附件，准备阶段可取消。浏览器 Output 面板复用为文件列表、目录导航及下载入口。

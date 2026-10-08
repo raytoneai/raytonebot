@@ -62,6 +62,8 @@ import { createModelGateway } from "./runtime/modelGateway.ts";
 import { attachGroupChat, type GroupController } from "./groupChat.ts";
 import { isolatePiTool } from "./runtime/isolatedPiTools.ts";
 import { requireAgentIsolation } from "./runtime/agentProcess.ts";
+import { createRoutineService, RoutineError, type RoutineCreateInput, type RoutineRequest, type RoutineService } from "./routines.ts";
+import type { RoutineView } from "./routineTypes.ts";
 
 export { PiApprovalGate } from "./approvalGate.ts";
 import {
@@ -92,6 +94,8 @@ export type PiBridgeFactory = (input: {
   onUserInput(request: UserInputRequest): Promise<UserAnswers>;
   /** `connect_channel`: absent when the host has no channel setup (tests, previews). */
   onChannelSetup?(request: ChannelSetupRequest): Promise<ChannelSetupResult>;
+  /** `create_routine`: absent when the host keeps no routines (tests, previews). */
+  onCreateRoutine?(request: RoutineRequest): Promise<RoutineView>;
 }) => Promise<PiSessionBridge>;
 
 export type PiRuntimeController = {
@@ -103,8 +107,9 @@ export type PiRuntimeController = {
   /** `signal` belongs to the caller's stream: aborting it stops this run, and only once the run
    *  holds its slot (a rejected duplicate must not stop the turn already in progress).
    *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards.
-   *  Internal group children may `waitForCapacity`; cancelling that wait leaves no receipt. */
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean }): Promise<void>;
+   *  Internal group children may `waitForCapacity`; cancelling that wait leaves no receipt.
+   *  `title` names a new conversation instead of its first prompt (a routine's own name). */
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
@@ -142,6 +147,8 @@ export function createPiRuntimeController(options: {
   limits?: RunLimits;
   /** Connecting an IM channel from chat; the host binds it to its channel manager. */
   channelSetup?: (run: ChannelSetupRun) => Promise<ChannelSetupResult>;
+  /** Saving a routine from chat; the host binds it to its routine service. */
+  createRoutine?: (input: RoutineCreateInput) => RoutineView;
 }): GroupController {
   const { cwd } = options;
   const dataDir = options.dataDir ?? defaultDataDir();
@@ -229,6 +236,8 @@ export function createPiRuntimeController(options: {
   type RunSlot = {
     runId: string;
     fromChannel?: boolean;
+    /** The turn's model service and language, for a routine created during it. */
+    turn: Pick<PiPromptInput, "provider" | "model" | "locale">;
     adapter?: PiEventAdapter;
     stop?: () => Promise<void>;
     stopRequested: boolean;
@@ -276,6 +285,13 @@ export function createPiRuntimeController(options: {
       resolved: (requestId) => adapter.apply({ type: "channel_setup_resolved", requestId, toolCallId }),
     });
   };
+  const createRoutine = async (conversationId: string, request: RoutineRequest) => {
+    const slot = runs.get(conversationId);
+    if (!slot || !options.createRoutine) throw new Error("Routines are not available in this run.");
+    const definition = slot.turn.provider ? providerDefinitions.get(slot.turn.provider) : undefined;
+    return options.createRoutine({ ...request, fromConversationId: conversationId, locale: slot.turn.locale,
+      ...(definition ? { model: { definition, model: slot.turn.model ?? definition.models[0] } } : {}) });
+  };
   /** A run registers how to stop it once it has started; a stop that arrived earlier applies now. */
   const registerStop = async (conversationId: string, adapter: PiEventAdapter, stop: () => Promise<void>) => {
     const slot = runs.get(conversationId);
@@ -302,7 +318,8 @@ export function createPiRuntimeController(options: {
       return existing;
     }
     const created = bridgeFactory({ cwd, approvalGate: gateFor(id), sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)), onUserInput: (request) => askUser(id, request),
-      ...(options.channelSetup ? { onChannelSetup: (request: ChannelSetupRequest) => setupChannel(id, request) } : {}) }).catch((error) => {
+      ...(options.channelSetup ? { onChannelSetup: (request: ChannelSetupRequest) => setupChannel(id, request) } : {}),
+      ...(options.createRoutine ? { onCreateRoutine: (request: RoutineRequest) => createRoutine(id, request) } : {}) }).catch((error) => {
       bridgePromises.delete(id);
       throw error;
     });
@@ -696,7 +713,8 @@ export function createPiRuntimeController(options: {
       }
       // No await after the final checks: another prompt cannot take this conversation or slot.
       let settle!: () => void;
-      const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
+      const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel,
+        turn: { provider: input.provider, model: input.model, locale: input.locale }, stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
       const stopOnSignal = () => void abortRuns(conversationId, slot.runId).catch(() => undefined);
       if (options?.signal?.aborted) stopOnSignal();
@@ -759,9 +777,9 @@ export function createPiRuntimeController(options: {
           else await op.catch(() => undefined);
         }
         const fresh = !store.get(conversationId);
-        const conversation = store.begin(conversationId, role, prompt);
+        const conversation = store.begin(conversationId, role, options?.title ?? prompt);
         opened = true;
-        if (fresh) void titleConversation(conversationId, conversation.createdAt, input, prompt);
+        if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
         const modelPrompt = withReplyLanguage(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), input.locale);
         store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt,
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
@@ -890,8 +908,11 @@ export function createPiHttpHost(options: {
   const privatePaths = [options.dataDir ?? defaultDataDir()];
   // Bound below: the setup needs the channel manager, which needs the controller.
   let channelSetup: ReturnType<typeof createChannelSetup> | undefined;
-  const controller = createPiRuntimeController({ ...options, layout, channelSetup: (run) => channelSetup!.run(run) });
+  let routines: RoutineService | undefined;
+  const controller = createPiRuntimeController({ ...options, layout, channelSetup: (run) => channelSetup!.run(run),
+    createRoutine: (input) => routines!.create(input) });
   const dataDir = options.dataDir ?? defaultDataDir();
+  routines = createRoutineService({ dataDir, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
   // Starts the enabled channels; the vite plugin creates this host when its server starts.
   const channels = createChannelManager({ runtime: controller, dataDir, defaultPermissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir), factories: options.channelFactories });
   channelSetup = createChannelSetup(channels);
@@ -969,6 +990,20 @@ export function createPiHttpHost(options: {
           const platform = channelMatch[1] as ChannelPlatform;
           if (!CHANNEL_PLATFORMS.includes(platform)) sendJson(res, 404, { error: "Unknown IM channel." });
           else sendJson(res, 200, { channels: channels.update(platform, channelPatch(await readJson(req))) });
+          return true;
+        }
+        if (url.pathname === `${PI_API_PREFIX}/routines` || url.pathname.startsWith(`${PI_API_PREFIX}/routines/`)) {
+          const [id, action] = url.pathname.slice(`${PI_API_PREFIX}/routines`.length).split("/").filter(Boolean).map(decodeURIComponent);
+          try {
+            if (req.method === "GET" && !id) sendJson(res, 200, { routines: routines.list() });
+            else if (req.method === "POST" && id && action === "run") sendJson(res, 202, await routines.run(id, (await readJson(req)).occurrenceId));
+            else if (req.method === "POST" && id && !action) sendJson(res, 200, routines.update(id, await readJson(req)));
+            else if (req.method === "DELETE" && id && !action) { routines.remove(id); sendJson(res, 200, { ok: true }); }
+            else sendJson(res, 404, { error: "Unknown routine request." });
+          } catch (error) {
+            if (!(error instanceof RoutineError)) throw error;
+            sendJson(res, error.status, { error: error.message });
+          }
           return true;
         }
         const branchMatch = url.pathname.match(new RegExp(`^${PI_API_PREFIX}/conversations/([^/]+)/branch$`));
@@ -1220,6 +1255,7 @@ async function createDefaultPiBridge(input: {
   branch?: { sessionDir: string; sessionId: string; entryId: string };
   onUserInput(request: UserInputRequest): Promise<UserAnswers>;
   onChannelSetup?(request: ChannelSetupRequest): Promise<ChannelSetupResult>;
+  onCreateRoutine?(request: RoutineRequest): Promise<RoutineView>;
   modelLease(provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic"): Promise<{ baseUrl: string; apiKey: string; revoke(): void }>;
 }): Promise<PiSessionBridge> {
   const pi = await import("@earendil-works/pi-coding-agent");
@@ -1260,6 +1296,10 @@ async function createDefaultPiBridge(input: {
     ].map((definition) => guardTool(isolatePiTool(definition, input.cwd), input.approvalGate)) as ToolDefinition<any, any, any>[];
     definitions.push(planTool, userInputTool(input.onUserInput));
     if (input.onChannelSetup) definitions.push(connectChannelTool(input.onChannelSetup));
+    if (input.onCreateRoutine) {
+      const { createRoutineTool } = await import("./routineTool.ts");
+      definitions.push(createRoutineTool(input.onCreateRoutine));
+    }
     const result = await pi.createAgentSession({
       cwd: input.cwd,
       modelRuntime,

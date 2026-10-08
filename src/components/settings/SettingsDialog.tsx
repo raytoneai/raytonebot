@@ -1,5 +1,5 @@
 import * as RadixDialog from "@radix-ui/react-dialog";
-import { Check, ChevronDown, CircleAlert, Copy, Info, MessagesSquare, Palette, Plus, Server, ShieldCheck, X } from "lucide-react";
+import { CalendarClock, Check, ChevronDown, CircleAlert, Copy, Info, MessagesSquare, Palette, Plus, Server, ShieldCheck, X } from "lucide-react";
 import { useEffect, useState, type ReactNode } from "react";
 
 import { useCopy, useLocale } from "../../i18n/LocaleContext";
@@ -23,6 +23,8 @@ import { useClipboardFeedback } from "../../runtime/useClipboardFeedback";
 import type { ProviderSettingsStatus } from "../../runtime/useProviderSettings";
 import type { ProviderPatch } from "../../runtime/providerSettings";
 import type { ImChannelsState } from "../../runtime/useImChannels";
+import type { RoutinesState } from "../../runtime/useRoutines";
+import type { RoutineView } from "../../pi/routineTypes";
 import { CHANNEL_FIELDS, type ChannelPatch, type ChannelView } from "../../pi/imChannels/types";
 import "./settings.css";
 
@@ -37,7 +39,7 @@ import "./settings.css";
 export type PermissionMode = "request" | "auto" | "allow-all";
 export type { ProviderPatch } from "../../runtime/providerSettings";
 
-export type SettingsSectionId = "providers" | "permissions" | "channels" | "appearance" | "about";
+export type SettingsSectionId = "providers" | "permissions" | "channels" | "routines" | "appearance" | "about";
 type SectionId = SettingsSectionId;
 
 const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI" };
@@ -68,6 +70,10 @@ export type SettingsDialogProps = {
   onThemeChange: (id: ThemePresetId) => void;
   /** IM channels from the host; the section is hidden when absent (fixtures, static previews). */
   imChannels?: ImChannelsState;
+  /** Routines from the host (ADR-033); the section is hidden when absent (fixtures, static previews). */
+  routines?: RoutinesState;
+  /** Opens a routine's conversation and closes the dialog. */
+  onOpenConversation?: (conversationId: string) => void;
 };
 
 export function SettingsDialog(props: SettingsDialogProps) {
@@ -81,6 +87,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     { id: "providers", label: t.nav.providers, Icon: Server },
     { id: "permissions", label: t.nav.permissions, Icon: ShieldCheck },
     ...(props.imChannels ? [{ id: "channels" as const, label: t.nav.channels, Icon: MessagesSquare }] : []),
+    ...(props.routines ? [{ id: "routines" as const, label: t.nav.routines, Icon: CalendarClock }] : []),
     { id: "appearance", label: t.nav.appearance, Icon: Palette },
     { id: "about", label: t.nav.about, Icon: Info },
   ];
@@ -117,6 +124,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {section === "providers" ? <ProvidersSection {...props} t={t} /> : null}
               {section === "permissions" ? <PermissionsSection {...props} t={t} /> : null}
               {section === "channels" && props.imChannels ? <ChannelsSection t={t} state={props.imChannels} /> : null}
+              {section === "routines" && props.routines ? <RoutinesSection t={t} state={props.routines} onOpenConversation={props.onOpenConversation} /> : null}
               {section === "appearance" ? <AppearanceSection {...props} t={t} /> : null}
               {section === "about" ? <AboutSection {...props} t={t} /> : null}
             </div>
@@ -719,6 +727,91 @@ function CopyButton({ t, value }: { t: { copy: string; copied: string }; value: 
     >
       {clipboard.status === "copied" ? <Check size={13} aria-hidden="true" /> : clipboard.status === "failed" ? <CircleAlert size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
     </button>
+  );
+}
+
+function RoutinesSection({ t, state, onOpenConversation }: { t: SettingsCopy; state: RoutinesState; onOpenConversation?: (id: string) => void }) {
+  const [expanded, setExpanded] = useState<string | undefined>();
+  return (
+    <>
+      <p className="settings-intro">{t.routines.intro}</p>
+      <p className="settings-status" data-tone="warn" role="note"><Dot />{t.routines.noScheduler}</p>
+      {state.error ? <p className="settings-status" data-tone="error" role="status"><Dot />{t.routines.loadFailed(state.error)}</p> : null}
+      {state.routines?.length === 0 ? <p className="settings-note">{t.routines.empty}</p> : null}
+      <div className="settings-list">
+        {(state.routines ?? []).map((routine) => (
+          <RoutineRow
+            key={routine.id}
+            t={t}
+            routine={routine}
+            state={state}
+            open={expanded === routine.id}
+            onToggleOpen={() => setExpanded((current) => (current === routine.id ? undefined : routine.id))}
+            onOpenConversation={onOpenConversation}
+          />
+        ))}
+      </div>
+    </>
+  );
+}
+
+function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation }: {
+  t: SettingsCopy;
+  routine: RoutineView;
+  state: RoutinesState;
+  open: boolean;
+  onToggleOpen: () => void;
+  onOpenConversation?: (id: string) => void;
+}) {
+  const c = t.routines;
+  const { locale } = useLocale();
+  const [confirming, setConfirming] = useState(false);
+  const busy = state.busy === routine.id;
+  const failure = state.actionError?.id === routine.id ? state.actionError.message : undefined;
+  const last = routine.lastRun;
+  const tone = !last ? "muted" : { running: "warn", success: "ok", error: "error", cancelled: "muted", interrupted: "warn" }[last.status];
+  const when = last ? new Date(last.at).toLocaleString(locale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : undefined;
+
+  return (
+    <div className="settings-provider" data-open={open}>
+      <div className="settings-row">
+        <ProviderMark label={routine.title} />
+        <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
+          <span className="settings-row-title"><strong>{routine.title}</strong></span>
+          <span className="settings-row-sub"><code>{routine.schedule}</code> · {routine.timezone}{when ? ` · ${when}` : ""}</span>
+        </button>
+        <span className="settings-key-pill" data-tone={tone}><Dot />{last ? c.status[last.status] : c.neverRun}</span>
+        <Switch
+          size="sm"
+          aria-label={`${routine.title} ${c.enable}`}
+          checked={routine.enabled}
+          disabled={busy}
+          onCheckedChange={(checked) => void state.setEnabled(routine.id, checked)}
+        />
+        <button type="button" className="settings-chevron" aria-label={routine.title} aria-expanded={open} onClick={onToggleOpen}>
+          <ChevronDown size={16} aria-hidden="true" />
+        </button>
+      </div>
+      {open ? (
+        <div className="settings-provider-editor">
+          <p className="settings-note">{routine.instructions}</p>
+          {routine.disabledReason && !routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{c.switchedOff(routine.disabledReason)}</span> : null}
+          {last?.status === "error" && last.error && routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{last.error}</span> : null}
+          <div className="settings-provider-actions">
+            <Button size="sm" disabled={busy || !routine.enabled || last?.status === "running"} title={routine.enabled ? undefined : c.turnOnFirst}
+              onClick={() => void state.runNow(routine.id)}>{c.runNow}</Button>
+            {onOpenConversation ? (
+              <Button size="sm" variant="ghost" disabled={!last} onClick={() => onOpenConversation(routine.conversationId)}>{c.openConversation}</Button>
+            ) : null}
+            <Button size="sm" variant="ghost" disabled={busy} onBlur={() => setConfirming(false)}
+              onClick={() => { if (confirming) void state.remove(routine.id); else setConfirming(true); }}>
+              {confirming ? c.confirmRemove : c.remove}
+            </Button>
+            {failure ? <span className="settings-status" data-tone="error" role="status"><Dot />{failure}</span> : null}
+          </div>
+        </div>
+      ) : null}
+    </div>
   );
 }
 

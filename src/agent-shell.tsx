@@ -51,6 +51,7 @@ import {
   type PiFileReference,
   type PiPromptAttachment,
   type PiRuntimeState,
+  type StoredConversationSummary,
 } from "./pi/piClient";
 import { piRuntimeConfigurationForProvider } from "./pi/piProviderSync";
 import { isAgentPresetId, loadAgentSettings, saveAgentSettings, settingsUseProvider, type AgentPresetId, type AgentSettings } from "./pi/harnessCatalog";
@@ -67,6 +68,7 @@ import { questionCopy } from "./i18n/copy/questions";
 import { useRunStop } from "./runtime/runStop";
 import { useProviderSettings } from "./runtime/useProviderSettings";
 import { useImChannels } from "./runtime/useImChannels";
+import { useRoutines } from "./runtime/useRoutines";
 
 const THEME_KEY = "raytonebot.theme";
 /** Events after which a tool call is no longer waiting on the user. */
@@ -319,6 +321,9 @@ export function AgentApp() {
     return config.providerDefinition && config.model ? { definition: config.providerDefinition, model: config.model } : undefined;
   }, [configuredProject]);
   const imChannels = useImChannels(settingsOpen && Boolean(piRuntimeState), channelModel);
+  const routines = useRoutines(settingsOpen && Boolean(piRuntimeState));
+  /** A routine's conversation opened from settings before this page has listed it. */
+  const [pendingOpen, setPendingOpen] = useState<string>();
   // Both approval modes answer above the composer, exactly where the configurator previewed
   // them. Each mode needs its own surface here: `ChatFrame` no longer places either one in the
   // transcript, so a mode without an overlay would leave a real run with nothing to click.
@@ -472,18 +477,7 @@ export function AgentApp() {
     void listStoredConversations()
       .then(({ conversations: stored, unreadable }) => {
         setHistoryListFailed(unreadable.length > 0);
-        const stubs = stored
-          .filter((entry) => entry.eventCount > 0)
-          .map((entry): EphemeralPiConversation => ({
-            id: entry.id,
-            title: entry.title,
-            createdAt: entry.createdAt,
-            agentPreset: entry.agentPreset,
-            activeRunId: entry.activeRunId,
-            events: [],
-            stored: true,
-            ...groupFields(entry),
-          }));
+        const stubs = stored.filter((entry) => entry.eventCount > 0).map(storedStub);
         setPiConversations((current) => {
           const known = new Set(current.map((entry) => entry.id));
           return [...current.map((entry) => entry.events.length ? entry : stubs.find((stub) => stub.id === entry.id) ?? entry),
@@ -1086,6 +1080,11 @@ export function AgentApp() {
     const group = (entry as { group?: { members?: string[]; preview?: { author: string; text: string } } }).group;
     return group ? { ...(group.members ? { groupMembers: group.members } : {}), ...(group.preview ? { groupPreview: group.preview } : {}) } : {};
   }
+  /** A saved conversation the sidebar lists before its transcript is opened. */
+  function storedStub(entry: StoredConversationSummary): EphemeralPiConversation {
+    return { id: entry.id, title: entry.title, createdAt: entry.createdAt, agentPreset: entry.agentPreset,
+      activeRunId: entry.activeRunId, events: [], stored: true, ...groupFields(entry) };
+  }
   // Group chat: members live on the conversation; the host keeps its own copy per turn.
   function groupMembersOf(conversation: EphemeralPiConversation): AgentPresetId[] {
     const members = (conversation.groupMembers ?? []).filter(isAgentPresetId);
@@ -1145,6 +1144,25 @@ export function AgentApp() {
     if (activePiConversationId.startsWith("group_") || activePiConversation.events.length > 0 || piRunning
       || hasComposerState(composer.drafts[activePiConversationId])) void startNewSession();
   }
+
+  /** From settings (a routine's conversation): select it, listing it first if it is new here. */
+  function openStoredConversation(conversationId: string) {
+    setSettingsOpen(false);
+    if (piConversations.some((entry) => entry.id === conversationId)) { selectPiConversation(conversationId); return; }
+    void listStoredConversations().then(({ conversations: stored }) => {
+      const entry = stored.find((item) => item.id === conversationId);
+      if (!entry) return;
+      setPiConversations((current) => current.some((item) => item.id === entry.id) ? current : [...current, storedStub(entry)]);
+      setPendingOpen(conversationId);
+      if (entry.running) void followRun(storedStub(entry));
+    }).catch(() => setHistoryListFailed(true));
+  }
+
+  useEffect(() => {
+    if (!pendingOpen || !piConversations.some((entry) => entry.id === pendingOpen)) return;
+    setPendingOpen(undefined);
+    selectPiConversation(pendingOpen);
+  }, [pendingOpen, piConversations]);
 
   function selectPiConversation(conversationId: string) {
     navigatedRef.current = true;
@@ -1529,6 +1547,8 @@ export function AgentApp() {
               storeSetting(THEME_KEY, id);
             }}
             imChannels={piRuntimeState ? imChannels : undefined}
+            routines={piRuntimeState ? routines : undefined}
+            onOpenConversation={openStoredConversation}
             />
           </Suspense>
         ) : null}

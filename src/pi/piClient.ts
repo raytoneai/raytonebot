@@ -2,6 +2,7 @@ import type { AgentUXEvent } from "@agent-ux/protocol";
 
 import type { PiApprovalDecision } from "../harness/adapters/piAdapter.ts";
 import type { ChannelPatch, ChannelPlatform, ChannelView } from "./imChannels/types.ts";
+import type { RoutineView } from "./routineTypes.ts";
 import type { AppLocale } from "../i18n/locales.ts";
 import type { AgentHarnessStatus, AgentPresetId, ClaudeCodeModelSource } from "./harnessCatalog.ts";
 
@@ -229,6 +230,25 @@ export async function listImChannels(fetcher: typeof fetch = fetch, signal?: Abo
 export async function updateImChannel(platform: ChannelPlatform, patch: ChannelPatch, fetcher: typeof fetch = fetch): Promise<ChannelView[]> {
   const body = await requestJson<{ channels: ChannelView[] }>(fetcher, `${PI_API_PREFIX}/channels/${platform}`, patch, AbortSignal.timeout(15_000));
   return body.channels;
+}
+
+export async function listRoutines(fetcher: typeof fetch = fetch, signal?: AbortSignal): Promise<RoutineView[]> {
+  const body = await requestJson<{ routines: RoutineView[] }>(fetcher, `${PI_API_PREFIX}/routines`, undefined, signal ?? AbortSignal.timeout(15_000));
+  return body.routines;
+}
+
+export async function setRoutineEnabled(id: string, enabled: boolean, fetcher: typeof fetch = fetch): Promise<RoutineView> {
+  return requestJson<RoutineView>(fetcher, `${PI_API_PREFIX}/routines/${encodeURIComponent(id)}`, { enabled }, AbortSignal.timeout(15_000));
+}
+
+/** "Run now": the scheduler's own entry, with a one-off occurrence id. */
+export async function runRoutineNow(id: string, fetcher: typeof fetch = fetch): Promise<{ runId: string; conversationId: string }> {
+  return requestJson(fetcher, `${PI_API_PREFIX}/routines/${encodeURIComponent(id)}/run`, { occurrenceId: `manual-${Date.now().toString(36)}` }, AbortSignal.timeout(30_000));
+}
+
+export async function deleteRoutine(id: string, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher(`${PI_API_PREFIX}/routines/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
 }
 
 /** Answers a `connect_channel` card. `fields` (the token) goes to the channel store only. */
