@@ -156,6 +156,10 @@ export function planFromRoute(route: string | undefined, members: AgentPresetId[
   }
 }
 
+// A reasoning model may think for a thousand characters before the JSON (deepseek-flash on "对对联");
+// a small cap cut it off and every such message fell back to Raer. The answer itself stays tiny.
+const ROUTER_MAX_TOKENS = 4000;
+
 export async function completeJson(definition: Pick<PiProviderDefinition, "baseUrl" | "protocol">, apiKey: string | undefined,
   model: string, system: string, user: string, fetcher: typeof fetch = fetch): Promise<string | undefined> {
   const base = definition.baseUrl.trim().replace(/\/+$/, "");
@@ -163,7 +167,7 @@ export async function completeJson(definition: Pick<PiProviderDefinition, "baseU
   if (definition.protocol === "openai-compatible") {
     const response = await fetcher(`${base}/chat/completions`, { method: "POST", signal,
       headers: { "content-type": "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
-      body: JSON.stringify({ model, max_tokens: 800, temperature: 0, stream: false, response_format: { type: "json_object" },
+      body: JSON.stringify({ model, max_tokens: ROUTER_MAX_TOKENS, temperature: 0, stream: false, response_format: { type: "json_object" },
         messages: [{ role: "system", content: system }, { role: "user", content: user }] }) });
     if (!response.ok) return undefined;
     const body = await response.json() as { choices?: { finish_reason?: string; message?: { content?: unknown; reasoning_content?: unknown } }[] };
@@ -177,7 +181,7 @@ export async function completeJson(definition: Pick<PiProviderDefinition, "baseU
   if (definition.protocol === "anthropic") {
     const response = await fetcher(`${base}/messages`, { method: "POST", signal,
       headers: { "content-type": "application/json", "anthropic-version": "2023-06-01", ...(apiKey ? { "x-api-key": apiKey } : {}) },
-      body: JSON.stringify({ model, max_tokens: 800, temperature: 0, system, messages: [{ role: "user", content: user }] }) });
+      body: JSON.stringify({ model, max_tokens: ROUTER_MAX_TOKENS, temperature: 0, system, messages: [{ role: "user", content: user }] }) });
     if (!response.ok) return undefined;
     const body = await response.json() as { content?: { type?: string; text?: unknown }[] };
     const text = body.content?.find((block) => block.type === "text")?.text;
