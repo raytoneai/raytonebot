@@ -51,7 +51,8 @@ export function AgentAvatar({
   const rootRef = useRef<HTMLSpanElement>(null);
   const motionRef = useRef<AvatarMotion | undefined>(undefined);
   const kind = kindOverride ?? persona?.kind;
-  const markup = useMemo(() => (kind ? avatarSVG(kind, !interactive) : ""), [kind, interactive]);
+  // Faces of 20px and under come in lists (history, members, group faces): no halo there.
+  const markup = useMemo(() => (kind ? avatarSVG(kind, !interactive, size > 20) : ""), [kind, interactive, size]);
   const animated = Boolean(persona && live);
 
   useEffect(() => {

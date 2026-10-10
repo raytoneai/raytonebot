@@ -11,7 +11,7 @@ export function GroupFace({ size, kinds }: { size: number; kinds: readonly Avata
     overflow: "hidden", boxShadow: `0 0 0 ${ring}px #fff`, background: "#fff", display: "inline-flex", ...style });
   return (
     <span aria-hidden="true" style={{ position: "relative", display: "inline-block", width: size, height: size, flex: "none" }}>
-      <span style={{ ...disc(corners[0]), alignItems: "center", justifyContent: "center", background: "#c8d6f6", color: "#2b3a67",
+      <span style={{ ...disc(corners[0]), alignItems: "center", justifyContent: "center", background: "#E6E9F0", color: "#111E36",
         fontSize: Math.max(8, Math.round(cell * 0.48)), fontWeight: 600 }}>我</span>
       {kinds.slice(0, 3).map((kind, index) => (
         <span key={index} style={disc(corners[index + 1])}><AgentAvatar size={cell} kind={kind} /></span>

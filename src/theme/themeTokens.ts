@@ -78,7 +78,7 @@ export const minimalThemePresetIds: readonly ThemePresetId[] = [
 // style. Native keeps the IBM Plex stack, Minimal keeps the Inter stack (i.e.
 // the fonts the previous default theme of each style already used).
 const NATIVE_FONT: ThemeTokens["font"] = {
-  ui: "\"IBM Plex Sans\", \"Aptos\", ui-sans-serif, system-ui, sans-serif",
+  ui: "\"IBM Plex Sans Variable\", \"IBM Plex Sans\", \"Aptos\", ui-sans-serif, system-ui, sans-serif",
   display: "\"IBM Plex Sans Condensed\", \"Aptos Display\", ui-sans-serif, system-ui, sans-serif",
   mono: "\"IBM Plex Mono\", \"SFMono-Regular\", Consolas, monospace",
 };

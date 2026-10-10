@@ -1,7 +1,9 @@
 // Raytone character avatars, redrawn per role (output/raytone-avatars/redesign, 2026-10-10):
 // one illustrated language for the three, a gold ray halo from the Raytone mark, and one prop
 // that says what each one does.
-const navy = '#0C2458', gold = '#E7AC26', highlight = '#1B3971', grey = '#9AAAC3', skin = '#FFFAF3';
+const navy = '#0C2458', gold = '#E7AC26', highlight = '#1B3971', grey = '#9AAAC3',
+  // Warm enough to hold its edge on a white page without an outline, plate or shadow.
+  skin = '#FCEEDC';
 
 export const characters = {
   woman: { name: 'Raer', note: '助理 · 耳麦' },
@@ -91,13 +93,14 @@ const parts: Record<AvatarKind, { body: string; over: string }> = {
 /**
  * `compact` is for small faces (sidebar, transcript, header): the view box crops the margin
  * and the halo draws in closer, so the face fills about as much of its box as the user's own
- * round avatar does. The large welcome face keeps the full composition.
+ * round avatar does. The large welcome face keeps the full composition. Without `halo` (the
+ * smallest faces, repeated down a list) the gold rays are left out, so the list is not striped.
  */
-export function avatarSVG(kind: AvatarKind, compact = false): string {
+export function avatarSVG(kind: AvatarKind, compact = false, withHalo = true): string {
   const { body, over } = parts[kind];
   const haloScale = compact ? 'translate(200 200) scale(3.36) translate(-50 -50)' : 'scale(4)';
   return `<svg viewBox="${compact ? '40 24 320 320' : '0 0 400 400'}" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-    <g class="halo" transform="${haloScale}">${halo()}</g>
+    ${withHalo ? `<g class="halo" transform="${haloScale}">${halo()}</g>` : ''}
     <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group"><g class="breath">
       <g transform="scale(4)">${body}</g>
       <g class="gaze"><g class="thinking-gaze"><g transform="scale(4)">${eyes}</g></g></g>

@@ -4517,12 +4517,10 @@ textarea:focus-visible {
   will-change: transform;
 }
 
-.preview-frame[data-style-preset="native"] .msg-avatar[data-role="user"] .user-blue-smile-features {
-  animation: user-blue-smile-look-around 3.4s var(--ease-in-out) infinite;
-}
-
+/* The user's own face is neutral and holds still: every message carries it, and only the
+   agents' faces are coloured and alive. */
 :is(.preview-frame, .preset-panel)[data-style-preset="native"] .user-blue-smile-avatar {
-  --user-blue-smile-bg: #C0D3F8;
+  --user-blue-smile-bg: #E6E9F0;
 }
 
 .preview-frame[data-style-preset="native"] .msg-avatar[data-role="user"] .user-heart-eye {
@@ -4655,13 +4653,6 @@ textarea:focus-visible {
   22%, 100% {
     transform: rotate(360deg);
   }
-}
-
-@keyframes user-blue-smile-look-around {
-  0%, 100% { transform: translateX(0) rotate(0deg); }
-  22% { transform: translateX(-3.2px) rotate(-5deg); }
-  46% { transform: translateX(3.4px) rotate(5.5deg); }
-  68% { transform: translateX(-1.6px) rotate(-2.4deg); }
 }
 
 @keyframes user-heart-eye-grow {
@@ -11800,17 +11791,9 @@ pre {
   z-index: -1;
 }
 
-/* A light from the top edge: sky blue from the right corner, a breath of mint toward the
-   left. It spans the whole stack and is sized in percentages, so no width shows an edge. */
-.preview-stack[data-welcome="true"]::before {
-  inset: 0 0 auto;
-  height: min(460px, 62%);
-  background:
-    radial-gradient(ellipse 72% 100% at 100% 0%, rgb(160 200 255 / 0.42), rgb(160 200 255 / 0) 72%),
-    radial-gradient(ellipse 60% 80% at 22% 0%, rgb(180 238 228 / 0.3), rgb(180 238 228 / 0) 70%);
-  mask-image: linear-gradient(180deg, #000 30%, transparent);
-}
-
+/* No light behind the welcome: a sky-blue and a mint glow put two more hues next to the
+   navy and gold of the brand. The page stays white; the avatar's gold halo is the one accent. */
+.preview-stack[data-welcome="true"]::before,
 .preview-stack[data-welcome="true"]::after {
   display: none;
 }
