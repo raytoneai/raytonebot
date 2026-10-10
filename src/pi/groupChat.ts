@@ -218,7 +218,23 @@ export async function routeGroupMessage(prompt: string, group: Pick<GroupMeta, "
 const INTERACTION = "这是群聊互动，不是任务：按用户给的规则简短回复（通常一两句），不调用工具，不读写文件。";
 const DISCUSSION_ROUNDS = 2;
 
-function memberPrompt(member: AgentPresetId, group: AgentPresetId[], plan: GroupPlan, lines: GroupLine[], text: string,
+/**
+ * Who decides the split when several members share a turn (CopilotKit OpenBot: "Answer only your own
+ * part… do not write replies for them"; nightly OpenBot and TelegramAgent: one lead assigns, the rest
+ * execute). Raer stays the coordinator: it may state the split when it opens and the user has not;
+ * Tonny and Bob follow the user's or Raer's split and never redo it.
+ */
+export function partRule(member: AgentPresetId, opening: boolean, independent: boolean): string {
+  if (independent) return "只说你自己的看法，不要替其他成员回答。";
+  if (member === "assistant") {
+    return opening
+      ? "你是群里的协调者。用户已经分好工，就照做你那一份；用户没说清谁做什么，你可以先用一句话说明分工，再完成你那一份。其他成员会在各自的回合发言，不要替他们写。"
+      : "你是群里的协调者。按用户或已经说明的分工完成你那一份，不要重新分工，也不要替其他成员写。";
+  }
+  return "按用户或 Raer 已经给出的分工，只完成你自己那一份；其他成员会在各自的回合发言，不要替他们写，也不要重新分工或重新出题。觉得分工不合理可以提一句建议，但本轮仍按原分工完成。";
+}
+
+export function memberPrompt(member: AgentPresetId, group: AgentPresetId[], plan: GroupPlan, lines: GroupLine[], text: string,
   previous: { member: AgentPresetId; text: string }[], round = 1): string {
   // The roster is the whole group, not just who speaks this turn: a member answering alone must
   // not conclude it is the only one here.
@@ -231,13 +247,15 @@ function memberPrompt(member: AgentPresetId, group: AgentPresetId[], plan: Group
   const order = plan.members.map((m) => MEMBER_NAMES[m]).join(" → ");
   const said = previous.map((p) => `- ${MEMBER_NAMES[p.member]}：${p.text}`);
   // Prompts depend on the turn's mode; topology (who, order, rounds) is fixed by code, never by the prompt.
-  if (plan.mode === "parallel") out.push(INTERACTION, "本轮每位成员各自独立回答，你看不到别人的回答，只说你自己的。");
-  if (plan.mode === "round_robin") out.push(INTERACTION, `本轮按顺序每人说一次：${order}。轮到你了，接着前面的人说。`,
+  const opening = round === 1 && previous.length === 0;
+  if (plan.mode === "parallel") out.push(INTERACTION, "本轮每位成员各自独立回答，你看不到别人的回答。", partRule(member, opening, true));
+  if (plan.mode === "round_robin") out.push(INTERACTION, `本轮按顺序每人说一次：${order}。轮到你了，接着前面的人说。`, partRule(member, opening, false),
     ...(said.length ? ["本轮前面的发言：", ...said] : ["你是第一个。"]));
   if (plan.mode === "discussion") out.push(`这是群里的讨论，第 ${round}/${DISCUSSION_ROUNDS} 轮，顺序：${order}。回应前面的人，给出你的观点，简短具体，不调用工具，不读写文件。`
-    + (round === DISCUSSION_ROUNDS ? "这是最后一轮，尽量收敛。" : ""), ...(said.length ? ["讨论到目前为止：", ...said] : ["你先开场。"]));
+    + (round === DISCUSSION_ROUNDS ? "这是最后一轮，尽量收敛。" : ""), partRule(member, opening, false),
+    ...(said.length ? ["讨论到目前为止：", ...said] : ["你先开场。"]));
   if (plan.mode === "sequential") {
-    out.push(`这是一项工作，本轮按顺序进行：${order}。`);
+    out.push(`这是一项工作，本轮按顺序进行：${order}。`, partRule(member, opening, false));
     if (member === "planner") out.push("你负责规划：把计划直接写在回复里，系统会把全文交给下一位成员，不必另写计划或交接文件（用户明确要求除外）。"
       + "共享目录为 shared/plans、shared/handoffs、shared/artifacts；需要现状时直接读相关文件。不要扩大用户要求的范围。");
     if (member === "builder") out.push("你负责实施：按用户要求和计划完成，不扩大范围。验证与改动相称，除非计划或用户要求，不额外截图、渲染、打印或写交接文件。");

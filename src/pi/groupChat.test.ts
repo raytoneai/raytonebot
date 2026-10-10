@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
-  addressedMembers, childConversationId, GROUP_MEMBERS, isChildConversationId, isContinuation, isGreeting, mentionedMembers,
+  addressedMembers, childConversationId, GROUP_MEMBERS, isChildConversationId, isContinuation, isGreeting, memberPrompt, mentionedMembers,
   parseRoute, planFromRoute, soleSpeaker, speakingOrder, untag,
 } from "./groupChat.ts";
 
@@ -119,4 +119,27 @@ test("only phrases that depend on the previous answer count as a continuation; w
     "换个思路实现", "就这么做", "继续说，大家一起讨论", "go on and implement it", "帮我翻译一下这句", "具体一点".repeat(11)]) {
     assert.ok(!isContinuation(t), t);
   }
+});
+
+test("in a shared turn Raer coordinates the split and the others keep to theirs", () => {
+  const plan = { mode: "round_robin" as const, members: ["assistant", "planner", "builder"] as ("assistant" | "planner" | "builder")[], source: "router" as const };
+  const ask = "你们搞一个对对联游戏，一个上联一个下联一个横批";
+  const raer = memberPrompt("assistant", all, plan, [], ask, []);
+  assert.match(raer, /你是群里的协调者/);
+  assert.match(raer, /用户没说清谁做什么，你可以先用一句话说明分工/, "opening, Raer may state the split");
+  const raerLater = memberPrompt("assistant", all, { ...plan, members: ["planner", "assistant", "builder"] }, [], ask, [{ member: "planner", text: "下联" }]);
+  assert.match(raerLater, /不要重新分工/);
+  assert.doesNotMatch(raerLater, /先用一句话说明分工/, "not opening: Raer follows the split already given");
+  const bob = memberPrompt("builder", all, plan, [], ask, [{ member: "assistant", text: "上联：…Tonny 接下联，Bob 补横批" }, { member: "planner", text: "下联：…" }]);
+  assert.match(bob, /按用户或 Raer 已经给出的分工，只完成你自己那一份/);
+  assert.match(bob, /不要替他们写，也不要重新分工或重新出题/);
+  assert.doesNotMatch(bob, /你是群里的协调者/);
+  for (const mode of ["discussion", "sequential"] as const) {
+    assert.match(memberPrompt("planner", all, { ...plan, mode }, [], ask, [{ member: "assistant", text: "a" }]), /不要重新分工/, mode);
+  }
+  const parallel = memberPrompt("builder", all, { ...plan, mode: "parallel" }, [], ask, []);
+  assert.match(parallel, /只说你自己的看法，不要替其他成员回答/);
+  assert.doesNotMatch(parallel, /说明分工/, "parallel answers are independent: nobody assigns");
+  assert.doesNotMatch(memberPrompt("assistant", all, { ...plan, mode: "single", members: ["assistant"] }, [], "翻译一下", []), /分工/,
+    "a member answering alone gets no split rule");
 });

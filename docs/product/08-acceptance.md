@@ -780,3 +780,9 @@
 
 - 参照 Grok Bot 只留回答：回合进行中每个工具照常逐行显示（看得出在忙）；回合结束后，连续的读取、搜索、检查、命令、网页查询收成一行（如「运行了 7 条命令」「读取了 1 个文件 · 1 个失败」），点开显示原来每一步。文件编辑/修改保留单独显示（带文件卡片），未完成、等待审批及未知工具不收。`toolCalls.foldWhenDone`（默认 false，产品配置 true）；分组与文案在 `src/runtime/toolSummary.ts`，行在 `chatframe/ToolRunSummary.tsx`，沿用工具行样式（`data-action`）。归类覆盖 Pi（bash、read、grep、find、ls）、Claude Code（Bash、Read、Grep、Glob、WebFetch、WebSearch）、Codex（bash、web_search）；`ls` 与 Web* 在本地归类，不改共享别名表。
 - 测试：`toolSummary.test.ts` 3 项（三引擎工具名、进行中/审批/编辑不收、隐藏的思考不打断连续步骤、计数与失败文案）。隔离浏览器：导入的云端群聊中 Tonny 的 7 条命令收为一行，修改文件卡片保留，展开 8 个工具卡、收起回 1 个，无页面错误；`?devtools=1` 18 个场景逐个切换无错误（Coding agent、MCP success + interrupt 各收起一组，审批场景的工具仍单独显示）。全量 `npm test` 234/234、build 通过。运行中逐行显示依赖与 BM 组相同的“本轮仍在运行”判断，本组未另做实时工具流验证。
+
+## BP 组：多人模式的分工规则（2026-10-10，工作树）
+
+- 起因：本机群聊「你们搞一个对对联游戏，一个上联一个下联一个横批」路由给 Raer 一人（路由误判，待评测后改选项）；「我的意思你搞上联，其他两个一个出下联，一个横批」轮流 Raer → Tonny → Bob，Raer 已说明“Tonny 接下联，Bob 补横批”，Bob 仍重新出上联并重新分工。
+- 实现：`partRule` 写入轮流、讨论、依次、并行的成员提示。Raer：本轮第一个发言时可在用户没说清时用一句话说明分工；非首位时按已有分工做，不重新分工。Tonny、Bob：按用户或 Raer 的分工只做自己那份，不替他人写、不重新分工或重新出题，可提建议。并行：只说自己的，不替他人回答。单人回答不加。
+- 测试：`groupChat.test.ts` 新增 1 项（Raer 开场/非开场、Bob 收到的约束、讨论与依次、并行与单人）。全量 `npm test` 235/235、build 通过。未用真实模型复现该群聊；路由选项未改。
