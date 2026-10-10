@@ -8,6 +8,7 @@
 - **SDK 连到 e2b.dev / 沙箱连不上** → 没设 `E2B_DOMAIN` → 设为 `agentsphere.run`。
 - **停服务后 5188 仍被占用** → 后台命令记录的是外层 shell 的 PID → 启动命令用 `exec`，保证 PID 就是 Node 进程。
 - **云域名访问被 Vite 拒绝** → Vite 的 Host 检查在插件之前 → 在 `preview.allowedHosts` 里显式写实例域名。
+- **从 git worktree 部署后服务起不来（`Failed to resolve entry for package "@agent-ux/protocol"`）** → `vendor/*/dist` 被 `.gitignore` 忽略，干净 worktree 里没有，上传覆盖了沙箱里完整的 vendor → 部署前 `diff -rq vendor <worktree>/vendor`，缺的 dist 从主目录原样复制（2026-10-10）。
 - **很多 `agentsphere-codesphere-*` 模板不可用** → 构建失败的历史残留 → 先 `GET /templates` 查 ready 状态。
 
 ## 沙箱持久化

@@ -15,7 +15,7 @@ export function productFaq(input: { sandboxed: boolean; layout: WorkspaceLayout 
   const menu = (key: keyof typeof ui.nav) => `${ui.title} → ${ui.nav[key]}`;
   const mode = composerCopy.zh.frame;
   const where = input.sandboxed
-    ? "the user's own cloud sandbox (AgentSphere Linux microVM, 2 CPU/4 GB; survives pause/resume, owner backs it up). Agents run as a separate Linux user: no access to the bot's keys or data; network limited to package registries and the model service."
+    ? "the user's own cloud sandbox (AgentSphere Linux microVM, 2 CPU/4 GB; survives pause/resume, owner backs it up). Agents run as a separate Linux user: no access to the bot's keys or data; direct network limited to package registries and the model service; web search and page reading go through the bot's web_search / web_fetch tools."
     : "the owner's computer (local development mode).";
   return [
     "## RaytoneBot facts (answer product questions from here, without tools; if not covered, say so)",

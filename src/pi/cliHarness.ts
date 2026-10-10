@@ -8,6 +8,7 @@ import type { PiWireEvent } from "../harness/adapters/piAdapter.ts";
 import type { AgentHarnessId, AgentHarnessStatus } from "./harnessCatalog.ts";
 import { createClaudeStreamTranslator, normalizeClaudeTool, type NormalizedTool } from "./cliStreams.ts";
 import { createCodexAppServer, type CodexPermissionRequest } from "./codexAppServer.ts";
+import { WEB_TOOL_SPECS, type WebTools } from "./webAccess.ts";
 import { runLimits } from "./hostOperations.ts";
 import { MISSING_NATIVE_SESSION } from "./nativeSession.ts";
 import { userQuestions, type UserAnswers, type UserQuestion } from "../runtime/userInput.ts";
@@ -36,6 +37,8 @@ type CliRunBase = {
   onSessionId: (id: string) => void;
   onNativeTurn?: (turn: { sessionId: string; id: string }) => void;
   onUserInput?: (request: { toolCallId: string; questions: UserQuestion[]; signal: AbortSignal }) => Promise<UserAnswers>;
+  /** web_search / web_fetch, executed by the host; the engine's own web tools are turned off. */
+  webTools?: WebTools;
 };
 
 export type ClaudePermissionRequest = {
@@ -110,7 +113,10 @@ export function detectCliHarnesses(): Promise<AgentHarnessStatus[]> {
   return value;
 }
 
-export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode" | "resumeId" | "forkAtMessageId" | "provider" | "appendSystemPrompt" | "disallowedTools" | "addDirs">): string[] {
+/** The in-process MCP server carrying the host's web tools (`mcp__raytone__web_search`). */
+export const CLAUDE_HOST_MCP = "raytone";
+
+export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode" | "resumeId" | "forkAtMessageId" | "provider" | "appendSystemPrompt" | "disallowedTools" | "addDirs" | "webTools">): string[] {
   const args = [
     "-p",
     "--verbose",
@@ -134,7 +140,10 @@ export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode"
     args.push("--setting-sources", "", "--model", options.provider.model);
   }
   if (options.appendSystemPrompt) args.push("--append-system-prompt", options.appendSystemPrompt);
-  if (options.disallowedTools?.length) args.push("--disallowedTools", ...options.disallowedTools);
+  // Claude's WebSearch needs Anthropic's server and WebFetch the agent's own (blocked) egress.
+  const disallowed = [...options.disallowedTools ?? [], ...options.webTools ? ["WebSearch", "WebFetch"] : []];
+  if (options.webTools) args.push("--mcp-config", JSON.stringify({ mcpServers: { [CLAUDE_HOST_MCP]: { type: "sdk", name: CLAUDE_HOST_MCP } } }));
+  if (disallowed.length) args.push("--disallowedTools", ...disallowed);
   if (options.addDirs?.length) args.push("--add-dir", ...options.addDirs);
   if (options.resumeId) args.push("--resume", options.resumeId);
   if (options.forkAtMessageId) args.push("--fork-session", "--resume-session-at", options.forkAtMessageId);
@@ -393,7 +402,7 @@ export async function runClaudeCode(options: ClaudeRunOptions): Promise<void> {
         {
           type: "control_request",
           request_id: "raytonebot_init",
-          request: { subtype: "initialize", hooks: {}, sdkMcpServers: [], supportedDialogKinds: [] },
+          request: { subtype: "initialize", hooks: {}, sdkMcpServers: options.webTools ? [CLAUDE_HOST_MCP] : [], supportedDialogKinds: [] },
         },
         { type: "user", message: { role: "user", content: options.prompt }, parent_tool_use_id: null },
       ],
@@ -438,6 +447,11 @@ async function answerClaudeControl(
   const requestId = typeof line.request_id === "string" ? line.request_id : undefined;
   const request = line.request && typeof line.request === "object" ? line.request as Record<string, unknown> : undefined;
   if (!requestId || !request) return;
+  if (request.subtype === "mcp_message" && request.server_name === CLAUDE_HOST_MCP && options.webTools) {
+    const response = await hostMcpResponse(record(request.message), options.webTools, options.signal);
+    if (!options.signal.aborted) controlResponse(stdin, requestId, { mcp_response: response });
+    return;
+  }
   if (request.subtype !== "can_use_tool") {
     writeLine(stdin, {
       type: "control_response",
@@ -476,6 +490,33 @@ async function answerClaudeControl(
   controlResponse(stdin, requestId, decision === true
     ? { behavior: "allow", updatedInput: input, ...(toolUseID ? { toolUseID } : {}) }
     : { behavior: "deny", message: decision, ...(toolUseID ? { toolUseID } : {}) });
+}
+
+/** A minimal MCP server over Claude's control channel: initialize, tools/list, tools/call. */
+export async function hostMcpResponse(message: Record<string, unknown>, web: WebTools, signal: AbortSignal): Promise<Record<string, unknown>> {
+  const id = message.id ?? 0;
+  const params = record(message.params);
+  const result = (value: unknown) => ({ jsonrpc: "2.0", id, result: value });
+  switch (message.method) {
+    case "initialize":
+      return result({ protocolVersion: typeof params.protocolVersion === "string" ? params.protocolVersion : "2025-06-18",
+        capabilities: { tools: {} }, serverInfo: { name: CLAUDE_HOST_MCP, version: "0.1.0" } });
+    case "tools/list":
+      return result({ tools: WEB_TOOL_SPECS });
+    case "tools/call": {
+      const { text, isError } = await web.run(String(params.name), params.arguments, signal)
+        .catch((error) => ({ text: error instanceof Error ? error.message : "Web tool failed.", isError: true }));
+      return result({ content: [{ type: "text", text }], isError });
+    }
+    default:
+      // Notifications get an empty result; anything else is not part of this server.
+      return message.id === undefined || message.method === "ping" ? result({})
+        : { jsonrpc: "2.0", id, error: { code: -32601, message: `Method not found: ${String(message.method)}` } };
+  }
+}
+
+function record(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
 }
 
 /** One native app-server turn. Only individual approvals can authorize tool effects. */

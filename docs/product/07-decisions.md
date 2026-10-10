@@ -240,6 +240,15 @@
 - **为什么不让 Raer 每条都当路由**：单独路由调用约 0.6–0.8 秒、约 400 输入 token；Raer 完整一轮 1.3–3.4 秒且可能先调用工具，交给 Tonny/Bob 的消息反而更慢，也会把编排混入 Raer 自己的会话。
 - **边界**：评测样例为合成短句；真实准确率以上线后的用户改判统计。外部 IM 群映射、Agent 发起的 `request_next_agent`、Supervisor 逐波编排不在首版。
 
+## ADR-034：联网由 bot 代为执行，三引擎共用 web_search / web_fetch（2026-10-10）
+
+- **问题**：Agent UID 出站只放行模型代理与 npm/PyPI，三个角色都不能查资料。Claude Code 的 WebSearch 依赖 Anthropic 服务端、WebFetch 走 Agent 自身出站；Codex 的 web_search 依赖 OpenAI 服务端。接 DeepSeek 时都不可用，Pi 本来就没有联网工具。
+- **决定**：`src/pi/webAccess.ts` 在 bot 进程内执行搜索与读页面，结果只以文本交回。Pi 注册原生工具（`webTool.ts`，同 `update_plan`）；Claude Code 走 stream-json 控制通道的 SDK MCP 服务 `raytone`（`mcp_message`，无子进程），并禁用自带 WebSearch/WebFetch；Codex 走 app-server `dynamicTools` + `item/tool/call`（0.153.4 协议已核对），关闭自带 `web_search`。三者工具名统一为 `web_search`、`web_fetch`，界面沿用现有工具行与 `fetch` 分类。
+- **搜索**：Tavily（用户选定）。`TAVILY_API_KEY` 由 `deploy.py` 写入 `~/.raytonebot/env`，只在 bot 进程；未配置时 web_search 返回可读错误，web_fetch 仍可用。
+- **读取**：任意公网 http(s) URL（用户选定）。DNS 结果与 IP 字面量都须为公网地址，在连接时检查（防 DNS 重绑定），每次跳转重检，最多 5 跳；3 MB、20 秒；只收文本类内容，HTML 转为带标题/列表/链接的 Markdown 风格文本，每次最多 20,000 字符，用 offset 续读（10 分钟内存缓存）。脚本渲染页正文过短且有 key 时改用 Tavily Extract。本机开发放行代理 fake-IP（198.18.0.0/15），沙箱不放行。
+- **为什么不放开出站或扩白名单**：放开出站拆掉 ADR-030 的边界；把搜索 API 域名加进 CONNECT 白名单需要把 key 交给 Agent。
+- **边界**：web 工具按只读归类，不经审批；Agent 可通过 URL 把工作区内容带给外部站点，单用户产品接受此风险（同 npm/PyPI 白名单的残余风险）。不执行 JavaScript、不登录、不下载二进制或 PDF；浏览器接管另行规划（输出面板）。早于本变更开始的 Codex 线程续接时没有这两个工具（dynamicTools 随线程创建保存）。
+
 ## ADR-033：例行任务在主机内定义与执行，调度仍在外部（2026-10-08）
 
 - **问题**：Grok Bot 指南里最有价值的是“合上电脑后继续工作”的例行任务；RaytoneBot 只有唤醒入口，没有任务定义。沙箱一次最多运行 50 小时，暂停期间不执行任何东西（ADR-016、`issue.md` #1）。

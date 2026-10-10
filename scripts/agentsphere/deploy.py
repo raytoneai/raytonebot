@@ -2,7 +2,7 @@
 """Deploy RaytoneBot to an AgentSphere sandbox (E2B fork; needs the 1.x SDK: pip install 'e2b<2').
 
 Usage (from the project root):
-  E2B_DOMAIN=agentsphere.run E2B_API_KEY=... [DEEPSEEK_API_KEY=...] \
+  E2B_DOMAIN=agentsphere.run E2B_API_KEY=... [DEEPSEEK_API_KEY=...] [TAVILY_API_KEY=...] \
     ~/.venvs/agentsphere/bin/python scripts/agentsphere/deploy.py [--sandbox ID] [--timeout 86400] [--skip-build]
 
 What it does: build locally, upload the app (never node_modules, .agentsphere or .env files),
@@ -200,7 +200,8 @@ def main() -> None:
         if sep:
             parsed = shlex.split(value)
             previous[name] = parsed[0] if parsed else ""
-    for key in ("DEEPSEEK_API_KEY",):
+    # TAVILY_API_KEY backs web_search; the bot uses it, agents never see it (ADR-034).
+    for key in ("DEEPSEEK_API_KEY", "TAVILY_API_KEY"):
         if os.environ.get(key):
             env[key] = os.environ[key]
         elif previous.get(key):

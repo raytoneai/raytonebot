@@ -2,6 +2,7 @@ import { resolve } from "node:path";
 import type { PiWireEvent } from "../harness/adapters/piAdapter.ts";
 import { createCodexStreamTranslator, displayCommand, type NormalizedTool } from "./cliStreams.ts";
 import { userQuestions, type UserAnswers, type UserQuestion } from "../runtime/userInput.ts";
+import { WEB_TOOL_SPECS, type WebTools } from "./webAccess.ts";
 
 type Json = Record<string, unknown>;
 type Send = (message: Json) => void;
@@ -26,6 +27,8 @@ export function createCodexAppServer(options: {
   onNativeTurn?: (turn: { sessionId: string; id: string }) => void;
   onPermission(request: CodexPermissionRequest): Promise<true | string>;
   onUserInput?: (request: { toolCallId: string; questions: UserQuestion[]; signal: AbortSignal }) => Promise<UserAnswers>;
+  /** Host-run web tools, offered as dynamic tools in place of Codex's own web search. */
+  webTools?: WebTools;
   signal: AbortSignal;
 }) {
   const translator = createCodexStreamTranslator(options.emit);
@@ -84,6 +87,18 @@ export function createCodexAppServer(options: {
     send({ id: line.id, result: { decision: allowed === true ? "accept" : "decline" } });
   };
 
+  const callWebTool = async (line: Json, send: Send) => {
+    const params = record(line.params);
+    let result: { text: string; isError: boolean };
+    if (!options.webTools || !threadId || params.threadId !== threadId || params.namespace != null) result = { text: "Unknown dynamic tool.", isError: true };
+    else {
+      try { result = await options.webTools.run(String(params.tool), params.arguments, options.signal); }
+      catch (error) { result = { text: error instanceof Error ? error.message : "Web tool failed.", isError: true }; }
+    }
+    if (options.signal.aborted || finished) return;
+    send({ id: line.id, result: { contentItems: [{ type: "inputText", text: result.text }], success: !result.isError } });
+  };
+
   return {
     initialize,
     push(line: Json, send: Send) {
@@ -93,6 +108,8 @@ export function createCodexAppServer(options: {
           void permission(line, send);
         } else if (line.method === "item/tool/requestUserInput") {
           void askUser(line, send);
+        } else if (line.method === "item/tool/call") {
+          void callWebTool(line, send);
         } else {
           // No session-wide permission grants or unknown tools bypass the per-action gate.
           send({ id: line.id, error: { code: -32601, message: `Unsupported Codex request: ${String(line.method)}` } });
@@ -108,7 +125,11 @@ export function createCodexAppServer(options: {
             ...(options.forkBeforeTurnId ? { beforeTurnId: options.forkBeforeTurnId } : {}),
             cwd: options.cwd, approvalPolicy: "untrusted", approvalsReviewer: "user", sandbox: "read-only",
             runtimeWorkspaceRoots: [options.cwd, ...(options.addDirs ?? [])],
-            config: { tools: { update_plan: { enabled: true } }, features: { default_mode_request_user_input: true } },
+            config: { tools: { update_plan: { enabled: true } }, features: { default_mode_request_user_input: true },
+              // Codex's web search runs on OpenAI's servers; other providers get the host's tools.
+              ...(options.webTools ? { web_search: "disabled" } : {}) },
+            // Persisted with the thread: a resumed or forked thread keeps the tools it started with.
+            ...(options.webTools && !options.resumeId ? { dynamicTools: WEB_TOOL_SPECS.map((spec) => ({ type: "function", ...spec })) } : {}),
             ...(options.model ? { model: options.model, modelProvider: "raytonebot" } : {}),
             ...(options.developerInstructions ? { developerInstructions: options.developerInstructions } : {}),
           } });
@@ -166,6 +187,10 @@ function legacyItem(item: Json, cwd: string): Json {
   if (item.type === "agentMessage") return { ...item, type: "agent_message" };
   if (item.type === "reasoning") return { ...item, text: [...(Array.isArray(item.summary) ? item.summary : []), ...(Array.isArray(item.content) ? item.content : [])].join("\n") };
   if (item.type === "mcpToolCall") return { ...item, type: "mcp_tool_call" };
+  if (item.type === "dynamicToolCall") {
+    const text = (Array.isArray(item.contentItems) ? item.contentItems : []).map((content) => record(content).text).filter((value) => typeof value === "string").join("\n");
+    return { ...item, type: "mcp_tool_call", server: undefined, result: text, ...(item.success === false ? { error: text || "Tool failed." } : {}) };
+  }
   if (item.type === "webSearch") return { ...item, type: "web_search", query: record(item.action).query };
   return item;
 }

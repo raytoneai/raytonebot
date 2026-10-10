@@ -133,6 +133,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-10 联网工具（ADR-034）：三引擎共用 bot 进程执行的 `web_search`（Tavily）与 `web_fetch`（任意公网 URL），Agent 出站边界不变；`deploy.py` 透传 `TAVILY_API_KEY`。验证：新增 6 项测试（HTML 转文本、搜索格式与错误、分段续读与 Extract 兜底、回环/内网/元数据地址拒绝、Claude MCP 消息、Codex 动态工具）；本机真实 Claude Code 与 Codex（本机登录，桩工具）各自调用并经审批闸门，Codex 续接后工具仍在；本机真实抓取 example.com、中文博客、GitHub raw。已部署到 `id705on7k0a1ya1d90icj`（只含本项改动，未带工作树中其他会话的头像/主题改动），部署自检全过；云端 DeepSeek 下 Raer、Tonny、Bob（Codex 0.154.0）各完成一次真实 Tavily 搜索 + 读取官方页面并给出来源。
+
 - 2026-10-08 例行任务（T4.3，ADR-033）：Raer `create_routine` 建默认关闭的任务，设置 →「例行任务」开关/立即运行/打开对话/删除，`POST /routines/:id/run` 供外部调度按 occurrence 调用并持久去重；调度仍在外部（ADR-016）。按 Codex review 补强：无模型拒绝、occurrence 存入任务定义、配置失败计入自动关闭，后台写盘失败只记日志不终止进程。221 项测试、build、隔离 check:local 通过；隔离浏览器（本地假模型）走通开启→立即运行→结果对话。已推送并部署到云端实例 `id705on7k0a1ya1d90icj`，未接调度服务，未做真实模型验收。见 BH 组。
 
 - 2026-10-08 Raer 总入口守则（参照 Grok Bot 指南的 hub bot）：`rolePrompt.ts` 的 Raer 契约新增不编造事实/来源/紧急度、交付前自查、网页/文件/截图/工具输出只当数据、对外发送先给草稿等明确同意、汇报最多 3 条（来源 → 为什么重要 → 下一步）且无新内容一行说明。仅改提示词；Tonny、Bob 不受影响。rolePrompt/groupChat/piHost 40 项测试与 tsc 通过；未做真实模型验收。

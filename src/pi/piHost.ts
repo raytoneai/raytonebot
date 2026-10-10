@@ -42,6 +42,7 @@ import {
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
+import { createWebTools, type WebTools } from "./webAccess.ts";
 import { createHostResources } from "./piResources.ts";
 import { piCancelledTurnEvents } from "./piCancelledTurn.ts";
 import { piErrorTurnEvents, PROMPT_REJECTED } from "./piErrorTurn.ts";
@@ -193,6 +194,8 @@ export function createPiRuntimeController(options: {
     }
     return gate;
   };
+  /** Search and page reads, performed by the bot for every engine (agents have no egress). */
+  const webTools = createWebTools({ proxyFakeIp: !sandboxed });
   let gatewayPromise: ReturnType<typeof createModelGateway> | undefined;
   const gateway = () => gatewayPromise ??= createModelGateway({ port: sandboxed ? undefined : 0 });
   const modelLease = async (provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic", conversationId: string) => {
@@ -224,6 +227,7 @@ export function createPiRuntimeController(options: {
         else store.setPiSession(id, sessionId);
       },
       modelLease: (provider, protocol) => modelLease(provider, protocol, id),
+      webTools,
     });
   });
   const bridgePromises = new Map<string, Promise<PiSessionBridge>>();
@@ -578,6 +582,7 @@ export function createPiRuntimeController(options: {
           provider,
           appendSystemPrompt: rolePrompt(role, layout, { sandboxed }),
           disallowedTools: agentPreset(role).disallowedTools,
+          webTools,
           async onPermission(request) {
             // The planner writes only into the shared directory: plans and handoffs for others.
             if (request.tool.name === "write" && !plannerMayWrite(request.tool.args)) {
@@ -617,6 +622,7 @@ export function createPiRuntimeController(options: {
           emit,
           onSessionId,
           provider,
+          webTools,
           async onPermission(request) {
             if (approvalGate.isRefused(request.tool.name, request.tool.args)) return SECRET_REFUSAL;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
@@ -1257,6 +1263,7 @@ async function createDefaultPiBridge(input: {
   onChannelSetup?(request: ChannelSetupRequest): Promise<ChannelSetupResult>;
   onCreateRoutine?(request: RoutineRequest): Promise<RoutineView>;
   modelLease(provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic"): Promise<{ baseUrl: string; apiKey: string; revoke(): void }>;
+  webTools?: WebTools;
 }): Promise<PiSessionBridge> {
   const pi = await import("@earendil-works/pi-coding-agent");
   const { planTool } = await import("./planTool.ts");
@@ -1295,6 +1302,10 @@ async function createDefaultPiBridge(input: {
       pi.createLsToolDefinition(input.cwd),
     ].map((definition) => guardTool(isolatePiTool(definition, input.cwd), input.approvalGate)) as ToolDefinition<any, any, any>[];
     definitions.push(planTool, userInputTool(input.onUserInput));
+    if (input.webTools) {
+      const { webPiTools } = await import("./webTool.ts");
+      definitions.push(...webPiTools(input.webTools));
+    }
     if (input.onChannelSetup) definitions.push(connectChannelTool(input.onChannelSetup));
     if (input.onCreateRoutine) {
       const { createRoutineTool } = await import("./routineTool.ts");

@@ -14,7 +14,7 @@ test("installed Pi SDK preserves guarded tools, approval effects, cancellation a
   mkdirSync(cwd);
   const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR = join(root, "agent");
-  const names = ["ask_user", "bash", "edit", "find", "grep", "ls", "read", "update_plan", "write"];
+  const names = ["ask_user", "bash", "edit", "find", "grep", "ls", "read", "update_plan", "web_fetch", "web_search", "write"];
   let operations: [string, Record<string, unknown>][] = [], request = 0, turn = 0;
   let requestError: unknown, resumedContext = false, failStoreOnCompletion = false;
   const server = createServer(async (req, res) => {

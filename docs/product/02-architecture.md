@@ -204,5 +204,6 @@ AgentSphere 沙箱
 Pi 模型循环仍在 bot 内，但全部 7 个工具在该 UID 的短命 worker 中执行；CLI 也用同一受限启动器。
 模型代理位于 bot 进程内，不新增独立服务或数据库；每轮凭证限制上游、模型、次数和有效期，结束即撤销。
 nftables ip/ip6 + meta skuid 按 UID 禁止直连，只开放 loopback gateway；包仓库 CONNECT 校验域名、TLS SNI 与公网 IP。
+网页搜索与读取由 bot 进程代为执行（`src/pi/webAccess.ts`，ADR-034）：Pi 原生工具、Claude Code 进程内 MCP、Codex dynamicTools，Agent 只拿到文本。
 Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发不声称具有这些系统隔离保证。
 详细适用范围与剩余风险见 [10](10-agents-and-permissions.md)。
