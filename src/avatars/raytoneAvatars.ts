@@ -1,61 +1,106 @@
-// Raytone character avatars: layered SVG from the avatar study in
-// output/raytone-avatars/animated (Codex, 2026-10-03), typed for the product.
-const navy = '#0C2458', gold = '#E7AC26';
+// Raytone character avatars, redrawn per role (output/raytone-avatars/redesign, 2026-10-10):
+// one illustrated language for the three, a gold ray halo from the Raytone mark, and one prop
+// that says what each one does.
+const navy = '#0C2458', gold = '#E7AC26', highlight = '#1B3971', grey = '#9AAAC3', skin = '#FFFAF3';
 
 export const characters = {
-  woman: { name: '圆眼镜女生', note: '轻快 · 好奇' },
-  boy: { name: '短发少年', note: '活泼 · 专注' },
-  man: { name: '方眼镜男士', note: '沉稳 · 可靠' },
-  elder: { name: '银发女士', note: '温和 · 从容' },
+  woman: { name: 'Raer', note: '助理 · 耳麦' },
+  man: { name: 'Tonny', note: '规划评审 · 方眼镜与铅笔' },
+  boy: { name: 'Bob', note: '动手实现 · 汗带' },
 } as const;
 
-// Original layered vector interpretations of the Raytone PNG concepts.
-// Separate gaze, blink, expression and glasses layers keep their transforms independent.
+// Geometry is drawn in a 100-unit box and scaled ×4 into the 400 view box, so the motion
+// layers (gaze, poses, gestures; see avatarMotion.ts) keep their 400-unit distances.
 export type AvatarKind = keyof typeof characters;
 
-export function avatarSVG(kind: AvatarKind): string {
-  const old = kind === 'elder', man = kind === 'man', boy = kind === 'boy';
-  const hair = old ? '#9AAAC3' : navy;
-  const back = boy || man
-    ? `<path d="M43 236C18 130 76 57 181 53C302 39 373 121 356 250L313 278H72Z" fill="${hair}"/>`
-    : `<path d="M48 359C9 324 21 201 41 149C69 67 142 37 224 54C333 67 380 178 354 300C347 346 319 374 288 371L307 288H79L94 367Q66 374 48 359Z" fill="${hair}"/>`;
-  const pony = kind === 'woman'
-    ? `<path d="M77 133C-5 126 15 44 67 35C107 28 124 57 103 87Z" fill="${navy}"/><path d="M80 102L107 77" stroke="${gold}" stroke-width="15" stroke-linecap="round"/>`
-    : old ? `<ellipse cx="52" cy="183" rx="35" ry="43" fill="#8599B5"/><path d="M53 148Q25 187 54 218" fill="none" stroke="${navy}" stroke-width="12"/>` : '';
-  const face = `<ellipse cx="200" cy="239" rx="143" ry="151" fill="#FFF7E8"/>
-    ${boy || man ? '<ellipse cx="57" cy="252" rx="21" ry="30" fill="#FFF7E8"/><ellipse cx="343" cy="252" rx="21" ry="30" fill="#FFF7E8"/>' : ''}
-    <g fill="#EAC4A5" opacity=".48"><ellipse cx="108" cy="301" rx="18" ry="10"/><ellipse cx="291" cy="301" rx="18" ry="10"/></g>`;
-  let fringe;
-  if (boy) {
-    fringe = `<path d="M48 225L38 164Q35 143 56 129L77 110H39Q21 104 36 90L109 86L76 70Q59 59 76 48L156 55L132 31Q122 16 141 17C230 23 323 86 354 175L344 222L317 193L300 211L281 154Q208 178 139 125Q91 156 65 220Z" fill="${navy}"/>
-      <path d="M155 55Q252 56 312 136Q269 159 228 121Z" fill="#1B3971"/>`;
-  } else if (man) {
-    fringe = `<path d="M46 168L74 142L89 233L58 268Z M328 148L354 174L341 274L316 229Z" fill="#91A2B5"/>
-      <path d="M45 162Q33 134 50 115L74 99L40 96Q25 83 44 73L120 71L79 59Q65 45 85 41C150 29 178 41 192 53C291 34 338 99 340 163L306 141L296 120Q247 150 194 121Q144 88 111 129L72 163Z" fill="${navy}"/>
-      <path d="M176 55Q258 43 305 102Q255 120 219 92Z" fill="#1B3971"/>`;
-  } else if (old) {
-    fringe = `<path d="M50 235Q18 158 71 94C130 20 258 43 317 110Q356 144 348 229L315 199L295 154Q259 163 218 140L144 104Q100 139 65 236Z" fill="${hair}"/>
-      <path d="M64 184Q107 105 166 98Q218 155 297 161Q220 164 155 126Q104 154 64 222Z" fill="${navy}"/>
-      <path d="M87 106Q169 51 244 87Q285 111 313 143Q245 124 211 110Q146 80 87 130Z" fill="#849AB9"/>`;
-  } else {
-    fringe = `<path d="M47 234Q18 179 45 132L69 111L31 114Q12 110 20 94Q27 83 60 82L108 83L81 72L49 72Q28 64 42 48Q54 38 104 41C144 31 172 43 194 56C302 39 359 142 349 251L318 234L294 177Q215 188 143 116Q90 159 65 238Z" fill="${navy}"/>
-      <path d="M178 56Q277 45 319 136Q273 168 226 123Z" fill="#1B3971"/>`;
-  }
-  const eyes = [140, 265].map(x => `<g transform="translate(${x} 248)"><g class="blink"><g class="expression">
-    <rect class="open-eye" x="-11" y="-30" width="22" height="60" rx="11" fill="${navy}"/>
-    <path class="happy-eye" d="M-17 4Q0-24 17 4" fill="none" stroke="${navy}" stroke-width="11" stroke-linecap="round"/>
-    </g></g></g>`).join('');
-  const glasses = boy ? '' : man
-    ? `<g fill="none" stroke="${navy}" stroke-width="7"><rect x="85" y="203" width="107" height="90" rx="22"/><rect x="214" y="203" width="107" height="90" rx="22"/><path d="M192 236Q204 231 214 236"/></g>
-      <path d="M58 229H84M322 229H342" stroke="${gold}" stroke-width="10" stroke-linecap="round"/>`
-    : `<g fill="none" stroke="${old ? navy : gold}" stroke-width="${old ? 4 : 5}">
-      <ellipse cx="140" cy="248" rx="46" ry="${old ? 37 : 46}"/><ellipse cx="265" cy="248" rx="46" ry="${old ? 37 : 46}"/>
-      <path d="M186 243Q204 229 219 243M94 241L65 234M311 241L337 234"/></g>`;
-  const dashes = [0, 1, 2].map(i => `<rect class="signal" x="${man ? 309 : 292 + i * 3}" y="${(man ? 218 : 150) + i * (man ? 12 : 17)}" width="${man ? 20 : 43 - i * 6}" height="${man ? 7 : 10}" rx="5" fill="${gold}" style="animation-delay:${i * 160}ms"/>`).join('');
-  return `<svg viewBox="0 0 400 400" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
-    <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group"><g transform="translate(0 -6) rotate(12 200 235) scale(.94)">
-      ${pony}${back}${face}${fringe}
-      <g class="gaze"><g class="thinking-gaze">${eyes}</g></g>
-      <g class="glasses">${glasses}</g><g class="brand-marks">${dashes}</g>
-    </g></g></g></g></g></svg>`;
+/** The gold half of the Raytone mark: rows of a circle, each starting where navy would end. */
+function halo(): string {
+  const ys = [14, 23, 32, 41, 50, 59, 68, 77, 86];
+  const splits = [.62, .56, .66, .58, .64, .56, .66, .6, .64];
+  return ys.map((y, i) => {
+    const half = Math.sqrt(46 ** 2 - (y - 52) ** 2);
+    const start = 50 - half + 2 * half * splits[i] + 2;
+    return `<line class="ray" style="--i:${i}" x1="${start.toFixed(1)}" y1="${y}" x2="${(50 + half).toFixed(1)}" y2="${y}" stroke="${gold}" stroke-width="4.4" stroke-linecap="round"/>`;
+  }).join('');
+}
+
+function face(wide: boolean): string {
+  const ears = wide ? `<ellipse cx="19.5" cy="59" rx="4" ry="5.5" fill="${skin}"/><ellipse cx="80.5" cy="59" rx="4" ry="5.5" fill="${skin}"/>` : '';
+  const cheek = wide ? 32 : 34;
+  return `${ears}<ellipse cx="50" cy="57" rx="${wide ? 30 : 27}" ry="28" fill="${skin}"/>
+    <g fill="#F2C3A8" opacity=".5"><ellipse cx="${cheek}" cy="67" rx="4.2" ry="2.3"/><ellipse cx="${100 - cheek}" cy="67" rx="4.2" ry="2.3"/></g>`;
+}
+
+/** One shape per state; raytoneAvatar.css shows the right one. */
+function mouth(y: number): string {
+  return `<g transform="translate(50 ${y})"><g class="mouth">
+    <path class="m-smile" d="M-4 -1Q0 3 4 -1" stroke="${navy}" stroke-width="1.7" stroke-linecap="round"/>
+    <path class="m-flat" d="M-2.6 0H2.6" stroke="${navy}" stroke-width="1.7" stroke-linecap="round"/>
+    <ellipse class="m-o" rx="1.7" ry="2.1" fill="${navy}"/>
+    <path class="m-open" d="M-4.4 -1.4Q0 -1.9 4.4 -1.4Q3.6 5 0 5Q-3.6 5 -4.4 -1.4Z" fill="${navy}"/>
+    <path class="m-frown" d="M-3.4 1.6Q0 -1.6 3.4 1.6" stroke="${navy}" stroke-width="1.7" stroke-linecap="round"/>
+  </g></g>`;
+}
+
+const eyes = [41, 59].map(x => `<g transform="translate(${x} 58)"><g class="blink"><g class="expression">
+    <rect class="open-eye" x="-3.1" y="-6.75" width="6.2" height="13.5" rx="3.1" fill="${navy}"/>
+    <path class="happy-eye" d="M-6.2 1Q0-7.4 6.2 1" stroke="${navy}" stroke-width="4.6" stroke-linecap="round"/>
+  </g></g></g>`).join('');
+
+// The two men's hair and props are drawn narrow and widened with the face.
+const widen = 'matrix(1.1 0 0 1 -5 0)';
+
+const parts: Record<AvatarKind, { body: string; over: string }> = {
+  // Raer, the assistant and group PM: a soft bob, side-swept fringe, a gold single-ear headset.
+  woman: {
+    body: `<path d="M17 76C8 44 22 15 50 14C78 15 92 44 83 76C81 82 74 82 73 77V52H27V77C26 82 19 82 17 76Z" fill="${navy}"/>
+      ${face(false)}
+      <path d="M23 52C21 30 35 18 52 18C69 18 80 30 78 49C69 47 61 39 57 30C51 41 38 48 23 52Z" fill="${navy}"/>
+      <path d="M55 20C65 21 73 27 76 36C69 34 62 30 58 25Z" fill="${highlight}"/>
+      <path d="M21 44Q20 22 42 16" stroke="${gold}" stroke-width="2.2" stroke-linecap="round"/>
+      <rect x="17.5" y="51" width="8" height="12" rx="4" fill="${gold}"/>
+      <path d="M21.5 62Q23 72 33 73" stroke="${gold}" stroke-width="2" stroke-linecap="round"/>
+      <circle class="mic" cx="34" cy="73" r="2.2" fill="${gold}"/>`,
+    over: mouth(71),
+  },
+  // Tonny, the planner and reviewer: a neat side part, grey temples, square glasses, a pencil.
+  man: {
+    body: `${face(true)}<g transform="${widen}">
+      <path d="M22 52C19 28 33 14 51 14C70 14 82 28 79 52L75 47C74 39 70 34 63 31C53 35 39 35 29 41C26 44 25 48 25 52Z" fill="${navy}"/>
+      <path d="M40 18C50 15 62 16 70 22C62 23 52 24 44 27Z" fill="${highlight}"/>
+      <path d="M22.5 44V56M77.5 44V56" stroke="${grey}" stroke-width="4" stroke-linecap="round"/>
+      <path d="M75 42L88 27" stroke="${gold}" stroke-width="3.4" stroke-linecap="round"/>
+      <path d="M88 27L90 24.6" stroke="${navy}" stroke-width="3.4" stroke-linecap="round"/></g>`,
+    over: `<g stroke="${navy}" stroke-width="2"><rect x="31" y="50" width="19" height="16" rx="4"/><rect x="50" y="50" width="19" height="16" rx="4"/><path d="M31 54H20M69 54H80"/></g>
+      <g class="glint" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M36 63L42 52M55 63L61 52"/></g>
+      ${mouth(73)}`,
+  },
+  // Bob, the builder: spiky hair under a gold sweatband whose tails fly while he works.
+  boy: {
+    body: `${face(true)}<g transform="${widen}">
+      <path d="M21 56C15 30 30 11 52 11C74 11 86 30 80 56L75 48L71 39L64 43L58 35L50 41L42 34L34 42L27 42Z" fill="${navy}"/>
+      <path d="M36 17L39 5L46 13L54 2L58 12L67 6L66 17Z" fill="${navy}"/>
+      <path d="M52 11C66 12 76 20 80 30L72 27L66 30L60 22Z" fill="${highlight}"/>
+      <path d="M23 43Q50 31 78 43L78.5 49Q50 38 22.5 49Z" fill="${gold}"/>
+      <path d="M33 41.5H43M48 39.5H56" stroke="${navy}" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+      <g class="tails"><path d="M23 45L11 40L14 47Z M23 47L12 52L17 55Z" fill="${gold}"/></g></g>`,
+    over: mouth(72),
+  },
+};
+
+/**
+ * `compact` is for small faces (sidebar, transcript, header): the view box crops the margin
+ * and the halo draws in closer, so the face fills about as much of its box as the user's own
+ * round avatar does. The large welcome face keeps the full composition.
+ */
+export function avatarSVG(kind: AvatarKind, compact = false): string {
+  const { body, over } = parts[kind];
+  const haloScale = compact ? 'translate(200 200) scale(3.36) translate(-50 -50)' : 'scale(4)';
+  return `<svg viewBox="${compact ? '40 24 320 320' : '0 0 400 400'}" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
+    <g class="halo" transform="${haloScale}">${halo()}</g>
+    <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group">
+      <g transform="scale(4)">${body}</g>
+      <g class="gaze"><g class="thinking-gaze"><g transform="scale(4)">${eyes}</g></g></g>
+      <g transform="scale(4)">${over}</g>
+    </g></g></g></g></svg>`;
 }

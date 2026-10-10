@@ -4,12 +4,9 @@
   flex: none;
   line-height: 0;
   border-radius: 999px;
-  /* A cool plate under a warm face: the cream skin would otherwise dissolve into white UI.
-     The hairline ring keeps the edge on tinted surfaces (sidebar, hover rows). */
-  background: #e6ecf6;
-  box-shadow: inset 0 0 0 1px rgb(12 36 88 / 0.1);
-  overflow: hidden;
+  /* No plate on light surfaces: the navy hair and the gold halo carry the edge themselves. */
 }
+/* On dark surfaces the navy hair would vanish, so the face sits on a plate. */
 .preview-frame[data-appearance="dark"] .raytone-avatar {
   background: #23304b;
   box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
@@ -22,11 +19,7 @@
   background: transparent;
   box-shadow: none;
 }
-/* The large face stands free: a hairline contour from its own silhouette, and a soft shadow
-   below so it reads as lifted off the page rather than printed on it. */
-.raytone-avatar[data-interactive="true"] svg {
-  filter: drop-shadow(0 0 1px rgb(12 36 88 / 0.5)) drop-shadow(0 5px 9px rgb(12 36 88 / 0.14));
-}
+/* The large face stands free on light surfaces; on dark ones a shadow lifts it off the page. */
 .preview-frame[data-appearance="dark"] .raytone-avatar[data-interactive="true"] svg {
   filter: drop-shadow(0 6px 12px rgb(0 0 0 / 0.35));
 }
@@ -62,76 +55,117 @@
 }
 /* Eyes jump, the head catches up: the head's transition is the slower one. */
 .raytone-avatar .gaze { transition: transform 140ms cubic-bezier(.2, .8, .2, 1); }
-.raytone-avatar .follow-group { transition: transform 420ms cubic-bezier(.2, .8, .2, 1); }
-.raytone-avatar .action-group,
-.raytone-avatar .thinking-gaze { transition: transform 240ms cubic-bezier(.2, .8, .2, 1); }
+.raytone-avatar .follow-group { transition: transform 520ms cubic-bezier(.45, 0, .25, 1); }
+/* .action-group and .thinking-gaze change pose only with the state; avatarMotion.ts eases
+   those changes (from mid-loop too), so they carry no CSS transition of their own. */
 .raytone-avatar .blink,
 .raytone-avatar .expression { transform-origin: 0 0; }
 .raytone-avatar .expression { transition: transform 200ms cubic-bezier(.2, .8, .2, 1); }
 .raytone-avatar .happy-eye { opacity: 0; }
 .raytone-avatar .open-eye,
 .raytone-avatar .happy-eye { transition: opacity 120ms ease; }
-.raytone-avatar .signal { transition: opacity 200ms ease; }
+.raytone-avatar .ray,
+.raytone-avatar .mouth,
+.raytone-avatar .glint,
+.raytone-avatar .tails { transform-box: fill-box; transform-origin: 50% 50%; }
+.raytone-avatar .ray { transition: stroke 200ms ease, opacity 200ms ease; }
+.raytone-avatar .tails { transform-origin: 100% 50%; }
+.raytone-avatar .glint { opacity: 0; }
+
+/* Mouth: a smile at rest; each state below picks its own shape. */
+.raytone-avatar .mouth > * { opacity: 0; transition: opacity 120ms ease; }
+.raytone-avatar .mouth { transition: transform 200ms cubic-bezier(.2, .8, .2, 1); }
+.raytone-avatar .m-smile { opacity: 1; }
+.raytone-avatar:is([data-state="listening"], [data-state="thinking"], [data-state="writing"], [data-state="asking"], [data-state="success"], [data-state="error"]) .m-smile { opacity: 0; }
+
+/* Idle: the halo's rays drift a little, out of step, like light. */
+.raytone-avatar[data-state="idle"] .ray { animation: raytone-drift 6s ease-in-out infinite; animation-delay: calc(var(--i) * -0.45s); }
+.raytone-avatar[data-state="idle"] .tails { animation: raytone-flutter 3s ease-in-out infinite; }
 
 /* Listening: leans in toward what the user is typing, eyes a little rounder. */
-.raytone-avatar[data-state="listening"] .action-group { transform: translateY(4px) rotate(-4.5deg); }
+.raytone-avatar[data-state="listening"] .action-group { transform: translateY(6px) rotate(-7deg); }
 .raytone-avatar[data-state="listening"] .expression { transform: scale(1.08); }
+.raytone-avatar[data-state="listening"] .m-o { opacity: 1; }
+.raytone-avatar[data-state="listening"] .mouth { transform: scale(.8); }
+.raytone-avatar[data-state="listening"] .mic { animation: raytone-mic 1s ease-in-out infinite; }
 
 /* Thinking: looks up and away, holding each side like turning a thought over. */
-.raytone-avatar[data-state="thinking"] .action-group { animation: raytone-ponder 3.2s cubic-bezier(.45, 0, .25, 1) infinite; }
-.raytone-avatar[data-state="thinking"] .thinking-gaze { animation: raytone-look-up 3.2s cubic-bezier(.45, 0, .25, 1) infinite; }
-.raytone-avatar[data-state="thinking"] .signal { animation: raytone-signal 1.6s ease-in-out infinite; }
+.raytone-avatar[data-state="thinking"] .action-group { transform: rotate(-10deg) translateY(-8px); animation: raytone-ponder 3.2s cubic-bezier(.45, 0, .25, 1) infinite; }
+.raytone-avatar[data-state="thinking"] .thinking-gaze { transform: translate(-20px, -11px); animation: raytone-look-up 3.2s cubic-bezier(.45, 0, .25, 1) infinite; }
+.raytone-avatar[data-state="thinking"] .ray { animation: raytone-wave 1.6s cubic-bezier(.45, 0, .25, 1) infinite; animation-delay: calc(var(--i) * 0.09s); }
+.raytone-avatar[data-state="thinking"] .m-flat { opacity: 1; }
+.raytone-avatar[data-state="thinking"] .mouth { animation: raytone-mull 3.2s cubic-bezier(.45, 0, .25, 1) infinite; }
+.raytone-avatar:is([data-state="thinking"], [data-state="reading"]) .glint { animation: raytone-glint 2.2s ease-in-out infinite; }
+/* Tonny thinks things through: the same ponder, slower. */
+.raytone-avatar[data-kind="man"][data-state="thinking"] :is(.action-group, .thinking-gaze, .mouth) { animation-duration: 4.4s; }
+.raytone-avatar[data-kind="man"][data-state="thinking"] .ray { animation-duration: 2.4s; }
 
 /* Working (a tool runs): narrowed, focused eyes scanning side to side. */
 .raytone-avatar[data-state="working"] .action-group { transform: translateY(9px); }
 .raytone-avatar[data-state="working"] .expression { transform: scale(1.05, 0.5); }
-.raytone-avatar[data-state="working"] .thinking-gaze { animation: raytone-scan 1.8s cubic-bezier(.65, 0, .35, 1) infinite; }
-.raytone-avatar[data-state="working"] .signal { animation: raytone-signal 0.8s ease-in-out infinite; }
+.raytone-avatar[data-state="working"] .thinking-gaze { transform: translate(-22px, 3px); animation: raytone-scan 1.8s cubic-bezier(.65, 0, .35, 1) infinite; }
+.raytone-avatar[data-state="working"] .ray { animation: raytone-sweep 0.9s ease-in-out infinite; animation-delay: calc(var(--i) * 0.08s); }
+.raytone-avatar[data-state="working"] .mouth { transform: scale(.7, .6); }
+.raytone-avatar:is([data-state="working"], [data-state="editing"], [data-state="writing"]) .tails { animation: raytone-flutter .45s ease-in-out infinite; }
+/* Bob builds: the head bobs like a hammer instead of holding still. */
+.raytone-avatar[data-kind="boy"][data-state="working"] .action-group { transform: translateY(8px); animation: raytone-hammer .5s cubic-bezier(.2, .8, .2, 1) infinite; }
 
 /* Reading (a file, a search): eyes run down the page line by line. */
-.raytone-avatar[data-state="reading"] .action-group { transform: translateY(6px) rotate(-4.5deg); }
-.raytone-avatar[data-state="reading"] .thinking-gaze { animation: raytone-read 2.4s linear infinite; }
-.raytone-avatar[data-state="reading"] .signal { animation: raytone-signal 1.2s ease-in-out infinite; }
+.raytone-avatar[data-state="reading"] .action-group { transform: translateY(8px) rotate(-7deg); }
+.raytone-avatar[data-state="reading"] .thinking-gaze { transform: translate(-21px, -8px); animation: raytone-read 2.4s linear infinite; }
+.raytone-avatar[data-state="reading"] .ray { animation: raytone-readline 2.4s steps(1) infinite; animation-delay: calc(var(--i) * 0.24s - 2.4s); }
 
 /* Editing a file: head down over the work, eyes stepping along like a caret, a small
    bob for each keystroke burst; the brand marks blink like a cursor. */
-.raytone-avatar[data-state="editing"] .action-group { animation: raytone-type 0.9s cubic-bezier(.2, .8, .2, 1) infinite; }
+.raytone-avatar[data-state="editing"] .action-group { transform: translateY(12px) rotate(-7deg); animation: raytone-type 0.9s cubic-bezier(.2, .8, .2, 1) infinite; }
 .raytone-avatar[data-state="editing"] .expression { transform: scale(1.02, 0.77); }
-.raytone-avatar[data-state="editing"] .thinking-gaze { animation: raytone-caret 2.7s steps(1, end) infinite; }
-.raytone-avatar[data-state="editing"] .signal { animation: raytone-signal 1s steps(2, jump-none) infinite; }
+.raytone-avatar[data-state="editing"] .thinking-gaze { transform: translate(-19px, 10px); animation: raytone-caret 2.7s steps(1, end) infinite; }
+.raytone-avatar[data-state="editing"] .ray { animation: raytone-signal 1s steps(2, jump-none) infinite; }
+.raytone-avatar[data-state="editing"] .mouth { transform: scale(.7, .6); }
 
 /* Writing the answer: eyes on the user, an easy nod as it talks. */
 .raytone-avatar[data-state="writing"] .thinking-gaze { transform: translate(0px, 4px); }
 .raytone-avatar[data-state="writing"] .expression { transform: scale(1, 0.9); }
 .raytone-avatar[data-state="writing"] .action-group { animation: raytone-talk 1.4s cubic-bezier(.45, 0, .25, 1) infinite; }
-.raytone-avatar[data-state="writing"] .signal { animation: raytone-signal 1.6s ease-in-out infinite; }
+.raytone-avatar[data-state="writing"] .ray { animation: raytone-signal 1.4s ease-in-out infinite; animation-delay: calc(var(--i) * 0.1s); }
+.raytone-avatar[data-state="writing"] .m-open { opacity: 1; }
+.raytone-avatar[data-state="writing"] .mouth { animation: raytone-speak .9s ease-in-out infinite; }
+.raytone-avatar[data-state="writing"] .mic { animation: raytone-mic 1s ease-in-out infinite; }
 
 /* Asking (approval or a question): head tilted, wide eyes on the user. */
-.raytone-avatar[data-state="asking"] .action-group { animation: raytone-curious 2.6s cubic-bezier(.45, 0, .25, 1) infinite; }
+.raytone-avatar[data-state="asking"] .action-group { transform: rotate(-15deg); animation: raytone-curious 2.6s cubic-bezier(.45, 0, .25, 1) infinite; }
 .raytone-avatar[data-state="asking"] .thinking-gaze { transform: translate(0px, 8px); }
 .raytone-avatar[data-state="asking"] .expression { transform: scale(1.17); }
-.raytone-avatar[data-state="asking"] .signal { animation: raytone-signal 0.9s steps(2, jump-none) infinite; }
+.raytone-avatar[data-state="asking"] .ray { animation: raytone-signal 0.9s steps(2, jump-none) infinite; }
+.raytone-avatar[data-state="asking"] .m-o { opacity: 1; }
 
-.raytone-avatar[data-state="success"] .action-group { transform: translateY(-8px) rotate(-6deg); }
+.raytone-avatar[data-state="success"] .action-group { transform: translateY(-10px) rotate(-9deg); }
 .raytone-avatar[data-state="success"] .open-eye { opacity: 0; }
 .raytone-avatar[data-state="success"] .happy-eye { opacity: 1; }
+.raytone-avatar[data-state="success"] .m-open { opacity: 1; }
+.raytone-avatar[data-state="success"] .mouth { transform: scale(1.2); }
+.raytone-avatar[data-state="success"] .ray { animation: raytone-burst .7s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i) * 0.03s); }
 
 /* Error: the shake is a gesture; afterwards the head droops and the eyes drop. */
-.raytone-avatar[data-state="error"] .action-group { transform: translateY(10px) rotate(7.5deg); }
+.raytone-avatar[data-state="error"] .action-group { transform: translateY(12px) rotate(10deg); }
 .raytone-avatar[data-state="error"] .thinking-gaze { transform: translate(-4px, 9px); }
 .raytone-avatar[data-state="error"] .expression { transform: scale(1.05, 0.65); }
-.raytone-avatar[data-state="error"] .signal { opacity: 0.3; }
+.raytone-avatar[data-state="error"] .ray { stroke: #b9c2d0; }
+.raytone-avatar[data-state="error"] .m-frown { opacity: 1; }
 
-.raytone-avatar[data-state="sleep"] .action-group { transform: translateY(9px) rotate(8deg); }
+.raytone-avatar[data-state="sleep"] .action-group { transform: translateY(10px) rotate(11deg); }
 .raytone-avatar[data-state="sleep"] .expression { transform: scale(1.1, 0.12); }
+/* Loops start once the pose has settled, from that same pose. */
+.raytone-avatar[data-state] :is(.action-group, .thinking-gaze) { animation-delay: 420ms; }
+
 .raytone-avatar[data-dragging="true"] .gaze,
 .raytone-avatar[data-dragging="true"] .follow-group { transition: none; }
 .raytone-avatar[data-hidden="true"] * { animation-play-state: paused !important; }
 
 @keyframes raytone-ponder {
-  0%, 40% { transform: rotate(-6deg) translateY(-6px); }
-  50%, 90% { transform: rotate(6deg) translateY(-6px); }
-  100% { transform: rotate(-6deg) translateY(-6px); }
+  0%, 40% { transform: rotate(-10deg) translateY(-8px); }
+  50%, 90% { transform: rotate(10deg) translateY(-8px); }
+  100% { transform: rotate(-10deg) translateY(-8px); }
 }
 @keyframes raytone-look-up {
   0%, 40% { transform: translate(-20px, -11px); }
@@ -162,21 +196,33 @@
   90% { transform: translate(10px, 10px); }
 }
 @keyframes raytone-type {
-  0%, 100% { transform: translateY(12px) rotate(-4.5deg); }
-  30% { transform: translateY(21px) rotate(-4.5deg); }
-  55% { transform: translateY(12px) rotate(-4.5deg); }
+  0%, 100% { transform: translateY(12px) rotate(-7deg); }
+  30% { transform: translateY(24px) rotate(-7deg); }
+  55% { transform: translateY(12px) rotate(-7deg); }
 }
 @keyframes raytone-talk {
   0%, 100% { transform: translateY(0) rotate(0deg); }
-  25% { transform: translateY(9px) rotate(-4deg); }
+  25% { transform: translateY(12px) rotate(-7deg); }
   50% { transform: translateY(0) rotate(0deg); }
-  75% { transform: translateY(6px) rotate(4deg); }
+  75% { transform: translateY(9px) rotate(7deg); }
 }
 @keyframes raytone-curious {
-  0%, 100% { transform: rotate(-12deg); }
-  50% { transform: rotate(-7.5deg) translateY(-3px); }
+  0%, 100% { transform: rotate(-15deg); }
+  50% { transform: rotate(-9deg) translateY(-5px); }
 }
 @keyframes raytone-signal { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
+/* Ray, mouth and prop keyframes are in the 100-unit drawing space (raytoneAvatars.ts). */
+@keyframes raytone-drift { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(1.4px); } }
+@keyframes raytone-wave { 0%, 100% { transform: translateX(0); } 35% { transform: translateX(-4px); } 70% { transform: translateX(3px); } }
+@keyframes raytone-readline { 0% { opacity: 1; } 10%, 100% { opacity: .35; } }
+@keyframes raytone-sweep { 0%, 100% { opacity: .25; transform: translateX(-2px); } 40% { opacity: 1; transform: translateX(2px); } }
+@keyframes raytone-burst { 0%, 100% { transform: scaleX(1); } 40% { transform: scaleX(1.18); } }
+@keyframes raytone-mull { 0%, 40%, 100% { transform: translateX(-1.5px); } 50%, 90% { transform: translateX(1.5px); } }
+@keyframes raytone-speak { 0%, 100% { transform: scaleY(.35); } 20% { transform: scaleY(.9); } 45% { transform: scaleY(.5); } 70% { transform: scaleY(1); } }
+@keyframes raytone-mic { 0%, 100% { fill: #E7AC26; } 50% { fill: #FFD772; } }
+@keyframes raytone-glint { 0%, 55% { opacity: 0; transform: translateX(-6px); } 65% { opacity: .9; } 80%, 100% { opacity: 0; transform: translateX(7px); } }
+@keyframes raytone-flutter { 0%, 100% { transform: rotate(4deg); } 50% { transform: rotate(-9deg); } }
+@keyframes raytone-hammer { 0%, 100% { transform: translateY(8px); } 35% { transform: translateY(-11px); } 60% { transform: translateY(15px) scaleY(.98); } }
 
 @media (prefers-reduced-motion: reduce) {
   .raytone-avatar * { animation: none !important; transition: none !important; }

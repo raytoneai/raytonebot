@@ -39,6 +39,9 @@ const clamp = (n: number, limit: number) => Math.max(-limit, Math.min(limit, n))
 const between = (min: number, max: number) => min + Math.random() * (max - min);
 const spring = { type: "spring", duration: 0.5, bounce: 0.2 } as const;
 const settle = "cubic-bezier(.2,.8,.2,1)";
+/** Pose changes between states: slow in and out, the same 420ms the CSS loops wait for. */
+const poseEase = "cubic-bezier(.45,0,.25,1)";
+const POSE_MS = 420;
 
 /** A short gesture as the activity changes; the pose itself is CSS on `.action-group`. */
 function gestureFor(previous: AvatarState, next: AvatarState): { frames: Keyframe[]; duration: number } | undefined {
@@ -46,41 +49,41 @@ function gestureFor(previous: AvatarState, next: AvatarState): { frames: Keyfram
     // Sent: a small nod, "got it".
     return { duration: 380, frames: [
       { transform: "translateY(0px)" },
-      { transform: "translateY(14px) scale(1.01, 0.98)", offset: 0.45 },
+      { transform: "translateY(18.9px) scale(1.01, 0.98)", offset: 0.45 },
       { transform: "translateY(0px)" },
     ] };
   }
   if (next === "asking") {
     return { duration: 340, frames: [
       { transform: "scale(1)" },
-      { transform: "translateY(-9px) scale(1.08)", offset: 0.4 },
+      { transform: "translateY(-12.2px) scale(1.08)", offset: 0.4 },
       { transform: "scale(1)" },
     ] };
   }
   if (next === "success") {
     return { duration: 640, frames: [
       { transform: "translateY(0px) scale(1, 1)" },
-      { transform: "translateY(6px) scale(1.05, 0.93)", offset: 0.14 },
-      { transform: "translateY(-27px) scale(0.97, 1.04)", offset: 0.4 },
+      { transform: "translateY(8.1px) scale(1.05, 0.93)", offset: 0.14 },
+      { transform: "translateY(-32px) scale(0.97, 1.04)", offset: 0.4 },
       { transform: "translateY(0px) scale(1.04, 0.96)", offset: 0.66 },
-      { transform: "translateY(-6px) scale(1, 1)", offset: 0.82 },
+      { transform: "translateY(-8.1px) scale(1, 1)", offset: 0.82 },
       { transform: "translateY(0px) scale(1, 1)" },
     ] };
   }
   if (next === "error") {
     return { duration: 560, frames: [
       { transform: "translateX(0px) rotate(0deg)" },
-      { transform: "translateX(-14px) rotate(-3deg)", offset: 0.18 },
-      { transform: "translateX(12px) rotate(3deg)", offset: 0.4 },
-      { transform: "translateX(-8px) rotate(-1.5deg)", offset: 0.62 },
-      { transform: "translateX(4px) rotate(0deg)", offset: 0.82 },
+      { transform: "translateX(-18.9px) rotate(-4.1deg)", offset: 0.18 },
+      { transform: "translateX(16.2px) rotate(4.1deg)", offset: 0.4 },
+      { transform: "translateX(-10.8px) rotate(-2deg)", offset: 0.62 },
+      { transform: "translateX(5.4px) rotate(0deg)", offset: 0.82 },
       { transform: "translateX(0px) rotate(0deg)" },
     ] };
   }
   if (next === "listening" && previous === "idle") {
     return { duration: 300, frames: [
       { transform: "translateY(0px)" },
-      { transform: "translateY(-8px)", offset: 0.45 },
+      { transform: "translateY(-10.8px)", offset: 0.45 },
       { transform: "translateY(0px)" },
     ] };
   }
@@ -94,17 +97,14 @@ function gestureFor(previous: AvatarState, next: AvatarState): { frames: Keyfram
  */
 const HABITS: Record<AvatarKind, { frames: Keyframe[]; duration: number; gaze?: [number, number, number] }> = {
   woman: { duration: 900, frames: [
-    { transform: "rotate(0deg)" }, { transform: "rotate(-5deg)", offset: 0.35 }, { transform: "rotate(2deg)", offset: 0.7 }, { transform: "rotate(0deg)" },
+    { transform: "rotate(0deg)" }, { transform: "rotate(-6.8deg)", offset: 0.35 }, { transform: "rotate(2.7deg)", offset: 0.7 }, { transform: "rotate(0deg)" },
   ] },
   man: { duration: 1600, gaze: [-15, -8, -3], frames: [
-    { transform: "translateY(0px)" }, { transform: "translateY(-3px)", offset: 0.3 }, { transform: "translateY(-3px)", offset: 0.75 }, { transform: "translateY(0px)" },
+    { transform: "translateY(0px)" }, { transform: "translateY(-4.1px)", offset: 0.3 }, { transform: "translateY(-4.1px)", offset: 0.75 }, { transform: "translateY(0px)" },
   ] },
   boy: { duration: 520, frames: [
-    { transform: "translateY(0px) scale(1, 1)" }, { transform: "translateY(3px) scale(1.03, 0.97)", offset: 0.2 },
-    { transform: "translateY(-9px) scale(0.99, 1.02)", offset: 0.5 }, { transform: "translateY(0px) scale(1, 1)" },
-  ] },
-  elder: { duration: 1100, frames: [
-    { transform: "translateY(0px)" }, { transform: "translateY(6px)", offset: 0.4 }, { transform: "translateY(0px)" },
+    { transform: "translateY(0px) scale(1, 1)" }, { transform: "translateY(4.1px) scale(1.03, 0.97)", offset: 0.2 },
+    { transform: "translateY(-12.2px) scale(0.99, 1.02)", offset: 0.5 }, { transform: "translateY(0px) scale(1, 1)" },
   ] },
 };
 
@@ -116,6 +116,8 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
   const head = root.querySelector<SVGGElement>(".drag-group");
   const follow = root.querySelector<SVGGElement>(".follow-group");
   const gesture = root.querySelector<SVGGElement>(".gesture-group");
+  /** Layers whose pose or loop changes with the state; see `settlePose`. */
+  const posed = [...root.querySelectorAll<SVGGElement>(".action-group, .thinking-gaze")];
   const gaze = root.querySelector<SVGGElement>(".gaze");
   const lids = [...root.querySelectorAll<SVGGElement>(".blink")];
   let state: AvatarState = "idle";
@@ -138,9 +140,9 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     clearTimeout(resetTimer);
     clearTimeout(habitTimer);
   };
-  const look = (x: number, y: number, turn = x / 3.5) => {
+  const look = (x: number, y: number, turn = x / 2.6) => {
     if (gaze) gaze.style.transform = `translate(${x}px, ${y}px)`;
-    if (follow) follow.style.transform = `translate(${x / 3}px, ${y / 4}px) rotate(${turn}deg)`;
+    if (follow) follow.style.transform = `translate(${x / 2.4}px, ${y / 3}px) rotate(${turn}deg)`;
   };
   const centerGaze = () => look(0, 0, 0);
   const blink = () => {
@@ -174,12 +176,12 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     glanceTimer = setTimeout(() => {
       const pointerDriven = options.interactive && performance.now() - pointerAt < 1400;
       if (!drag && !pointerDriven && (state === "idle" || state === "listening")) {
-        if (listening) look(between(-17, 17), between(6, 11), between(-3, 3));
+        if (listening) look(between(-17, 17), between(6, 11), between(-4.5, 4.5));
         else if (Math.random() < 0.3) centerGaze();
         else {
           const x = between(-22, 22), y = between(-9, 8);
           // Occasionally a curious head tilt that the eyes do not explain.
-          look(x, y, Math.random() < 0.12 ? (x < 0 ? -8 : 8) : x / 3.5);
+          look(x, y, Math.random() < 0.12 ? (x < 0 ? -11 : 11) : x / 2.6);
         }
         if (Math.random() < 0.22) setTimeout(() => { if (!still()) blink(); }, 40);
       }
@@ -201,6 +203,21 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
       }
       queueHabit();
     }, between(9000, 17000));
+  };
+  /**
+   * A state change would cut from wherever the old pose or loop was to the new state's first
+   * frame. Instead, read each layer's on-screen transform before the switch and ease from it to
+   * the new pose; the new state's CSS loop waits the same POSE_MS and starts from that pose.
+   */
+  const settlePose = (apply: () => void) => {
+    if (still() || !posed[0]?.animate) return apply();
+    const from = posed.map((layer) => getComputedStyle(layer).transform);
+    for (const layer of posed) for (const running of layer.getAnimations()) if (!("animationName" in running)) running.cancel();
+    apply();
+    posed.forEach((layer, index) => {
+      const to = getComputedStyle(layer).transform;
+      if (from[index] !== to) layer.animate([{ transform: from[index] }, { transform: to }], { duration: POSE_MS, easing: poseEase });
+    });
   };
   const playGesture = (previous: AvatarState, next: AvatarState) => {
     if (!gesture || still() || !gesture.animate) return;
@@ -226,7 +243,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     stopTimers();
     endDrag(true);
     state = next;
-    root.dataset.state = next;
+    settlePose(() => { root.dataset.state = next; });
     if (next === "listening") look(0, 8, 0);
     else centerGaze();
     if (previous !== next) playGesture(previous, next);

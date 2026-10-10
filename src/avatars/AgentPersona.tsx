@@ -51,7 +51,7 @@ export function AgentAvatar({
   const rootRef = useRef<HTMLSpanElement>(null);
   const motionRef = useRef<AvatarMotion | undefined>(undefined);
   const kind = kindOverride ?? persona?.kind;
-  const markup = useMemo(() => (kind ? avatarSVG(kind) : ""), [kind]);
+  const markup = useMemo(() => (kind ? avatarSVG(kind, !interactive) : ""), [kind, interactive]);
   const animated = Boolean(persona && live);
 
   useEffect(() => {
@@ -75,6 +75,7 @@ export function AgentAvatar({
     <span
       ref={rootRef}
       className="raytone-avatar"
+      data-kind={kind}
       data-state={animated ? undefined : "idle"}
       data-interactive={interactive ? "true" : undefined}
       style={{ width: size, height: size }}

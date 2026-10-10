@@ -1,0 +1,211 @@
+<!doctype html>
+<html lang="zh-CN"><head><meta charset="utf-8"><title>Raytone 头像方案 v3</title>
+<style>
+:root{--navy:#0C2458;--gold:#E7AC26;--ease:cubic-bezier(.2,.8,.2,1)}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.5 "Inter","PingFang SC",sans-serif;color:var(--navy);background:#dfe5ee;padding:24px}
+.bar{display:flex;gap:6px;flex-wrap:wrap;align-items:center;margin-bottom:16px}
+.bar b{margin-right:8px}
+.bar button{border:1px solid #c9d2e0;background:#fff;border-radius:999px;padding:4px 12px;font:inherit;color:inherit;cursor:pointer}
+.bar button[aria-pressed=true]{background:var(--navy);color:#fff;border-color:var(--navy)}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px}
+.card{border-radius:16px;overflow:hidden;background:#fff;box-shadow:0 1px 0 rgb(12 36 88/.06)}
+.card h3{margin:0;padding:12px 16px 2px;font-size:15px}
+.card p{margin:0;padding:0 16px 10px;color:#5b6b86;font-size:12px;min-height:54px}
+.stage{height:210px;display:flex;align-items:center;justify-content:center;gap:12px;
+  background:radial-gradient(60% 80% at 15% 0%,#e4f6ee 0,transparent 70%),radial-gradient(60% 90% at 100% 0%,#dbe8fb 0,transparent 70%),#fff}
+.stage .hl{font-size:22px;font-weight:700;letter-spacing:-.01em}
+.side{background:#f3f5f9;padding:8px}
+.row{display:flex;align-items:center;gap:10px;padding:6px 8px;border-radius:10px}
+.row.on{background:#fff;box-shadow:0 0 0 1px #e3e8f0}
+.row small{display:block;color:#7a879c;font-size:11px;line-height:1.2}
+.row .t{font-weight:600;font-size:13px;line-height:1.2}
+.hist{display:flex;gap:8px;padding:4px 8px;font-size:12px;color:#33415c;align-items:center}
+.av{display:inline-block;flex:none;line-height:0}
+.av svg{width:100%;height:100%;display:block;overflow:visible}
+/* ---------- shared motion ---------- */
+.av .head,.av .eyes,.av .eye,.av .st{transform-box:fill-box}
+.av .head{transform-origin:50% 60%;transition:transform 240ms var(--ease)}
+.av .eyes{transform-origin:50% 50%;transition:transform 200ms var(--ease)}
+.av .eye{transform-origin:50% 50%;animation:blink 4.6s infinite}
+.av .eye.r{animation-delay:.04s}
+.av .happy{opacity:0;transition:opacity 120ms}
+.av .st{transform-origin:50% 50%;transition:transform 240ms var(--ease),stroke 200ms}
+@keyframes blink{0%,93%,100%{transform:scaleY(1)}95.5%{transform:scaleY(.1)}}
+/* idle: rays drift slowly */
+[data-state=idle] .st{animation:drift 6s ease-in-out infinite;animation-delay:calc(var(--i)*-.45s)}
+@keyframes drift{0%,100%{transform:translateX(0)}50%{transform:translateX(1.4px)}}
+/* listening: lean in, eyes rounder */
+[data-state=listening] .head{transform:translateY(1.5px) rotate(-4deg)}
+[data-state=listening] .eyes{transform:scale(1.1)}
+/* thinking: a light wave runs through the rays, eyes look up and wander */
+[data-state=thinking] .st{animation:wave 1.6s cubic-bezier(.45,0,.25,1) infinite;animation-delay:calc(var(--i)*.09s)}
+[data-state=thinking] .eyes{animation:ponder 3.2s cubic-bezier(.45,0,.25,1) infinite}
+@keyframes wave{0%,100%{transform:translateX(0)}35%{transform:translateX(-4px)}70%{transform:translateX(3px)}}
+@keyframes ponder{0%,40%,100%{transform:translate(-3px,-3px)}50%,90%{transform:translate(3px,-3px)}}
+/* reading: eyes go down the page, rays dim except current line */
+[data-state=reading] .eyes{animation:read 2.4s linear infinite}
+[data-state=reading] .st.g{animation:readline 2.4s steps(1) infinite;animation-delay:calc(var(--i)*.24s - 2.4s)}
+@keyframes read{0%{transform:translate(-3px,-2px)}30%{transform:translate(3px,-2px)}33%{transform:translate(-3px,0)}63%{transform:translate(3px,0)}66%{transform:translate(-3px,2px)}96%{transform:translate(3px,2px)}}
+@keyframes readline{0%{opacity:1}10%,100%{opacity:.35}}
+/* working: gold rays sweep like a scanner, focused eyes */
+[data-state=working] .eyes{transform:scale(1.05,.55)}
+[data-state=working] .st.g{animation:sweep .9s ease-in-out infinite;animation-delay:calc(var(--i)*.08s)}
+[data-state=working] .head{transform:translateY(2px)}
+@keyframes sweep{0%,100%{opacity:.25;transform:translateX(-2px)}40%{opacity:1;transform:translateX(2px)}}
+/* writing: easy nod, rays pulse softly with the text */
+[data-state=writing] .head{animation:talk 1.4s cubic-bezier(.45,0,.25,1) infinite}
+[data-state=writing] .eyes{transform:translateY(1px) scaleY(.9)}
+[data-state=writing] .st.g{animation:pulse 1.4s ease-in-out infinite;animation-delay:calc(var(--i)*.1s)}
+@keyframes talk{0%,50%,100%{transform:none}25%{transform:translateY(2px) rotate(-3deg)}75%{transform:translateY(1.5px) rotate(3deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.45}}
+/* asking: tilted head, wide eyes, gold rays call for attention */
+[data-state=asking] .head{transform:rotate(-9deg)}
+[data-state=asking] .eyes{transform:translateY(1px) scale(1.18)}
+[data-state=asking] .st.g{animation:call .9s steps(2,jump-none) infinite}
+@keyframes call{0%{opacity:1}100%{opacity:.4}}
+/* success: happy eyes, rays burst out once */
+[data-state=success] .open{opacity:0}
+[data-state=success] .happy{opacity:1}
+[data-state=success] .head{animation:hop .64s var(--ease)}
+[data-state=success] .st{animation:burst .7s var(--ease) both;animation-delay:calc(var(--i)*.03s)}
+@keyframes hop{0%,100%{transform:none}14%{transform:translateY(1.5px) scale(1.04,.94)}40%{transform:translateY(-6px)}70%{transform:translateY(0)}}
+@keyframes burst{0%{transform:scaleX(1)}40%{transform:scaleX(1.18)}100%{transform:scaleX(1)}}
+/* error: droop, gold fades to grey */
+[data-state=error] .head{transform:translateY(3px) rotate(7deg)}
+[data-state=error] .eyes{transform:translate(-1px,2px) scaleY(.6)}
+[data-state=error] .st.g{stroke:#b9c2d0}
+@media (prefers-reduced-motion:reduce){.av *{animation:none!important;transition:none!important}}
+/* mouth: smile by default, each state picks its own */
+.av .mouth>*{opacity:0;transition:opacity 120ms}
+.av .mouth{transform-box:fill-box;transform-origin:50% 50%;transition:transform 200ms var(--ease)}
+.av .m-smile,[data-state=working] .m-smile,[data-state=reading] .m-smile{opacity:1}
+[data-state=listening] .m-smile,[data-state=thinking] .m-smile,[data-state=writing] .m-smile,[data-state=asking] .m-smile,[data-state=success] .m-smile,[data-state=error] .m-smile{opacity:0}
+[data-state=listening] .m-o{opacity:1;transform:scale(.8)}
+[data-state=thinking] .m-flat{opacity:1}
+[data-state=thinking] .mouth{animation:mull 3.2s cubic-bezier(.45,0,.25,1) infinite}
+[data-state=working] .mouth{transform:scale(.7,.6)}
+[data-state=writing] .m-open{opacity:1}
+[data-state=writing] .mouth{animation:speak .9s ease-in-out infinite}
+[data-state=asking] .m-o{opacity:1}
+[data-state=success] .m-open{opacity:1}
+[data-state=success] .mouth{transform:scale(1.2)}
+[data-state=error] .m-frown{opacity:1}
+@keyframes mull{0%,40%,100%{transform:translateX(-1.5px)}50%,90%{transform:translateX(1.5px)}}
+@keyframes speak{0%,100%{transform:scaleY(.35)}20%{transform:scaleY(.9)}45%{transform:scaleY(.5)}70%{transform:scaleY(1)}}
+/* original art: hide the happy eyes like raytoneAvatar.css */
+.av .happy-eye{opacity:0}
+[data-state=success] .open-eye{opacity:0}[data-state=success] .happy-eye{opacity:1}
+/* A: current drawing on a ray halo */
+.A .cur{transform:translate(6px,8px) scale(.215)}
+
+.grid{grid-template-columns:1fr 1.35fr}
+.stage{height:250px;gap:28px;padding:0 20px}
+.trio{display:flex;gap:26px;align-items:flex-end}
+.trio figure{margin:0;display:flex;flex-direction:column;align-items:center;gap:6px}
+.trio figcaption{text-align:center;font-size:12px;line-height:1.3}
+.trio figcaption b{display:block;font-size:13px}
+.trio figcaption span{color:#6b7a93}
+/* Raer: the headset mic lights up while she listens and talks */
+.av .mic{transition:fill 200ms}
+[data-state=listening] .mic,[data-state=writing] .mic{animation:mic 1s ease-in-out infinite}
+@keyframes mic{0%,100%{fill:#E7AC26}50%{fill:#FFD772}}
+/* Tonny: deliberate; a glint crosses the lenses when he thinks or reviews */
+[data-bot=man][data-state=thinking] .head{animation:stroke-chin 4.4s cubic-bezier(.45,0,.25,1) infinite}
+[data-bot=man][data-state=thinking] .st{animation-duration:2.4s}
+@keyframes stroke-chin{0%,100%{transform:rotate(-3deg)}50%{transform:rotate(3deg) translateY(1px)}}
+.av .glint{opacity:0;transform-box:fill-box}
+[data-state=thinking] .glint,[data-state=reading] .glint{animation:glint 2.2s ease-in-out infinite}
+@keyframes glint{0%,55%{opacity:0;transform:translateX(-6px)}65%{opacity:.9}80%,100%{opacity:0;transform:translateX(7px)}}
+/* Bob: energetic; band tails flutter, head bobs like hammering while he builds */
+.av .tails{transform-box:fill-box;transform-origin:100% 50%}
+[data-state=idle] .tails{animation:flutter 3s ease-in-out infinite}
+[data-state=working] .tails,[data-state=editing] .tails,[data-state=writing] .tails{animation:flutter .45s ease-in-out infinite}
+[data-bot=boy][data-state=working] .head{animation:hammer .5s cubic-bezier(.2,.8,.2,1) infinite}
+@keyframes flutter{0%,100%{transform:rotate(4deg)}50%{transform:rotate(-9deg)}}
+@keyframes hammer{0%,100%{transform:translateY(2px)}35%{transform:translateY(-2px)}60%{transform:translateY(3px) scaleY(.98)}}
+[data-bot=boy][data-state=success] .head{animation:hop .5s var(--ease) 2}
+</style></head><body>
+<div class="bar" id="states"><b>状态</b></div>
+<div class="grid" id="grid"></div>
+<script>const navy='#0C2458',gold='#E7AC26';
+const cur={"woman":"<svg viewBox=\"0 0 400 400\" fill=\"none\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\">\n    <g class=\"drag-group\"><g class=\"follow-group\"><g class=\"action-group\"><g class=\"gesture-group\"><g transform=\"translate(0 -6) rotate(12 200 235) scale(.94)\">\n      <path d=\"M77 133C-5 126 15 44 67 35C107 28 124 57 103 87Z\" fill=\"#0C2458\"/><path d=\"M80 102L107 77\" stroke=\"#E7AC26\" stroke-width=\"15\" stroke-linecap=\"round\"/><path d=\"M48 359C9 324 21 201 41 149C69 67 142 37 224 54C333 67 380 178 354 300C347 346 319 374 288 371L307 288H79L94 367Q66 374 48 359Z\" fill=\"#0C2458\"/><ellipse cx=\"200\" cy=\"239\" rx=\"143\" ry=\"151\" fill=\"#FFF7E8\"/>\n    \n    <g fill=\"#EAC4A5\" opacity=\".48\"><ellipse cx=\"108\" cy=\"301\" rx=\"18\" ry=\"10\"/><ellipse cx=\"291\" cy=\"301\" rx=\"18\" ry=\"10\"/></g><path d=\"M47 234Q18 179 45 132L69 111L31 114Q12 110 20 94Q27 83 60 82L108 83L81 72L49 72Q28 64 42 48Q54 38 104 41C144 31 172 43 194 56C302 39 359 142 349 251L318 234L294 177Q215 188 143 116Q90 159 65 238Z\" fill=\"#0C2458\"/>\n      <path d=\"M178 56Q277 45 319 136Q273 168 226 123Z\" fill=\"#1B3971\"/>\n      <g class=\"gaze\"><g class=\"thinking-gaze\"><g transform=\"translate(140 248)\"><g class=\"blink\"><g class=\"expression\">\n    <rect class=\"open-eye\" x=\"-11\" y=\"-30\" width=\"22\" height=\"60\" rx=\"11\" fill=\"#0C2458\"/>\n    <path class=\"happy-eye\" d=\"M-17 4Q0-24 17 4\" fill=\"none\" stroke=\"#0C2458\" stroke-width=\"11\" stroke-linecap=\"round\"/>\n    </g></g></g><g transform=\"translate(265 248)\"><g class=\"blink\"><g class=\"expression\">\n    <rect class=\"open-eye\" x=\"-11\" y=\"-30\" width=\"22\" height=\"60\" rx=\"11\" fill=\"#0C2458\"/>\n    <path class=\"happy-eye\" d=\"M-17 4Q0-24 17 4\" fill=\"none\" stroke=\"#0C2458\" stroke-width=\"11\" stroke-linecap=\"round\"/>\n    </g></g></g></g></g>\n      <g class=\"glasses\"><g fill=\"none\" stroke=\"#E7AC26\" stroke-width=\"5\">\n      <ellipse cx=\"140\" cy=\"248\" rx=\"46\" ry=\"46\"/><ellipse cx=\"265\" cy=\"248\" rx=\"46\" ry=\"46\"/>\n      <path d=\"M186 243Q204 229 219 243M94 241L65 234M311 241L337 234\"/></g></g><g class=\"brand-marks\"><rect class=\"signal\" x=\"292\" y=\"150\" width=\"43\" height=\"10\" rx=\"5\" fill=\"#E7AC26\" style=\"animation-delay:0ms\"/><rect class=\"signal\" x=\"295\" y=\"167\" width=\"37\" height=\"10\" rx=\"5\" fill=\"#E7AC26\" style=\"animation-delay:160ms\"/><rect class=\"signal\" x=\"298\" y=\"184\" width=\"31\" height=\"10\" rx=\"5\" fill=\"#E7AC26\" style=\"animation-delay:320ms\"/></g>\n    </g></g></g></g></g></svg>","man":"<svg viewBox=\"0 0 400 400\" fill=\"none\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\">\n    <g class=\"drag-group\"><g class=\"follow-group\"><g class=\"action-group\"><g class=\"gesture-group\"><g transform=\"translate(0 -6) rotate(12 200 235) scale(.94)\">\n      <path d=\"M43 236C18 130 76 57 181 53C302 39 373 121 356 250L313 278H72Z\" fill=\"#0C2458\"/><ellipse cx=\"200\" cy=\"239\" rx=\"143\" ry=\"151\" fill=\"#FFF7E8\"/>\n    <ellipse cx=\"57\" cy=\"252\" rx=\"21\" ry=\"30\" fill=\"#FFF7E8\"/><ellipse cx=\"343\" cy=\"252\" rx=\"21\" ry=\"30\" fill=\"#FFF7E8\"/>\n    <g fill=\"#EAC4A5\" opacity=\".48\"><ellipse cx=\"108\" cy=\"301\" rx=\"18\" ry=\"10\"/><ellipse cx=\"291\" cy=\"301\" rx=\"18\" ry=\"10\"/></g><path d=\"M46 168L74 142L89 233L58 268Z M328 148L354 174L341 274L316 229Z\" fill=\"#91A2B5\"/>\n      <path d=\"M45 162Q33 134 50 115L74 99L40 96Q25 83 44 73L120 71L79 59Q65 45 85 41C150 29 178 41 192 53C291 34 338 99 340 163L306 141L296 120Q247 150 194 121Q144 88 111 129L72 163Z\" fill=\"#0C2458\"/>\n      <path d=\"M176 55Q258 43 305 102Q255 120 219 92Z\" fill=\"#1B3971\"/>\n      <g class=\"gaze\"><g class=\"thinking-gaze\"><g transform=\"translate(140 248)\"><g class=\"blink\"><g class=\"expression\">\n    <rect class=\"open-eye\" x=\"-11\" y=\"-30\" width=\"22\" height=\"60\" rx=\"11\" fill=\"#0C2458\"/>\n    <path class=\"happy-eye\" d=\"M-17 4Q0-24 17 4\" fill=\"none\" stroke=\"#0C2458\" stroke-width=\"11\" stroke-linecap=\"round\"/>\n    </g></g></g><g transform=\"translate(265 248)\"><g class=\"blink\"><g class=\"expression\">\n    <rect class=\"open-eye\" x=\"-11\" y=\"-30\" width=\"22\" height=\"60\" rx=\"11\" fill=\"#0C2458\"/>\n    <path class=\"happy-eye\" d=\"M-17 4Q0-24 17 4\" fill=\"none\" stroke=\"#0C2458\" stroke-width=\"11\" stroke-linecap=\"round\"/>\n    </g></g></g></g></g>\n      <g class=\"glasses\"><g fill=\"none\" stroke=\"#0C2458\" stroke-width=\"7\"><rect x=\"85\" y=\"203\" width=\"107\" height=\"90\" rx=\"22\"/><rect x=\"214\" y=\"203\" width=\"107\" height=\"90\" rx=\"22\"/><path d=\"M192 236Q204 231 214 236\"/></g>\n      <path d=\"M58 229H84M322 229H342\" stroke=\"#E7AC26\" stroke-width=\"10\" stroke-linecap=\"round\"/></g><g class=\"brand-marks\"><rect class=\"signal\" x=\"309\" y=\"218\" width=\"20\" height=\"7\" rx=\"5\" fill=\"#E7AC26\" style=\"animation-delay:0ms\"/><rect class=\"signal\" x=\"309\" y=\"230\" width=\"20\" height=\"7\" rx=\"5\" fill=\"#E7AC26\" style=\"animation-delay:160ms\"/><rect class=\"signal\" x=\"309\" y=\"242\" width=\"20\" height=\"7\" rx=\"5\" fill=\"#E7AC26\" style=\"animation-delay:320ms\"/></g>\n    </g></g></g></g></g></svg>","boy":"<svg viewBox=\"0 0 400 400\" fill=\"none\" aria-hidden=\"true\" xmlns=\"http://www.w3.org/2000/svg\">\n    <g class=\"drag-group\"><g class=\"follow-group\"><g class=\"action-group\"><g class=\"gesture-group\"><g transform=\"translate(0 -6) rotate(12 200 235) scale(.94)\">\n      <path d=\"M43 236C18 130 76 57 181 53C302 39 373 121 356 250L313 278H72Z\" fill=\"#0C2458\"/><ellipse cx=\"200\" cy=\"239\" rx=\"143\" ry=\"151\" fill=\"#FFF7E8\"/>\n    <ellipse cx=\"57\" cy=\"252\" rx=\"21\" ry=\"30\" fill=\"#FFF7E8\"/><ellipse cx=\"343\" cy=\"252\" rx=\"21\" ry=\"30\" fill=\"#FFF7E8\"/>\n    <g fill=\"#EAC4A5\" opacity=\".48\"><ellipse cx=\"108\" cy=\"301\" rx=\"18\" ry=\"10\"/><ellipse cx=\"291\" cy=\"301\" rx=\"18\" ry=\"10\"/></g><path d=\"M48 225L38 164Q35 143 56 129L77 110H39Q21 104 36 90L109 86L76 70Q59 59 76 48L156 55L132 31Q122 16 141 17C230 23 323 86 354 175L344 222L317 193L300 211L281 154Q208 178 139 125Q91 156 65 220Z\" fill=\"#0C2458\"/>\n      <path d=\"M155 55Q252 56 312 136Q269 159 228 121Z\" fill=\"#1B3971\"/>\n      <g class=\"gaze\"><g class=\"thinking-gaze\"><g transform=\"translate(140 248)\"><g class=\"blink\"><g class=\"expression\">\n    <rect class=\"open-eye\" x=\"-11\" y=\"-30\" width=\"22\" height=\"60\" rx=\"11\" fill=\"#0C2458\"/>\n    <path class=\"happy-eye\" d=\"M-17 4Q0-24 17 4\" fill=\"none\" stroke=\"#0C2458\" stroke-width=\"11\" stroke-linecap=\"round\"/>\n    </g></g></g><g transform=\"translate(265 248)\"><g class=\"blink\"><g class=\"expression\">\n    <rect class=\"open-eye\" x=\"-11\" y=\"-30\" width=\"22\" height=\"60\" rx=\"11\" fill=\"#0C2458\"/>\n    <path class=\"happy-eye\" d=\"M-17 4Q0-24 17 4\" fill=\"none\" stroke=\"#0C2458\" stroke-width=\"11\" stroke-linecap=\"round\"/>\n    </g></g></g></g></g>\n      <g class=\"glasses\"></g><g class=\"brand-marks\"><rect class=\"signal\" x=\"292\" y=\"150\" width=\"43\" height=\"10\" rx=\"5\" fill=\"#E7AC26\" style=\"animation-delay:0ms\"/><rect class=\"signal\" x=\"295\" y=\"167\" width=\"37\" height=\"10\" rx=\"5\" fill=\"#E7AC26\" style=\"animation-delay:160ms\"/><rect class=\"signal\" x=\"298\" y=\"184\" width=\"31\" height=\"10\" rx=\"5\" fill=\"#E7AC26\" style=\"animation-delay:320ms\"/></g>\n    </g></g></g></g></g></svg>"};
+// Raytone mark rows: y, half-width, where navy hands over to gold (fraction of width)
+function markRows(r,cy,ys,splits){return ys.map((y,i)=>{const h=Math.sqrt(Math.max(r*r-(y-cy)**2,0));return{y,x0:50-h,x1:50+h,s:splits[i]}})}
+function seg(x0,x1,y,cls,col,w,i){return x1-x0<.5?'':`<line class="st ${cls}" style="--i:${i}" x1="${x0}" y1="${y}" x2="${x1}" y2="${y}" stroke="${col}" stroke-width="${w}" stroke-linecap="round"/>`}
+function rays(rows,w,gap,eyeWin){return rows.map((r,i)=>{const sx=r.x0+(r.x1-r.x0)*r.s;
+  if(eyeWin&&r.y>=eyeWin[2]&&r.y<=eyeWin[3])return seg(r.x0,Math.min(eyeWin[0],sx-gap),r.y,'n',navy,w,i)+seg(Math.max(eyeWin[1],sx+gap),r.x1,r.y,'g',gold,w,i);
+  return seg(r.x0,sx-gap/2,r.y,'n',navy,w,i)+seg(sx+gap/2,r.x1,r.y,'g',gold,w,i)}).join('')}
+function eyes(cx1,cx2,cy,w,h,col=navy){return `<g class="eyes">${[cx1,cx2].map((x,k)=>`<g class="eye ${k?'r':''}"><rect class="open" x="${x-w/2}" y="${cy-h/2}" width="${w}" height="${h}" rx="${w/2}" fill="${col}"/><path class="happy" d="M${x-w}  ${cy+1}Q${x} ${cy-h*.55} ${x+w} ${cy+1}" fill="none" stroke="${col}" stroke-width="${w*.75}" stroke-linecap="round"/></g>`).join('')}</g>`}
+function mouth(c=navy){return `<g class="mouth">
+  <path class="m-smile" d="M-4 -1Q0 3 4 -1" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/>
+  <path class="m-flat" d="M-2.6 0H2.6" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/>
+  <ellipse class="m-o" rx="1.7" ry="2.1" fill="${c}"/>
+  <path class="m-open" d="M-4.4 -1.4Q0 -1.9 4.4 -1.4Q3.6 5 0 5Q-3.6 5 -4.4 -1.4Z" fill="${c}"/>
+  <path class="m-frown" d="M-3.4 1.6Q0 -1.6 3.4 1.6" fill="none" stroke="${c}" stroke-width="1.7" stroke-linecap="round"/></g>`}
+const glassesV2={
+  woman:()=>'',
+  man:(a,b,y,r)=>`<g fill="none" stroke="${navy}" stroke-width="1.8"><rect x="${a-r}" y="${y-r*.8}" width="${r*2}" height="${r*1.6}" rx="3"/><rect x="${b-r}" y="${y-r*.8}" width="${r*2}" height="${r*1.6}" rx="3"/><path d="M${a+r} ${y-1}H${b-r}"/></g>`,
+  boy:()=>''};
+// ---- A: current character, upright, on a Raytone ray halo ----
+function svgA_v2(k){const rows=markRows(46,52,[14,23,32,41,50,59,68,77,86],[.62,.56,.66,.58,.64,.56,.66,.6,.64]);
+  let inner=cur[k];
+  if(k==='woman')inner=inner.replace(/<path d="M77 133[^>]*\/><path d="M80 102[^>]*\/>/,'').replace(/<g class="glasses">[\s\S]*?<g class="brand-marks">/,'<g class="glasses"></g><g class="brand-marks">');
+  inner=inner.replace('<g class="glasses">',`<g transform="translate(202 322) scale(4.2)">${mouth()}</g><g class="glasses">`).replace(/<svg[^>]*>/,'').replace('</svg>','').replace('rotate(12 200 235) scale(.94)','').replace(/#FFF7E8/g,'#FFFAF3');
+  return `<svg viewBox="0 0 100 100"><g>${rays(rows,4.4,4).replace(/<line class="st n"[^>]*\/>/g,'')}</g><g class="head"><g class="cur" transform="translate(6 8) scale(.215)">${inner}</g></g></svg>`}
+
+// A with bigger eyes: the original capsules are 22x60 in a 400 box
+function svgA(k){return svgA_v2(k).replace(/<rect class="open-eye" x="-11" y="-30" width="22" height="60" rx="11"/g,'<rect class="open-eye" x="-14" y="-37" width="28" height="74" rx="14"')
+  .replace(/d="M-17 4Q0-24 17 4"([^>]*)stroke-width="11"/g,'d="M-22 5Q0-30 22 5"$1stroke-width="13"')}
+// ---- A+: redrawn per role, same illustrated language, 100-unit box ----
+const skin='#FFFAF3',hi='#1B3971',grey='#9AAAC3';
+function halo(){const rows=markRows(46,52,[14,23,32,41,50,59,68,77,86],[.62,.56,.66,.58,.64,.56,.66,.6,.64]);return rays(rows,4.4,4).replace(/<line class="st n"[^>]*\/>/g,'')}
+function face(ears){return (ears?`<ellipse cx="22.5" cy="59" rx="4" ry="5.5" fill="${skin}"/><ellipse cx="77.5" cy="59" rx="4" ry="5.5" fill="${skin}"/>`:'')
+  +`<ellipse cx="50" cy="57" rx="27" ry="28" fill="${skin}"/><g fill="#F2C3A8" opacity=".5"><ellipse cx="34" cy="67" rx="4.2" ry="2.3"/><ellipse cx="66" cy="67" rx="4.2" ry="2.3"/></g>`}
+const big=()=>eyes(41,59,58,6.2,13.5);
+const mouthAt=y=>`<g transform="translate(50 ${y})">${mouth()}</g>`;
+const PLUS={
+ // Raer · assistant/PM: soft bob, side-swept fringe, a gold single-ear headset
+ woman:()=>`<path d="M17 76C8 44 22 15 50 14C78 15 92 44 83 76C81 82 74 82 73 77V52H27V77C26 82 19 82 17 76Z" fill="${navy}"/>
+  ${face(false)}
+  <path d="M23 52C21 30 35 18 52 18C69 18 80 30 78 49C69 47 61 39 57 30C51 41 38 48 23 52Z" fill="${navy}"/>
+  <path d="M55 20C65 21 73 27 76 36C69 34 62 30 58 25Z" fill="${hi}"/>
+  <path d="M21 44Q20 22 42 16" fill="none" stroke="${gold}" stroke-width="2.2" stroke-linecap="round"/>
+  <rect x="17.5" y="51" width="8" height="12" rx="4" fill="${gold}"/>
+  <path d="M21.5 62Q23 72 33 73" fill="none" stroke="${gold}" stroke-width="2" stroke-linecap="round"/>
+  <circle class="mic" cx="34" cy="73" r="2.2" fill="${gold}"/>
+  ${big()}${mouthAt(71)}`,
+ // Tonny · planner/reviewer: neat side part, grey temples, square glasses, pencil behind the ear
+ man:()=>`${face(true)}
+  <path d="M22 52C19 28 33 14 51 14C70 14 82 28 79 52L75 47C74 39 70 34 63 31C53 35 39 35 29 41C26 44 25 48 25 52Z" fill="${navy}"/>
+  <path d="M40 18C50 15 62 16 70 22C62 23 52 24 44 27Z" fill="${hi}"/>
+  <path d="M22.5 44V56M77.5 44V56" stroke="${grey}" stroke-width="4" stroke-linecap="round"/>
+  <path d="M75 42L88 27" stroke="${gold}" stroke-width="3.4" stroke-linecap="round"/><path d="M88 27L90 24.6" stroke="${navy}" stroke-width="3.4" stroke-linecap="round"/>
+  ${big()}
+  <g fill="none" stroke="${navy}" stroke-width="2"><rect x="31" y="50" width="19" height="16" rx="4"/><rect x="50" y="50" width="19" height="16" rx="4"/><path d="M31 54H24M69 54H76"/></g>
+  <g class="glint" stroke="#fff" stroke-width="2.4" stroke-linecap="round"><path d="M36 63L42 52M55 63L61 52"/></g>
+  ${mouthAt(73)}`,
+ // Bob · builder: spiky hair, a gold sweatband with Raytone stripes, tails that fly when he works
+ boy:()=>`${face(true)}
+  <path d="M21 56C15 30 30 11 52 11C74 11 86 30 80 56L75 48L71 39L64 43L58 35L50 41L42 34L34 42L27 42Z" fill="${navy}"/>
+  <path d="M36 17L39 5L46 13L54 2L58 12L67 6L66 17Z" fill="${navy}"/><path d="M52 11C66 12 76 20 80 30L72 27L66 30L60 22Z" fill="${hi}"/>
+  <path d="M23 43Q50 31 78 43L78.5 49Q50 38 22.5 49Z" fill="${gold}"/>
+  <path d="M33 41.5H43M48 39.5H56" stroke="${navy}" stroke-width="1.6" stroke-linecap="round" opacity=".55"/>
+  <g class="tails"><path d="M23 45L11 40L14 47Z M23 47L12 52L17 55Z" fill="${gold}"/></g>
+  ${big()}${mouthAt(72)}`};
+function svgPlus(k){return `<svg viewBox="0 0 100 100">${halo()}<g class="head">${PLUS[k]()}</g></svg>`}
+const ROLE={woman:['Raer','助理 · 日常快手 · 群聊 PM','耳麦：随叫随到、帮你接通一切；听和说时麦克风亮起'],
+ man:['Tonny','规划 · 评审 · 只想不动手','方眼镜+耳后铅笔；思考时镜片掠过一道光，动作更慢更稳'],
+ boy:['Bob','动手实现 · 跑命令','金色汗带+飘带；执行时像敲锤子一样点头，飘带飞起来']};
+const STATES=[['idle','空闲'],['listening','输入中'],['thinking','思考'],['reading','读文件'],['working','执行'],['writing','回答'],['asking','等待确认'],['success','完成'],['error','出错']];
+const COLS=[['A · 眼睛加大','沿用现有人物，只把眼睛放大约 25%，笑眼同步加粗。',svgA],
+ ['A+ · 按定位重新设计','同一套插画语言（实心藏青发、金色光线环、大胶囊眼、嘴巴），每人一个代表职责的标志配件和自己的动作性格。',svgPlus]];
+let state='idle';
+function render(){document.getElementById('grid').innerHTML=COLS.map(([t,d,f])=>`<div class="card"><h3>${t}</h3><p>${d}</p>
+ <div class="stage"><div class="trio">${Object.keys(ROLE).map(k=>`<figure><span class="av" data-bot="${k}" data-state="${state}" style="width:92px;height:92px">${f(k)}</span><figcaption><b>${ROLE[k][0]}</b><span>${ROLE[k][1]}</span></figcaption></figure>`).join('')}</div></div>
+ <div class="side">${Object.keys(ROLE).map((k,i)=>`<div class="row ${i?'':'on'}"><span class="av" data-bot="${k}" data-state="${i?'idle':state}" style="width:28px;height:28px">${f(k)}</span><span><span class="t">${ROLE[k][0]}</span><small>${f===svgPlus?ROLE[k][2]:ROLE[k][1]}</small></span></div>`).join('')}
+ <div class="hist">${Object.keys(ROLE).map(k=>`<span class="av" data-bot="${k}" data-state="idle" style="width:18px;height:18px">${f(k)}</span>`).join('')}&nbsp;18px</div></div></div>`).join('')}
+const el=document.getElementById('states');STATES.forEach(([v,l])=>{const b=document.createElement('button');b.textContent=l;b.dataset.v=v;b.onclick=()=>{state=v;sync()};el.appendChild(b)});
+function sync(){el.querySelectorAll('button').forEach(b=>b.setAttribute('aria-pressed',b.dataset.v===state));render()}
+const q=new URLSearchParams(location.search);if(q.get('state'))state=q.get('state');sync();
+</script></body></html>
