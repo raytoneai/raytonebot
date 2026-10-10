@@ -159,6 +159,15 @@ export function planFromRoute(route: string | undefined, members: AgentPresetId[
 // A reasoning model may think for a thousand characters before the JSON (deepseek-flash on "对对联");
 // a small cap cut it off and every such message fell back to Raer. The answer itself stays tiny.
 const ROUTER_MAX_TOKENS = 4000;
+/**
+ * Routing is a narrow choice that has to be fast, so DeepSeek's thinking (on by default) is turned
+ * off for it (api-docs.deepseek.com/guides/thinking_mode). Only for DeepSeek: other services may
+ * reject a parameter they do not know.
+ */
+export const routerThinking = (baseUrl: string) => {
+  try { return /(^|\.)deepseek\.com$/i.test(new URL(baseUrl).hostname) ? { thinking: { type: "disabled" } } : {}; }
+  catch { return {}; }
+};
 
 export async function completeJson(definition: Pick<PiProviderDefinition, "baseUrl" | "protocol">, apiKey: string | undefined,
   model: string, system: string, user: string, fetcher: typeof fetch = fetch): Promise<string | undefined> {
@@ -168,7 +177,7 @@ export async function completeJson(definition: Pick<PiProviderDefinition, "baseU
     const response = await fetcher(`${base}/chat/completions`, { method: "POST", signal,
       headers: { "content-type": "application/json", ...(apiKey ? { authorization: `Bearer ${apiKey}` } : {}) },
       body: JSON.stringify({ model, max_tokens: ROUTER_MAX_TOKENS, temperature: 0, stream: false, response_format: { type: "json_object" },
-        messages: [{ role: "system", content: system }, { role: "user", content: user }] }) });
+        ...routerThinking(base), messages: [{ role: "system", content: system }, { role: "user", content: user }] }) });
     if (!response.ok) return undefined;
     const body = await response.json() as { choices?: { finish_reason?: string; message?: { content?: unknown; reasoning_content?: unknown } }[] };
     const choice = body.choices?.[0];
@@ -181,7 +190,8 @@ export async function completeJson(definition: Pick<PiProviderDefinition, "baseU
   if (definition.protocol === "anthropic") {
     const response = await fetcher(`${base}/messages`, { method: "POST", signal,
       headers: { "content-type": "application/json", "anthropic-version": "2023-06-01", ...(apiKey ? { "x-api-key": apiKey } : {}) },
-      body: JSON.stringify({ model, max_tokens: ROUTER_MAX_TOKENS, temperature: 0, system, messages: [{ role: "user", content: user }] }) });
+      body: JSON.stringify({ model, max_tokens: ROUTER_MAX_TOKENS, temperature: 0, system, ...routerThinking(base),
+        messages: [{ role: "user", content: user }] }) });
     if (!response.ok) return undefined;
     const body = await response.json() as { content?: { type?: string; text?: unknown }[] };
     const text = body.content?.find((block) => block.type === "text")?.text;

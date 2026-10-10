@@ -4,7 +4,7 @@ import { test } from "node:test";
 
 import {
   addressedMembers, childConversationId, GROUP_MEMBERS, isChildConversationId, isContinuation, isGreeting, memberPrompt, mentionedMembers,
-  parseRoute, planFromRoute, soleSpeaker, speakingOrder, untag,
+  completeJson, parseRoute, planFromRoute, routerThinking, soleSpeaker, speakingOrder, untag,
 } from "./groupChat.ts";
 
 const ID: Record<string, string> = { raer: "assistant", tonny: "planner", bob: "builder" };
@@ -142,4 +142,21 @@ test("in a shared turn Raer coordinates the split and the others keep to theirs"
   assert.doesNotMatch(parallel, /说明分工/, "parallel answers are independent: nobody assigns");
   assert.doesNotMatch(memberPrompt("assistant", all, { ...plan, mode: "single", members: ["assistant"] }, [], "翻译一下", []), /分工/,
     "a member answering alone gets no split rule");
+});
+
+test("the router turns DeepSeek's thinking off and sends nothing extra to other services", async () => {
+  assert.deepEqual(routerThinking("https://api.deepseek.com/v1"), { thinking: { type: "disabled" } });
+  assert.deepEqual(routerThinking("https://api.deepseek.com/anthropic"), { thinking: { type: "disabled" } });
+  for (const url of ["https://api.openai.com/v1", "https://notdeepseek.com.example.org/v1", "http://127.0.0.1:5299/v1", "not a url"]) {
+    assert.deepEqual(routerThinking(url), {}, url);
+  }
+  const bodies: Record<string, unknown>[] = [];
+  const fetcher = (async (_url: string, init: RequestInit) => {
+    bodies.push(JSON.parse(String(init.body)));
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"route":"raer"}' } }], content: [{ type: "text", text: '{"route":"raer"}' }] }));
+  }) as unknown as typeof fetch;
+  await completeJson({ baseUrl: "https://api.deepseek.com/v1", protocol: "openai-compatible" }, "k", "deepseek-flash", "s", "u", fetcher);
+  await completeJson({ baseUrl: "https://api.deepseek.com/anthropic", protocol: "anthropic" }, "k", "deepseek-flash", "s", "u", fetcher);
+  await completeJson({ baseUrl: "https://api.openai.com/v1", protocol: "openai-compatible" }, "k", "gpt", "s", "u", fetcher);
+  assert.deepEqual(bodies.map((body) => body.thinking), [{ type: "disabled" }, { type: "disabled" }, undefined]);
 });
