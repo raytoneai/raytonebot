@@ -98,9 +98,9 @@ export function avatarSVG(kind: AvatarKind, compact = false): string {
   const haloScale = compact ? 'translate(200 200) scale(3.36) translate(-50 -50)' : 'scale(4)';
   return `<svg viewBox="${compact ? '40 24 320 320' : '0 0 400 400'}" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg">
     <g class="halo" transform="${haloScale}">${halo()}</g>
-    <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group">
+    <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group"><g class="breath">
       <g transform="scale(4)">${body}</g>
       <g class="gaze"><g class="thinking-gaze"><g transform="scale(4)">${eyes}</g></g></g>
       <g transform="scale(4)">${over}</g>
-    </g></g></g></g></svg>`;
+    </g></g></g></g></g></svg>`;
 }

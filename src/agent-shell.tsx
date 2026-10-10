@@ -120,7 +120,7 @@ import { artifactEventForReplay, refreshArtifactItems } from "./runtime/artifact
 import { displayTaskPlans } from "./runtime/taskPlan";
 import { historyFeedbackEvents, type HistoryNotice } from "./runtime/historyFeedback";
 import { hasComposerDraft, hasComposerState } from "./runtime/composerDraftStore";
-import { avatarActivity } from "./runtime/avatarActivity";
+import { avatarActivity, runOutcomeFace, type RunOutcomeFace } from "./runtime/avatarActivity";
 import { GroupFace } from "./avatars/GroupFace";
 import { lastRunOutcome, nextQueueStep, queuedPrompt, type QueuedMessage } from "./runtime/followUpQueue";
 import { useComposerDrafts } from "./runtime/useComposerDrafts";
@@ -215,7 +215,7 @@ export function AgentApp() {
   const [followProblems, setFollowProblems] = useState<Record<string, HistoryNotice | undefined>>({});
   const [historyListFailed, setHistoryListFailed] = useState(false);
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
-  const [runOutcome, setRunOutcome] = useState<"success" | "error">();
+  const [runOutcome, setRunOutcome] = useState<RunOutcomeFace>();
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Mounted from the first open on, so later opens and closes keep their animation. */
   const [settingsMounted, setSettingsMounted] = useState(false);
@@ -342,10 +342,10 @@ export function AgentApp() {
     const previous = wasRunningRef.current;
     wasRunningRef.current = { id: activePiConversationId, running: piRunning };
     if (previous.id === activePiConversationId && previous.running && !piRunning) {
-      const outcome = lastRunOutcome(events)?.status;
-      if (outcome !== "success" && outcome !== "error") return;
+      const outcome = runOutcomeFace(events);
+      if (!outcome) return;
       setRunOutcome(outcome);
-      const timer = setTimeout(() => setRunOutcome(undefined), outcome === "error" ? 2400 : 1400);
+      const timer = setTimeout(() => setRunOutcome(undefined), outcome === "success" ? 1400 : 2400);
       return () => clearTimeout(timer);
     }
   }, [piRunning, activePiConversationId]);
@@ -356,6 +356,7 @@ export function AgentApp() {
       running: piRunning,
       awaitingUser: Boolean(liveApprovalTool || pendingQuestion),
       outcome: runOutcome,
+      connectionLost: !piRunning && Boolean(followProblems[activePiConversationId]),
       drafting: Boolean(composer.drafts[activePiConversationId]?.prompt.trim()),
       timeline: displayViewModel.timeline,
     }),

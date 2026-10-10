@@ -24,6 +24,7 @@ export type AvatarState =
   | "asking"
   | "success"
   | "error"
+  | "fault"
   | "sleep";
 
 export type AvatarMotion = {
@@ -42,9 +43,23 @@ const settle = "cubic-bezier(.2,.8,.2,1)";
 /** Pose changes between states: slow in and out, the same 420ms the CSS loops wait for. */
 const poseEase = "cubic-bezier(.45,0,.25,1)";
 const POSE_MS = 420;
+/** A busy state held this long is long-running work: its loops slow down to this rate. */
+const LONG_WORK_MS = 8000;
+const LONG_WORK_RATE = 0.4;
+/** The welcome face dozes after this long with no pointer, key or state change. */
+const DOZE_MS = 60_000;
 
 /** A short gesture as the activity changes; the pose itself is CSS on `.action-group`. */
-function gestureFor(previous: AvatarState, next: AvatarState): { frames: Keyframe[]; duration: number } | undefined {
+function gestureFor(previous: AvatarState, next: AvatarState, kind?: AvatarKind): { frames: Keyframe[]; duration: number; iterations?: number } | undefined {
+  if (previous === "sleep") {
+    // Waking: a stretch up, then settle.
+    return { duration: 700, frames: [
+      { transform: "translateY(0px) scale(1, 1)" },
+      { transform: "translateY(-16px) scale(0.97, 1.05)", offset: 0.35 },
+      { transform: "translateY(4px) scale(1.03, 0.97)", offset: 0.7 },
+      { transform: "translateY(0px) scale(1, 1)" },
+    ] };
+  }
   if (avatarBusy(next) && next !== "asking" && !avatarBusy(previous)) {
     // Sent: a small nod, "got it".
     return { duration: 380, frames: [
@@ -61,7 +76,8 @@ function gestureFor(previous: AvatarState, next: AvatarState): { frames: Keyfram
     ] };
   }
   if (next === "success") {
-    return { duration: 640, frames: [
+    // Bob, who built it, hops twice.
+    return { duration: 640, iterations: kind === "boy" ? 2 : 1, frames: [
       { transform: "translateY(0px) scale(1, 1)" },
       { transform: "translateY(8.1px) scale(1.05, 0.93)", offset: 0.14 },
       { transform: "translateY(-32px) scale(0.97, 1.04)", offset: 0.4 },
@@ -132,25 +148,32 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
   let drag: { id: number; x: number; y: number; width: number; moved: boolean } | null = null;
   let release: { stop(): void } | undefined;
   let destroyed = false;
+  /** Scrolled out of view: as good as a hidden tab. */
+  let offscreen = false;
+  let longTimer: ReturnType<typeof setTimeout> | undefined;
+  let dozeTimer: ReturnType<typeof setTimeout> | undefined;
 
-  const still = () => destroyed || reduced || document.hidden;
+  const still = () => destroyed || reduced || document.hidden || offscreen;
   const stopTimers = () => {
     clearTimeout(blinkTimer);
     clearTimeout(glanceTimer);
     clearTimeout(resetTimer);
     clearTimeout(habitTimer);
+    clearTimeout(longTimer);
+    clearTimeout(dozeTimer);
   };
   const look = (x: number, y: number, turn = x / 2.6) => {
     if (gaze) gaze.style.transform = `translate(${x}px, ${y}px)`;
     if (follow) follow.style.transform = `translate(${x / 2.4}px, ${y / 3}px) rotate(${turn}deg)`;
   };
   const centerGaze = () => look(0, 0, 0);
-  const blink = () => {
-    if (state === "success" || state === "sleep") return;
+  /** `cover` is the blink on a state change: it hides the eyes swapping shape (as bloub does). */
+  const blink = (cover = false) => {
+    if (!cover && (state === "success" || state === "sleep")) return;
     for (const lid of lids) {
       lid.animate(
         [{ transform: "scaleY(1)" }, { transform: "scaleY(.08)" }, { transform: "scaleY(1)" }],
-        { duration: 150 + Math.random() * 60, easing: "cubic-bezier(.45,0,.25,1)" },
+        { duration: cover ? 200 : 150 + Math.random() * 60, easing: "cubic-bezier(.45,0,.25,1)" },
       );
     }
   };
@@ -209,22 +232,22 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
    * frame. Instead, read each layer's on-screen transform before the switch and ease from it to
    * the new pose; the new state's CSS loop waits the same POSE_MS and starts from that pose.
    */
-  const settlePose = (apply: () => void) => {
+  const settlePose = (apply: () => void, duration = POSE_MS) => {
     if (still() || !posed[0]?.animate) return apply();
     const from = posed.map((layer) => getComputedStyle(layer).transform);
     for (const layer of posed) for (const running of layer.getAnimations()) if (!("animationName" in running)) running.cancel();
     apply();
     posed.forEach((layer, index) => {
       const to = getComputedStyle(layer).transform;
-      if (from[index] !== to) layer.animate([{ transform: from[index] }, { transform: to }], { duration: POSE_MS, easing: poseEase });
+      if (from[index] !== to) layer.animate([{ transform: from[index] }, { transform: to }], { duration, easing: poseEase });
     });
   };
   const playGesture = (previous: AvatarState, next: AvatarState) => {
     if (!gesture || still() || !gesture.animate) return;
-    const plan = gestureFor(previous, next);
+    const plan = gestureFor(previous, next, options.kind);
     if (!plan) return;
     for (const running of gesture.getAnimations()) running.cancel();
-    gesture.animate(plan.frames, { duration: plan.duration, easing: settle });
+    gesture.animate(plan.frames, { duration: plan.duration, iterations: plan.iterations ?? 1, easing: settle });
   };
   const endDrag = (cancelled = false) => {
     if (!drag || !head) return;
@@ -243,14 +266,50 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     stopTimers();
     endDrag(true);
     state = next;
-    settlePose(() => { root.dataset.state = next; });
+    // Dozing off is slow; everything else settles in POSE_MS.
+    settlePose(() => { root.dataset.state = next; }, next === "sleep" ? 1400 : POSE_MS);
     if (next === "listening") look(0, 8, 0);
     else centerGaze();
-    if (previous !== next) playGesture(previous, next);
+    if (previous !== next) {
+      playGesture(previous, next);
+      if (!still() && next !== "sleep") blink(true);
+    }
+    if (root.dataset.long === "true") {
+      // A loop that carries over into the next state (same keyframes) gets its pace back.
+      for (const running of root.getAnimations({ subtree: true })) if (running.playbackRate !== 1) running.updatePlaybackRate(1);
+    }
+    root.dataset.long = "false";
     queueBlink();
     queueGlance();
     queueHabit();
+    queueLong();
+    queueDoze();
     if (next === "success") resetTimer = setTimeout(() => setState("idle"), 1400);
+  };
+  /**
+   * Long-running work (a build, a long command): after a while the same busy loop would only
+   * nag, so it slows to a calm pace, the way Grok Bot's rings say "leave it be".
+   */
+  const queueLong = () => {
+    clearTimeout(longTimer);
+    if (still() || !avatarBusy(state) || state === "asking") return;
+    longTimer = setTimeout(() => {
+      if (still() || !avatarBusy(state) || state === "asking") return;
+      root.dataset.long = "true";
+      for (const running of root.getAnimations({ subtree: true })) {
+        if ("animationName" in running) running.updatePlaybackRate(LONG_WORK_RATE);
+      }
+    }, LONG_WORK_MS);
+  };
+  /** Only the welcome face dozes; any pointer or key wakes it (see the listeners below). */
+  const queueDoze = () => {
+    clearTimeout(dozeTimer);
+    if (!options.interactive || still() || state !== "idle") return;
+    dozeTimer = setTimeout(() => { if (!still() && state === "idle") setState("sleep"); }, DOZE_MS);
+  };
+  const wake = () => {
+    if (state === "sleep") setState("idle");
+    else if (state === "idle") queueDoze();
   };
   const syncReduced = () => {
     reduced = reduceQuery.matches;
@@ -265,8 +324,14 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     queueBlink();
     queueGlance();
     queueHabit();
+    queueDoze();
   };
 
+  if (options.interactive) {
+    window.addEventListener("pointermove", wake, { ...listen, passive: true });
+    window.addEventListener("pointerdown", wake, { ...listen, passive: true });
+    window.addEventListener("keydown", wake, listen);
+  }
   if (options.interactive && head) {
     const move = (event: PointerEvent) => {
       if (reduced || document.hidden) return;
@@ -312,16 +377,28 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     }, listen);
     fineQuery.addEventListener("change", centerGaze, listen);
   }
-  document.addEventListener("visibilitychange", () => {
-    root.dataset.hidden = String(document.hidden);
-    if (document.hidden) {
+  const syncVisible = () => {
+    root.dataset.hidden = String(document.hidden || offscreen);
+    if (document.hidden || offscreen) {
       endDrag(true);
       centerGaze();
     }
     queueBlink();
     queueGlance();
     queueHabit();
-  }, listen);
+    queueDoze();
+    if (root.dataset.long !== "true") queueLong();
+  };
+  document.addEventListener("visibilitychange", syncVisible, listen);
+  // A face scrolled out of the transcript stops its loops and timers until it is back.
+  const viewport = typeof IntersectionObserver === "function"
+    ? new IntersectionObserver(([entry]) => {
+      if (!entry || offscreen === !entry.isIntersecting) return;
+      offscreen = !entry.isIntersecting;
+      syncVisible();
+    })
+    : undefined;
+  viewport?.observe(root);
   reduceQuery.addEventListener("change", syncReduced, listen);
   root.dataset.hidden = String(document.hidden);
   syncReduced();
@@ -334,6 +411,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
       stopTimers();
       endDrag(true);
       abort.abort();
+      viewport?.disconnect();
       release?.stop();
       for (const running of root.getAnimations({ subtree: true })) running.cancel();
     },

@@ -76,7 +76,13 @@
 .raytone-avatar .mouth > * { opacity: 0; transition: opacity 120ms ease; }
 .raytone-avatar .mouth { transition: transform 200ms cubic-bezier(.2, .8, .2, 1); }
 .raytone-avatar .m-smile { opacity: 1; }
-.raytone-avatar:is([data-state="listening"], [data-state="thinking"], [data-state="writing"], [data-state="asking"], [data-state="success"], [data-state="error"]) .m-smile { opacity: 0; }
+.raytone-avatar:is([data-state="listening"], [data-state="thinking"], [data-state="writing"], [data-state="asking"], [data-state="success"], [data-state="error"], [data-state="fault"], [data-state="sleep"]) .m-smile { opacity: 0; }
+
+/* Breath: at rest the face is nearly still (Grok Bot's measured ~0.5%); life comes from the
+   eyes. Scaled from the chin so the head rises a hair, never floats. */
+.raytone-avatar .breath { transform-box: view-box; transform-origin: 200px 340px; }
+.raytone-avatar:is([data-state="idle"], [data-state="listening"]) .breath { animation: raytone-breathe 4.2s ease-in-out infinite; }
+.raytone-avatar[data-state="sleep"] .breath { animation: raytone-breathe-deep 5.6s ease-in-out infinite; }
 
 /* Idle: the halo's rays drift a little, out of step, like light. */
 .raytone-avatar[data-state="idle"] .ray { animation: raytone-drift 6s ease-in-out infinite; animation-delay: calc(var(--i) * -0.45s); }
@@ -150,9 +156,23 @@
 .raytone-avatar[data-state="error"] .action-group { transform: translateY(12px) rotate(10deg); }
 .raytone-avatar[data-state="error"] .thinking-gaze { transform: translate(-4px, 9px); }
 .raytone-avatar[data-state="error"] .expression { transform: scale(1.05, 0.65); }
-.raytone-avatar[data-state="error"] .ray { stroke: #b9c2d0; }
+/* Error: the task failed. The halo stays gold, only dimmed; grey is for a fault below. */
+.raytone-avatar[data-state="error"] .ray { opacity: .4; }
 .raytone-avatar[data-state="error"] .m-frown { opacity: 1; }
 
+/* Fault: the engine, model or connection failed under the agent. Dazed rather than sad:
+   small eyes looking up, a flat mouth, and a grey halo whose rays drop out like a lost signal. */
+.raytone-avatar[data-state="fault"] .action-group { transform: translateY(6px) rotate(-6deg); }
+.raytone-avatar[data-state="fault"] .thinking-gaze { transform: translate(6px, -10px); }
+.raytone-avatar[data-state="fault"] .expression { transform: scale(.72); }
+.raytone-avatar[data-state="fault"] .m-flat { opacity: 1; }
+.raytone-avatar[data-state="fault"] .ray { stroke: #b9c2d0; animation: raytone-lost 2.4s steps(1) infinite; animation-delay: calc(var(--i) * -0.37s); }
+
+/* Sleep (the welcome face, after a minute alone): eyes shut, a small open mouth, the halo dim. */
+.raytone-avatar[data-state="sleep"] .expression { transition-duration: 1200ms; }
+.raytone-avatar[data-state="sleep"] .m-o { opacity: 1; }
+.raytone-avatar[data-state="sleep"] .mouth { transform: scale(.6); }
+.raytone-avatar[data-state="sleep"] .ray { opacity: .35; }
 .raytone-avatar[data-state="sleep"] .action-group { transform: translateY(10px) rotate(11deg); }
 .raytone-avatar[data-state="sleep"] .expression { transform: scale(1.1, 0.12); }
 /* Loops start once the pose has settled, from that same pose. */
@@ -210,6 +230,9 @@
   0%, 100% { transform: rotate(-15deg); }
   50% { transform: rotate(-9deg) translateY(-5px); }
 }
+@keyframes raytone-breathe { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.006, 1.012); } }
+@keyframes raytone-breathe-deep { 0%, 100% { transform: scale(1, 1); } 50% { transform: scale(1.012, 1.024); } }
+@keyframes raytone-lost { 0%, 100% { opacity: 1; } 8% { opacity: .15; } 14% { opacity: 1; } 52% { opacity: .5; } 58% { opacity: 1; } }
 @keyframes raytone-signal { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 /* Ray, mouth and prop keyframes are in the 100-unit drawing space (raytoneAvatars.ts). */
 @keyframes raytone-drift { 0%, 100% { transform: translateX(0); } 50% { transform: translateX(1.4px); } }
