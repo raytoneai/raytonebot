@@ -511,7 +511,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
           }
           if (event.type === "text.delta" && typeof (event.payload as { delta?: unknown }).delta === "string") text += (event.payload as { delta: string }).delta;
           emit([retag(event, member, groupRunId, childRunId)]);
-        }, { signal: abort.signal, waitForCapacity: true });
+        }, { signal: abort.signal, waitForCapacity: true, groupConversation: true });
         if (failure !== undefined) throw new Error(failure);
         if (cancelled) abort.abort();
         abort.signal.throwIfAborted();

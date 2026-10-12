@@ -16,7 +16,7 @@ function fakeBridges() {
     return {
       subscribe: () => () => undefined,
       async prompt(text) {
-        if (text === "write") await approvalGate.wait(`call-${id}`, "write", { path: "notes.md" });
+        if (text.split("\n\n[Conversation context from RaytoneBot:")[0] === "write") await approvalGate.wait(`call-${id}`, "write", { path: "notes.md" });
         await new Promise<void>((resolve) => {
           release.set(id, resolve);
           stop = resolve;

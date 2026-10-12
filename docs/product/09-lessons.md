@@ -265,3 +265,11 @@
 - **输入框切极速但 CLI 仍长时间推理** → UI 的 thinkingLevel 曾只传 Pi，没有进入 Claude/Codex 请求；DeepSeek 默认 high，medium 也映射为 high → 三引擎在既有官方模型租约网关统一落实 low/high/max，并检查真实出站参数与推理用量；仅 HTTP 200 不能证明参数生效。
 
 - **Pi 官方 DeepSeek 经 loopback 代理返回 developer role 422** → SDK 按 provider id / URL 自动识别协议，临时租约 URL 不再含 deepseek.com；只补 thinkingFormat 不够 → 基于原始官方端点保留 supportsDeveloperRole=false、supportsStore=false、maxTokensField=max_tokens、requiresReasoningContentOnAssistantMessages=true，不能只用裸 API 小请求代替完整引擎 live 验证。
+
+### 角色专长不能限制单聊文字任务（2026-10-13）
+
+- 云端 Tonny 单聊“帮我写一个小说”提供“只出计划 / 交 Bob 写正文”；默认 contract 把分析、交接和编号计划强制应用到所有任务。聊天创作不涉及文件写权限，不应因此拒绝正文。
+- 用户纠正：每个 bot 都是通用助手，专长只用于轻量人设。提示词只介绍团队、各自擅长和性格，不为小说等任务加特例、不强制计划/交接/结尾格式；权限继续由运行时执行。
+- 主机每轮注入单聊/群聊场景，只有 groupChat 内部调用设置 groupConversation；用户文本中的名字或 `[群聊]` 不决定模式。场景说明仅进入模型副本，原始用户消息不变；保留旧会话，无自动重发。
+- 参考 OpenClaw 的角色/工作区/动态场景分层：[system prompt](https://docs.openclaw.ai/concepts/system-prompt)、[inbound context 源码](https://github.com/openclaw/openclaw/blob/main/src/auto-reply/reply/inbound-context.ts)。本项目仅保留简短的单聊参与者事实和群聊成员/分工提示，并非照抄开源策略。
+- 提示词回归只证明输入契约正确，不能保证真实模型必然遵循；需云端部署后验证原生 Claude 续接与群聊。

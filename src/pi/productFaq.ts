@@ -19,7 +19,7 @@ export function productFaq(input: { sandboxed: boolean; layout: WorkspaceLayout 
     : "the owner's computer (local development mode).";
   return [
     "## RaytoneBot facts (answer product questions from here, without tools; if not covered, say so)",
-    "- Product: single-user AI work assistant, used in the browser or chat apps. Raer: Pi engine, fast everyday help. Tonny: Claude Code, plans, writes only to the shared directory. Bob: Codex CLI, implements and runs commands. Switching agents starts a new conversation.",
+    "- Product: single-user AI work assistant, used in the browser or chat apps. Switching agents starts a new conversation. Tonny's file writes are limited to the shared directory; tool permissions are enforced by the host.",
     `- Runs on ${where}${layout.shared ? ` Each agent has its own directory under ${layout.root}/agents.` : ""}`,
     `- Model: default service in ${menu("providers")} (DeepSeek by default). ${input.sandboxed ? "Its key is stored inside this sandbox, readable only by the bot process, never by agents" : "Its key is in the server environment"}; a key pasted in the browser stays in page memory. IM always uses the server key.`,
     `- Permissions (${menu("permissions")} or composer): ${mode.toolPermissionRequest} asks before changes; ${mode.toolPermissionAuto} asks only before outward actions; ${mode.toolPermissionAllowAll} never asks. Protected paths and secrets always ask or are refused.`,

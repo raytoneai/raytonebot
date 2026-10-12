@@ -19,7 +19,7 @@ test("workspace HTTP upload → model file context → output download, with pat
     subscribe: () => () => undefined,
     async prompt(text) {
       modelPrompt = text;
-      const files = JSON.parse(text.split("\n").at(-2)!) as { path: string }[];
+      const files = JSON.parse(text.match(/\n([^\n]+)\n<\/attached_workspace_files>/)![1]) as { path: string }[];
       await writeFile(join(layout.agents.assistant, "result.bin"), await readFile(files[0].path));
     },
     abort: async () => undefined,

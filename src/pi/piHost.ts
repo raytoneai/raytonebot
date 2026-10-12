@@ -24,7 +24,7 @@ import { lastClaudeTaskPlan } from "./claudeTaskPlan.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
 import { defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from "./permissionPolicy.ts";
 import { resolveWorkspaceLayout, type WorkspaceLayout } from "./workspaceLayout.ts";
-import { rolePrompt, withReplyLanguage } from "./rolePrompt.ts";
+import { rolePrompt, withReplyLanguage, withConversationContext } from "./rolePrompt.ts";
 import { isAppLocale } from "../i18n/locales.ts";
 import { listWorkspaceFiles, openWorkspaceFile, promptWithWorkspaceFiles, uploadWorkspaceFile, WorkspaceFileError } from "./workspaceFiles.ts";
 import { sendWorkspaceFile } from "./workspaceDownload.ts";
@@ -110,7 +110,7 @@ export type PiRuntimeController = {
    *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards.
    *  Internal group children may `waitForCapacity`; cancelling that wait leaves no receipt.
    *  `title` names a new conversation instead of its first prompt (a routine's own name). */
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string }): Promise<void>;
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
@@ -786,7 +786,7 @@ export function createPiRuntimeController(options: {
         const conversation = store.begin(conversationId, role, options?.title ?? prompt);
         opened = true;
         if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
-        const modelPrompt = withReplyLanguage(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), input.locale);
+        const modelPrompt = withReplyLanguage(withConversationContext(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), options?.groupConversation), input.locale);
         store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt,
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, modelPrompt);
