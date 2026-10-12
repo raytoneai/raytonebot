@@ -242,6 +242,13 @@
 - **为什么不让 Raer 每条都当路由**：单独路由调用约 0.6–0.8 秒、约 400 输入 token；Raer 完整一轮 1.3–3.4 秒且可能先调用工具，交给 Tonny/Bob 的消息反而更慢，也会把编排混入 Raer 自己的会话。
 - **边界**：评测样例为合成短句；真实准确率以上线后的用户改判统计。外部 IM 群映射、Agent 发起的 `request_next_agent`、Supervisor 逐波编排不在首版。
 
+## ADR-035：可交互 HTML 产物（参照 Open Intelligent UI，2026-10-12）
+
+- **问题**：HTML 产物只能在本地交互，按钮无法把用户选的值交回对话（T2.3 缺口）。CopilotKit 的 Open Intelligent UI（MIT）用沙箱 iframe + `sendPrompt` 桥做“可操作的回答”。
+- **决定**：沿用现有不透明来源 iframe 与 CSP，在产物脚本之前注入桥：`raytone.sendPrompt(text)`、`raytone.openLink(url)`，别名 `Websandbox.connection.remote`，兼容为 OIU 写的小部件。iframe 经 `postMessage` + `MessageChannel` 请求，`outputframe/HtmlOutputPreview.tsx` 校验来源窗口、内容（≤4000 字、仅 https 链接，`runtime/artifactBridge.ts`），并要求 iframe 持有焦点且页面处于用户激活状态。追问进入现有跟进队列（ADR-025 的 `ComposerFrame` 队列），不另开发送路径：空闲时立即发送，运行中排队，上一轮失败/停止则暂停等用户恢复。
+- **为什么要两项检查**：只查激活，打开文件那一下点击仍在激活期内，页面加载时就能自动发送（浏览器实测复现）；只查焦点，用户点过一次后定时器仍可发送。两者叠加后，残余风险是用户点击产物后约 5 秒内由脚本触发的发送；消息以用户消息形式可见，审批语义不变。
+- **边界**：产物不能读对话、不能直接调用工具、不能联网（CSP 不变）。
+
 ## ADR-034：联网由 bot 代为执行，三引擎共用 web_search / web_fetch（2026-10-10）
 
 - **问题**：Agent UID 出站只放行模型代理与 npm/PyPI，三个角色都不能查资料。Claude Code 的 WebSearch 依赖 Anthropic 服务端、WebFetch 走 Agent 自身出站；Codex 的 web_search 依赖 OpenAI 服务端。接 DeepSeek 时都不可用，Pi 本来就没有联网工具。

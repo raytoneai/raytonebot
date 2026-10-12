@@ -87,6 +87,8 @@ export type ShellExtras = {
   workspaceSharedAvailable?: boolean;
   workspace?: PiRuntimeState["workspace"];
   onOpenFile?: (request: OutputPanelOpenRequest) => void;
+  /** A follow-up the user clicked for inside an HTML artifact; it joins the visible queue. */
+  onArtifactPrompt?: (text: string) => void;
 };
 
 const ShellExtrasContext = createContext<ShellExtras>({});

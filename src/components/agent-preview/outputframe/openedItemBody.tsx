@@ -5,7 +5,7 @@ import type { OutputPanelItem } from "./panelItem";
 import type { OpenedOutputRenderKind } from "./renderKind";
 import { AudioOutputPreview, ImageOutputPreview, VideoOutputPreview } from "./mediaPreviews";
 import { renderMarkdownPreview as renderMarkdown } from "./markdown/renderMarkdown";
-import { htmlPreviewDocument } from "./htmlPreview";
+import { HtmlOutputPreview } from "./HtmlOutputPreview";
 
 // Re-exported for the artifact renderer branch in OutputContent, which shares
 // the same markdown pipeline as opened .md tabs.
@@ -34,7 +34,7 @@ export function renderOpenedOutputBody(item: OutputPanelItem, kind: OpenedOutput
   // tab holding something else (a tool's JSON receipt, for instance) shows its source rather
   // than being dressed up as a page.
   if (kind === "html" && looksLikeHtmlDocument(body)) {
-    return <iframe className="html-output-preview" title={item.title} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={htmlPreviewDocument(body)} />;
+    return <HtmlOutputPreview title={item.title} body={body} />;
   }
   if (kind === "markdown") {
     return <div className="markdown-preview">{renderMarkdown(body, copy)}</div>;

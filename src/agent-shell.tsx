@@ -1262,6 +1262,10 @@ export function AgentApp() {
     if (waiting) agentStatuses[conversation.agentPreset] = "needs-you";
     else agentStatuses[conversation.agentPreset] ??= "running";
   }
+  const composerRunOptions = {
+    permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
+    budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
+  } satisfies ComposerRunOptions;
   const shellExtras: ShellExtras = {
     messageBranch,
     composerFocus: activePiConversationId === composerFocus ? composerFocus : undefined,
@@ -1327,10 +1331,7 @@ export function AgentApp() {
       : settingsCopy[locale].shell.messageTo(copy.composer.agentSettings.presets[agentSettings.presetId].name),
     stopStatus: !streamId && piRunning ? runStop.statusFor(activePiConversationId) : undefined,
     composerOptions: {
-      value: {
-        permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
-        budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
-      },
+      value: composerRunOptions,
       onChange: update => changeComposerDraft(current => ({ ...current, runOptions: { ...current.runOptions, ...update } })),
     },
     composerQueue: streamId ? undefined : {
@@ -1353,6 +1354,11 @@ export function AgentApp() {
     workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),
     workspace: piRuntimeState?.workspace,
     onOpenFile: openArtifact,
+    onArtifactPrompt: streamId ? undefined : (text) => void composer.enqueuePrompt(
+      { ...activePiConversation, agentPreset: agentSettings.presetId },
+      text,
+      composerRunOptions,
+    ),
   };
 
   const previewOverlaySlots = renderSlots(

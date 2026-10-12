@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { ComposerDraft, ComposerRunOptions } from "../components/agent-preview/ComposerFrame";
 import type { EphemeralPiConversation } from "../pi/piConversationState";
 import { acceptedComposerDraft, hasComposerDraft, hasSavedState, openComposerDraftStore, readComposerDrafts, savedComposerDraft, writeComposerDraft, type SavedComposerDraft } from "./composerDraftStore";
-import { enqueueDraft, withoutAccepted, type FollowUpQueue, type QueuePause } from "./followUpQueue";
+import { enqueueDraft, withoutAccepted, type FollowUpQueue, type QueuePause, type QueuedMessage } from "./followUpQueue";
 
 const emptyDraft = (): ComposerDraft => ({ prompt: "", attachments: [] });
 type DraftStatus = "loading" | "saving" | "saved" | "unavailable" | "conflict";
@@ -103,6 +103,12 @@ export function useComposerDrafts() {
     return update(conversation, () => rest, (queue) => ({ ...queue, items: [...queue.items, item] }));
   }
 
+  /** A follow-up that did not come from the composer (an artifact's button) joins the same queue. */
+  function enqueuePrompt(conversation: EphemeralPiConversation, prompt: string, options: ComposerRunOptions) {
+    const item: QueuedMessage = { id: "pi_export_" + crypto.randomUUID(), createdAt: Date.now(), prompt, attachments: [], runOptions: { ...options } };
+    return update(conversation, (draft) => draft, (queue) => ({ ...queue, items: [...queue.items, item] }));
+  }
+
   const removeQueued = (conversation: EphemeralPiConversation, ids: ReadonlySet<string>) => {
     const queue = currentQueues.current[conversation.id];
     if (!queue || withoutAccepted(queue, ids) === queue) return;
@@ -128,5 +134,5 @@ export function useComposerDrafts() {
   };
 
   return { drafts, queues, restored, statusFor: (id: string) => statuses[id] ?? status, update, submitted, accepted,
-    enqueue, removeQueued, editQueued, pauseQueue, resumeQueue };
+    enqueue, enqueuePrompt, removeQueued, editQueued, pauseQueue, resumeQueue };
 }
