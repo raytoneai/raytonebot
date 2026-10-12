@@ -12,9 +12,40 @@ const DURATION_MESSAGE = "This turn reached its time limit (RAYTONEBOT_RUN_TIMEO
 const PACKAGE_HOSTS = ["registry.npmjs.org", "pypi.org", "files.pythonhosted.org"];
 type LeaseInput = {
   baseUrl: string; apiKey: string; model: string; protocol: "openai" | "anthropic";
+  thinkingLevel?: string;
   maxRequests?: number; maxDurationMs?: number; onLimit?: (message: string) => void;
 };
 type Lease = LeaseInput & { requests: number; expires: number; active: Set<AbortController>; limited: boolean };
+
+/** Only the currently supported official DeepSeek models; compatible proxies are not assumed. */
+export function deepSeekThinking(baseUrl: string, model: string): boolean {
+  return new URL(baseUrl).hostname === "api.deepseek.com" && ["deepseek-flash", "deepseek-v4-pro"].includes(model);
+}
+
+/** UI levels are low/medium/high; DeepSeek's distinct strengths are low/high/max. */
+function applyDeepSeekThinking(body: Record<string, unknown>, lease: Lease, suffix: string): void {
+  if (!lease.thinkingLevel || !deepSeekThinking(lease.baseUrl, lease.model) || suffix.endsWith("/count_tokens")) return;
+  const effort = ({ low: "low", medium: "high", high: "max" } as Record<string, string>)[lease.thinkingLevel];
+  if (!effort) return;
+  if (suffix.endsWith("/responses")) {
+    const previous = body.reasoning;
+    body.reasoning = { ...(previous && typeof previous === "object" ? previous : {}), effort };
+    delete body.thinking;
+    delete body.reasoning_effort;
+    delete body.output_config;
+  } else {
+    body.thinking = { type: "enabled" };
+    delete body.reasoning;
+    if (lease.protocol === "anthropic") {
+      const previous = body.output_config;
+      body.output_config = { ...(previous && typeof previous === "object" ? previous : {}), effort };
+      delete body.reasoning_effort;
+    } else {
+      body.reasoning_effort = effort;
+      delete body.output_config;
+    }
+  }
+}
 
 export function isPublicAddress(address: string): boolean {
   if (isIP(address) === 4) {
@@ -119,6 +150,7 @@ export async function createModelGateway(options: {
         headers["anthropic-version"] = "2023-06-01";
         if (typeof req.headers["anthropic-beta"] === "string") headers["anthropic-beta"] = req.headers["anthropic-beta"];
       }
+      applyDeepSeekThinking(body, lease, suffix);
       const upstream = await fetcher(`${lease.baseUrl.replace(/\/$/, "")}${suffix}${requestUrl.search}`, {
         method: "POST", headers, body: JSON.stringify(body), signal: controller.signal, redirect: "manual",
       });

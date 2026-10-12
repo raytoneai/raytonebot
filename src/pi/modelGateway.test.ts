@@ -103,3 +103,54 @@ test("revoking a lease while a client uploads its body prevents any upstream cal
     assert.equal(calls, 0);
   } finally { await gateway.close(); }
 });
+
+test("DeepSeek UI thinking levels reach every wire protocol and leave other providers untouched", async () => {
+  const calls: Record<string, any>[] = [];
+  const gateway = await createModelGateway({ port: 0, fetcher: (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response('{}', { headers: { 'content-type': 'application/json' } });
+  }) as typeof fetch });
+  try {
+    for (const level of ['low', 'medium', 'high'] as const) {
+      for (const path of ['/chat/completions', '/responses', '/messages']) {
+        const lease = gateway.issue({ baseUrl: 'https://api.deepseek.com', model: 'deepseek-flash', apiKey: 'private',
+          protocol: path === '/messages' ? 'anthropic' : 'openai', thinkingLevel: level });
+        const response = await fetch(`${lease.baseUrl}${path}`, { method: 'POST', headers: { authorization: `Bearer ${lease.apiKey}` },
+          body: JSON.stringify({ model: 'deepseek-flash', thinking: { type: 'disabled' }, reasoning: { effort: 'high', summary: 'none' },
+            reasoning_effort: 'high', output_config: { effort: 'high', format: { type: 'text' } } }) });
+        assert.equal(response.status, 200);
+        const body = calls.at(-1)!;
+        const effort = level === 'low' ? 'low' : level === 'high' ? 'max' : 'high';
+        if (path === '/responses') { assert.equal(body.reasoning.effort, effort); assert.equal(body.reasoning.summary, 'none'); assert.equal(body.thinking, undefined); }
+        else { assert.equal(body.thinking.type, 'enabled');
+          if (path === '/messages') { assert.equal(body.output_config.effort, effort); assert.deepEqual(body.output_config.format, { type: 'text' }); }
+          else assert.equal(body.reasoning_effort, effort);
+        }
+        lease.revoke();
+      }
+    }
+    for (const baseUrl of ['https://other.example', 'https://api.deepseek.com.other.example']) {
+      const lease = gateway.issue({ baseUrl, model: 'deepseek-flash', apiKey: 'private', protocol: 'openai', thinkingLevel: 'low' });
+      const body = { model: 'deepseek-flash', reasoning: { effort: 'high' } };
+      await fetch(`${lease.baseUrl}/responses`, { method: 'POST', headers: { authorization: `Bearer ${lease.apiKey}` }, body: JSON.stringify(body) });
+      assert.deepEqual(calls.at(-1), body); lease.revoke();
+    }
+  } finally { await gateway.close(); }
+});
+
+test("Pi retains DeepSeek thinking capabilities behind its loopback model lease", async () => {
+  const { registerEditorProvider } = await import('./piHost.ts');
+  let registered: any;
+  const runtime = { unregisterProvider() {}, registerProvider(_id: string, definition: unknown) { registered = definition; } };
+  const definition = { id: 'deepseek', name: 'DeepSeek', baseUrl: 'http://127.0.0.1:9999/model', protocol: 'openai-compatible' as const,
+    models: ['deepseek-flash', 'other-model'], authMode: 'required' as const };
+  registerEditorProvider(runtime as any, definition, 'deepseek', 'deepseek-flash', 'https://api.deepseek.com/v1');
+  assert.equal(registered.models[0].reasoning, true);
+  assert.equal(registered.models[0].compat.thinkingFormat, 'deepseek');
+  assert.equal(registered.models[0].compat.supportsDeveloperRole, false);
+  assert.equal(registered.models[0].compat.maxTokensField, 'max_tokens');
+  assert.equal(registered.models[0].compat.requiresReasoningContentOnAssistantMessages, true);
+  assert.equal(registered.models[1].reasoning, false);
+  registerEditorProvider(runtime as any, definition, 'deepseek', 'deepseek-flash');
+  assert.equal(registered.models[0].reasoning, false);
+});

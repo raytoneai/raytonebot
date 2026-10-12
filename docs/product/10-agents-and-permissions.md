@@ -99,3 +99,9 @@ Claude Code / Codex 的 JSON 输出
 | 替我批准 | 通过：`pwd` 直接执行，`ls ~/.ssh` 被拦截 |
 | 本机，工作区布局 | 通过：Codex 在 `shared/handoffs/` 写交接文件，Pi 读出内容 |
 | 云端（2026-10-03） | 通过：Pi + DeepSeek 在自己目录工作并写交接；Claude Code + DeepSeek 读交接、把计划写进 `shared/plans/`；规划角色写自己目录被拒绝；浏览器验收聊天与设置页。Codex 未登录，返回 401 及登录提示 |
+
+### DeepSeek 思考档位（2026-10-12）
+
+当前官方端点 `api.deepseek.com` 的 `deepseek-flash` / `deepseek-v4-pro`：输入框「极速 / 中等 / 专家」对应主机 `thinkingLevel: low / medium / high`，模型网关在每轮租约内统一映射为 DeepSeek `low / high / max`。Pi 的 Chat Completions 请求使用 `thinking: {type: enabled}` + `reasoning_effort`；Claude Code 的 Anthropic 请求使用同一开关 + `output_config.effort`；Codex 的 Responses 请求使用 `reasoning.effort`。用户选择覆盖 CLI 默认参数，`count_tokens` 请求不注入思考设置。极速保留轻量思考，不等于关闭。
+
+Pi 为这些模型登记 reasoning 能力，并在换成 loopback 租约时保留原始端点的能力识别。其他模型、第三方代理、CLI 本机登录和未指定档位的请求保持原行为；不根据模型名猜测代理能力。官方参数：[Thinking Mode](https://api-docs.deepseek.com/guides/thinking_mode/)。

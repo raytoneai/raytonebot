@@ -261,3 +261,7 @@
 
 - Pi SDK 的无模型状态是 `unknown/unknown` 对象，不能只按真值判断后在重置时恢复。跳过精确占位值，保留真实配置的模型与思考预算；不通过换默认模型掩盖未配置状态。
 - 宿主环境里的模型凭据会令 SDK 自动选出可用模型，隐藏此分支。回归使用干净子进程和临时 Pi 目录，至少覆盖未配置重置、配置后的重置，避免测试结果依赖开发者 shell。
+
+- **输入框切极速但 CLI 仍长时间推理** → UI 的 thinkingLevel 曾只传 Pi，没有进入 Claude/Codex 请求；DeepSeek 默认 high，medium 也映射为 high → 三引擎在既有官方模型租约网关统一落实 low/high/max，并检查真实出站参数与推理用量；仅 HTTP 200 不能证明参数生效。
+
+- **Pi 官方 DeepSeek 经 loopback 代理返回 developer role 422** → SDK 按 provider id / URL 自动识别协议，临时租约 URL 不再含 deepseek.com；只补 thinkingFormat 不够 → 基于原始官方端点保留 supportsDeveloperRole=false、supportsStore=false、maxTokensField=max_tokens、requiresReasoningContentOnAssistantMessages=true，不能只用裸 API 小请求代替完整引擎 live 验证。

@@ -59,7 +59,7 @@ import { ChannelSetupError, createChannelSetup, type ChannelSetupResult, type Ch
 import type { ChannelSetupRequest } from "./imChannels/connectChannelTool.ts";
 import { redactCredentials } from "./imChannels/redactCredentials.ts";
 import { CHANNEL_PLATFORMS, type ChannelPatch, type ChannelPlatform } from "./imChannels/types.ts";
-import { createModelGateway } from "./runtime/modelGateway.ts";
+import { deepSeekThinking, createModelGateway } from "./runtime/modelGateway.ts";
 import { attachGroupChat, type GroupController } from "./groupChat.ts";
 import { isolatePiTool } from "./runtime/isolatedPiTools.ts";
 import { requireAgentIsolation } from "./runtime/agentProcess.ts";
@@ -198,12 +198,12 @@ export function createPiRuntimeController(options: {
   const webTools = createWebTools({ proxyFakeIp: !sandboxed });
   let gatewayPromise: ReturnType<typeof createModelGateway> | undefined;
   const gateway = () => gatewayPromise ??= createModelGateway({ port: sandboxed ? undefined : 0 });
-  const modelLease = async (provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic", conversationId: string) => {
+  const modelLease = async (provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic", conversationId: string, thinkingLevel?: string) => {
     // Local gateways existed before Linux isolation; retain that development path. Only HTTPS
     // provider runs use this proxy and its request cap. Sandbox tasks never take this fallback.
     if (!sandboxed && new URL(provider.baseUrl).protocol === "http:") return { ...provider, revoke() {} };
     const slot = runs.get(conversationId);
-    const lease = (await gateway()).issue({ ...provider, protocol, maxRequests: limits.modelRequests, maxDurationMs: limits.durationMs,
+    const lease = (await gateway()).issue({ ...provider, protocol, thinkingLevel, maxRequests: limits.modelRequests, maxDurationMs: limits.durationMs,
       onLimit(message) {
         if (!slot || slot.limit) return;
         slot.limit = message;
@@ -226,7 +226,7 @@ export function createPiRuntimeController(options: {
         if (runId) store.saveNativeTurn(id, runId, { harness: "pi", sessionId, sourceId: id, beforeEntryId });
         else store.setPiSession(id, sessionId);
       },
-      modelLease: (provider, protocol) => modelLease(provider, protocol, id),
+      modelLease: (provider, protocol, thinkingLevel) => modelLease(provider, protocol, id, thinkingLevel),
       webTools,
     });
   });
@@ -564,7 +564,7 @@ export function createPiRuntimeController(options: {
       if (harness === "claude-code") {
         if (sandboxed && input.claudeCodeModelSource === "local-login") throw new Error("Sandbox agents require a configured model service; local login is disabled.");
         const provider = input.claudeCodeModelSource === "local-login" ? undefined
-          : await modelLease(claudeProvider(input.provider, input.model), "anthropic", conversationId);
+          : await modelLease(claudeProvider(input.provider, input.model), "anthropic", conversationId, input.thinkingLevel);
         lease = provider;
         await runClaudeCode({
           cwd: runCwd,
@@ -606,7 +606,7 @@ export function createPiRuntimeController(options: {
       } else {
         if (sandboxed && input.codexModelSource === "local-login") throw new Error("Sandbox agents require a configured model service; local login is disabled.");
         const configured = input.codexModelSource === "local-login" ? undefined : codexProvider(input.provider, input.model);
-        const provider = configured ? { ...configured, ...await modelLease(configured, "openai", conversationId) } : undefined;
+        const provider = configured ? { ...configured, ...await modelLease(configured, "openai", conversationId, input.thinkingLevel) } : undefined;
         lease = provider;
         await runCodex({
           onUserInput,
@@ -1262,7 +1262,7 @@ async function createDefaultPiBridge(input: {
   onUserInput(request: UserInputRequest): Promise<UserAnswers>;
   onChannelSetup?(request: ChannelSetupRequest): Promise<ChannelSetupResult>;
   onCreateRoutine?(request: RoutineRequest): Promise<RoutineView>;
-  modelLease(provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic"): Promise<{ baseUrl: string; apiKey: string; revoke(): void }>;
+  modelLease(provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic", thinkingLevel?: string): Promise<{ baseUrl: string; apiKey: string; revoke(): void }>;
   webTools?: WebTools;
 }): Promise<PiSessionBridge> {
   const pi = await import("@earendil-works/pi-coding-agent");
@@ -1278,6 +1278,7 @@ async function createDefaultPiBridge(input: {
   const definitions = new Map<string, PiProviderDefinition>();
   const keys = new Map<string, string>();
   let stopEpoch = 0;
+  let requestedThinkingLevel: string | undefined;
   let session = await createSession(false);
   if (input.branch && !input.sessionId) input.onSessionId(session.sessionId, session.sessionManager.getLeafId());
   let sessionStarted = Boolean(input.sessionId || input.branch || (input.sessionId === undefined && input.hasHistory));
@@ -1340,9 +1341,9 @@ async function createDefaultPiBridge(input: {
       const apiKey = keys.get(definition.id) ?? (definition.authMode === "none" ? "agentcanvas-no-auth"
         : definition.apiKeyEnvVar ? process.env[definition.apiKeyEnvVar] : undefined);
       if (!apiKey) throw new Error("The configured model service has no API key.");
-      const lease = await input.modelLease({ baseUrl: definition.baseUrl, apiKey, model: selected.id }, definition.protocol === "anthropic" ? "anthropic" : "openai");
+      const lease = await input.modelLease({ baseUrl: definition.baseUrl, apiKey, model: selected.id }, definition.protocol === "anthropic" ? "anthropic" : "openai", requestedThinkingLevel);
       try {
-        registerEditorProvider(modelRuntime, { ...definition, baseUrl: lease.baseUrl, authMode: "required", apiKeyEnvVar: undefined }, selected.provider, selected.id);
+        registerEditorProvider(modelRuntime, { ...definition, baseUrl: lease.baseUrl, authMode: "required", apiKeyEnvVar: undefined }, selected.provider, selected.id, definition.baseUrl);
         await modelRuntime.setRuntimeApiKey(definition.id, lease.apiKey);
         await session.setModel(modelRuntime.getModel(definition.id, selected.id)!);
         // A stop during async lease/model setup must not launch a new SDK turn afterwards.
@@ -1395,7 +1396,10 @@ async function createDefaultPiBridge(input: {
         if (!model) throw new Error(`Pi model not found: ${provider ?? "provider"}/${modelId ?? "model"}`);
         await session.setModel(model);
       }
-      if (config.thinkingLevel) session.setThinkingLevel(normalizeThinkingLevel(config.thinkingLevel));
+      if (config.thinkingLevel) {
+        requestedThinkingLevel = config.thinkingLevel;
+        session.setThinkingLevel(normalizeThinkingLevel(config.thinkingLevel));
+      }
     },
     async state() {
       let availableModels: readonly { provider: string; id: string }[] = [];
@@ -1457,6 +1461,7 @@ export function registerEditorProvider(
   definition: PiProviderDefinition,
   selectedProvider?: string,
   selectedModel?: string,
+  upstreamBaseUrl = definition.baseUrl,
 ): void {
   const id = definition.id.trim();
   const baseUrl = definition.baseUrl.trim();
@@ -1490,7 +1495,9 @@ export function registerEditorProvider(
     models: models.map((model) => ({
       id: model,
       name: model,
-      reasoning: false,
+      reasoning: deepSeekThinking(upstreamBaseUrl, model),
+      ...(deepSeekThinking(upstreamBaseUrl, model) ? { compat: { thinkingFormat: "deepseek" as const, supportsReasoningEffort: true, supportsDeveloperRole: false,
+        supportsStore: false, maxTokensField: "max_tokens" as const, requiresReasoningContentOnAssistantMessages: true } } : {}),
       input: ["text", "image"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: 128_000,

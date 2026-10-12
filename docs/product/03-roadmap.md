@@ -133,6 +133,10 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-12 DeepSeek 完整引擎 live 验证：云端隔离 controller + 实际 Pi/Claude Code/Codex，三者同一无工具短任务首答 2.29/2.33/1.71 秒，总耗时 2.49/2.73/1.79 秒，捕获实际出站 low；Pi/Codex 推理 19/23 tokens。Bob 小型 Chart.js 交互页 21.08 秒、7403 字节（比原模拟器简单且限制额外检查，不视为同任务加速比）。实测暴露 Pi loopback 下兼容识别丢失导致 developer 消息角色 422，已显式保留 system 角色、max_tokens、reasoning_content 回传等 DeepSeek 设置，回归先失败后通过。build 与 258 项测试通过；线上服务未重启，临时测试目录已清理，未做本轮产物浏览器验收，未提交或部署。
+
+- 2026-10-12 DeepSeek 三引擎思考档位接通：既有模型网关按每轮选择将极速/中等/专家映射为 low/high/max，覆盖 Pi Chat Completions、Claude Code Anthropic、Codex Responses 默认值；补 Pi reasoning 能力及 loopback 代理后的能力保持。只覆盖官方端点与当前模型，其他服务商不变。验证：两项新回归（九组档位/接口组合、代理能力保持），build、全量测试与 check:local 通过；隔离临时网关三条真实 DeepSeek low 请求均 200，短回复分别 1.23/0.86/1.02 秒，Chat/Responses 推理 token 为 40/39。未重启生产服务，未完整重测 HTML 生成，未提交或部署。
+
 - 2026-10-12 头像定稿落地：三角色采用浅肤色细暖色轮廓、24% 眼高和单一金色配件；Bob 改棒球帽并留足帽檐间距，Tonny 缩小镜框且视线裁切在镜片内，Raer 简化耳麦；背景条纹透明度 0.55。沿用现有头像入口与状态动效，小头像仍按原规则隐藏光环。验证：build 与 256 项测试通过，本机欢迎区、侧栏、群头像及 18 个内置事件场景无浏览器警告或错误。未调用真实模型。
 
 - 2026-10-12 可交互 HTML 产物 · Codex 复查修复（ADR-035）：产物主题改由 shell 从主题状态生成（`themeVariables()` 与 `applyTheme` 同源），经 ShellExtras 传给实时预览与已保存预览，不再在 render 时读 DOM（切换时 DOM 仍是旧主题，消息会带旧值）。验证：新增 1 项测试，`npm test` 256 项全过、build 通过；Chrome 在设置里从 Soft Glass 切到 Warm Graphite，点击后 300ms 内实时预览与已保存 HTML 预览背景均已变深；P1 注入复测仍全部拦截；7 个内置场景无报错。
