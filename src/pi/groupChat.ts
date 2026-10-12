@@ -34,6 +34,8 @@ export type GroupPlan = {
   source: "mention" | "router" | "fallback" | "rule";
   route?: string;
   note?: string;
+  /** Rounds the user asked for ("再来两轮"); round_robin and discussion only. */
+  rounds?: number;
 };
 type GroupLine = { author: "user" | AgentPresetId; text: string };
 /** `introduced`: members who have introduced themselves; each does so once, when they join (as in Raft). */
@@ -54,6 +56,26 @@ export function mentionedMembers(text: string, members: AgentPresetId[]): AgentP
 const VOCATIVE = /^\s*((?:Raer|Tonny|Bob)(?:\s*(?:[、,，&]|和|and)\s*(?:Raer|Tonny|Bob))*)\s*(?:[,，:：]|你|您)/i;
 // Words that address the whole group: then the names only set an order (round_robin/discussion), not who answers.
 const WHOLE_GROUP = /大家|所有人|每人|每个人|轮流|报数|接龙|讨论|商量|辩|吵|互相|各自|一人一句|everyone|everybody|each of you|in turn|take turns|discuss|debate/i;
+
+// "@Raer 你和tonny玩一次": a name without @, joined to the mentioned member, joins them.
+const COMPANION_CUE = "(?:和|与|跟|同|还有|带上|叫上|拉上|、|&|\\band\\b|\\bwith\\b)";
+
+/** Members named without @ but joined to an @-mentioned one ("你和tonny", "with Bob"). */
+export function companions(text: string, mentioned: AgentPresetId[], members: AgentPresetId[]): AgentPresetId[] {
+  return members.filter((m) => !mentioned.includes(m) && new RegExp(`${COMPANION_CUE}\\s*(?<!@)${MEMBER_NAMES[m]}(?![A-Za-z])`, "i").test(text))
+    .map((m) => ({ m, at: text.search(new RegExp(MEMBER_NAMES[m], "i")) })).sort((a, b) => a.at - b.at).map((x) => x.m);
+}
+
+// "tonny好像没有说话" / "该 Bob 了": the user points at a member who has not spoken; that member answers.
+const SILENT = /(Raer|Tonny|Bob)\s*(?:好像|怎么|为什么|为啥|还|都)?\s*(?:没有?|不)\s*(?:说话|发言|回答|回复|出声|吭声|接|动静|反应)|(?:该|轮到)\s*(Raer|Tonny|Bob)|\b(Raer|Tonny|Bob)\s+(?:didn't|did not|hasn't|has not|never)\s+(?:say|speak|answer|reply|respond|go)/i;
+
+/** The member the message says has not spoken yet, if any. */
+export function silentMember(text: string, members: AgentPresetId[]): AgentPresetId | undefined {
+  const match = SILENT.exec(text);
+  const name = match?.[1] ?? match?.[2] ?? match?.[3];
+  const member = name ? BY_NAME[name.toLowerCase()] : undefined;
+  return member && members.includes(member) ? member : undefined;
+}
 
 /** Members addressed by name at the start of the message, unless it speaks to the whole group. */
 export function addressedMembers(text: string, members: AgentPresetId[]): AgentPresetId[] {
@@ -137,6 +159,21 @@ export function soleSpeaker(lines: GroupLine[]): AgentPresetId | undefined {
   return authors.size === 1 ? [...authors][0] : undefined;
 }
 
+const ROUND_COUNT = /(?<!第)(\d{1,2}|[一二两三四五六七八九十])\s*(?:轮(?!流)|圈|回合)|\b(\d{1,2}|two|three|four|five|six|seven|eight|nine|ten)\s+(?:rounds?|times)\b/i;
+const NUMBER_WORDS: Record<string, number> = { 一: 1, 二: 2, 两: 2, 三: 3, 四: 4, 五: 5, 六: 6, 七: 7, 八: 8, 九: 9, 十: 10,
+  two: 2, three: 3, four: 4, five: 5, six: 6, seven: 7, eight: 8, nine: 9, ten: 10 };
+/** Each round is one engine turn per member, so a request for more is held to this. */
+export const MAX_ROUNDS = 5;
+
+/** How many rounds the message asks for ("再来两轮", "3 rounds"), capped; undefined when it names none. */
+export function requestedRounds(text: string): number | undefined {
+  const match = ROUND_COUNT.exec(text);
+  const word = match?.[1] ?? match?.[2];
+  if (!word) return undefined;
+  const count = /^\d+$/.test(word) ? Number(word) : NUMBER_WORDS[word.toLowerCase()];
+  return count >= 1 ? Math.min(count, MAX_ROUNDS) : undefined;
+}
+
 export function planFromRoute(route: string | undefined, members: AgentPresetId[], raw?: string, text = "", continuing?: AgentPresetId): GroupPlan {
   const why = route === "unclear" ? "模型判为 unclear" : raw === undefined ? "路由请求失败" : `输出无法解析：${raw.slice(0, 80)}`;
   const fallback: GroupPlan = { mode: "single", members: ["assistant"], source: "fallback", route, note: `${why}；原型暂由 Raer 代替 Supervisor` };
@@ -146,8 +183,8 @@ export function planFromRoute(route: string | undefined, members: AgentPresetId[
     case "tonny": return one("planner");
     case "bob": return one("builder");
     case "parallel": return { mode: "parallel", members: [...members], source: "router", route };
-    case "round_robin": return { mode: "round_robin", members: speakingOrder(text, members), source: "router", route };
-    case "discussion": return { mode: "discussion", members: speakingOrder(text, members, continuing), source: "router", route };
+    case "round_robin": return { mode: "round_robin", members: speakingOrder(text, members), source: "router", route, ...rounds(text) };
+    case "discussion": return { mode: "discussion", members: speakingOrder(text, members, continuing), source: "router", route, ...rounds(text) };
     case "plan_then_build": return members.includes("planner") && members.includes("builder")
       ? { mode: "sequential", members: ["planner", "builder"], source: "router", route } : fallback;
     case "build_then_review": return members.includes("planner") && members.includes("builder")
@@ -155,6 +192,8 @@ export function planFromRoute(route: string | undefined, members: AgentPresetId[
     default: return fallback;
   }
 }
+
+const rounds = (text: string) => { const count = requestedRounds(text); return count ? { rounds: count } : {}; };
 
 // A reasoning model may think for a thousand characters before the JSON (deepseek-flash on "对对联");
 // a small cap cut it off and every such message fell back to Raer. The answer itself stays tiny.
@@ -216,11 +255,25 @@ export function parseRoute(raw: string | undefined): string | undefined {
  */
 export async function routeGroupMessage(prompt: string, group: Pick<GroupMeta, "members" | "lines">,
   complete?: (system: string, user: string) => Promise<string | undefined>): Promise<{ plan: GroupPlan; raw?: string }> {
+  const continuing = soleSpeaker(group.lines);
   const mentioned = mentionedMembers(prompt, group.members);
-  if (mentioned.length) return { plan: { mode: "mention", members: mentioned, source: "mention" } };
+  if (mentioned.length) {
+    const together = [...mentioned, ...companions(prompt, mentioned, group.members)];
+    const note = together.length > mentioned.length ? "@ 与同伴" : undefined;
+    const plan: GroupPlan = { mode: "mention", members: together, source: "mention", ...(note ? { note } : {}) };
+    // The mention fixes who; with two or more, the router only chooses how (a game, a discussion, in parallel).
+    if (together.length < 2 || !complete) return { plan };
+    const raw = await complete(ROUTER_SYSTEM, routerState(group.lines, prompt, together)).catch(() => undefined);
+    const routed = planFromRoute(parseRoute(raw), together, raw, prompt, continuing);
+    if (routed.source === "router" && routed.members.length > 1) return { plan: { ...routed, source: "mention", ...(note ? { note } : {}) }, raw };
+    // One answerer who was @-mentioned: the other name was only a reference ("你和Tonny的方案哪个好").
+    if (routed.source === "router" && mentioned.includes(routed.members[0])) return { plan: { mode: "mention", members: routed.members, source: "mention" }, raw };
+    return { plan, raw };
+  }
   const addressed = addressedMembers(prompt, group.members);
   if (addressed.length) return { plan: { mode: "mention", members: addressed, source: "mention", note: "句首称呼" } };
-  const continuing = soleSpeaker(group.lines);
+  const silent = silentMember(prompt, group.members);
+  if (silent) return { plan: { mode: "single", members: [silent], source: "rule", note: "点名未发言的成员" } };
   if (continuing && group.members.includes(continuing) && isContinuation(prompt)) {
     return { plan: { mode: "single", members: [continuing], source: "rule", note: "接着上一位" } };
   }
@@ -262,12 +315,20 @@ export function memberPrompt(member: AgentPresetId, group: AgentPresetId[], plan
   const said = previous.map((p) => `- ${MEMBER_NAMES[p.member]}：${p.text}`);
   // Prompts depend on the turn's mode; topology (who, order, rounds) is fixed by code, never by the prompt.
   const opening = round === 1 && previous.length === 0;
+  const total = plan.rounds ?? (plan.mode === "discussion" ? DISCUSSION_ROUNDS : 1);
   if (plan.mode === "parallel") out.push(INTERACTION, "本轮每位成员各自独立回答，你看不到别人的回答。", partRule(member, opening, true));
-  if (plan.mode === "round_robin") out.push(INTERACTION, `本轮按顺序每人说一次：${order}。轮到你了，接着前面的人说。`, partRule(member, opening, false),
-    ...(said.length ? ["本轮前面的发言：", ...said] : ["你是第一个。"]));
-  if (plan.mode === "discussion") out.push(`这是群里的讨论，第 ${round}/${DISCUSSION_ROUNDS} 轮，顺序：${order}。回应前面的人，给出你的观点，简短具体，不调用工具，不读写文件。`
-    + (round === DISCUSSION_ROUNDS ? "这是最后一轮，尽量收敛。" : ""), partRule(member, opening, false),
+  if (plan.mode === "round_robin") out.push(INTERACTION, total > 1
+    ? `按顺序每人说一次为一轮：${order}，共 ${total} 轮，现在是第 ${round}/${total} 轮。轮到你了，接着前面的人说；轮数由系统安排，不要宣布开始或结束新的一轮。`
+    : `本轮按顺序每人说一次：${order}。轮到你了，接着前面的人说。`, partRule(member, opening, false),
+    ...(said.length ? [total > 1 ? "前面各轮的发言：" : "本轮前面的发言：", ...said] : ["你是第一个。"]));
+  if (plan.mode === "discussion") out.push(`这是群里的讨论，第 ${round}/${total} 轮，顺序：${order}。回应前面的人，给出你的观点，简短具体，不调用工具，不读写文件。`
+    + (round === total ? "这是最后一轮，尽量收敛。" : ""), partRule(member, opening, false),
     ...(said.length ? ["讨论到目前为止：", ...said] : ["你先开场。"]));
+  if ((plan.mode === "single" || plan.mode === "mention") && plan.members.length === 1) {
+    out.push("这条消息只由你回答，其他成员这次不会接着发言。需要别人参与时，告诉用户可以 @ 他们，不要点名让他们接话。");
+  }
+  if (plan.mode === "mention" && plan.members.length > 1) out.push(`这条消息由 ${order} 依次回答。`, partRule(member, opening, false),
+    ...(said.length ? ["前面成员本条的回答：", ...said] : []));
   if (plan.mode === "sequential") {
     out.push(`这是一项工作，本轮按顺序进行：${order}。`, partRule(member, opening, false));
     if (member === "planner") out.push("你负责规划：把计划直接写在回复里，系统会把全文交给下一位成员，不必另写计划或交接文件（用户明确要求除外）。"
@@ -482,8 +543,8 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       const routerRaw = routed.raw;
       const mentioned = plan.source === "mention" ? plan.members : [];
       const order = plan.members.map((m) => MEMBER_NAMES[m]);
-      const routeText = `${plan.mode} ${order.join(" → ")} · ${plan.source}${plan.route ? `(${plan.route})` : ""}${plan.note ? ` · ${plan.note}` : ""} · ${Date.now() - started} ms${routerRaw !== undefined ? ` · raw=${routerRaw.slice(0, 200)}` : ""}`;
-      deps.log?.("group.route", { conversationId: groupId, mode: plan.mode, members: plan.members, source: plan.source, route: plan.route, ms: Date.now() - started });
+      const routeText = `${plan.mode} ${order.join(" → ")} · ${plan.source}${plan.route ? `(${plan.route})` : ""}${plan.note ? ` · ${plan.note}` : ""}${plan.rounds ? ` · ${plan.rounds} 轮` : ""} · ${Date.now() - started} ms${routerRaw !== undefined ? ` · raw=${routerRaw.slice(0, 200)}` : ""}`;
+      deps.log?.("group.route", { conversationId: groupId, mode: plan.mode, members: plan.members, source: plan.source, route: plan.route, rounds: plan.rounds, ms: Date.now() - started });
       const routeId = `${groupRunId}_route`;
       debug(adapter.apply({ type: "tool_execution_start", toolCallId: routeId, toolName: "group_route", args: { route: routeText } }));
       debug(adapter.apply({ type: "tool_execution_end", toolCallId: routeId, toolName: "group_route", result: { content: [{ type: "text", text: routeText }] } }));
@@ -522,16 +583,18 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
           if (failed?.status === "rejected") throw memberFailure ?? failed.reason;
         }
         else if (plan.mode === "discussion") {
-          for (let round = 1; round <= DISCUSSION_ROUNDS && !abort.signal.aborted; round++) {
+          for (let round = 1; round <= (plan.rounds ?? DISCUSSION_ROUNDS) && !abort.signal.aborted; round++) {
             for (const member of plan.members) {
               if (abort.signal.aborted) break;
               await runMember(member, memberPrompt(member, meta.members, plan, meta.lines, prompt, [...outputs], round));
             }
           }
           if (!abort.signal.aborted) await runMember("assistant", pmSummaryPrompt(outputs, prompt, true));
-        } else for (const member of plan.members) {
-          if (abort.signal.aborted) break;
-          await runMember(member, memberPrompt(member, meta.members, plan, meta.lines, prompt, [...outputs]));
+        } else for (let round = 1; round <= (plan.mode === "round_robin" ? plan.rounds ?? 1 : 1) && !abort.signal.aborted; round++) {
+          for (const member of plan.members) {
+            if (abort.signal.aborted) break;
+            await runMember(member, memberPrompt(member, meta.members, plan, meta.lines, prompt, [...outputs], round));
+          }
         }
       } else {
         // 2b. a multi-member task: Raer, as PM, states the split in the group and asks to start.

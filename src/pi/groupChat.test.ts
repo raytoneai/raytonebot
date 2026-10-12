@@ -3,8 +3,8 @@ import { readFileSync } from "node:fs";
 import { test } from "node:test";
 
 import {
-  addressedMembers, childConversationId, GROUP_MEMBERS, isChildConversationId, isContinuation, isGreeting, memberPrompt, mentionedMembers,
-  completeJson, parseRoute, planFromRoute, routerThinking, soleSpeaker, speakingOrder, untag,
+  addressedMembers, childConversationId, companions, GROUP_MEMBERS, isChildConversationId, isContinuation, isGreeting, memberPrompt, mentionedMembers,
+  completeJson, MAX_ROUNDS, parseRoute, planFromRoute, requestedRounds, routeGroupMessage, routerThinking, silentMember, soleSpeaker, speakingOrder, untag,
 } from "./groupChat.ts";
 
 const ID: Record<string, string> = { raer: "assistant", tonny: "planner", bob: "builder" };
@@ -159,4 +159,43 @@ test("the router turns DeepSeek's thinking off and sends nothing extra to other 
   await completeJson({ baseUrl: "https://api.deepseek.com/anthropic", protocol: "anthropic" }, "k", "deepseek-flash", "s", "u", fetcher);
   await completeJson({ baseUrl: "https://api.openai.com/v1", protocol: "openai-compatible" }, "k", "gpt", "s", "u", fetcher);
   assert.deepEqual(bodies.map((body) => body.thinking), [{ type: "disabled" }, { type: "disabled" }, undefined]);
+});
+
+test("a round count in the message sets how many rounds a game or discussion runs", () => {
+  for (const [text, rounds] of [["再来两轮试试", 2], ["来3轮成语接龙", 3], ["接龙三圈", 3], ["讨论 2 回合", 2], ["play two rounds", 2],
+    ["再来一轮", 1], ["来二十轮", MAX_ROUNDS], ["99 rounds of counting", MAX_ROUNDS]] as const) assert.equal(requestedRounds(text), rounds, text);
+  for (const text of ["第二轮收尾", "大家轮流说", "再来一次", "成语接龙", "0轮"]) assert.equal(requestedRounds(text), undefined, text);
+  assert.equal(planFromRoute("round_robin", all, undefined, "再来两轮试试").rounds, 2);
+  assert.equal(planFromRoute("discussion", all, undefined, "讨论三轮").rounds, 3);
+  assert.equal("rounds" in planFromRoute("round_robin", all, undefined, "成语接龙"), false, "no count: one round, as before");
+
+  const plan = { mode: "round_robin" as const, members: all, source: "router" as const, rounds: 2 };
+  const second = memberPrompt("planner", all, plan, [], "再来两轮试试", [{ member: "assistant", text: "a" }, { member: "planner", text: "b" }, { member: "builder", text: "c" }], 2);
+  assert.match(second, /共 2 轮，现在是第 2\/2 轮/);
+  assert.match(second, /不要宣布开始或结束新的一轮/, "the code, not the member, counts rounds");
+  assert.match(second, /前面各轮的发言：/);
+  assert.match(memberPrompt("planner", all, { ...plan, rounds: undefined }, [], "成语接龙", []), /本轮按顺序每人说一次/);
+  assert.match(memberPrompt("builder", all, { ...plan, mode: "discussion", rounds: 3 }, [], "讨论三轮", [], 3), /第 3\/3 轮.*这是最后一轮/);
+});
+
+test("an @-mention takes its companions along, and a silent member gets the turn when the user points it out", async () => {
+  assert.deepEqual(companions("@Raer 你和tonny玩一次", ["assistant"], all), ["planner"]);
+  assert.deepEqual(companions("@Bob please work with Tonny", ["builder"], all), ["planner"]);
+  for (const t of ["@Raer 看看Tonny写的方案", "@Raer 你和我玩", "@Tonny 和@Bob"]) assert.deepEqual(companions(t, ["assistant"], all), [], t);
+  const route = (text: string, answer?: string) => routeGroupMessage(text, { members: all, lines: [] }, answer ? async () => answer : undefined);
+  assert.deepEqual((await route("@Raer 你和tonny玩一次", '{"route":"round_robin"}')).plan,
+    { mode: "round_robin", members: ["assistant", "planner"], source: "mention", route: "round_robin", note: "@ 与同伴" });
+  assert.deepEqual((await route("@Raer 你和Tonny的方案哪个好", '{"route":"raer"}')).plan.members, ["assistant"], "the other name was a reference");
+  assert.deepEqual((await route("@Raer 你和tonny玩一次")).plan.members, ["assistant", "planner"], "no router: both answer in turn");
+  assert.equal((await route("@Bob 看看")).raw, undefined, "a single mention never calls the router");
+
+  for (const [t, m] of [["tonny好像没有说话", "planner"], ["该Bob了", "builder"], ["轮到 Tonny", "planner"], ["Bob didn't answer", "builder"]] as const) {
+    assert.deepEqual((await route(t, '{"route":"raer"}')).plan, { mode: "single", members: [m], source: "rule", note: "点名未发言的成员" }, t);
+  }
+  for (const t of ["Tonny 没问题", "Bob 不错"]) assert.equal(silentMember(t, all), undefined, t);
+
+  const pair = { mode: "mention" as const, members: ["assistant", "planner"] as ("assistant" | "planner")[], source: "mention" as const };
+  const tonny = memberPrompt("planner", all, pair, [], "@Raer 你和tonny玩一次", [{ member: "assistant", text: "大器晚成。Tonny，接「成」字。" }]);
+  assert.match(tonny, /由 Raer → Tonny 依次回答[\s\S]*前面成员本条的回答：\s*- Raer：大器晚成/, "a later member sees what this turn already said");
+  assert.match(memberPrompt("assistant", all, { ...pair, members: ["assistant"] }, [], "@Raer 讲个笑话", []), /只由你回答[\s\S]*不要点名让他们接话/);
 });
