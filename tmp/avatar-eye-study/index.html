@@ -2,7 +2,7 @@
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>Raytone · 大眼睛动画预览</title>
+  <title>Raytone · 24% 眼睛动画预览</title>
   <link rel="stylesheet" href="../../src/avatars/raytoneAvatar.css">
   <style>
     * { box-sizing:border-box; } body { margin:0;background:#fff;color:#0c2458;font:14px/1.6 -apple-system,BlinkMacSystemFont,"PingFang SC",sans-serif; }
@@ -31,16 +31,16 @@
 <body>
 <main>
   <h1>让眼神更容易被看见</h1>
-  <p>眼高从约 19% 调到 33%。保留浅肤色、细暖色描边和配件，复用现有眨眼、视线与状态动效。</p>
+  <p>默认眼高 24%，可在 23–25% 之间对比。镜框和帽子同步收回，保留浅肤色、细暖色描边与现有动效。</p>
   <div class="controls">
-    <fieldset><legend>眼睛比例</legend><label><input type="radio" name="ratio" value="0">原比例 19%</label><label><input type="radio" name="ratio" value="0.333333333333" checked>大眼睛 33%</label></fieldset>
+    <fieldset><legend>眼睛比例</legend><label><input type="radio" name="ratio" value="0.23">23%</label><label><input type="radio" name="ratio" value="0.24" checked>24%</label><label><input type="radio" name="ratio" value="0.25">25%</label></fieldset>
     <label>状态 <select id="state"><option value="idle">待机</option><option value="thinking">思考</option><option value="reading">阅读</option><option value="working">执行</option><option value="writing">回答</option><option value="asking">等待确认</option><option value="success">完成</option><option value="sleep">休息</option></select></label>
     <label><input id="autoplay" type="checkbox" checked>自动演示</label>
     <label><input id="halo" type="checkbox" checked>背景条纹</label>
     <button id="pause" type="button" aria-pressed="false">暂停</button>
   </div>
   <div class="grid" id="portraits"></div>
-  <div class="bottom"><span>Tonny 镜框同步加高，眼睛限制在镜片内。移动鼠标可以试视线跟随；拖一下头像会回弹。</span><a href="preview.gif" download>下载循环 GIF</a></div>
+  <div class="bottom"><span>Tonny 恢复紧凑方框，留出眨眼和视线移动的空间。移动鼠标可以试视线跟随；拖一下头像会回弹。</span><a href="preview-24.gif" download>下载 24% 循环 GIF</a></div>
   <p class="sub" style="margin-top:12px">临时 SVG 动效稿 · 只写入 tmp/avatar-eye-study · 正式头像代码未修改</p>
 </main>
 <script type="module" src="./preview.mjs"></script>

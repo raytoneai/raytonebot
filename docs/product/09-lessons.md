@@ -77,6 +77,8 @@
 
 - **设置弹层看不见** → 输入栏 `.composer-tools` 裁切溢出，欢迎页上弹层还会超出视口顶部 → 用 Radix Popover 渲染到 body 并开启碰撞处理。
 - **复制控件只有图标，或点击失败却无提示** → 消息按钮没有 onClick/原文，其他入口忽略 Clipboard Promise 拒绝 → 把对应消息原文传到既有控件，共用等待浏览器写入、失败反馈及卸载清理。不要从渲染后 DOM 收集文本，否则会丢 Markdown 或混入其他消息/按钮；验收需读回实际剪贴板，并模拟拒绝与 API 不存在。
+- **HTML 产物“只去掉 `<script>`”仍会执行代码** → `onerror`/`onclick` 等事件属性与 `javascript:` URL 在 `allow-scripts` 的 iframe 里照样运行（Codex review 复现）→ 不能执行的内容用不含 `unsafe-inline` 的 nonce CSP，让浏览器拒绝，再在惰性 `<template>` 里清洗作第二道（`htmlStreamDocument`）。
+- **HTML 产物加载时自动发送追问被放行** → 打开文件那一下点击的用户激活还在有效期内 → 同时要求 iframe 持有焦点（ADR-035）。
 
 ## 浏览器验收
 

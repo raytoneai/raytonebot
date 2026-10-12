@@ -46,7 +46,7 @@ for(let frame=0;frame<fps*seconds;frame++){
   }).join('');
   const svg=`<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="458" viewBox="0 0 1080 458"><rect width="1080" height="458" fill="white"/>
     <style>.happy-eye,.glint,.mouth>*{opacity:0}.mouth>.m-smile{opacity:1}text{font-family:Arial,sans-serif;font-size:20px;fill:#0C2458}</style>
-    <text x="540" y="29" text-anchor="middle" style="font-size:14px;fill:#6F7C91">RAYTONE / EYE STUDY · 33%</text>${portraits}</svg>`;
+    <text x="540" y="29" text-anchor="middle" style="font-size:14px;fill:#6F7C91">RAYTONE / EYE STUDY · 24%</text>${portraits}</svg>`;
   await sharp(Buffer.from(svg)).png().toFile(new URL(`${String(frame).padStart(3,'0')}.png`,dir).pathname);
   if(frame===0)await writeFile(new URL('./poster.svg',import.meta.url),svg);
 }

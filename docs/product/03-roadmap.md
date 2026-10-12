@@ -133,6 +133,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-12 可交互 HTML 产物 · Codex review 修复（ADR-035）：P1 实时预览只去 `<script>`，事件属性在审批前即可执行 → 预览 iframe 改用单独的 nonce CSP（无 `unsafe-inline`）并在惰性 `<template>` 中清洗元素/事件属性/可执行 URL，不注入桥；P2 主题只在 srcDoc 初始化时写入 → 主题变化时经 `postMessage` 原地更新样式。验证：新增 1 项测试，`npm test` 255 项全过、build 通过；Chrome 在 `html-artifact-stream` 场景注入 `img onerror`、`javascript:` 链接、`onclick`、SVG `xlink:href`、内嵌 srcdoc iframe、meta refresh、`formaction` 并点击，均未执行且被移除；绕过清洗器直接写入，CSP 仍阻止；设置里切到 Warm Graphite 后预览背景随之变深，内容保持同一文档。7 个内置场景无报错。浏览器回归脚本未纳入仓库（项目无 Playwright 依赖）。
+
 - 2026-10-12 可交互 HTML 产物 · 模块 5（参照 OIU 的回答分块显现）：聊天 Markdown 块在挂载时若在视野外，则隐藏到滚动进入视野时淡入一次（200ms，透明度 + 4px 位移，不影响布局与滚动锚定）；打开对话时已在视野内的块不动画，流式回答仍用原有逐字显示；减少动效时全部直接显示。阅读位置保持已由 `useTranscriptScroll` 实现，未改。验证：新增 1 项测试，`npm test` 254 项全过、build 通过；本机 Chrome 打开 1500 字历史回答：视野内 12 块可见、视野外 9 块待显示，向上滚动后全部显示，减少动效下同样无隐藏；7 个内置场景无报错。未部署。
 
 - 2026-10-12 可交互 HTML 产物 · 模块 4（ADR-035）：写入 `.html` 时 Output 面板实时预览正在成形的页面（只加载一次 iframe，`postMessage` 原地替换 body，期间不跑脚本），写入成功后自动打开真实文件；新增 devtools 场景 `html-artifact-stream`（定格在写到一半）。验证：新增 3 项测试（未完成 JSON 字符串解码、何时算正在写 HTML、去脚本/半截标签），`npm test` 253 项全过（上次失败的 Pi SDK 用例为偶发）、build 通过；本机 DeepSeek 真实运行：审批时右侧已显示即将写入的分账计算器、批准后自动切到真实文件且脚本算出结果、模型按新提示加了 sendPrompt 按钮；fixture 页面显示半截内容，父页面增量更新同一文档生效，iframe 自发消息被忽略；其余 7 个场景无报错、无误显实时预览。限制：Pi 路径参数被适配器缓冲，不能逐字显示；Claude Code 路径的逐字效果未用真实运行验证。未部署。

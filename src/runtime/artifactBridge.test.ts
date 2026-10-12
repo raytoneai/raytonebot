@@ -52,3 +52,18 @@ test("only the libraries a page uses are inlined, as an import map and scripts t
   assert.equal(shim, 'const m=window.__raytoneLibs["three"];export default m.default??m;export const {Scene,REVISION}=m;');
   assert.ok(htmlPreviewDocument("<script>x</script>", "", head).indexOf(head) < htmlPreviewDocument("<script>x</script>", "", head).indexOf("<script>x"));
 });
+
+test("the live-preview frame runs only its receiver: no inline handlers, javascript: URLs or data: scripts", async () => {
+  const { htmlStreamDocument } = await import("../components/agent-preview/outputframe/htmlPreview.ts");
+  const document = htmlStreamDocument("body{color:red}</style><script>x()</script>", "abc123");
+  const policy = /content="([^"]+)"/.exec(document)![1];
+  assert.match(policy, /script-src 'nonce-abc123';/);
+  assert.doesNotMatch(policy, /unsafe-inline'? data:|script-src[^;]*unsafe-inline/);
+  assert.match(policy, /connect-src 'none'/);
+  const outsideStyle = document.replace(/<style id="raytone-theme">[\s\S]*?<\/style>/, "");
+  assert.equal(outsideStyle.match(/<script/g)!.length, 1, "only the nonced receiver; the theme cannot close its style and open a script");
+  assert.match(document, /<style id="raytone-theme">/);
+  assert.doesNotMatch(document, /raytone\.sendPrompt|raytoneArtifact/, "an unsaved page gets no bridge");
+  const receiver = document.slice(document.indexOf('nonce="abc123">') + 15, document.lastIndexOf("</script>"));
+  assert.doesNotThrow(() => new Function(receiver));
+});

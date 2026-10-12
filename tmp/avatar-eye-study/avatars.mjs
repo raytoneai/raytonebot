@@ -44,29 +44,29 @@ const artwork = {
       <path d="M78 41L89 27" stroke="${gold}" stroke-width="3.4" stroke-linecap="round"/>
       <path d="M89 27L91 24.6" stroke="${navy}" stroke-width="3.4" stroke-linecap="round"/>`,
     over: `<g stroke="${navy}" stroke-width="2.1">
-      <rect x="26" y="42" width="23" height="34" rx="5"/><rect x="51" y="42" width="23" height="34" rx="5"/>
+      <rect x="26" y="46.5" width="23" height="27" rx="5"/><rect x="51" y="46.5" width="23" height="27" rx="5"/>
       <path d="M49 53Q50 51 51 53M26 54H18M74 54H82"/>
       </g><g stroke="${gold}" stroke-width="1.6" stroke-linecap="round"><path d="M19 51H25M19 54H25M19 57H25M75 51H81M75 54H81M75 57H81"/></g>
-      <g class="glint" stroke="#FFF" stroke-width="1.6" stroke-linecap="round"><path d="M30 66L35 48M55 66L60 48"/></g>${mouth(80)}`,
+      <g class="glint" stroke="#FFF" stroke-width="1.6" stroke-linecap="round"><path d="M30 66L34 52M55 66L59 52"/></g>${mouth()}`,
     height: 72,
   },
   boy: {
     body: `${face(true)}
       <path d="M21 56C17 37 25 23 49 24C76 24 86 37 80 56L75 50L73 44L68 48L62 42L36 42L30 49L27 46L25 56Z" fill="${navy}"/>
-      <g transform="translate(0 -4)"><ellipse cx="43" cy="13" rx="4" ry="2.5" fill="${navy}"/>
+      <g transform="translate(0 -2)"><ellipse cx="43" cy="13" rx="4" ry="2.5" fill="${navy}"/>
       <path d="M17 47C15 26 30 13 52 13C72 13 84 28 83 41L83 46L28 49L18 51Z" fill="${navy}"/>
       <path d="M20 39Q23 22 42 16L33 27L26 44Z" fill="${blue}"/>
       <path d="M29 46Q56 44 76 40Q90 39 95 46Q96 50 89 50Q76 45 65 49Q43 55 29 46Z" fill="${blue}"/>
       <path d="M30 47Q46 51 66 46Q82 40 93 46" stroke="${gold}" stroke-width="1.2" stroke-linecap="round"/>
       <g stroke="${gold}" stroke-width="2.1" stroke-linecap="round"><path d="M53 27H60M50 31H63M53 35H60"/></g></g>`,
-    over: mouth(), height: 79.5,
+    over: mouth(), height: 77.5,
   },
 };
 
-export function avatarSVG(kind, { ratio = 1 / 3, halo = true, id = kind, pose = null } = {}) {
+export function avatarSVG(kind, { ratio = .24, halo = true, id = kind, pose = null } = {}) {
   const part = artwork[kind];
   const height = ratio === 0 ? 13.5 : part.height * ratio;
-  const width = ratio === 0 ? 6.2 : 7.2;
+  const width = ratio === 0 ? 6.2 : 6.6;
   const eyes = [38.5, 61.5].map(x => `<g transform="translate(${x} ${kind === 'boy' ? 60.5 : 59.5})"><g class="blink"${pose ? ` transform="scale(1 ${pose.blink})"` : ''}><g class="expression">
     <rect class="open-eye" x="${-width / 2}" y="${-height / 2}" width="${width}" height="${height}" rx="${width / 2}" fill="${navy}"/>
     <path class="happy-eye" d="M-5.2 1Q0-6.4 5.2 1" stroke="${navy}" stroke-width="3.4" stroke-linecap="round"/>
@@ -80,7 +80,7 @@ export function avatarSVG(kind, { ratio = 1 / 3, halo = true, id = kind, pose = 
   }).join('');
   const clip = `lenses-${id}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" aria-hidden="true">
-    ${kind === 'man' ? `<defs><clipPath id="${clip}"><rect x="108" y="172" width="84" height="128" rx="15"/><rect x="208" y="172" width="84" height="128" rx="15"/></clipPath></defs>` : ''}
+    ${kind === 'man' ? `<defs><clipPath id="${clip}"><rect x="108" y="190" width="84" height="100" rx="15"/><rect x="208" y="190" width="84" height="100" rx="15"/></clipPath></defs>` : ''}
     ${halo ? `<g class="halo" transform="scale(4)" opacity=".55">${rays}</g>` : ''}
     <g class="drag-group"><g class="follow-group"${pose ? ` transform="translate(${pose.x/2.4} ${pose.y/3}) rotate(${pose.turn} 200 235)"` : ''}><g class="action-group"><g class="gesture-group"><g class="breath">
     <g transform="scale(4)">${part.body}</g>
