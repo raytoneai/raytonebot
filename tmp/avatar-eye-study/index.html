@@ -21,6 +21,9 @@
     .bottom { display:flex;flex-wrap:wrap;gap:16px;justify-content:space-between;margin-top:30px;border-top:1px solid #e8ebf0;padding-top:18px;font-size:12px;color:#737d8e; }
     a { color:#0c2458;text-underline-offset:3px; }
     .raytone-avatar[data-paused="true"] * { animation-play-state:paused!important; }
+    /* Large eyes already read as open; preserve clearance around brim, frames and mouth. */
+    .raytone-avatar[data-state="listening"] .expression { transform:scale(1.04,1); }
+    .raytone-avatar[data-state="asking"] .expression { transform:scale(1.08,1); }
     @media(max-width:650px) { main { margin:24px auto;padding:0 16px; } .controls { gap:12px; } .stage { height:auto;min-height:160px; } .small { flex-direction:column;gap:0; } h2 { font-size:15px; } .sub { font-size:10px; } }
     @media(prefers-reduced-motion:reduce) { .raytone-avatar * { animation:none!important;transition:none!important; } }
   </style>

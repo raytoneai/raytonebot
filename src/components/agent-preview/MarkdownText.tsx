@@ -1,8 +1,9 @@
-import { memo, useMemo } from "react";
+import { memo, useEffect, useMemo, useRef } from "react";
 import ReactMarkdown, { type Components } from "react-markdown";
 import remarkGfm from "remark-gfm";
 
 import { MermaidDiagram } from "./outputframe/markdown/MermaidDiagram";
+import { observeAnswerBlocks } from "../../runtime/answerReveal";
 import "./markdownText.css";
 
 /**
@@ -45,8 +46,10 @@ const components: Components = {
 
 export const MarkdownText = memo(function MarkdownText({ children }: { children: string }) {
   const plugins = useMemo(() => REMARK_PLUGINS, []);
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => (root.current ? observeAnswerBlocks(root.current) : undefined), []);
   return (
-    <div className="markdown-text">
+    <div className="markdown-text" ref={root}>
       <ReactMarkdown remarkPlugins={plugins} components={components}>
         {children}
       </ReactMarkdown>

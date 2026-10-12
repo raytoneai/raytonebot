@@ -1,0 +1,88 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1080" height="458" viewBox="0 0 1080 458"><rect width="1080" height="458" fill="white"/>
+    <style>.happy-eye,.glint,.mouth>*{opacity:0}.mouth>.m-smile{opacity:1}text{font-family:Arial,sans-serif;font-size:20px;fill:#0C2458}</style>
+    <text x="540" y="29" text-anchor="middle" style="font-size:14px;fill:#6F7C91">RAYTONE / EYE STUDY · 33%</text><g transform="translate(25 52)"><svg width="330" height="330" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" aria-hidden="true">
+    
+    <g class="halo" transform="scale(4)" opacity=".55"><line class="ray" style="--i:0" x1="58.22151107047154" x2="75.92296279363144" y1="14" y2="14" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0 0)"/><line class="ray" style="--i:1" x1="56.28485705712571" x2="85.70714214271425" y1="23" y2="23" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.07629543306814246 0)"/><line class="ray" style="--i:2" x1="65.25588171341312" x2="91.42463035441597" y1="32" y2="32" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.28855032339526876 0)"/><line class="ray" style="--i:3" x1="59.14646765892073" x2="94.66542286825458" y1="41" y2="41" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.5904958744718382 0)"/><line class="ray" style="--i:4" x1="64.86782032824519" x2="95.95650117230423" y1="50" y2="50" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.9163118960624631 0)"/><line class="ray" style="--i:5" x1="57.45571260240127" x2="95.46427168667722" y1="59" y2="59" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.1949747468305831 0)"/><line class="ray" style="--i:6" x1="65.8008695378226" x2="93.12771730569565" y1="68" y2="68" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.3657395614066075 0)"/><line class="ray" style="--i:7" x1="59.72269383052313" x2="88.61346915261564" y1="77" y2="77" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.3913818384165964 0)"/><line class="ray" style="--i:8" x1="60.67548269550461" x2="80.98386676965933" y1="86" y2="86" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.266311896062463 0)"/></g>
+    <g class="drag-group"><g class="follow-group" transform="translate(0 0) rotate(0 200 235)"><g class="action-group"><g class="gesture-group"><g class="breath">
+    <g transform="scale(4)"><path d="M17 76C8 44 22 15 50 14C78 15 92 44 83 76C81 82 74 82 73 77V52H27V77C26 82 19 82 17 76Z" fill="#0C2458"/>
+      <ellipse cx="50" cy="57" rx="27" ry="29" fill="#F8E7CF" stroke="#C9A47E" stroke-width=".7"/>
+    <g fill="#F4C7A7" opacity=".7"><ellipse cx="33" cy="72" rx="4.5" ry="2.1"/><ellipse cx="67" cy="72" rx="4.5" ry="2.1"/></g>
+      <path d="M23 52C21 30 35 18 52 18C69 18 80 30 78 49C69 47 61 39 57 30C51 41 38 48 23 52Z" fill="#0C2458"/>
+      <path d="M55 20C65 21 73 27 76 36C69 34 62 30 58 25Z" fill="#1B3971"/>
+      <path d="M21 44Q20 22 42 16" stroke="#E7AC26" stroke-width="2.2" stroke-linecap="round"/>
+      <g stroke="#E7AC26" stroke-width="2.3" stroke-linecap="round"><path d="M69 34L75 31M70 38L76 35M71 42L77 39"/></g>
+      <ellipse cx="20" cy="59" rx="6.5" ry="8.6" fill="#FFF"/>
+      <g stroke="#E7AC26" stroke-width="2.5" stroke-linecap="round"><path d="M18 52H22M16 55.5H24M15.5 59H24.5M16 62.5H24M18 66H22"/></g>
+      <path d="M21.5 66Q23 73 33 74" stroke="#E7AC26" stroke-width="2" stroke-linecap="round"/>
+      <circle class="mic" cx="34" cy="74" r="2.2" fill="#E7AC26"/></g>
+    <g><g class="gaze" transform="translate(0 0)"><g class="thinking-gaze"><g transform="scale(4)"><g transform="translate(38.5 59.5)"><g class="blink" transform="scale(1 1)"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-12" width="7.2" height="24" rx="3.6" fill="#0C2458"/>
+    <path class="happy-eye" d="M-5.2 1Q0-6.4 5.2 1" stroke="#0C2458" stroke-width="3.4" stroke-linecap="round"/>
+  </g></g></g><g transform="translate(61.5 59.5)"><g class="blink" transform="scale(1 1)"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-12" width="7.2" height="24" rx="3.6" fill="#0C2458"/>
+    <path class="happy-eye" d="M-5.2 1Q0-6.4 5.2 1" stroke="#0C2458" stroke-width="3.4" stroke-linecap="round"/>
+  </g></g></g></g></g></g></g>
+    <g transform="scale(4)"><g transform="translate(50 78)"><g class="mouth">
+    <path class="m-smile" d="M-4 -1Q0 3 4 -1" stroke="#0C2458" stroke-width="1.7" stroke-linecap="round"/>
+    <path class="m-flat" d="M-2.6 0H2.6" stroke="#0C2458" stroke-width="1.7" stroke-linecap="round"/>
+    <ellipse class="m-o" rx="1.7" ry="2.1" fill="#0C2458"/>
+    <path class="m-open" d="M-4.4 -1.4Q0 -1.9 4.4 -1.4Q3.6 5 0 5Q-3.6 5 -4.4 -1.4Z" fill="#0C2458"/>
+    <path class="m-frown" d="M-3.4 1.6Q0 -1.6 3.4 1.6" stroke="#0C2458" stroke-width="1.7" stroke-linecap="round"/>
+  </g></g></g>
+    </g></g></g></g></g></svg></g><text x="190" y="417" text-anchor="middle">Raer</text><g transform="translate(375 52)"><svg width="330" height="330" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" aria-hidden="true">
+    <defs><clipPath id="lenses-gif-man"><rect x="108" y="172" width="84" height="128" rx="15"/><rect x="208" y="172" width="84" height="128" rx="15"/></clipPath></defs>
+    <g class="halo" transform="scale(4)" opacity=".55"><line class="ray" style="--i:0" x1="58.22151107047154" x2="75.92296279363144" y1="14" y2="14" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.006476511669989526 0)"/><line class="ray" style="--i:1" x1="56.28485705712571" x2="85.70714214271425" y1="23" y2="23" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.12519555360640722 0)"/><line class="ray" style="--i:2" x1="65.25588171341312" x2="91.42463035441597" y1="32" y2="32" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.36921446459166213 0)"/><line class="ray" style="--i:3" x1="59.14646765892073" x2="94.66542286825458" y1="41" y2="41" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.68534030608165 0)"/><line class="ray" style="--i:4" x1="64.86782032824519" x2="95.95650117230423" y1="50" y2="50" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.004661769560629 0)"/><line class="ray" style="--i:5" x1="57.45571260240127" x2="95.46427168667722" y1="59" y2="59" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.2575709426169372 0)"/><line class="ray" style="--i:6" x1="65.8008695378226" x2="93.12771730569565" y1="68" y2="68" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.3889369255784692 0)"/><line class="ray" style="--i:7" x1="59.72269383052313" x2="88.61346915261564" y1="77" y2="77" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.370123648272447 0)"/><line class="ray" style="--i:8" x1="60.67548269550461" x2="80.98386676965933" y1="86" y2="86" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.2052321596688538 0)"/></g>
+    <g class="drag-group"><g class="follow-group" transform="translate(0 0) rotate(0 200 235)"><g class="action-group"><g class="gesture-group"><g class="breath">
+    <g transform="scale(4)"><path d="M22 45Q24 29 50 29Q76 29 78 45L79 54C87 52 88 67 79 67C76 78 66 86 50 86C34 86 24 78 21 67C12 67 13 52 21 54Z" fill="#F8E7CF" stroke="#C9A47E" stroke-width=".7"/>
+    <g fill="#F4C7A7" opacity=".7"><ellipse cx="33" cy="72" rx="4.5" ry="2.1"/><ellipse cx="67" cy="72" rx="4.5" ry="2.1"/></g>
+      <path d="M20 53C17 28 31 14 51 14C72 14 85 28 81 53L77 46C76 38 71 34 64 31C53 35 37 35 27 41C24 45 23 49 23 53Z" fill="#0C2458"/>
+      <path d="M38 18C50 15 64 16 72 23C62 23 51 24 42 28Z" fill="#1B3971"/>
+      <path d="M21 45V56M79 45V56" stroke="#9AAAC3" stroke-width="4" stroke-linecap="round"/>
+      <path d="M78 41L89 27" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round"/>
+      <path d="M89 27L91 24.6" stroke="#0C2458" stroke-width="3.4" stroke-linecap="round"/></g>
+    <g clip-path="url(#lenses-gif-man)"><g class="gaze" transform="translate(0 0)"><g class="thinking-gaze"><g transform="scale(4)"><g transform="translate(38.5 59.5)"><g class="blink" transform="scale(1 1)"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-12" width="7.2" height="24" rx="3.6" fill="#0C2458"/>
+    <path class="happy-eye" d="M-5.2 1Q0-6.4 5.2 1" stroke="#0C2458" stroke-width="3.4" stroke-linecap="round"/>
+  </g></g></g><g transform="translate(61.5 59.5)"><g class="blink" transform="scale(1 1)"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-12" width="7.2" height="24" rx="3.6" fill="#0C2458"/>
+    <path class="happy-eye" d="M-5.2 1Q0-6.4 5.2 1" stroke="#0C2458" stroke-width="3.4" stroke-linecap="round"/>
+  </g></g></g></g></g></g></g>
+    <g transform="scale(4)"><g stroke="#0C2458" stroke-width="2.1">
+      <rect x="26" y="42" width="23" height="34" rx="5"/><rect x="51" y="42" width="23" height="34" rx="5"/>
+      <path d="M49 53Q50 51 51 53M26 54H18M74 54H82"/>
+      </g><g stroke="#E7AC26" stroke-width="1.6" stroke-linecap="round"><path d="M19 51H25M19 54H25M19 57H25M75 51H81M75 54H81M75 57H81"/></g>
+      <g class="glint" stroke="#FFF" stroke-width="1.6" stroke-linecap="round"><path d="M30 66L35 48M55 66L60 48"/></g><g transform="translate(50 80)"><g class="mouth">
+    <path class="m-smile" d="M-4 -1Q0 3 4 -1" stroke="#0C2458" stroke-width="1.7" stroke-linecap="round"/>
+    <path class="m-flat" d="M-2.6 0H2.6" stroke="#0C2458" stroke-width="1.7" stroke-linecap="round"/>
+    <ellipse class="m-o" rx="1.7" ry="2.1" fill="#0C2458"/>
+    <path class="m-open" d="M-4.4 -1.4Q0 -1.9 4.4 -1.4Q3.6 5 0 5Q-3.6 5 -4.4 -1.4Z" fill="#0C2458"/>
+    <path class="m-frown" d="M-3.4 1.6Q0 -1.6 3.4 1.6" stroke="#0C2458" stroke-width="1.7" stroke-linecap="round"/>
+  </g></g></g>
+    </g></g></g></g></g></svg></g><text x="540" y="417" text-anchor="middle">Tonny</text><g transform="translate(725 52)"><svg width="330" height="330" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" aria-hidden="true">
+    
+    <g class="halo" transform="scale(4)" opacity=".55"><line class="ray" style="--i:0" x1="58.22151107047154" x2="75.92296279363144" y1="14" y2="14" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.02578620324163927 0)"/><line class="ray" style="--i:1" x1="56.28485705712571" x2="85.70714214271425" y1="23" y2="23" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.18473203901618584 0)"/><line class="ray" style="--i:2" x1="65.25588171341312" x2="91.42463035441597" y1="32" y2="32" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.45599956687472926 0)"/><line class="ray" style="--i:3" x1="59.14646765892073" x2="94.66542286825458" y1="41" y2="41" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(0.7804560053450065 0)"/><line class="ray" style="--i:4" x1="64.86782032824519" x2="95.95650117230423" y1="50" y2="50" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.0873740844703408 0)"/><line class="ray" style="--i:5" x1="57.45571260240127" x2="95.46427168667722" y1="59" y2="59" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.3098496677841325 0)"/><line class="ray" style="--i:6" x1="65.8008695378226" x2="93.12771730569565" y1="68" y2="68" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.3993859810692006 0)"/><line class="ray" style="--i:7" x1="59.72269383052313" x2="88.61346915261564" y1="77" y2="77" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.336465276332948 0)"/><line class="ray" style="--i:8" x1="60.67548269550461" x2="80.98386676965933" y1="86" y2="86" stroke="#E7AC26" stroke-width="3.4" stroke-linecap="round" transform="translate(1.1348034461948173 0)"/></g>
+    <g class="drag-group"><g class="follow-group" transform="translate(0 0) rotate(0 200 235)"><g class="action-group"><g class="gesture-group"><g class="breath">
+    <g transform="scale(4)"><path d="M22 45Q24 29 50 29Q76 29 78 45L79 54C87 52 88 67 79 67C76 78 66 86 50 86C34 86 24 78 21 67C12 67 13 52 21 54Z" fill="#F8E7CF" stroke="#C9A47E" stroke-width=".7"/>
+    <g fill="#F4C7A7" opacity=".7"><ellipse cx="33" cy="72" rx="4.5" ry="2.1"/><ellipse cx="67" cy="72" rx="4.5" ry="2.1"/></g>
+      <path d="M21 56C17 37 25 23 49 24C76 24 86 37 80 56L75 50L73 44L68 48L62 42L36 42L30 49L27 46L25 56Z" fill="#0C2458"/>
+      <g transform="translate(0 -4)"><ellipse cx="43" cy="13" rx="4" ry="2.5" fill="#0C2458"/>
+      <path d="M17 47C15 26 30 13 52 13C72 13 84 28 83 41L83 46L28 49L18 51Z" fill="#0C2458"/>
+      <path d="M20 39Q23 22 42 16L33 27L26 44Z" fill="#1B3971"/>
+      <path d="M29 46Q56 44 76 40Q90 39 95 46Q96 50 89 50Q76 45 65 49Q43 55 29 46Z" fill="#1B3971"/>
+      <path d="M30 47Q46 51 66 46Q82 40 93 46" stroke="#E7AC26" stroke-width="1.2" stroke-linecap="round"/>
+      <g stroke="#E7AC26" stroke-width="2.1" stroke-linecap="round"><path d="M53 27H60M50 31H63M53 35H60"/></g></g></g>
+    <g><g class="gaze" transform="translate(0 0)"><g class="thinking-gaze"><g transform="scale(4)"><g transform="translate(38.5 60.5)"><g class="blink" transform="scale(1 1)"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-13.25" width="7.2" height="26.5" rx="3.6" fill="#0C2458"/>
+    <path class="happy-eye" d="M-5.2 1Q0-6.4 5.2 1" stroke="#0C2458" stroke-width="3.4" stroke-linecap="round"/>
+  </g></g></g><g transform="translate(61.5 60.5)"><g class="blink" transform="scale(1 1)"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-13.25" width="7.2" height="26.5" rx="3.6" fill="#0C2458"/>
+    <path class="happy-eye" d="M-5.2 1Q0-6.4 5.2 1" stroke="#0C2458" stroke-width="3.4" stroke-linecap="round"/>
+  </g></g></g></g></g></g></g>
+    <g transform="scale(4)"><g transform="translate(50 78)"><g class="mouth">
+    <path class="m-smile" d="M-4 -1Q0 3 4 -1" stroke="#0C2458" stroke-width="1.7" stroke-linecap="round"/>
+    <path class="m-flat" d="M-2.6 0H2.6" stroke="#0C2458" stroke-width="1.7" stroke-linecap="round"/>
+    <ellipse class="m-o" rx="1.7" ry="2.1" fill="#0C2458"/>
+    <path class="m-open" d="M-4.4 -1.4Q0 -1.9 4.4 -1.4Q3.6 5 0 5Q-3.6 5 -4.4 -1.4Z" fill="#0C2458"/>
+    <path class="m-frown" d="M-3.4 1.6Q0 -1.6 3.4 1.6" stroke="#0C2458" stroke-width="1.7" stroke-linecap="round"/>
+  </g></g></g>
+    </g></g></g></g></g></svg></g><text x="890" y="417" text-anchor="middle">Bob</text></svg>
