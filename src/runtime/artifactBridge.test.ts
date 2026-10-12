@@ -26,3 +26,15 @@ test("the bridge runs after the policy and before the artifact's own scripts", (
   assert.ok(policy > 0 && bridge > policy && bridge < document.indexOf("raytone.sendPrompt('x')"));
   assert.doesNotThrow(() => new Function(ARTIFACT_BRIDGE_SCRIPT));
 });
+
+test("artifact theme carries the app's variables and cannot break out of its style block", async () => {
+  const { artifactThemeCss } = await import("../components/agent-preview/outputframe/artifactTheme.ts");
+  const app: Record<string, string> = { "--surface-panel": " #101010 ", "--accent": "red}</style><script>x()</script>" };
+  const css = artifactThemeCss((name) => app[name] ?? "", "dark");
+  assert.match(css, /--color-background-primary:#101010;/);
+  assert.match(css, /--color-text-primary:#ececef/, "missing variables fall back per appearance");
+  assert.match(css, /color-scheme:dark/);
+  assert.doesNotMatch(css, /<\/style|<script/);
+  const document = htmlPreviewDocument("<style>body{color:red}</style>", css);
+  assert.ok(document.indexOf(css) < document.indexOf("body{color:red}"), "artifact styles come later and win");
+});

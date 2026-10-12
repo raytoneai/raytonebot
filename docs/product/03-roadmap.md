@@ -133,6 +133,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-12 可交互 HTML 产物 · 模块 2（ADR-035）：HTML 预览注入当前主题的 CSS 变量（沿用 OIU 命名，如 `--color-background-primary`）、表单/表格基础样式、SVG 配色类与减少动效规则，产物自身样式在后、优先；Raer 与 Bob 的角色提示新增“Interactive artifacts”一节（何时写 HTML 工具、无网络、主题变量、可用性与数值校验、`raytone.sendPrompt` 只由点击触发），Tonny 不加。验证：新增 1 项主题测试、rolePrompt 用例更新，build 通过；本机 Chrome 在 soft-glass（浅）与 warm-graphite（深）下截图核对控件、表格、SVG 配色。未调用真实模型验证提示效果，未部署。
+
 - 2026-10-12 可交互 HTML 产物 · 模块 1（ADR-035）：HTML 预览注入 `raytone.sendPrompt` / `openLink` 桥，追问进入现有跟进队列；宿主校验来源、长度、https 与“iframe 焦点 + 用户激活”。验证：新增 2 项测试（请求解析、注入顺序）；本机 Chrome 打开工作区 HTML：加载时自动发送被拒、http 链接被拒、点击按钮后以用户消息进入队列并发出请求（测试中拦截请求，队列暂停保留该条，未自动重发）。首版只查激活时加载自动发送曾被放行，已修复。build 通过；`npm test` 唯一失败为改动前已存在的 Pi SDK 用例。未调用真实模型，未部署。
 
 - 2026-10-10 联网工具（ADR-034）：三引擎共用 bot 进程执行的 `web_search`（Tavily）与 `web_fetch`（任意公网 URL），Agent 出站边界不变；`deploy.py` 透传 `TAVILY_API_KEY`。验证：新增 6 项测试（HTML 转文本、搜索格式与错误、分段续读与 Extract 兜底、回环/内网/元数据地址拒绝、Claude MCP 消息、Codex 动态工具）；本机真实 Claude Code 与 Codex（本机登录，桩工具）各自调用并经审批闸门，Codex 续接后工具仍在；本机真实抓取 example.com、中文博客、GitHub raw。已部署到 `id705on7k0a1ya1d90icj`（只含本项改动，未带工作树中其他会话的头像/主题改动），部署自检全过；云端 DeepSeek 下 Raer、Tonny、Bob（Codex 0.154.0）各完成一次真实 Tavily 搜索 + 读取官方页面并给出来源。

@@ -18,6 +18,8 @@ import { productFaq } from "./productFaq.ts";
  * 5. `shared/USER.md`: the user's standing preferences, shared by every role.
  * 6. Product FAQ (`productFaq.ts`): what RaytoneBot is and how to set it up, so such questions
  *    need no tools.
+ * 7. Interactive artifacts (Raer and Bob, who write files): when a page helps more than prose,
+ *    after Open Intelligent UI's playbook (ADR-035).
  *
  * Tool limits are never stated as rules here; the engines enforce them (`piHost.ts`).
  */
@@ -38,6 +40,16 @@ const CONTRACTS: Record<AgentPresetId, string> = {
 };
 
 const WRITING = "Reply language: the one named in the turn's language note (the user's interface setting); without a note, the language of the user's latest message. Switch only when the user explicitly asks. Keep code, commands, paths and product names as they are. Answer greetings and small talk without tools. For technical answers, write ~80% ASD-STE100: active voice, one instruction per sentence, max 20 words per instruction and 25 per description, one term per concept, in any language.";
+
+/** What the output panel's HTML preview offers; the contract lives in `outputframe/htmlPreview.ts`. */
+export const INTERACTIVE_ARTIFACTS = [
+  "## Interactive artifacts",
+  "When an explanation, comparison or small tool helps more than prose (a calculator, adjustable weights, a diagram with a stepper), write one self-contained .html file in your directory and name its path. The user opens it in the output panel. For short facts, writing or code, answer in text.",
+  "- The page is sandboxed with no network: no CDN, remote fonts, images or fetch; inline everything. No storage, cookies or parent access.",
+  "- Theme variables and base styles are injected: --color-background-primary/-secondary, --color-text-primary/-secondary, --color-border-primary, --color-accent, --color-success/-warning/-danger, --font-sans, --font-mono, --border-radius-md; SVG classes .c-blue .c-teal .c-purple .c-coral .c-amber .c-green .c-red .c-gray. Use them so the page matches light and dark themes.",
+  "- Every control must work. Label inputs, keep keyboard access, let the layout wrap at 360px, respect prefers-reduced-motion. Validate numbers (Number.isFinite, bounds, no zero divisor); never show NaN, Infinity or a stale result. Show units and assumptions; label sample values as samples.",
+  "- To hand a choice back, add a button labelled as sending a message: onclick calls `await raytone.sendPrompt(text)` with the current values. It works only from a click and rejects otherwise; show sending/sent/failed in a role=status element. Never send on load, timers or input changes. Links: `raytone.openLink(httpsUrl)`.",
+].join("\n");
 
 const LANGUAGE_NAMES: Record<AppLocale, string> = { en: "English", zh: "Simplified Chinese (简体中文)", ja: "Japanese (日本語)" };
 
@@ -78,6 +90,7 @@ export function rolePrompt(role: AgentPresetId, layout: WorkspaceLayout, options
   if (soul) sections.push(`## SOUL.md (your character)\n${soul}`);
   const user = layout.shared ? personaFile(join(layout.shared, "USER.md")) : undefined;
   if (user) sections.push(`## USER.md (user preferences)\n${user}`);
+  if (role !== "planner") sections.push(INTERACTIVE_ARTIFACTS);
   sections.push(productFaq({ sandboxed: options.sandboxed ?? false, layout }));
   return sections.join("\n\n");
 }

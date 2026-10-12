@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { useShellExtras } from "../../shell/ShellExtras";
 import { parseArtifactRequest } from "../../../runtime/artifactBridge";
 import { htmlPreviewDocument } from "./htmlPreview";
+import { artifactThemeCss } from "./artifactTheme";
 
 /**
  * The sandboxed HTML page, plus the one channel it has back to the page: a follow-up or an
@@ -41,5 +42,9 @@ export function HtmlOutputPreview({ title, body }: { title: string; body: string
     return () => window.removeEventListener("message", listener);
   }, []);
 
-  return <iframe ref={frame} className="html-output-preview" title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={htmlPreviewDocument(body)} />;
+  // Read at render: a theme switch re-renders the shell, and srcDoc only reloads if this changes.
+  const styles = getComputedStyle(document.documentElement);
+  const appearance = document.querySelector("[data-appearance]")?.getAttribute("data-appearance") === "dark" ? "dark" : "light";
+  const themeCss = artifactThemeCss((name) => styles.getPropertyValue(name), appearance);
+  return <iframe ref={frame} className="html-output-preview" title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={htmlPreviewDocument(body, themeCss)} />;
 }
