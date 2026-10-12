@@ -133,6 +133,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-12 可交互 HTML 产物 · 模块 4（ADR-035）：写入 `.html` 时 Output 面板实时预览正在成形的页面（只加载一次 iframe，`postMessage` 原地替换 body，期间不跑脚本），写入成功后自动打开真实文件；新增 devtools 场景 `html-artifact-stream`（定格在写到一半）。验证：新增 3 项测试（未完成 JSON 字符串解码、何时算正在写 HTML、去脚本/半截标签），`npm test` 253 项全过（上次失败的 Pi SDK 用例为偶发）、build 通过；本机 DeepSeek 真实运行：审批时右侧已显示即将写入的分账计算器、批准后自动切到真实文件且脚本算出结果、模型按新提示加了 sendPrompt 按钮；fixture 页面显示半截内容，父页面增量更新同一文档生效，iframe 自发消息被忽略；其余 7 个场景无报错、无误显实时预览。限制：Pi 路径参数被适配器缓冲，不能逐字显示；Claude Code 路径的逐字效果未用真实运行验证。未部署。
+
 - 2026-10-12 可交互 HTML 产物 · 模块 3（ADR-035）：HTML 产物可用 three / d3 / chart.js / gsap，按页面引用懒加载并内联（gzip 约 190 / 96 / 71 / 28 KB，首屏不变），全局变量与 `import` 两种写法均可；角色提示补充库与“canvas 不能读 CSS 变量”。验证：新增 1 项测试（引用检测、import map 垫片、脚本不能提前闭合、注入顺序）；本机开发服务器打开工作区 HTML，四个库与 three 模块导入、WebGL 渲染均通过；生产构建 chunk 在 `sandbox="allow-scripts"` iframe 中同样通过；构建产物不含 `</script` 与 `<!--`。`vite preview` 第二实例的 `/config` 返回 500，未用它验证。`npm audit` 告警仅为已有的 katex、mermaid。未调用真实模型，未部署。
 
 - 2026-10-12 可交互 HTML 产物 · 模块 2（ADR-035）：HTML 预览注入当前主题的 CSS 变量（沿用 OIU 命名，如 `--color-background-primary`）、表单/表格基础样式、SVG 配色类与减少动效规则，产物自身样式在后、优先；Raer 与 Bob 的角色提示新增“Interactive artifacts”一节（何时写 HTML 工具、无网络、主题变量、可用性与数值校验、`raytone.sendPrompt` 只由点击触发），Tonny 不加。验证：新增 1 项主题测试、rolePrompt 用例更新，build 通过；本机 Chrome 在 soft-glass（浅）与 warm-graphite（深）下截图核对控件、表格、SVG 配色。未调用真实模型验证提示效果，未部署。

@@ -15,6 +15,7 @@ import { resolveArtifactRenderer } from "./outputframe/artifactPreview";
 import type { OutputPanelItem, OutputPanelOpenRequest } from "./outputframe/panelItem";
 import { languageFromFileName, fallbackOutputPanelBody, normalizeOutputPanelRequest } from "./outputframe/panelItem";
 import { OutputPanelModal } from "./outputframe/OutputPanelModal";
+import { liveHtmlWrite, type LiveHtmlWrite } from "../../runtime/liveHtmlWrite";
 
 // The panel-item helpers stay re-exported from this module: App, ToolCallCard and ChatFrame
 // import them from "./components/agent-preview/OutputFrame", and the scaffold export asserts
@@ -93,6 +94,22 @@ export function OutputFrame({
   }, [expanded, fullscreen]);
   const artifact = [...viewModel.timeline].reverse().find((item): item is AgentUXArtifactTimelineItem => item.kind === "artifact");
   const artifactRenderer = resolveArtifactRenderer(artifact, project.output.artifactRenderer);
+  // A page being written shows here unless the user is looking at something else; once the
+  // write succeeds, the file it watched opens as itself, scripts and all.
+  const writing = liveHtmlWrite(viewModel.timeline);
+  const liveHtml = writing && project.output.source === "artifact" && !showFiles
+    && (!openItems.length || (activeOpenItemId ?? openItems[openItems.length - 1].id) === `file:${writing.path}`) ? writing : undefined;
+  const watched = useRef<LiveHtmlWrite | undefined>(undefined);
+  useEffect(() => {
+    if (liveHtml) { watched.current = liveHtml; return; }
+    const last = watched.current;
+    if (!last) return;
+    watched.current = undefined;
+    // Still writing but no longer shown: the user turned to something else; leave them there.
+    if (writing?.toolCallId === last.toolCallId) return;
+    const tool = viewModel.timeline.find((item) => item.kind === "tool" && item.id === last.toolCallId);
+    if (tool?.status === "success") onOpenFile?.({ id: `file:${last.path}`, kind: "file", title: last.title, subtitle: last.path, workspacePath: last.path });
+  }, [liveHtml, writing, viewModel.timeline, onOpenFile]);
 
   return (
     <>
@@ -191,6 +208,7 @@ export function OutputFrame({
           onSelectOpenItem={onSelectOpenItem}
           onCloseOpenItem={onCloseOpenItem}
           consoleEntries={consoleLogEntries(viewModel.timeline)}
+          liveHtml={liveHtml}
         />}
       </section>
     </>

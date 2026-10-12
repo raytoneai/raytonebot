@@ -8,6 +8,7 @@ import capabilityFilesystemRaw from "../fixtures/agentux/capability-filesystem.e
 import reasoningKindsRaw from "../fixtures/agentux/reasoning-kinds.events.jsonl?raw";
 import blockErrorRaw from "../fixtures/agentux/block-error.events.jsonl?raw";
 import toolApprovalRaw from "../fixtures/agentux/tool-approval-lifecycle.events.jsonl?raw";
+import htmlStreamRaw from "../fixtures/agentux/html-artifact-stream.events.jsonl?raw";
 
 export type PreviewFixtureId =
   | "coding-agent"
@@ -16,7 +17,8 @@ export type PreviewFixtureId =
   | "tool-approval"
   | "block-error"
   | "artifact-action"
-  | "capability-filesystem";
+  | "capability-filesystem"
+  | "html-artifact-stream";
 
 export type PreviewFixture = {
   id: PreviewFixtureId;
@@ -61,6 +63,12 @@ export const previewFixtures: PreviewFixture[] = [
     label: "Capability tray",
     description: "Capability attached event for the utility panel.",
     raw: capabilityFilesystemRaw,
+  },
+  {
+    id: "html-artifact-stream",
+    label: "HTML artifact stream",
+    description: "An HTML file still being written, previewed live in the output panel.",
+    raw: htmlStreamRaw,
   },
   {
     id: "basic-text",

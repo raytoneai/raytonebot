@@ -249,6 +249,7 @@
 - **为什么要两项检查**：只查激活，打开文件那一下点击仍在激活期内，页面加载时就能自动发送（浏览器实测复现）；只查焦点，用户点过一次后定时器仍可发送。两者叠加后，残余风险是用户点击产物后约 5 秒内由脚本触发的发送；消息以用户消息形式可见，审批语义不变。
 - **主题与指引**：预览按当前主题注入 OIU 同名 CSS 变量与基础样式（`outputframe/artifactTheme.ts`）；Raer、Bob 的角色提示加一节简短指引（`rolePrompt.ts` 的 `INTERACTIVE_ARTIFACTS`），不引入 OIU 的 skill 文件，因为沙箱关闭了资源自动发现（`10-agents-and-permissions.md`）。
 - **内置库**：three、d3、chart.js、gsap（版本锁定）。云端网关拒绝 `Origin: null` 与跨站请求，iframe 无法从本站加载脚本，因此由父页面懒加载库代码再内联进 iframe，CSP 仍禁止一切网络。`scripts/sandbox-libs-plugin.mjs` 在构建时用 rolldown 把每个库打成一个 IIFE（three 已无单文件构建），作为独立懒加载 chunk；`outputframe/sandboxLibs.ts` 只为页面实际引用的库加载，并生成 import map（`data:` 垫片），使 `import * as THREE from "three"` 与全局变量两种写法都可用。为此 `script-src` 增加 `data:`，能力与已允许的内联脚本相同。GSAP 为 GreenSock 免费标准许可，非 OSI 许可，见 THIRD_PARTY_NOTICES。
+- **实时预览**：写入 `.html` 的 write 调用在参数流式、待审批、执行中时，Output 面板（未打开其他标签时）显示正在成形的页面（`runtime/liveHtmlWrite.ts` 解析未完成的 JSON 参数）；iframe 只加载一次，之后经 `postMessage` 原地替换 body，不重载、不闪烁；期间去掉脚本与未写完的标签。写入成功后自动打开该文件、脚本才运行；用户中途切到别处则不再自动打开。编辑/补丁不预览。Pi 在工具 id 之前先发参数，适配器为避免幽灵卡片会缓冲到 id 出现（`piAdapter.ts`），所以 Pi 路径上页面在审批/执行时整页出现；先给 id 的引擎（Claude Code）可逐字显示。
 - **边界**：产物不能读对话、不能直接调用工具、不能联网（CSP 不变）。
 
 ## ADR-034：联网由 bot 代为执行，三引擎共用 web_search / web_fetch（2026-10-10）

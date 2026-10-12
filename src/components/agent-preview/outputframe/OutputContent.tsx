@@ -8,6 +8,8 @@ import type { OutputPanelItem } from "./panelItem";
 import { outputItemRenderKind } from "./renderKind";
 import { renderMarkdownPreview } from "./openedItemBody";
 import { OpenedOutputItem, OutputTabs } from "./OutputTabs";
+import { HtmlStreamPreview } from "./HtmlStreamPreview";
+import type { LiveHtmlWrite } from "../../../runtime/liveHtmlWrite";
 import { useClipboardFeedback } from "../../../runtime/useClipboardFeedback";
 import { useCopy } from "../../../i18n/LocaleContext";
 import {
@@ -30,6 +32,7 @@ export function OutputContent({
   onSelectOpenItem,
   onCloseOpenItem,
   consoleEntries,
+  liveHtml,
 }: {
   project: AgentFrontendProject;
   source: OutputSource;
@@ -41,6 +44,8 @@ export function OutputContent({
   activeOpenItemId?: string;
   onSelectOpenItem?: (id: string) => void;
   onCloseOpenItem?: (id: string) => void;
+  /** An HTML file being written; shown instead of the default view until it is saved. */
+  liveHtml?: LiveHtmlWrite;
 }) {
   const code = artifact && renderer === "code" ? artifactCodePreview(artifact, copy) : undefined;
   const clipboard = useClipboardFeedback(source === "artifact" && !openItems.length ? code?.code ?? "" : "");
@@ -48,6 +53,14 @@ export function OutputContent({
   const feedback = clipboard.status === "copied" ? labels.copied : clipboard.status === "failed" ? labels.copyFailed : undefined;
   if (source === "console") {
     return <ConsoleOutput copy={copy} entries={consoleEntries} />;
+  }
+
+  if (liveHtml) {
+    return (
+      <div className="artifact-content opened-output">
+        <HtmlStreamPreview key={liveHtml.toolCallId} live={liveHtml} copy={copy} />
+      </div>
+    );
   }
 
   if (openItems.length > 0) {
