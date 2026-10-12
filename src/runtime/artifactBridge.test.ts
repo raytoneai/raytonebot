@@ -38,3 +38,17 @@ test("artifact theme carries the app's variables and cannot break out of its sty
   const document = htmlPreviewDocument("<style>body{color:red}</style>", css);
   assert.ok(document.indexOf(css) < document.indexOf("body{color:red}"), "artifact styles come later and win");
 });
+
+test("only the libraries a page uses are inlined, as an import map and scripts that cannot close early", async () => {
+  const { sandboxLibsHead, sandboxLibsUsed } = await import("../components/agent-preview/outputframe/sandboxLibs.ts");
+  assert.deepEqual(sandboxLibsUsed("<p>plain page</p><script>const chart = 1</script>"), []);
+  assert.deepEqual(sandboxLibsUsed('<script type="module">import * as THREE from "three"; gsap.to(x, {})</script>'), ["three", "gsap"]);
+  assert.deepEqual(sandboxLibsUsed("<script>new Chart(c, {}); d3.select('svg')</script>"), ["d3", "chart"]);
+  assert.equal(sandboxLibsHead([]), "");
+  const head = sandboxLibsHead([{ name: "three", code: "window.x='</script><script>alert(1)'", exports: { three: ["Scene", "REVISION"] } }]);
+  assert.equal(head.match(/<\/script>/g)!.length, 2, "library text cannot end its script element");
+  const map = JSON.parse(head.slice(head.indexOf(">") + 1, head.indexOf("</script>")));
+  const shim = decodeURIComponent(map.imports.three.replace("data:text/javascript;charset=utf-8,", ""));
+  assert.equal(shim, 'const m=window.__raytoneLibs["three"];export default m.default??m;export const {Scene,REVISION}=m;');
+  assert.ok(htmlPreviewDocument("<script>x</script>", "", head).indexOf(head) < htmlPreviewDocument("<script>x</script>", "", head).indexOf("<script>x"));
+});

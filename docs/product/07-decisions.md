@@ -248,6 +248,7 @@
 - **决定**：沿用现有不透明来源 iframe 与 CSP，在产物脚本之前注入桥：`raytone.sendPrompt(text)`、`raytone.openLink(url)`，别名 `Websandbox.connection.remote`，兼容为 OIU 写的小部件。iframe 经 `postMessage` + `MessageChannel` 请求，`outputframe/HtmlOutputPreview.tsx` 校验来源窗口、内容（≤4000 字、仅 https 链接，`runtime/artifactBridge.ts`），并要求 iframe 持有焦点且页面处于用户激活状态。追问进入现有跟进队列（ADR-025 的 `ComposerFrame` 队列），不另开发送路径：空闲时立即发送，运行中排队，上一轮失败/停止则暂停等用户恢复。
 - **为什么要两项检查**：只查激活，打开文件那一下点击仍在激活期内，页面加载时就能自动发送（浏览器实测复现）；只查焦点，用户点过一次后定时器仍可发送。两者叠加后，残余风险是用户点击产物后约 5 秒内由脚本触发的发送；消息以用户消息形式可见，审批语义不变。
 - **主题与指引**：预览按当前主题注入 OIU 同名 CSS 变量与基础样式（`outputframe/artifactTheme.ts`）；Raer、Bob 的角色提示加一节简短指引（`rolePrompt.ts` 的 `INTERACTIVE_ARTIFACTS`），不引入 OIU 的 skill 文件，因为沙箱关闭了资源自动发现（`10-agents-and-permissions.md`）。
+- **内置库**：three、d3、chart.js、gsap（版本锁定）。云端网关拒绝 `Origin: null` 与跨站请求，iframe 无法从本站加载脚本，因此由父页面懒加载库代码再内联进 iframe，CSP 仍禁止一切网络。`scripts/sandbox-libs-plugin.mjs` 在构建时用 rolldown 把每个库打成一个 IIFE（three 已无单文件构建），作为独立懒加载 chunk；`outputframe/sandboxLibs.ts` 只为页面实际引用的库加载，并生成 import map（`data:` 垫片），使 `import * as THREE from "three"` 与全局变量两种写法都可用。为此 `script-src` 增加 `data:`，能力与已允许的内联脚本相同。GSAP 为 GreenSock 免费标准许可，非 OSI 许可，见 THIRD_PARTY_NOTICES。
 - **边界**：产物不能读对话、不能直接调用工具、不能联网（CSP 不变）。
 
 ## ADR-034：联网由 bot 代为执行，三引擎共用 web_search / web_fetch（2026-10-10）

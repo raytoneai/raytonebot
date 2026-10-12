@@ -133,6 +133,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-12 可交互 HTML 产物 · 模块 3（ADR-035）：HTML 产物可用 three / d3 / chart.js / gsap，按页面引用懒加载并内联（gzip 约 190 / 96 / 71 / 28 KB，首屏不变），全局变量与 `import` 两种写法均可；角色提示补充库与“canvas 不能读 CSS 变量”。验证：新增 1 项测试（引用检测、import map 垫片、脚本不能提前闭合、注入顺序）；本机开发服务器打开工作区 HTML，四个库与 three 模块导入、WebGL 渲染均通过；生产构建 chunk 在 `sandbox="allow-scripts"` iframe 中同样通过；构建产物不含 `</script` 与 `<!--`。`vite preview` 第二实例的 `/config` 返回 500，未用它验证。`npm audit` 告警仅为已有的 katex、mermaid。未调用真实模型，未部署。
+
 - 2026-10-12 可交互 HTML 产物 · 模块 2（ADR-035）：HTML 预览注入当前主题的 CSS 变量（沿用 OIU 命名，如 `--color-background-primary`）、表单/表格基础样式、SVG 配色类与减少动效规则，产物自身样式在后、优先；Raer 与 Bob 的角色提示新增“Interactive artifacts”一节（何时写 HTML 工具、无网络、主题变量、可用性与数值校验、`raytone.sendPrompt` 只由点击触发），Tonny 不加。验证：新增 1 项主题测试、rolePrompt 用例更新，build 通过；本机 Chrome 在 soft-glass（浅）与 warm-graphite（深）下截图核对控件、表格、SVG 配色。未调用真实模型验证提示效果，未部署。
 
 - 2026-10-12 可交互 HTML 产物 · 模块 1（ADR-035）：HTML 预览注入 `raytone.sendPrompt` / `openLink` 桥，追问进入现有跟进队列；宿主校验来源、长度、https 与“iframe 焦点 + 用户激活”。验证：新增 2 项测试（请求解析、注入顺序）；本机 Chrome 打开工作区 HTML：加载时自动发送被拒、http 链接被拒、点击按钮后以用户消息进入队列并发出请求（测试中拦截请求，队列暂停保留该条，未自动重发）。首版只查激活时加载自动发送曾被放行，已修复。build 通过；`npm test` 唯一失败为改动前已存在的 Pi SDK 用例。未调用真实模型，未部署。

@@ -34,7 +34,7 @@ export function renderOpenedOutputBody(item: OutputPanelItem, kind: OpenedOutput
   // tab holding something else (a tool's JSON receipt, for instance) shows its source rather
   // than being dressed up as a page.
   if (kind === "html" && looksLikeHtmlDocument(body)) {
-    return <HtmlOutputPreview title={item.title} body={body} />;
+    return <HtmlOutputPreview title={item.title} body={body} loadingLabel={copy.loadingFiles} failedLabel={copy.previewFailed} />;
   }
   if (kind === "markdown") {
     return <div className="markdown-preview">{renderMarkdown(body, copy)}</div>;

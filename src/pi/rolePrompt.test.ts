@@ -36,7 +36,7 @@ test("each role is named, told when the shared directory matters, and gets its o
       assert.doesNotMatch(rolePrompt(role, layout), /front door to the team/, "only Raer is the front door");
     }
     assert.match(raer, /## Interactive artifacts[\s\S]*raytone\.sendPrompt/);
-    assert.match(rolePrompt("builder", layout), /## Interactive artifacts/);
+    assert.match(rolePrompt("builder", layout), /## Interactive artifacts[\s\S]*three \(THREE\), d3, Chart\.js/);
     assert.doesNotMatch(rolePrompt("planner", layout), /## Interactive artifacts/, "Tonny writes only plans");
 
     writeFileSync(join(layout.shared!, "USER.md"), "# About the user\n\n- Prefer Chinese replies.\n<!-- private note -->\n");

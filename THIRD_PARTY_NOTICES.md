@@ -44,3 +44,13 @@ run without depending on this repository.
 `react-markdown` and `remark-gfm` (both MIT) are npm dependencies. The component in
 `src/components/agent-preview/MarkdownText.tsx` follows TelegramAgent's
 `frontend/src/markdownText.tsx` (same owner).
+
+## HTML artifact libraries (2026-10-12)
+
+`three` (MIT), `d3` (ISC), `chart.js` (MIT) and `gsap` are npm dependencies, bundled by
+`scripts/sandbox-libs-plugin.mjs` into lazy chunks that are inlined into an HTML artifact's
+frame only when the page uses them; each copy starts with its notice. GSAP is under the
+GreenSock Standard "no charge" license (https://gsap.com/standard-license), not an OSI license:
+free, including commercial use, except in tools that compete with Webflow's visual animation
+builder. The artifact bridge, theme variable names and prompt guidance follow CopilotKit's
+Open Intelligent UI (MIT, https://github.com/CopilotKit/OpenIntelligentUI); no code is copied.
