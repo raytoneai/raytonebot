@@ -90,7 +90,7 @@
 
 /* Listening: leans in toward what the user is typing, eyes a little rounder. */
 .raytone-avatar[data-state="listening"] .action-group { transform: translateY(6px) rotate(-7deg); }
-.raytone-avatar[data-state="listening"] .expression { transform: scale(1.08); }
+.raytone-avatar[data-state="listening"] .expression { transform: scale(1.04, 1); }
 .raytone-avatar[data-state="listening"] .m-o { opacity: 1; }
 .raytone-avatar[data-state="listening"] .mouth { transform: scale(.8); }
 .raytone-avatar[data-state="listening"] .mic { animation: raytone-mic 1s ease-in-out infinite; }
@@ -141,7 +141,7 @@
 /* Asking (approval or a question): head tilted, wide eyes on the user. */
 .raytone-avatar[data-state="asking"] .action-group { transform: rotate(-15deg); animation: raytone-curious 2.6s cubic-bezier(.45, 0, .25, 1) infinite; }
 .raytone-avatar[data-state="asking"] .thinking-gaze { transform: translate(0px, 8px); }
-.raytone-avatar[data-state="asking"] .expression { transform: scale(1.17); }
+.raytone-avatar[data-state="asking"] .expression { transform: scale(1.08, 1); }
 .raytone-avatar[data-state="asking"] .ray { animation: raytone-signal 0.9s steps(2, jump-none) infinite; }
 .raytone-avatar[data-state="asking"] .m-o { opacity: 1; }
 

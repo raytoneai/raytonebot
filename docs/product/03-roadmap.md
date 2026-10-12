@@ -133,6 +133,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-12 头像定稿落地：三角色采用浅肤色细暖色轮廓、24% 眼高和单一金色配件；Bob 改棒球帽并留足帽檐间距，Tonny 缩小镜框且视线裁切在镜片内，Raer 简化耳麦；背景条纹透明度 0.55。沿用现有头像入口与状态动效，小头像仍按原规则隐藏光环。验证：build 与 256 项测试通过，本机欢迎区、侧栏、群头像及 18 个内置事件场景无浏览器警告或错误。未调用真实模型。
+
 - 2026-10-12 可交互 HTML 产物 · Codex 复查修复（ADR-035）：产物主题改由 shell 从主题状态生成（`themeVariables()` 与 `applyTheme` 同源），经 ShellExtras 传给实时预览与已保存预览，不再在 render 时读 DOM（切换时 DOM 仍是旧主题，消息会带旧值）。验证：新增 1 项测试，`npm test` 256 项全过、build 通过；Chrome 在设置里从 Soft Glass 切到 Warm Graphite，点击后 300ms 内实时预览与已保存 HTML 预览背景均已变深；P1 注入复测仍全部拦截；7 个内置场景无报错。
 
 - 2026-10-12 可交互 HTML 产物 · Codex review 修复（ADR-035）：P1 实时预览只去 `<script>`，事件属性在审批前即可执行 → 预览 iframe 改用单独的 nonce CSP（无 `unsafe-inline`）并在惰性 `<template>` 中清洗元素/事件属性/可执行 URL，不注入桥；P2 主题只在 srcDoc 初始化时写入 → 主题变化时经 `postMessage` 原地更新样式。验证：新增 1 项测试，`npm test` 255 项全过、build 通过；Chrome 在 `html-artifact-stream` 场景注入 `img onerror`、`javascript:` 链接、`onclick`、SVG `xlink:href`、内嵌 srcdoc iframe、meta refresh、`formaction` 并点击，均未执行且被移除；绕过清洗器直接写入，CSP 仍阻止；设置里切到 Warm Graphite 后预览背景随之变深，内容保持同一文档。7 个内置场景无报错。浏览器回归脚本未纳入仓库（项目无 Playwright 依赖）。

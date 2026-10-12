@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useRef, type ReactNode } from "react";
 
 import { mountAvatarMotion, type AvatarMotion, type AvatarState } from "./avatarMotion";
 import { avatarSVG, type AvatarKind } from "./raytoneAvatars";
@@ -48,11 +48,12 @@ export function AgentAvatar({
   fallback?: ReactNode;
 }) {
   const persona = useAgentPersona();
+  const svgId = useId();
   const rootRef = useRef<HTMLSpanElement>(null);
   const motionRef = useRef<AvatarMotion | undefined>(undefined);
   const kind = kindOverride ?? persona?.kind;
   // Faces of 20px and under come in lists (history, members, group faces): no halo there.
-  const markup = useMemo(() => (kind ? avatarSVG(kind, !interactive, size > 20) : ""), [kind, interactive, size]);
+  const markup = useMemo(() => (kind ? avatarSVG(kind, !interactive, size > 20, svgId) : ""), [kind, interactive, size, svgId]);
   const animated = Boolean(persona && live);
 
   useEffect(() => {
