@@ -89,6 +89,8 @@ export type ShellExtras = {
   onOpenFile?: (request: OutputPanelOpenRequest) => void;
   /** A follow-up the user clicked for inside an HTML artifact; it joins the visible queue. */
   onArtifactPrompt?: (text: string) => void;
+  /** The current theme as CSS for HTML artifacts, from theme state rather than the DOM. */
+  artifactThemeCss?: string;
 };
 
 const ShellExtrasContext = createContext<ShellExtras>({});

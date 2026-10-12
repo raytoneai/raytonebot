@@ -67,3 +67,17 @@ test("the live-preview frame runs only its receiver: no inline handlers, javascr
   const receiver = document.slice(document.indexOf('nonce="abc123">') + 15, document.lastIndexOf("</script>"));
   assert.doesNotThrow(() => new Function(receiver));
 });
+
+test("artifact theme comes from theme state, under the same names applyTheme writes", async () => {
+  const { themeVariables } = await import("../theme/applyTheme.ts");
+  const { themeTokens } = await import("../theme/themeTokens.ts");
+  const { artifactThemeCss } = await import("../components/agent-preview/outputframe/artifactTheme.ts");
+  const dark = themeTokens["warm-graphite"];
+  const vars = themeVariables(dark);
+  assert.equal(vars["--surface-panel"], dark.surface.panel);
+  assert.equal(vars["--accent"], dark.accent.action);
+  assert.equal(vars["--success"], dark.status.success);
+  const css = artifactThemeCss((name) => vars[name] ?? "", dark.appearance);
+  assert.ok(css.includes(`--color-background-primary:${dark.surface.panel};`));
+  assert.match(css, /color-scheme:dark/);
+});

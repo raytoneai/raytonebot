@@ -1,22 +1,27 @@
 import type { ThemeTokens } from "./themeTokens";
 
 export function applyTheme(theme: ThemeTokens, root: HTMLElement = document.documentElement): void {
-  applyTokenGroup(root, "font", theme.font);
-  applyTokenGroup(root, "surface", theme.surface);
-  applyTokenGroup(root, "text", theme.text);
-  applyTokenGroup(root, "border", theme.border);
-  applyTokenGroup(root, "accent", theme.accent, { action: "accent" });
-  applyTokenGroup(root, "", theme.status);
+  for (const [variable, value] of Object.entries(themeVariables(theme))) root.style.setProperty(variable, value);
 }
 
-function applyTokenGroup(
-  root: HTMLElement,
+/** The CSS variables a theme sets, by name; HTML artifacts read them before `applyTheme` runs. */
+export function themeVariables(theme: ThemeTokens): Record<string, string> {
+  return {
+    ...tokenGroup("font", theme.font),
+    ...tokenGroup("surface", theme.surface),
+    ...tokenGroup("text", theme.text),
+    ...tokenGroup("border", theme.border),
+    ...tokenGroup("accent", theme.accent, { action: "accent" }),
+    ...tokenGroup("", theme.status),
+  };
+}
+
+function tokenGroup(
   prefix: string,
   tokens: Record<string, string>,
   aliases: Record<string, string> = {},
-): void {
-  for (const [key, value] of Object.entries(tokens)) {
-    const variable = aliases[key] ?? [prefix, key].filter(Boolean).join("-");
-    root.style.setProperty(`--${variable}`, value);
-  }
+): Record<string, string> {
+  return Object.fromEntries(Object.entries(tokens).map(([key, value]) => (
+    [`--${aliases[key] ?? [prefix, key].filter(Boolean).join("-")}`, value]
+  )));
 }

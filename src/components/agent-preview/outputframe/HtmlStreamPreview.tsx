@@ -3,7 +3,7 @@ import { FileCode2 } from "lucide-react";
 
 import type { LiveHtmlWrite } from "../../../runtime/liveHtmlWrite";
 import { streamingHtmlBody } from "../../../runtime/liveHtmlWrite";
-import { artifactThemeCss } from "./artifactTheme";
+import { useShellExtras } from "../../shell/ShellExtras";
 import { htmlStreamDocument } from "./htmlPreview";
 import type { OutputFrameCopy } from "./types";
 
@@ -18,9 +18,7 @@ const THROTTLE_MS = 150;
 export function HtmlStreamPreview({ live, copy }: { live: LiveHtmlWrite; copy: OutputFrameCopy }) {
   const frame = useRef<HTMLIFrameElement>(null);
   const [loaded, setLoaded] = useState(false);
-  const styles = getComputedStyle(document.documentElement);
-  const appearance = document.querySelector("[data-appearance]")?.getAttribute("data-appearance") === "dark" ? "dark" : "light";
-  const themeCss = artifactThemeCss((name) => styles.getPropertyValue(name), appearance);
+  const { artifactThemeCss: themeCss = "" } = useShellExtras();
   const [srcDoc] = useState(() => htmlStreamDocument(themeCss, crypto.randomUUID().replace(/-/g, "")));
   const body = streamingHtmlBody(live.html);
   const sent = useRef({ body: "", at: 0 });

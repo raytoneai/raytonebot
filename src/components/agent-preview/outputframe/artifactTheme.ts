@@ -1,7 +1,8 @@
 /**
  * The app's current theme as CSS for a sandboxed HTML artifact, under the variable names Open
- * Intelligent UI widgets already use (and the role prompt names). Values are read from the
- * variables `applyTheme()` sets, so light and dark schemes carry over; the artifact's own
+ * Intelligent UI widgets already use (and the role prompt names). Values come from the theme's
+ * variables (`themeVariables()`, built from theme state in the shell: the DOM still holds the
+ * old theme while a switch renders), so light and dark schemes carry over; the artifact's own
  * styles come later and win. Self-hosted fonts cannot load in the frame (font-src data:), so
  * the font stacks fall back to system fonts.
  */

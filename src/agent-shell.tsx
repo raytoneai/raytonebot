@@ -29,7 +29,8 @@ import {
   type SlotConfig,
 } from "./schema/agentuxConfig";
 import { renderSlots, slotsForTemplate, type SlotRenderContext } from "./slots/slotRegistry";
-import { applyTheme } from "./theme/applyTheme";
+import { applyTheme, themeVariables } from "./theme/applyTheme";
+import { artifactThemeCss } from "./components/agent-preview/outputframe/artifactTheme";
 import { themeTokens, type ThemePresetId } from "./theme/themeTokens";
 import { isFixtureMode, useEventSource } from "./event-source";
 import { project } from "./exported-project";
@@ -1262,6 +1263,8 @@ export function AgentApp() {
     if (waiting) agentStatuses[conversation.agentPreset] = "needs-you";
     else agentStatuses[conversation.agentPreset] ??= "running";
   }
+  const activeTheme = themeTokens[themePreset] ?? Object.values(themeTokens)[0];
+  const themeVars = themeVariables(activeTheme);
   const composerRunOptions = {
     permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
     budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
@@ -1354,6 +1357,7 @@ export function AgentApp() {
     workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),
     workspace: piRuntimeState?.workspace,
     onOpenFile: openArtifact,
+    artifactThemeCss: artifactThemeCss((name) => themeVars[name] ?? "", activeTheme.appearance),
     onArtifactPrompt: streamId ? undefined : (text) => void composer.enqueuePrompt(
       { ...activePiConversation, agentPreset: agentSettings.presetId },
       text,
@@ -1367,7 +1371,7 @@ export function AgentApp() {
     { ...slotContext, onCollapseRight: undefined },
   );
 
-  const appearance = (themeTokens[themePreset] ?? Object.values(themeTokens)[0]).appearance;
+  const appearance = activeTheme.appearance;
   // Explicit opt-in even in dev: npm run dev is how recipients first inspect the package,
   // so debug chrome must not appear unless they ask for it with ?devtools=1.
   const showPicker = devtoolsRequested() && isFixtureMode && streams.length > 0;

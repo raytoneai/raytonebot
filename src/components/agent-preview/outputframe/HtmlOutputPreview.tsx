@@ -3,7 +3,6 @@ import { useEffect, useRef, useState } from "react";
 import { useShellExtras } from "../../shell/ShellExtras";
 import { parseArtifactRequest } from "../../../runtime/artifactBridge";
 import { htmlPreviewDocument } from "./htmlPreview";
-import { artifactThemeCss } from "./artifactTheme";
 import { loadSandboxLibs, sandboxLibsHead, sandboxLibsUsed } from "./sandboxLibs";
 
 /**
@@ -13,7 +12,7 @@ import { loadSandboxLibs, sandboxLibsHead, sandboxLibsUsed } from "./sandboxLibs
  */
 export function HtmlOutputPreview({ title, body, loadingLabel, failedLabel }: { title: string; body: string; loadingLabel: string; failedLabel: string }) {
   const frame = useRef<HTMLIFrameElement>(null);
-  const { onArtifactPrompt } = useShellExtras();
+  const { onArtifactPrompt, artifactThemeCss: themeCss = "" } = useShellExtras();
   const sendPrompt = useRef(onArtifactPrompt);
   sendPrompt.current = onArtifactPrompt;
   const libs = useSandboxLibsHead(body);
@@ -46,10 +45,6 @@ export function HtmlOutputPreview({ title, body, loadingLabel, failedLabel }: { 
 
   if (libs.status === "loading") return <p role="status">{loadingLabel}</p>;
   if (libs.status === "failed") return <p role="alert">{failedLabel}</p>;
-  // Read at render: a theme switch re-renders the shell, and srcDoc only reloads if this changes.
-  const styles = getComputedStyle(document.documentElement);
-  const appearance = document.querySelector("[data-appearance]")?.getAttribute("data-appearance") === "dark" ? "dark" : "light";
-  const themeCss = artifactThemeCss((name) => styles.getPropertyValue(name), appearance);
   return <iframe ref={frame} className="html-output-preview" title={title} sandbox="allow-scripts" referrerPolicy="no-referrer" srcDoc={htmlPreviewDocument(body, themeCss, libs.head)} />;
 }
 
