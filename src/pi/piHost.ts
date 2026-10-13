@@ -26,7 +26,7 @@ import { defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from 
 import { resolveWorkspaceLayout, type WorkspaceLayout } from "./workspaceLayout.ts";
 import { rolePrompt, withReplyLanguage, withConversationContext, withUnseenPrompts } from "./rolePrompt.ts";
 import { isAppLocale } from "../i18n/locales.ts";
-import { listWorkspaceFiles, openWorkspaceFile, promptWithWorkspaceFiles, uploadWorkspaceFile, WorkspaceFileError } from "./workspaceFiles.ts";
+import { listWorkspaceFiles, openWorkspaceFile, promptWithWorkspaceFiles, saveWorkspaceDownload, uploadWorkspaceFile, WorkspaceFileError } from "./workspaceFiles.ts";
 import { sendWorkspaceFile } from "./workspaceDownload.ts";
 import { createConversationRecorder } from "./conversationRecorder.ts";
 import { assertPiSessionFile, openPiSession } from "./nativeSession.ts";
@@ -250,7 +250,7 @@ export function createPiRuntimeController(options: {
       modelLease: (provider, protocol, thinkingLevel) => modelLease(provider, protocol, id, thinkingLevel),
       webTools,
       mcpTools: options.mcpTools?.(),
-      hostTools: hostToolsFor(id, "assistant", input.cwd),
+      hostTools: hostToolsFor(id, "assistant"),
     });
   });
   /** Pi sessions opened with an older MCP tool list, closed when their run ends. */
@@ -294,10 +294,11 @@ export function createPiRuntimeController(options: {
     void op.then(clear, clear);
     return op;
   };
-  /** remember / forget and the browser for one conversation's agent; downloads land in `cwd`. */
-  const hostToolsFor = (conversationId: string, agent: AgentPresetId, cwd: string) => mergeHostTools(
+  /** remember / forget and the browser for one conversation's agent; downloads land in its own workspace. */
+  const hostToolsFor = (conversationId: string, agent: AgentPresetId) => mergeHostTools(
     options.memory?.toolsFor({ conversationId, agent }),
-    options.browser?.toolsFor({ conversationId, agent, workspace: cwd,
+    options.browser?.toolsFor({ conversationId, agent,
+      saveDownload: (name, bytes) => saveWorkspaceDownload(layout, agent, name, bytes, [dataDir]),
       ask: (questions, signal) => askUser(conversationId, { toolCallId: `browser_takeover_${randomUUID()}`, questions, signal: signal ?? new AbortController().signal }) }),
   );
   const askUser = async (conversationId: string, { toolCallId, questions, signal }: UserInputRequest) => {
@@ -633,7 +634,7 @@ export function createPiRuntimeController(options: {
           disallowedTools: agentPreset(role).disallowedTools,
           webTools,
           mcpTools: options.mcpTools?.(),
-          hostTools: hostToolsFor(conversationId, role, runCwd),
+          hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
             // The planner writes only into the shared directory: plans and handoffs for others.
             if (request.tool.name === "write" && !plannerMayWrite(request.tool.args)) {
@@ -675,7 +676,7 @@ export function createPiRuntimeController(options: {
           provider,
           webTools,
           mcpTools: options.mcpTools?.(),
-          hostTools: hostToolsFor(conversationId, role, runCwd),
+          hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
             if (approvalGate.isRefused(request.tool.name, request.tool.args)) return SECRET_REFUSAL;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {

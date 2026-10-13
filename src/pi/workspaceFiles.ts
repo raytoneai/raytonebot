@@ -182,6 +182,43 @@ export async function uploadWorkspaceFile(layout: WorkspaceLayout, scope: unknow
   return { scope: location.scope, path: `${directory}/${name}`, name, size: bytes.length };
 }
 
+/**
+ * A browser download (ADR-040) into the scope's `downloads/` folder, with the protection uploads
+ * have: every directory is opened without following links, so an agent that turns `downloads`
+ * (or a parent) into a link cannot make the bot write outside the workspace. The folder's mode is
+ * set only when the bot just created it, through its own descriptor. Returns the file's path.
+ */
+export async function saveWorkspaceDownload(layout: WorkspaceLayout, scope: unknown, name: string, bytes: Buffer, excluded?: readonly string[]): Promise<string> {
+  if (!name || name.includes("/") || Buffer.byteLength(name) > 240) fail(400, "Invalid download filename.");
+  checkedPath(name);
+  const location = await checkedTarget(layout, scope, "", excluded);
+  const root = await anchoredDirectory(location.root);
+  try {
+    const folder = join(root.path, "downloads");
+    const existing = await lstat(folder).catch(() => undefined);
+    if (existing && (existing.isSymbolicLink() || !existing.isDirectory())) fail(403, "The downloads folder is a link or not a folder.");
+    if (!existing) await mkdir(folder);
+    const directory = await open(folder, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW)
+      .catch(() => fail(403, "The downloads folder changed or is a link."));
+    try {
+      // Shared like uploads: the bot runs with umask 077. An agent's own folder keeps its mode.
+      if (!existing) await directory.chmod(0o2770);
+      const parent = process.platform === "linux" ? `/proc/self/fd/${directory.fd}` : folder;
+      const dot = name.lastIndexOf(".");
+      const [stem, extension] = dot > 0 ? [name.slice(0, dot), name.slice(dot)] : [name, ""];
+      for (let n = 1; n < 1000; n += 1) {
+        const candidate = n === 1 ? name : `${stem} (${n})${extension}`;
+        const file = await open(join(parent, candidate), constants.O_WRONLY | constants.O_CREAT | constants.O_EXCL | constants.O_NOFOLLOW, 0o660)
+          .catch((error: NodeJS.ErrnoException) => { if (error.code === "EEXIST") return undefined; throw error; });
+        if (!file) continue;
+        try { await file.writeFile(bytes); await file.chmod(0o660); } finally { await file.close(); }
+        return join(location.root, "downloads", candidate);
+      }
+      fail(409, "Too many downloads with this name.");
+    } finally { await directory.close(); }
+  } finally { await root.close(); }
+}
+
 /** Model-only context: the visible/stored user message remains the user's original text. */
 export async function promptWithWorkspaceFiles(prompt: string, attachments: unknown, role: AgentPresetId, layout: WorkspaceLayout, excluded?: readonly string[]): Promise<string> {
   if (attachments === undefined) return prompt;

@@ -1,7 +1,7 @@
 import { execFileSync, fork, type ChildProcess } from "node:child_process";
-import { chmodSync, existsSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir } from "node:os";
-import { basename, extname, join } from "node:path";
+import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { HostTools } from "../memories.ts";
@@ -30,8 +30,8 @@ const SANDBOX = { user: "raytone-browser", home: "/home/raytone-browser", proxyP
 export type BrowserToolContext = {
   conversationId: string;
   agent: AgentPresetId;
-  /** The workspace directory downloads land in (the agent's own). */
-  workspace: string;
+  /** Files a download into the agent's own workspace (`downloads/`), safely; returns its path. */
+  saveDownload(name: string, bytes: Buffer): Promise<string>;
   ask(questions: UserQuestion[], signal?: AbortSignal): Promise<Record<string, string[]> | null>;
 };
 
@@ -100,16 +100,17 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
   let idleTimer: NodeJS.Timeout | undefined;
   const state: BrowserViewState = { available: Boolean(executable), ...(executable ? {} : { reason: "Chromium headless shell is not installed on this host." }), running: false, controller: "agent" };
   let elements: Record<string, BrowserElement> = {};
-  let lastTyped: BrowserElement | undefined;
   let snapshotText = "";
   let downloadedBytes = 0;
   let takeoverOrigins = new Set<string>();
   let streaming = false;
-  /** The workspace of the agent acting now: where its downloads are filed. */
-  let currentWorkspace: string | undefined;
+  /** Where the agent acting now files its downloads. */
+  let currentSave: BrowserToolContext["saveDownload"] | undefined;
   const watchers = new Set<(event: { type: "state"; state: BrowserViewState } | { type: "frame"; data: string; width: number; height: number }) => void>();
   const notes: string[] = [];
 
+  /** The innermost focused element of the latest snapshot (a page with nothing focused marks its root). */
+  const focusedRef = () => Object.keys(elements).filter((ref) => elements[ref].active).at(-1);
   const origin = () => { try { return state.url ? new URL(state.url).origin : undefined; } catch { return undefined; } };
   const publish = () => { for (const watch of watchers) watch({ type: "state", state: { ...state } }); };
   const saveLoggedIn = () => {
@@ -117,12 +118,16 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     writeFileSync(stateFile, JSON.stringify({ loggedIn: [...loggedIn] }, null, 2), { mode: 0o600 });
   };
 
-  const request = (body: BrowserRequest) => new Promise<unknown>((resolve, reject) => {
-    if (!worker?.connected) return reject(new Error("The browser is not running."));
+  const requestTo = (target: ChildProcess | undefined, body: BrowserRequest) => new Promise<unknown>((resolve, reject) => {
+    if (!target?.connected) return reject(new Error("The browser is not running."));
     const id = ++nextId;
     pending.set(id, { resolve, reject });
-    worker.send({ id, request: body });
+    target.send({ id, request: body });
   });
+  const request = (body: BrowserRequest) => requestTo(worker, body);
+  const exited = (child: ChildProcess, ms: number) => child.exitCode !== null || child.signalCode !== null
+    ? Promise.resolve(true)
+    : new Promise<boolean>((resolve) => { const timer = setTimeout(() => resolve(false), ms); child.once("exit", () => { clearTimeout(timer); resolve(true); }); });
 
   /** sudo does not pass SIGKILL on, so the browser UID's processes are ended directly: TERM first,
    *  so Chrome reaps its own renderers, then KILL whatever is left after a moment. */
@@ -140,9 +145,13 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
   const stop = async () => {
     clearTimeout(idleTimer);
     const current = worker;
+    // Close through the worker first (it ends Chrome and waits for it), and only then let go of it.
+    if (current?.connected) await Promise.race([requestTo(current, { op: "close" }).catch(() => {}), new Promise((resolve) => setTimeout(resolve, 4000))]);
     worker = undefined;
-    if (current?.connected) await Promise.race([request({ op: "close" }).catch(() => {}), new Promise((resolve) => setTimeout(resolve, 2000))]);
-    current?.kill("SIGKILL");
+    if (current && !await exited(current, 2000)) {
+      current.kill("SIGTERM");
+      if (!await exited(current, 1500)) current.kill("SIGKILL");
+    }
     await stopChrome();
     await proxy?.close();
     proxy = undefined;
@@ -164,7 +173,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
    *  symlink) can only reach what that UID could already read, never the bot's own files. */
   const asBrowser = (command: string, ...args: string[]) => execFileSync("/usr/bin/sudo", ["-n", "-u", SANDBOX.user, "--", command, ...args], { maxBuffer: 110 * 1024 * 1024 });
 
-  const fileDownload = (message: Extract<BrowserWorkerMessage, { event: "download" }>, staging: string) => {
+  const fileDownload = async (message: Extract<BrowserWorkerMessage, { event: "download" }>, staging: string) => {
     const name = safeName(message.name);
     if (!/^[A-Za-z0-9-]{1,64}$/.test(message.guid)) { notes.push(`The download ${name} was refused: unexpected id.`); return; }
     const source = join(staging, message.guid);
@@ -177,17 +186,8 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       if (body.length > 100 * 1024 * 1024) { notes.push(`The download ${name} was discarded: it is over 100 MB.`); return; }
       if (downloadedBytes + body.length > SESSION_DOWNLOAD_LIMIT) { notes.push(`The download ${name} was discarded: this browser session already downloaded 500 MB.`); return; }
       if (executableFile(body, name)) { notes.push(`The download ${name} looks like a program and was not kept.`); options.log?.("browser.download_blocked", { name }); return; }
-      if (!currentWorkspace) { notes.push(`The download ${name} was discarded: no workspace for it.`); return; }
-      const target = join(currentWorkspace, "downloads");
-      mkdirSync(target, { recursive: true });
-      // Shared like uploads: the bot runs with umask 077, so modes are set, not requested. A folder
-      // an agent made is its own and already group-shared; only the owner may change its mode.
-      if (statSync(target).uid === process.getuid?.()) chmodSync(target, 0o2770);
-      let file = join(target, name);
-      for (let n = 2; existsSync(file); n += 1) file = join(target, `${basename(name, extname(name))} (${n})${extname(name)}`);
-      // Written by the bot as a new, never-executable file; `wx` refuses to follow anything already there.
-      writeFileSync(file, body, { mode: 0o660, flag: "wx" });
-      chmodSync(file, 0o660);
+      if (!currentSave) { notes.push(`The download ${name} was discarded: no workspace for it.`); return; }
+      const file = await currentSave(name, body);
       downloadedBytes += body.length;
       notes.push(`Downloaded ${name} (${body.length < 1024 ? `${body.length} bytes` : `${Math.round(body.length / 1024)} KB`}) to ${file}.`);
       options.log?.("browser.downloaded", { bytes: body.length });
@@ -221,7 +221,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
         state.url = message.url; state.title = message.title;
         if (state.controller === "user") { const now = origin(); if (now?.startsWith("http")) takeoverOrigins.add(now); }
         publish();
-      } else if (message.event === "download") fileDownload(message, staging);
+      } else if (message.event === "download") void fileDownload(message, staging);
       else if (message.event === "exit") { options.log?.("browser.exited", { code: message.code }); void stop(); }
     });
     child.once("exit", () => {
@@ -282,7 +282,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     view: (): BrowserViewState => ({ ...state }),
 
     /** The approval class of a browser call from the host's own snapshot (policy hook). */
-    classify: (name: string, args: unknown) => classifyBrowserCall(name, args, { elements, origin: origin(), loggedIn, lastTyped }),
+    classify: (name: string, args: unknown) => classifyBrowserCall(name, args, { elements, origin: origin(), loggedIn, focused: elements[focusedRef() ?? ""] }),
 
     toolsFor(context: BrowserToolContext): HostTools | undefined {
       if (!executable) return undefined;
@@ -290,7 +290,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
         specs: BROWSER_TOOL_SPECS,
         async run(name, args, signal) {
           const input = args && typeof args === "object" ? args as Record<string, unknown> : {};
-          currentWorkspace = context.workspace;
+          currentSave = context.saveDownload;
           try {
             switch (name) {
               case "browser_open": return { text: describe(await act({ op: "open", url: String(input.url ?? "") }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
@@ -301,10 +301,14 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
               }
               case "browser_click": return { text: describe(await act({ op: "click", ref: String(input.ref ?? "") }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               case "browser_type": {
-                lastTyped = elements[String(input.ref ?? "")];
                 return { text: describe(await act({ op: "type", ref: String(input.ref ?? ""), text: String(input.text ?? ""), submit: input.submit === true }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               }
-              case "browser_press": return { text: describe(await act({ op: "press", key: String(input.key ?? "") }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
+              case "browser_press": {
+                const key = String(input.key ?? "");
+                // The same focused element the approval was judged on, or the worker refuses.
+                const expectRef = key === "Enter" || key === "Space" ? focusedRef() : undefined;
+                return { text: describe(await act({ op: "press", key, ...(expectRef ? { expectRef } : {}) }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
+              }
               case "browser_scroll": return { text: describe(await act({ op: "scroll", direction: input.direction === "up" ? "up" : "down" }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               case "browser_back": return { text: describe(await act({ op: "back" }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               case "browser_request_takeover": {

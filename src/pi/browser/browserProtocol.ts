@@ -20,6 +20,8 @@ export type BrowserElement = {
   autocomplete?: string;
   formMethod?: string;
   submits?: boolean;
+  /** Focused in the snapshot (`[active]`): what Enter or Space would act on. */
+  active?: boolean;
 };
 
 export type BrowserInput =
@@ -33,7 +35,7 @@ export type BrowserRequest =
   | { op: "snapshot" }
   | { op: "click"; ref: string }
   | { op: "type"; ref: string; text: string; submit?: boolean }
-  | { op: "press"; key: string }
+  | { op: "press"; key: string; /** Enter/Space: the ref approved as focused; refused if focus moved. */ expectRef?: string }
   | { op: "scroll"; direction: "up" | "down" }
   | { op: "back" }
   | { op: "screencast"; on: boolean }

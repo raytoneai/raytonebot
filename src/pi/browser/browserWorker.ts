@@ -121,7 +121,7 @@ async function snapshot(current: Page): Promise<{ text: string; elements: Record
   const text = await current.ariaSnapshot({ mode: "ai" });
   const elements: Record<string, BrowserElement> = {};
   const lines = [...text.matchAll(/^\s*- ([a-z]+)(?: "((?:[^"\\]|\\.)*)")?[^\n]*\[ref=([a-z0-9]+)\]/gm)];
-  for (const [, role, name = "", ref] of lines) elements[ref] = { role, name: name.replace(/\\"/g, "\"") };
+  for (const [line, role, name = "", ref] of lines) elements[ref] = { role, name: name.replace(/\\"/g, "\""), ...(line.includes("[active]") ? { active: true } : {}) };
   const enrich = Object.entries(elements).filter(([, element]) => ENRICHED.has(element.role)).slice(0, 200);
   await Promise.all(enrich.map(async ([ref, element]) => {
     const details = await current.getByRef(ref).evaluate((node) => {
@@ -188,6 +188,10 @@ async function handle(request: BrowserRequest): Promise<unknown> {
     case "press": {
       const current = await start();
       if (!KEYS.has(request.key)) throw new Error(`Key not allowed: ${request.key}.`);
+      // Approved against the element focused in the snapshot: if focus moved since, refuse.
+      if (request.expectRef && !await current.getByRef(request.expectRef).evaluate((node) => node === document.activeElement || node.contains(document.activeElement), undefined, { timeout: 2000 }).catch(() => false)) {
+        throw new Error("Focus moved since the last snapshot. Take a new snapshot before pressing this key.");
+      }
       await current.keyboard.press(request.key === "Space" ? " " : request.key);
       await settle(current);
       return summary(current);
@@ -229,8 +233,8 @@ async function handle(request: BrowserRequest): Promise<unknown> {
     }
     case "close": {
       await browser?.close().catch(() => {});
-      chrome?.kill("SIGTERM");
-      setTimeout(() => process.exit(0), 300);
+      await endChrome();
+      setTimeout(() => process.exit(0), 50);
       return {};
     }
   }
@@ -242,4 +246,16 @@ process.on("message", (message: { id: number; request: BrowserRequest }) => {
     (error: unknown) => send({ id: message.id, ok: false, error: error instanceof Error ? error.message.split("\n")[0].slice(0, 500) : String(error) }),
   );
 });
-process.on("disconnect", () => { chrome?.kill("SIGKILL"); process.exit(0); });
+/** Chrome is this process's child: it must be gone before the worker exits, or it is orphaned. */
+async function endChrome() {
+  const current = chrome;
+  if (!current || current.exitCode !== null || current.signalCode !== null) return;
+  const gone = new Promise<void>((resolve) => current.once("exit", () => resolve()));
+  current.kill("SIGTERM");
+  if (await Promise.race([gone.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000))])) return;
+  current.kill("SIGKILL");
+  await Promise.race([gone, new Promise((resolve) => setTimeout(resolve, 1000))]);
+}
+
+process.on("disconnect", () => { void endChrome().finally(() => process.exit(0)); });
+process.on("SIGTERM", () => { void endChrome().finally(() => process.exit(0)); });

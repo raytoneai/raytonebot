@@ -5,7 +5,9 @@ import type { BrowserElement } from "./browserProtocol.ts";
  * How a browser action is approved (ADR-040), judged from the host's own snapshot of the page,
  * never from how the model describes the element:
  * - read: open a page, read it, scroll, go back, ask the user to take over.
- * - mutating: ordinary clicks and typing, a search form (GET), pressing keys.
+ * - mutating: ordinary clicks and typing, a search form (GET), keys that move focus or edit text.
+ *   Enter and Space act on the focused element and are judged like a click on it; with no
+ *   focused element the snapshot knows, they are outward.
  * - connector: the same on a site the user logged into by taking over; "always allow" is per site.
  * - outward: what reaches someone else or cannot be undone: submitting a POST form, a button that
  *   sends, pays, buys, deletes, agrees or accepts cookies, or any element the snapshot does not know.
@@ -25,9 +27,18 @@ export type BrowserCallContext = {
   origin?: string;
   /** Origins the user logged into while in control of the browser. */
   loggedIn: ReadonlySet<string>;
-  /** The field typed into last, which Enter would submit. */
-  lastTyped?: BrowserElement;
+  /** The element focused in the latest snapshot. */
+  focused?: BrowserElement;
 };
+
+const TEXT_ROLES = new Set(["textbox", "searchbox", "combobox", "spinbutton"]);
+
+/** A click on `element`, or Enter/Space on it while it has focus. */
+function activation(element: BrowserElement | undefined): ToolCallClass {
+  if (!element) return "outward";
+  if (LASTING.test(element.name) || COOKIES.test(element.name)) return "outward";
+  return element.submits ? submitClass(element) : "mutating";
+}
 
 export function secretElement(element: BrowserElement | undefined): boolean {
   if (!element) return false;
@@ -46,15 +57,18 @@ export function classifyBrowserCall(name: string, args: unknown, context: Browse
   const element = typeof input.ref === "string" ? context.elements[input.ref] : undefined;
   let kind: ToolCallClass;
   if (name === "browser_click") {
-    if (!element) kind = "outward";
-    else if (LASTING.test(element.name) || COOKIES.test(element.name)) kind = "outward";
-    else kind = element.submits ? submitClass(element) : "mutating";
+    kind = activation(element);
   } else if (name === "browser_type") {
     if (!element) kind = "outward";
     else if (secretElement(element)) kind = "secret";
     else kind = input.submit === true ? submitClass(element) : "mutating";
   } else if (name === "browser_press") {
-    kind = input.key === "Enter" ? submitClass(context.lastTyped) : "mutating";
+    const focused = context.focused;
+    if (input.key !== "Enter" && input.key !== "Space") kind = "mutating";
+    else if (!focused) kind = "outward";
+    else if (TEXT_ROLES.has(focused.role)) kind = input.key === "Enter" ? submitClass(focused) : "mutating";
+    else if (["generic", "document", "main", "region", "group", "paragraph", "text"].includes(focused.role)) kind = "outward";
+    else kind = activation(focused);
   } else kind = "outward";
   // Writes on a site the user signed into act as them there: ask, and remember per site.
   if (kind === "mutating" && context.origin && context.loggedIn.has(context.origin)) {
