@@ -8,6 +8,8 @@ import type { PiWireEvent } from "../harness/adapters/piAdapter.ts";
 import type { AgentHarnessId, AgentHarnessStatus } from "./harnessCatalog.ts";
 import { createClaudeStreamTranslator, normalizeClaudeTool, type NormalizedTool } from "./cliStreams.ts";
 import { createCodexAppServer, type CodexPermissionRequest } from "./codexAppServer.ts";
+import type { HostToolResult, HostToolSpec, McpToolkit } from "./mcpServers.ts";
+import type { HostTools } from "./memories.ts";
 import { WEB_TOOL_SPECS, type WebTools } from "./webAccess.ts";
 import { runLimits } from "./hostOperations.ts";
 import { MISSING_NATIVE_SESSION } from "./nativeSession.ts";
@@ -39,6 +41,10 @@ type CliRunBase = {
   onUserInput?: (request: { toolCallId: string; questions: UserQuestion[]; signal: AbortSignal }) => Promise<UserAnswers>;
   /** web_search / web_fetch, executed by the host; the engine's own web tools are turned off. */
   webTools?: WebTools;
+  /** The user's MCP servers (ADR-037), called by the host; each call passes the approval gate. */
+  mcpTools?: McpToolkit;
+  /** remember / forget (ADR-038), in the host's own server beside the web tools; gated too. */
+  memoryTools?: HostTools;
 };
 
 export type ClaudePermissionRequest = {
@@ -116,7 +122,7 @@ export function detectCliHarnesses(): Promise<AgentHarnessStatus[]> {
 /** The in-process MCP server carrying the host's web tools (`mcp__raytone__web_search`). */
 export const CLAUDE_HOST_MCP = "raytone";
 
-export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode" | "resumeId" | "forkAtMessageId" | "provider" | "appendSystemPrompt" | "disallowedTools" | "addDirs" | "webTools">): string[] {
+export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode" | "resumeId" | "forkAtMessageId" | "provider" | "appendSystemPrompt" | "disallowedTools" | "addDirs" | "webTools" | "mcpTools" | "memoryTools">): string[] {
   const args = [
     "-p",
     "--verbose",
@@ -142,12 +148,18 @@ export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode"
   if (options.appendSystemPrompt) args.push("--append-system-prompt", options.appendSystemPrompt);
   // Claude's WebSearch needs Anthropic's server and WebFetch the agent's own (blocked) egress.
   const disallowed = [...options.disallowedTools ?? [], ...options.webTools ? ["WebSearch", "WebFetch"] : []];
-  if (options.webTools) args.push("--mcp-config", JSON.stringify({ mcpServers: { [CLAUDE_HOST_MCP]: { type: "sdk", name: CLAUDE_HOST_MCP } } }));
+  const sdkServers = claudeSdkServers(options);
+  if (sdkServers.length) args.push("--mcp-config", JSON.stringify({ mcpServers: Object.fromEntries(sdkServers.map((name) => [name, { type: "sdk", name }])) }));
   if (disallowed.length) args.push("--disallowedTools", ...disallowed);
   if (options.addDirs?.length) args.push("--add-dir", ...options.addDirs);
   if (options.resumeId) args.push("--resume", options.resumeId);
   if (options.forkAtMessageId) args.push("--fork-session", "--resume-session-at", options.forkAtMessageId);
   return args;
+}
+
+/** In-process MCP servers this run answers on the control channel: web tools, then the user's. */
+function claudeSdkServers(options: Pick<ClaudeRunOptions, "webTools" | "mcpTools" | "memoryTools">): string[] {
+  return [...options.webTools || options.memoryTools ? [CLAUDE_HOST_MCP] : [], ...options.mcpTools?.servers.map((server) => server.id) ?? []];
 }
 
 /** Markers a parent Claude Code session sets for its own children; a product run is not one. */
@@ -402,7 +414,7 @@ export async function runClaudeCode(options: ClaudeRunOptions): Promise<void> {
         {
           type: "control_request",
           request_id: "raytonebot_init",
-          request: { subtype: "initialize", hooks: {}, sdkMcpServers: options.webTools ? [CLAUDE_HOST_MCP] : [], supportedDialogKinds: [] },
+          request: { subtype: "initialize", hooks: {}, sdkMcpServers: claudeSdkServers(options), supportedDialogKinds: [] },
         },
         { type: "user", message: { role: "user", content: options.prompt }, parent_tool_use_id: null },
       ],
@@ -447,8 +459,21 @@ async function answerClaudeControl(
   const requestId = typeof line.request_id === "string" ? line.request_id : undefined;
   const request = line.request && typeof line.request === "object" ? line.request as Record<string, unknown> : undefined;
   if (!requestId || !request) return;
-  if (request.subtype === "mcp_message" && request.server_name === CLAUDE_HOST_MCP && options.webTools) {
-    const response = await hostMcpResponse(record(request.message), options.webTools, options.signal);
+  if (request.subtype === "mcp_message" && request.server_name === CLAUDE_HOST_MCP && (options.webTools || options.memoryTools)) {
+    const { webTools: web, memoryTools: memory } = options;
+    const response = await sdkMcpResponse(record(request.message), { name: CLAUDE_HOST_MCP,
+      tools: [...web ? WEB_TOOL_SPECS : [], ...memory?.specs ?? []],
+      run: (name, args, signal) => memory?.specs.some((spec) => spec.name === name) ? memory.run(name, args, signal)
+        : web ? web.run(name, args, signal) : Promise.resolve({ text: `Unknown tool: ${name}.`, isError: true }) }, options.signal);
+    if (!options.signal.aborted) controlResponse(stdin, requestId, { mcp_response: response });
+    return;
+  }
+  const userServer = request.subtype === "mcp_message" ? options.mcpTools?.servers.find((server) => server.id === request.server_name) : undefined;
+  if (userServer && options.mcpTools) {
+    // Claude asked can_use_tool for `mcp__<server>__<tool>` before this call reaches the host.
+    const toolkit = options.mcpTools;
+    const response = await sdkMcpResponse(record(request.message), { name: userServer.id, tools: userServer.tools,
+      run: (name, args, signal) => toolkit.run(`mcp__${userServer.id}__${name}`, args, signal) }, options.signal);
     if (!options.signal.aborted) controlResponse(stdin, requestId, { mcp_response: response });
     return;
   }
@@ -492,20 +517,29 @@ async function answerClaudeControl(
     : { behavior: "deny", message: decision, ...(toolUseID ? { toolUseID } : {}) });
 }
 
+/** The host's web tools as Claude's `raytone` SDK server. */
+export function hostMcpResponse(message: Record<string, unknown>, web: WebTools, signal: AbortSignal): Promise<Record<string, unknown>> {
+  return sdkMcpResponse(message, { name: CLAUDE_HOST_MCP, tools: WEB_TOOL_SPECS, run: (name, args, runSignal) => web.run(name, args, runSignal) }, signal);
+}
+
 /** A minimal MCP server over Claude's control channel: initialize, tools/list, tools/call. */
-export async function hostMcpResponse(message: Record<string, unknown>, web: WebTools, signal: AbortSignal): Promise<Record<string, unknown>> {
+export async function sdkMcpResponse(message: Record<string, unknown>, server: {
+  name: string;
+  tools: readonly HostToolSpec[];
+  run(name: string, args: unknown, signal: AbortSignal): Promise<HostToolResult>;
+}, signal: AbortSignal): Promise<Record<string, unknown>> {
   const id = message.id ?? 0;
   const params = record(message.params);
   const result = (value: unknown) => ({ jsonrpc: "2.0", id, result: value });
   switch (message.method) {
     case "initialize":
       return result({ protocolVersion: typeof params.protocolVersion === "string" ? params.protocolVersion : "2025-06-18",
-        capabilities: { tools: {} }, serverInfo: { name: CLAUDE_HOST_MCP, version: "0.1.0" } });
+        capabilities: { tools: {} }, serverInfo: { name: server.name, version: "0.1.0" } });
     case "tools/list":
-      return result({ tools: WEB_TOOL_SPECS });
+      return result({ tools: server.tools });
     case "tools/call": {
-      const { text, isError } = await web.run(String(params.name), params.arguments, signal)
-        .catch((error) => ({ text: error instanceof Error ? error.message : "Web tool failed.", isError: true }));
+      const { text, isError } = await server.run(String(params.name), params.arguments, signal)
+        .catch((error) => ({ text: error instanceof Error ? error.message : "Tool failed.", isError: true }));
       return result({ content: [{ type: "text", text }], isError });
     }
     default:

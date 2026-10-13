@@ -41,6 +41,7 @@ import {
   getStoredConversation,
   getStoredConversationSummary,
   deleteStoredConversation,
+  renameStoredConversation,
   followPiTurn,
   listStoredConversations,
   searchStoredConversations,
@@ -70,6 +71,8 @@ import { useRunStop } from "./runtime/runStop";
 import { useProviderSettings } from "./runtime/useProviderSettings";
 import { useImChannels } from "./runtime/useImChannels";
 import { useRoutines } from "./runtime/useRoutines";
+import { useMcpServers } from "./runtime/useMcpServers";
+import { useMemories } from "./runtime/useMemories";
 
 const THEME_KEY = "raytonebot.theme";
 /** Events after which a tool call is no longer waiting on the user. */
@@ -323,6 +326,8 @@ export function AgentApp() {
   }, [configuredProject]);
   const imChannels = useImChannels(settingsOpen && Boolean(piRuntimeState), channelModel);
   const routines = useRoutines(settingsOpen && Boolean(piRuntimeState));
+  const mcpServers = useMcpServers(settingsOpen && Boolean(piRuntimeState));
+  const memories = useMemories(settingsOpen && Boolean(piRuntimeState));
   /** A routine's conversation opened from settings before this page has listed it. */
   const [pendingOpen, setPendingOpen] = useState<string>();
   // Both approval modes answer above the composer, exactly where the configurator previewed
@@ -475,21 +480,33 @@ export function AgentApp() {
 
   // Conversations saved by the host (earlier visits, other browsers, before a restart) appear in
   // the sidebar at once; their transcripts load when opened.
+  const syncStoredConversations = () => listStoredConversations()
+    .then(({ conversations: stored, unreadable }) => {
+      setHistoryListFailed(unreadable.length > 0);
+      const stubs = stored.filter((entry) => entry.eventCount > 0).map(storedStub);
+      setPiConversations((current) => {
+        const known = new Set(current.map((entry) => entry.id));
+        return [...current.map((entry) => entry.events.length ? entry : stubs.find((stub) => stub.id === entry.id) ?? entry),
+          ...stubs.filter((stub) => !known.has(stub.id))];
+      });
+      // Turns running on the host that this page is not following (begun while it was closed, or
+      // started by the host itself: routines, IM chats): pick them up. Following twice is a no-op.
+      const running = new Set(stored.filter((entry) => entry.running).map((entry) => entry.id));
+      for (const stub of stubs) if (running.has(stub.id)) void followRun(stub);
+      // The host knows which of them wait on the user, also for an approval announced before this
+      // page followed it. A list read just before a new wait must not clear it: a running turn's
+      // wait is cleared by its own stream, a finished one's here.
+      setAwaitingConversationIds((current) => stored.reduce((next, entry) => entry.awaitingUser ? toggleIn(next, entry.id, true)
+        : !entry.running ? toggleIn(next, entry.id, false) : next, current));
+    })
+    .catch(() => setHistoryListFailed(true));
+  const syncStoredRef = useRef(syncStoredConversations);
+  syncStoredRef.current = syncStoredConversations;
   useEffect(() => {
-    void listStoredConversations()
-      .then(({ conversations: stored, unreadable }) => {
-        setHistoryListFailed(unreadable.length > 0);
-        const stubs = stored.filter((entry) => entry.eventCount > 0).map(storedStub);
-        setPiConversations((current) => {
-          const known = new Set(current.map((entry) => entry.id));
-          return [...current.map((entry) => entry.events.length ? entry : stubs.find((stub) => stub.id === entry.id) ?? entry),
-            ...stubs.filter((stub) => !known.has(stub.id))];
-        });
-        // Turns that kept running on the host while this page was closed: pick them up.
-        const running = new Set(stored.filter((entry) => entry.running).map((entry) => entry.id));
-        for (const stub of stubs) if (running.has(stub.id)) void followRun(stub);
-      })
-      .catch(() => setHistoryListFailed(true));
+    void syncStoredRef.current();
+    // While the page is open, runs the host starts on its own appear within a quarter minute.
+    const timer = window.setInterval(() => { if (document.visibilityState === "visible") void syncStoredRef.current(); }, 15_000);
+    return () => window.clearInterval(timer);
   }, []);
 
   useEffect(() => {
@@ -1077,6 +1094,12 @@ export function AgentApp() {
     setPiConversations((current) => current.filter((entry) => entry.id !== id));
   }
 
+  /** The host saves the title; the row shows it once saved. */
+  async function renamePiConversation(id: string, title: string) {
+    const saved = await renameStoredConversation(id, title);
+    setPiConversations((current) => current.map((entry) => entry.id === id ? { ...entry, title: saved } : entry));
+  }
+
   // Group chat: members and the last message come with the host's summary of the conversation.
   function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupPreview"> {
     const group = (entry as { group?: { members?: string[]; preview?: { author: string; text: string } } }).group;
@@ -1316,7 +1339,9 @@ export function AgentApp() {
     ),
     searchConversations: streamId ? undefined : searchConversations,
     onDeleteSession: streamId ? undefined : deletePiConversation,
+    onRenameSession: streamId ? undefined : renamePiConversation,
     runningSessionIds: runningConversationIds,
+    unsentSessionIds: new Set(piConversations.filter((entry) => !entry.stored && entry.events.length === 0).map((entry) => entry.id)),
     onSelectSearchResult: (session) => {
       setSearchTarget(session.textId ? { conversationId: session.id, textId: session.textId, nonce: crypto.randomUUID() } : undefined);
       selectPiConversation(session.id);
@@ -1562,6 +1587,8 @@ export function AgentApp() {
             }}
             imChannels={piRuntimeState ? imChannels : undefined}
             routines={piRuntimeState ? routines : undefined}
+            mcpServers={piRuntimeState ? mcpServers : undefined}
+            memories={piRuntimeState ? memories : undefined}
             onOpenConversation={openStoredConversation}
             />
           </Suspense>

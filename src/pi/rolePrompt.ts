@@ -64,6 +64,22 @@ export function withConversationContext(modelPrompt: string, group = false): str
   return `${modelPrompt}\n\n[Conversation context from RaytoneBot: ${context}]`;
 }
 
+/** Earlier prompts no engine ever received are shown at most this many, newest kept, each cut to this length. */
+const UNSEEN_PROMPTS = 3;
+const UNSEEN_PROMPT_CHARS = 2000;
+
+/**
+ * Turns stopped before any engine accepted them (a CLI still starting) are in the transcript but
+ * not in the model's native context. A fresh native session gets them as context, so the model's
+ * view matches what the user sees; the transcript keeps the user's text unchanged.
+ */
+export function withUnseenPrompts(modelPrompt: string, unseen: readonly string[]): string {
+  if (!unseen.length) return modelPrompt;
+  const shown = unseen.slice(-UNSEEN_PROMPTS).map((text, index) =>
+    `${index + 1}. ${text.length > UNSEEN_PROMPT_CHARS ? `${text.slice(0, UNSEEN_PROMPT_CHARS)}…` : text}`);
+  return `${modelPrompt}\n\n[Earlier in this conversation, from RaytoneBot: the user's previous message${shown.length > 1 ? "s were" : " was"} stopped before reaching you, so you have not seen ${shown.length > 1 ? "them" : "it"}. Context only; answer the current message.\n${shown.join("\n")}]`;
+}
+
 /** Per file; a long file is cut with a note rather than crowding out the conversation. */
 export const PERSONA_FILE_LIMIT = 4096;
 

@@ -20,8 +20,8 @@ import { createConversationCache } from "./conversationCache.ts";
 export type StoredConversation = {
   id: string;
   title: string;
-  /** "summary": the model titled it; absent: the truncated first prompt. */
-  titleSource?: "summary";
+  /** "summary": the model titled it; "user": renamed by hand; absent: the truncated first prompt. */
+  titleSource?: "summary" | "user";
   createdAt: number;
   updatedAt: number;
   agentPreset: AgentPresetId;
@@ -155,6 +155,13 @@ export function createConversationStore(dataDir = defaultDataDir()) {
       if (!conversation || conversation.createdAt !== createdAt || conversation.titleSource) return false;
       write({ ...conversation, title, titleSource: "summary" });
       return true;
+    },
+    /** A hand-written title; a model title still on its way no longer replaces it. */
+    rename(id: string, title: string) {
+      const conversation = read(id);
+      if (!conversation) return undefined;
+      write({ ...conversation, title, titleSource: "user" });
+      return title;
     },
     /** Group chat: extra top-level fields (group metadata). */
     setExtra(id: string, extra: Record<string, unknown>) {

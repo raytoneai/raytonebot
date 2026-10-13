@@ -3766,6 +3766,19 @@ textarea:focus-visible {
   color: var(--danger);
 }
 
+/* Rename sits left of delete and shares its reveal. */
+.session-item-delete.session-item-rename {
+  right: 24px;
+}
+
+.session-item-shell:is(:hover, :focus-within) .session-item:has(~ .session-item-rename) {
+  padding-right: 50px;
+}
+
+.session-item-rename:hover:not(:disabled) {
+  color: var(--text-primary);
+}
+
 .session-item-delete:disabled {
   cursor: not-allowed;
   opacity: 0.4;
@@ -3774,6 +3787,37 @@ textarea:focus-visible {
 @media (hover: none) {
   .session-item-shell[data-active="true"] .session-item-delete { opacity: 1; pointer-events: auto; }
   .session-item-shell[data-active="true"] .session-item:has(+ .session-item-delete) { padding-right: 26px; }
+  .session-item-shell[data-active="true"] .session-item:has(~ .session-item-rename) { padding-right: 50px; }
+}
+
+.session-item-renaming {
+  grid-template-columns: minmax(0, 1fr) auto;
+}
+
+.session-rename-input {
+  min-width: 0;
+  height: 24px;
+  padding: 0 6px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-sm);
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: var(--text-sm);
+}
+
+.session-rename-input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -1px;
+}
+
+.session-rename-input[aria-invalid="true"] {
+  border-color: var(--danger);
+}
+
+.session-item-renaming .session-item-label {
+  color: var(--danger);
+  font-size: var(--text-xs);
 }
 
 .session-item-confirm {

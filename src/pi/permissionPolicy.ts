@@ -20,10 +20,14 @@ import { isAbsolute, relative, resolve } from "node:path";
  *   credentials for them, so those run and fail there instead of asking (as OpenAgentCore,
  *   nightly openbot and CopilotKit OpenBot treat their own sandboxes); publishing to the
  *   allowlisted package registries and destroying data still ask.
+ * - `connector`: a tool of an MCP server the user added in Settings, or `remember` / `forget`.
+ *   Its effect outlasts the turn (a service outside the VM, or a memory every later prompt
+ *   reads), so it asks under "request" and "auto"; unlike `outward`, "always allow" covers it,
+ *   since the user chose that server and many of its tools only read.
  * - `mutating`: changes the workspace (shell, edit, write). Asks only under "request".
  * - `read`: everything else.
  */
-export type ToolCallClass = "secret" | "protected" | "outward" | "mutating" | "read";
+export type ToolCallClass = "secret" | "protected" | "outward" | "connector" | "mutating" | "read";
 
 export type PermissionPolicy = {
   cwd: string;
@@ -87,6 +91,9 @@ export function classifyToolCall(toolName: string, args: unknown, policy: Permis
   const record = args && typeof args === "object" ? args as Record<string, unknown> : {};
   const name = toolName.toLowerCase();
   const callCwd = typeof record.cwd === "string" ? resolve(policy.cwd, record.cwd) : policy.cwd;
+  // `mcp__raytone__*` is the host's own web_search / web_fetch as Claude names them.
+  if (name.startsWith("mcp__") && !name.startsWith("mcp__raytone__")) return "connector";
+  if (name === "remember" || name === "forget") return "connector";
   if (name === "bash" || name === "powershell") {
     const command = typeof record.command === "string" ? record.command : "";
     if (ENV_DUMP.test(command) || pathIsWithin(callCwd, policy.secretPaths ?? [], policy.cwd) || commandMentions(command, policy.secretPaths ?? [])) return "secret";

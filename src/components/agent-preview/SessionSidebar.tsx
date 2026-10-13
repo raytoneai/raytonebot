@@ -1,4 +1,4 @@
-import { PanelLeft, Search, Trash2 } from "lucide-react";
+import { PanelLeft, Pencil, Search, Trash2 } from "lucide-react";
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { GroupFace } from "../../avatars/GroupFace";
 import { useShellExtras } from "../shell/ShellExtras";
@@ -51,6 +51,7 @@ export function SessionSidebar({
   const [searchOverlayRoot, setSearchOverlayRoot] = useState<HTMLElement | null>(null);
   const [query, setQuery] = useState("");
   const deletion = useSessionDeletion(sidebarRef);
+  const renaming = useSessionRename(sidebarRef);
   const sessions: readonly SessionSidebarItem[] = onSelectSession
     ? sessionItems ?? sessionPrompts.map((prompt) => ({ id: prompt, title: prompt }))
     : [];
@@ -274,6 +275,11 @@ export function SessionSidebar({
               deletion.ask(target.dataset.sessionId);
               return;
             }
+            if (event.key === "F2" && target.dataset.sessionId && renaming.available(target.dataset.sessionId)) {
+              event.preventDefault();
+              renaming.start(target.dataset.sessionId);
+              return;
+            }
             const index = Number(target.dataset.searchIndex);
             if (!Number.isInteger(index) || event.altKey || event.ctrlKey || event.metaKey) return;
             const last = historyWindow.items.length - 1;
@@ -285,14 +291,14 @@ export function SessionSidebar({
           {grouping ? (
             <>
               {today.length > 0 ? (
-                <SessionGroup label={c.groupToday} items={today} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} />
+                <SessionGroup label={c.groupToday} items={today} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} renaming={renaming} />
               ) : null}
               {earlier.length > 0 ? (
-                <SessionGroup label={c.groupEarlier} items={earlier} window={historyWindow.groups[1]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} />
+                <SessionGroup label={c.groupEarlier} items={earlier} window={historyWindow.groups[1]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} renaming={renaming} />
               ) : null}
             </>
           ) : (
-            <SessionGroup items={sessions} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} />
+            <SessionGroup items={sessions} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} renaming={renaming} />
           )}
         </nav>
       ) : null}
@@ -357,6 +363,46 @@ function NewChatIcon({ size }: { size: number }) {
   );
 }
 
+/** One row at a time edits its title in place; the shell saves it on the host. */
+function useSessionRename(sidebarRef: RefObject<HTMLElement | null>) {
+  const { onRenameSession, runningSessionIds, unsentSessionIds } = useShellExtras();
+  const [editing, setEditing] = useState<string>();
+  const [status, setStatus] = useState<"idle" | "saving" | "failed">("idle");
+  const focusRow = (id: string) => requestAnimationFrame(() => sidebarRef.current
+    ?.querySelector<HTMLElement>(`.session-list [data-session-id="${CSS.escape(id)}"]`)?.focus());
+  const usable = (id: string) => Boolean(onRenameSession) && !unsentSessionIds?.has(id);
+  return {
+    /** Unsent drafts have no saved title yet; their first message names them. */
+    available: usable,
+    editing,
+    status,
+    running: (id: string) => runningSessionIds?.has(id) ?? false,
+    start(id: string) {
+      if (!usable(id) || runningSessionIds?.has(id)) return;
+      setEditing(id);
+      setStatus("idle");
+    },
+    cancel() {
+      if (!editing) return;
+      focusRow(editing);
+      setEditing(undefined);
+      setStatus("idle");
+    },
+    save(title: string, previous: string) {
+      const id = editing;
+      if (!id || !onRenameSession || status === "saving") return;
+      const next = title.replace(/\s+/g, " ").trim();
+      if (!next || next === previous) { focusRow(id); setEditing(undefined); setStatus("idle"); return; }
+      setStatus("saving");
+      onRenameSession(id, next).then(() => {
+        setEditing((current) => current === id ? undefined : current);
+        setStatus("idle");
+        focusRow(id);
+      }, () => setStatus("failed"));
+    },
+  };
+}
+
 /** One row at a time asks "delete?" in place; the shell does the deleting. */
 function useSessionDeletion(sidebarRef: RefObject<HTMLElement | null>) {
   const { onDeleteSession, runningSessionIds } = useShellExtras();
@@ -401,6 +447,7 @@ function SessionGroup({
   onSelectResult,
   window,
   deletion,
+  renaming,
 }: {
   label?: string;
   items: readonly SessionSidebarItem[];
@@ -411,6 +458,7 @@ function SessionGroup({
   window?: ReturnType<typeof useSearchWindow>["groups"][number];
   /** History rows only; search results do not delete. */
   deletion?: ReturnType<typeof useSessionDeletion>;
+  renaming?: ReturnType<typeof useSessionRename>;
 }) {
   const avatars = useShellExtras().sessionAvatars;
   const groupFaces = useShellExtras().groupFaces;
@@ -440,6 +488,24 @@ function SessionGroup({
             </div>
           </div>
         );
+        if (renaming?.editing === id) return (
+          <div key={searchResultKey(session)} className="session-item-shell" data-active={active}
+            style={row ? { position: "absolute", top: row.offset } : undefined}>
+            <span className="session-item-bg" aria-hidden="true" />
+            <div className="session-item session-item-confirm session-item-renaming" role="group" aria-label={`${c.renameSession}: ${title}`}>
+              <input className="session-rename-input" defaultValue={title} maxLength={80} autoFocus
+                aria-label={c.renameSession} aria-invalid={renaming.status === "failed" || undefined}
+                disabled={renaming.status === "saving"} onFocus={(event) => event.currentTarget.select()}
+                onKeyDown={(event) => {
+                  event.stopPropagation();
+                  if (event.key === "Escape") renaming.cancel();
+                  if (event.key === "Enter" && !event.nativeEvent.isComposing) renaming.save(event.currentTarget.value, title);
+                }}
+                onBlur={(event) => { if (renaming.status !== "failed") renaming.save(event.currentTarget.value, title); }} />
+              {renaming.status === "failed" ? <span className="session-item-label" role="status">{c.renameFailed}</span> : null}
+            </div>
+          </div>
+        );
         const running = deletion?.running(id) ?? false;
         const preview = !onSelectResult && !snippet ? groupPreviews?.[id] : undefined;
         return (
@@ -452,8 +518,8 @@ function SessionGroup({
               data-active={active}
               data-search-result={onSelectResult ? searchResultKey(session) : undefined}
               data-session-key={searchResultKey(session)}
-              data-session-id={deletion?.available ? id : undefined}
-              aria-keyshortcuts={deletion?.available && !running ? "Delete" : undefined}
+              data-session-id={deletion?.available || renaming?.available(id) ? id : undefined}
+              aria-keyshortcuts={[deletion?.available && !running ? "Delete" : "", renaming?.available(id) && !running ? "F2" : ""].filter(Boolean).join(" ") || undefined}
               data-search-index={row?.index}
               aria-current={active ? "true" : undefined}
               title={preview ? `${title}\n${preview}` : undefined}
@@ -473,6 +539,13 @@ function SessionGroup({
                 aria-label={`${c.deleteSession}: ${title}`} title={running ? c.deleteRunning : c.deleteSession}
                 onClick={() => deletion.ask(id)}>
                 <Trash2 size={14} aria-hidden="true" />
+              </button>
+            ) : null}
+            {renaming?.available(id) ? (
+              <button type="button" className="session-item-delete session-item-rename" tabIndex={-1} disabled={running}
+                aria-label={`${c.renameSession}: ${title}`} title={running ? c.renameRunning : c.renameSession}
+                onClick={() => renaming.start(id)}>
+                <Pencil size={13} aria-hidden="true" />
               </button>
             ) : null}
           </div>

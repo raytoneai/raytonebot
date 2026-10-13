@@ -40,6 +40,8 @@ Product features that have no entry point yet extend their owner, and only these
 | Questions to the user and approvals | `chatframe/approval.tsx` |
 | IM channel settings and status (ADR-026) | `SettingsDialog` (its "channels" section) |
 | Routines: list, on/off, run now, open conversation (ADR-033); created from chat by Raer's `create_routine` | `SettingsDialog` (its "routines" section); host logic in `src/pi/routines.ts` |
+| MCP servers: add, edit, on/off, test, delete remote Streamable HTTP servers (ADR-037) | `SettingsDialog` (its "mcp" section); host logic in `src/pi/mcpServers.ts` |
+| Cross-conversation memory: on/off, list, edit, delete, add; agents write with `remember` / `forget` (ADR-038) | `SettingsDialog` (its "memory" section); host logic in `src/pi/memories.ts` |
 | Group chat: "+"/To member picker, group faces and previews, author per message, PM confirmation, `@` member completion (ADR-032) | `SessionSidebar`, `ShellExtras` (header/welcome), `ChatFrame`, `ComposerFrame` (`@` list; logic in `src/runtime/mentionCompletion.ts`), `chatframe/approval.tsx`; host logic in `src/pi/groupChat.ts` |
 
 How to extend:

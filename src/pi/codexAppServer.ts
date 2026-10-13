@@ -2,6 +2,8 @@ import { resolve } from "node:path";
 import type { PiWireEvent } from "../harness/adapters/piAdapter.ts";
 import { createCodexStreamTranslator, displayCommand, type NormalizedTool } from "./cliStreams.ts";
 import { userQuestions, type UserAnswers, type UserQuestion } from "../runtime/userInput.ts";
+import { MCP_TOOL_PREFIX, type McpToolkit } from "./mcpServers.ts";
+import type { HostTools } from "./memories.ts";
 import { WEB_TOOL_SPECS, type WebTools } from "./webAccess.ts";
 
 type Json = Record<string, unknown>;
@@ -11,6 +13,16 @@ export type CodexPermissionRequest = {
   tool: NormalizedTool;
   startExecution(): boolean;
 };
+
+/** Codex reserves `mcp` and `mcp__*` for its own MCP tools (app-server `thread_processor.rs`,
+ *  0.153.4): offering one fails the whole thread. MCP tools go to Codex as `mcp_<server>__<tool>`
+ *  and come back to the shared name, so approvals and "always allow" match the other engines. */
+export function codexToolName(name: string) {
+  return name.startsWith(MCP_TOOL_PREFIX) ? `mcp_${name.slice(MCP_TOOL_PREFIX.length)}` : name;
+}
+function sharedToolName(name: string) {
+  return name.startsWith("mcp_") && !name.startsWith(MCP_TOOL_PREFIX) ? `${MCP_TOOL_PREFIX}${name.slice("mcp_".length)}` : name;
+}
 
 /** Native v2 stdio protocol, checked against `codex app-server generate-ts` (0.153.4). */
 export function createCodexAppServer(options: {
@@ -29,6 +41,10 @@ export function createCodexAppServer(options: {
   onUserInput?: (request: { toolCallId: string; questions: UserQuestion[]; signal: AbortSignal }) => Promise<UserAnswers>;
   /** Host-run web tools, offered as dynamic tools in place of Codex's own web search. */
   webTools?: WebTools;
+  /** The user's MCP servers' tools (ADR-037), also dynamic tools; each call passes the gate first. */
+  mcpTools?: McpToolkit;
+  /** remember / forget (ADR-038), also dynamic tools that pass the gate first. */
+  memoryTools?: HostTools;
   signal: AbortSignal;
 }) {
   const translator = createCodexStreamTranslator(options.emit);
@@ -89,10 +105,21 @@ export function createCodexAppServer(options: {
 
   const callWebTool = async (line: Json, send: Send) => {
     const params = record(line.params);
+    const name = sharedToolName(String(params.tool));
     let result: { text: string; isError: boolean };
-    if (!options.webTools || !threadId || params.threadId !== threadId || params.namespace != null) result = { text: "Unknown dynamic tool.", isError: true };
+    if (!threadId || params.threadId !== threadId || params.namespace != null) result = { text: "Unknown dynamic tool.", isError: true };
+    else if ((name.startsWith(MCP_TOOL_PREFIX) && options.mcpTools) || options.memoryTools?.specs.some((spec) => spec.name === name)) {
+      const gated = name.startsWith(MCP_TOOL_PREFIX) ? options.mcpTools! : options.memoryTools!;
+      const callId = String(params.callId ?? "");
+      const tool = { name, args: record(params.arguments) };
+      let allowed: true | string;
+      try { allowed = await options.onPermission({ toolCallId: callId, tool, startExecution: () => translator.startExecution(callId, tool) }); }
+      catch (error) { allowed = error instanceof Error ? error.message : "Operation denied."; }
+      try { result = allowed === true ? await gated.run(name, params.arguments, options.signal) : { text: allowed, isError: true }; }
+      catch (error) { result = { text: error instanceof Error ? error.message : "Tool failed.", isError: true }; }
+    } else if (!options.webTools) result = { text: "Unknown dynamic tool.", isError: true };
     else {
-      try { result = await options.webTools.run(String(params.tool), params.arguments, options.signal); }
+      try { result = await options.webTools.run(name, params.arguments, options.signal); }
       catch (error) { result = { text: error instanceof Error ? error.message : "Web tool failed.", isError: true }; }
     }
     if (options.signal.aborted || finished) return;
@@ -129,7 +156,10 @@ export function createCodexAppServer(options: {
               // Codex's web search runs on OpenAI's servers; other providers get the host's tools.
               ...(options.webTools ? { web_search: "disabled" } : {}) },
             // Persisted with the thread: a resumed or forked thread keeps the tools it started with.
-            ...(options.webTools && !options.resumeId ? { dynamicTools: WEB_TOOL_SPECS.map((spec) => ({ type: "function", ...spec })) } : {}),
+            // MCP tools added later reach new conversations; a removed one answers with an error.
+            ...((options.webTools || options.mcpTools || options.memoryTools) && !options.resumeId ? { dynamicTools: [
+              ...(options.webTools ? WEB_TOOL_SPECS : []), ...(options.mcpTools?.specs ?? []), ...(options.memoryTools?.specs ?? []),
+            ].map((spec) => ({ type: "function", ...spec, name: codexToolName(spec.name) })) } : {}),
             ...(options.model ? { model: options.model, modelProvider: "raytonebot" } : {}),
             ...(options.developerInstructions ? { developerInstructions: options.developerInstructions } : {}),
           } });
@@ -189,7 +219,7 @@ function legacyItem(item: Json, cwd: string): Json {
   if (item.type === "mcpToolCall") return { ...item, type: "mcp_tool_call" };
   if (item.type === "dynamicToolCall") {
     const text = (Array.isArray(item.contentItems) ? item.contentItems : []).map((content) => record(content).text).filter((value) => typeof value === "string").join("\n");
-    return { ...item, type: "mcp_tool_call", server: undefined, result: text, ...(item.success === false ? { error: text || "Tool failed." } : {}) };
+    return { ...item, type: "mcp_tool_call", server: undefined, tool: sharedToolName(String(item.tool ?? "")), result: text, ...(item.success === false ? { error: text || "Tool failed." } : {}) };
   }
   if (item.type === "webSearch") return { ...item, type: "web_search", query: record(item.action).query };
   return item;

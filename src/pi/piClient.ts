@@ -3,6 +3,8 @@ import type { AgentUXEvent } from "@agent-ux/protocol";
 import type { PiApprovalDecision } from "../harness/adapters/piAdapter.ts";
 import type { ChannelPatch, ChannelPlatform, ChannelView } from "./imChannels/types.ts";
 import type { RoutineView } from "./routineTypes.ts";
+import type { McpServerInput, McpServerView } from "./mcpTypes.ts";
+import type { MemoryState, MemoryView } from "./memoryTypes.ts";
 import type { AppLocale } from "../i18n/locales.ts";
 import type { AgentHarnessStatus, AgentPresetId, ClaudeCodeModelSource } from "./harnessCatalog.ts";
 
@@ -161,6 +163,8 @@ export type StoredConversationSummary = {
   running?: boolean;
   /** Live identity, not a persisted attribute; used to stop only the observed run. */
   activeRunId?: string;
+  /** The running turn holds an approval or a question for the user. */
+  awaitingUser?: boolean;
 };
 
 export async function listStoredConversations(fetcher: typeof fetch = fetch): Promise<{ conversations: StoredConversationSummary[]; unreadable: string[] }> {
@@ -192,6 +196,52 @@ export async function getStoredConversationSummary(id: string, fetcher: typeof f
 /** Removes the saved transcript. The host refuses (409) while a run is active in it. */
 export async function deleteStoredConversation(id: string, fetcher: typeof fetch = fetch): Promise<void> {
   const response = await fetcher(`${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
+}
+
+/** Renames a saved conversation. The host refuses (409) while a run is active in it. */
+export async function renameStoredConversation(id: string, title: string, fetcher: typeof fetch = fetch): Promise<string> {
+  const response = await fetcher(`${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, { method: "PATCH",
+    headers: { "content-type": "application/json" }, body: JSON.stringify({ title }), signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Rename failed"));
+  return ((await response.json()) as { title: string }).title;
+}
+
+export async function getMemories(fetcher: typeof fetch = fetch): Promise<MemoryState> {
+  return requestJson<MemoryState>(fetcher, `${PI_API_PREFIX}/memories`, undefined, AbortSignal.timeout(15_000));
+}
+
+/** Adds a memory (no id) or rewrites one. */
+export async function saveMemory(id: string | undefined, text: string, fetcher: typeof fetch = fetch): Promise<MemoryView> {
+  const path = id ? `${PI_API_PREFIX}/memories/${encodeURIComponent(id)}` : `${PI_API_PREFIX}/memories`;
+  return (await requestJson<{ memory: MemoryView }>(fetcher, path, { text }, AbortSignal.timeout(15_000))).memory;
+}
+
+export async function setMemoryEnabled(enabled: boolean, fetcher: typeof fetch = fetch): Promise<MemoryState> {
+  return requestJson<MemoryState>(fetcher, `${PI_API_PREFIX}/memories/settings`, { enabled }, AbortSignal.timeout(15_000));
+}
+
+export async function deleteMemory(id: string, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher(`${PI_API_PREFIX}/memories/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
+}
+
+export async function listMcpServers(fetcher: typeof fetch = fetch): Promise<McpServerView[]> {
+  return (await requestJson<{ servers: McpServerView[] }>(fetcher, `${PI_API_PREFIX}/mcp`, undefined, AbortSignal.timeout(15_000))).servers;
+}
+
+/** Adds a server (no id) or changes one. The host lists its tools before answering. */
+export async function saveMcpServer(id: string | undefined, input: McpServerInput, fetcher: typeof fetch = fetch): Promise<McpServerView> {
+  const path = id ? `${PI_API_PREFIX}/mcp/${encodeURIComponent(id)}` : `${PI_API_PREFIX}/mcp`;
+  return (await requestJson<{ server: McpServerView }>(fetcher, path, input, AbortSignal.timeout(60_000))).server;
+}
+
+export async function refreshMcpServer(id: string, fetcher: typeof fetch = fetch): Promise<McpServerView> {
+  return (await requestJson<{ server: McpServerView }>(fetcher, `${PI_API_PREFIX}/mcp/${encodeURIComponent(id)}/refresh`, {}, AbortSignal.timeout(60_000))).server;
+}
+
+export async function deleteMcpServer(id: string, fetcher: typeof fetch = fetch): Promise<void> {
+  const response = await fetcher(`${PI_API_PREFIX}/mcp/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
 }
 
@@ -241,7 +291,7 @@ export async function setRoutineEnabled(id: string, enabled: boolean, fetcher: t
   return requestJson<RoutineView>(fetcher, `${PI_API_PREFIX}/routines/${encodeURIComponent(id)}`, { enabled }, AbortSignal.timeout(15_000));
 }
 
-/** "Run now": the scheduler's own entry, with a one-off occurrence id. */
+/** "Run now": the clock's own entry, with a one-off occurrence id. */
 export async function runRoutineNow(id: string, fetcher: typeof fetch = fetch): Promise<{ runId: string; conversationId: string }> {
   return requestJson(fetcher, `${PI_API_PREFIX}/routines/${encodeURIComponent(id)}/run`, { occurrenceId: `manual-${Date.now().toString(36)}` }, AbortSignal.timeout(30_000));
 }

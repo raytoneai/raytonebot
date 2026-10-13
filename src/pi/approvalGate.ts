@@ -53,6 +53,7 @@ export class PiApprovalGate {
    * request: anything that changes the workspace asks. auto: workspace work runs; outward
    * actions ask. allow-all: nothing asks. In every mode, protected calls (agent config, the
    * bot's own code) ask, and "always allow" does not cover them. Refused calls never ask.
+   * Connector (MCP) calls ask under request and auto until "always allow" covers the tool.
    */
   requiresApproval(toolName: string, args: unknown): boolean {
     const kind = classifyToolCall(toolName, args, this.policy);
@@ -61,7 +62,7 @@ export class PiApprovalGate {
     if (this.mode === "allow-all") return false;
     if (kind === "outward") return true;
     if (this.memory.has(this.agent, toolName)) return false;
-    return this.mode === "request" && kind === "mutating";
+    return kind === "connector" || (this.mode === "request" && kind === "mutating");
   }
 
   async wait(toolCallId: string, toolName: string, args: unknown, signal?: AbortSignal): Promise<void> {
@@ -81,6 +82,11 @@ export class PiApprovalGate {
     });
     if (decision === "no") throw new Error("Tool execution was denied by the user.");
     if (decision === "always") this.memory.add(this.agent, toolName);
+  }
+
+  /** A call is held for the user's answer right now. */
+  get waiting(): boolean {
+    return this.pending.size > 0;
   }
 
   resolve(toolCallId: string, decision: PiApprovalDecision): boolean {

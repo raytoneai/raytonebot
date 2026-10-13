@@ -13,7 +13,7 @@ export function createRoutineTool(create: (request: RoutineRequest) => Promise<R
       "Use create_routine when the user wants something done on a schedule (every morning, weekdays at 9, every Friday). Turn their wording into a five-field cron: minute hour day month weekday.",
       "Use the timezone the user names or that the conversation makes clear, as an IANA name (Asia/Shanghai). If it is unclear, ask before you call the tool.",
       "Write instructions that work without this conversation: what to check, where, and what to report.",
-      "After it is saved, tell the user it is off until they turn it on in Settings → Routines, and that it runs on time only once the scheduling service is connected; until then they can use Run now there.",
+      "After it is saved, tell the user it is off until they turn it on in Settings → Routines. Once on, it runs on time while the bot is awake; a run due while the sandbox is paused is skipped. Run now there tries it at once.",
     ],
     executionMode: "sequential",
     parameters: Type.Object({

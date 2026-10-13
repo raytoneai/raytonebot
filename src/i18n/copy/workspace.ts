@@ -128,6 +128,9 @@ const en = {
     deleteCancel: "Cancel",
     deleteRunning: "Stop the running task before deleting this chat",
     deleteFailed: "Couldn't delete. Try again.",
+    renameSession: "Rename chat",
+    renameRunning: "Stop the running task before renaming this chat",
+    renameFailed: "Not saved. Press Enter to retry",
     footerNote: "{version}",
     sessions: [
       "What can this agent do?",
@@ -263,6 +266,9 @@ const zh: typeof en = {
     deleteCancel: "取消",
     deleteRunning: "任务运行中，停止后才能删除",
     deleteFailed: "删除失败，请重试",
+    renameSession: "重命名对话",
+    renameRunning: "任务运行中，停止后才能重命名",
+    renameFailed: "未保存，按回车重试",
     footerNote: "{version}",
     sessions: [
       "你都有什么功能？",
@@ -399,6 +405,9 @@ const ja: typeof en = {
     deleteCancel: "キャンセル",
     deleteRunning: "実行中のタスクを止めてから削除してください",
     deleteFailed: "削除できませんでした。もう一度お試しください",
+    renameSession: "チャット名を変更",
+    renameRunning: "実行中のタスクを止めてから名前を変更してください",
+    renameFailed: "保存できませんでした。Enter で再試行",
     footerNote: "{version}",
     sessions: [
       "この Agent は何ができますか？",

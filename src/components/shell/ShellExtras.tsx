@@ -54,8 +54,12 @@ export type ShellExtras = {
   onSelectSearchResult?: (session: SearchSession) => void;
   /** Deletes a saved conversation after the row's inline confirmation; omitted, rows have no delete. */
   onDeleteSession?: (id: string) => Promise<void>;
-  /** Conversations with a run in flight: the host refuses to delete them. */
+  /** Renames a saved conversation from the row's inline field; omitted, rows have no rename. */
+  onRenameSession?: (id: string, title: string) => Promise<void>;
+  /** Conversations with a run in flight: the host refuses to delete or rename them. */
   runningSessionIds?: ReadonlySet<string>;
+  /** Drafts nothing has been sent from yet: no saved title to rename. */
+  unsentSessionIds?: ReadonlySet<string>;
   transcriptTarget?: { textId: string; nonce: string };
   /** Composer placeholder naming the current agent. */
   composerPlaceholder?: string;

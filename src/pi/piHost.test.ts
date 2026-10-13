@@ -850,3 +850,84 @@ test("a new conversation gets its model title after the first turn, never mid-ru
     rmSync(dataDir, { recursive: true, force: true });
   }
 });
+
+test("a hand-written title is saved over HTTP, refused mid-run, and a late model title never replaces it", async () => {
+  const { createServer } = await import("node:http");
+  const { createPiHttpHost } = await import("./piHost.ts");
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-rename-"));
+  // The title service answers only when the test lets it, after the rename.
+  let answerTitle: (() => void) | undefined;
+  const service = createServer((req, res) => {
+    req.resume();
+    req.on("end", () => { answerTitle = () => {
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ choices: [{ message: { content: "模型标题" } }] }));
+    }; });
+  });
+  await new Promise<void>((resolve) => service.listen(0, "127.0.0.1", resolve));
+  const { factory, release } = fakeBridges();
+  const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: factory, routineClock: false });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/conversations`;
+  const rename = async (id: string, title: unknown) => {
+    const response = await fetch(`${base}/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ title }) });
+    return { status: response.status, body: await response.json() as { title?: string; error?: string } };
+  };
+  const providerDefinition = { id: "local", name: "Local", protocol: "openai-compatible" as const,
+    baseUrl: `http://127.0.0.1:${(service.address() as { port: number }).port}/v1`, models: ["m"], authMode: "required" as const };
+  try {
+    await host.controller.configure({ conversationId: "a", provider: "local", model: "m", apiKey: "k", providerDefinition });
+    const run = host.controller.runPrompt({ conversationId: "a", requestId: "r1", prompt: "整理一下周报", provider: "local", model: "m" }, () => undefined);
+    for (let i = 0; i < 50 && !release.has("a"); i++) await tick();
+    assert.equal((await rename("a", "周报")).status, 409, "a running conversation keeps its title");
+    release.get("a")!();
+    release.delete("a");
+    await run;
+
+    for (const bad of ["", "   ", 42, "x".repeat(81)]) assert.equal((await rename("a", bad)).status, 400);
+    assert.equal((await rename("missing", "周报")).status, 404);
+    assert.deepEqual(await rename("a", "  第 41 周\n周报 "), { status: 200, body: { title: "第 41 周 周报" } });
+
+    for (let i = 0; i < 50 && !answerTitle; i++) await tick();
+    answerTitle!();
+    for (let i = 0; i < 10; i++) await tick();
+    const saved = JSON.parse(readFileSync(join(dataDir, "conversations", "a.json"), "utf8"));
+    assert.equal(saved.title, "第 41 周 周报");
+    assert.equal(saved.titleSource, "user");
+  } finally {
+    host.dispose();
+    server.closeAllConnections();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+    service.closeAllConnections();
+    service.close();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("a turn no engine received is shown to the next fresh session, and only until a session exists", async () => {
+  const { createConversationStore } = await import("./conversationStore.ts");
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-unseen-"));
+  const store = createConversationStore(dataDir);
+  const prompts: string[] = [];
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: async () => ({
+    subscribe: () => () => undefined,
+    async prompt(text: string) { prompts.push(text); },
+    abort: async () => undefined, dispose: () => undefined, async configure() {}, async newSession() {},
+    state: async () => ({ models: [], tools: [] }) as never,
+  }) });
+  try {
+    // A fake engine that never binds a native session stands for a CLI stopped while starting.
+    await controller.runPrompt({ conversationId: "a", requestId: "r1", prompt: "写一个质数脚本" }, () => undefined);
+    assert.doesNotMatch(prompts[0], /stopped before reaching you/, "the first turn has nothing earlier");
+    await controller.runPrompt({ conversationId: "a", requestId: "r2", prompt: "你做到哪了？" }, () => undefined);
+    assert.match(prompts[1], /^你做到哪了？[\s\S]*previous message was stopped before reaching you[\s\S]*1\. 写一个质数脚本/);
+    assert.equal(controller.getConversation("a")?.events.some((event) => JSON.stringify(event).includes("stopped before reaching you")), false,
+      "the transcript keeps what the user typed");
+
+    // Once the engine holds a session, it remembers the turns itself: no note.
+    store.setPiSession("a", "pi-session-1");
+    await controller.runPrompt({ conversationId: "a", requestId: "r3", prompt: "继续" }, () => undefined);
+    assert.doesNotMatch(prompts[2], /stopped before reaching you/);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});

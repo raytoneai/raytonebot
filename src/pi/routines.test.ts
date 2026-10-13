@@ -6,7 +6,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { createPiHttpHost, type PiBridgeFactory } from "./piHost.ts";
-import { cronProblem } from "./routines.ts";
+import { createRoutineService, cronMatches, cronProblem } from "./routines.ts";
 import type { RoutineView } from "./routineTypes.ts";
 
 const definition = { id: "routine-check", name: "Routine check", protocol: "openai-compatible" as const,
@@ -23,14 +23,14 @@ async function until(predicate: () => boolean) {
 
 /** No model: the real host, store and HTTP routes, with an engine that can call `create_routine`. */
 function engine() {
-  let mode: "finish" | "hold" | "fail" | "create" = "finish";
+  let mode: "finish" | "hold" | "fail" | "create" | "ask" = "finish";
   let failConfigure = false;
   const calls: { id: string; prompt: string }[] = [];
   const configured: { id: string; provider?: string; model?: string; apiKey?: string }[] = [];
   const created: (RoutineView | Error)[] = [];
   let release: (() => void) | undefined;
   let createFrom: Record<string, unknown> = request;
-  const factory: PiBridgeFactory = async ({ sessionDir, onCreateRoutine }) => {
+  const factory: PiBridgeFactory = async ({ sessionDir, onCreateRoutine, approvalGate }) => {
     const id = decodeURIComponent(sessionDir!.split("/").pop()!);
     let emit: Parameters<Awaited<ReturnType<PiBridgeFactory>>["subscribe"]>[0] = () => {};
     return {
@@ -40,6 +40,8 @@ function engine() {
         emit({ type: "message_start", message: { role: "assistant" } });
         if (mode === "fail") throw new Error("auth failed");
         if (mode === "hold") await new Promise<void>((resolve) => { release = resolve; });
+        // An unattended run that needs a write approved, under the host's default "request" mode.
+        if (mode === "ask") await approvalGate.wait("call_ask", "write", { path: "status.txt" }, new AbortController().signal);
         if (mode === "create") {
           try { created.push(await onCreateRoutine!(createFrom as typeof request)); }
           catch (error) { created.push(error as Error); }
@@ -61,7 +63,7 @@ function engine() {
 }
 
 async function hostFor(dataDir: string, bridge: ReturnType<typeof engine>) {
-  const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
+  const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory, routineClock: false });
   const server: Server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
@@ -105,6 +107,63 @@ test("cron schedules are five fields within range", () => {
   for (const bad of ["0 9 * *", "60 9 * * *", "0 24 * * *", "0 9 0 * *", "0 9 * 13 *", "0 9 * * 8", "a 9 * * *", "5-1 * * * *", "*/0 * * * *"]) {
     assert.ok(cronProblem(bad), bad);
   }
+});
+
+test("cron matches the minute in the routine's own timezone", () => {
+  // 2026-10-09 is a Friday; 01:00 UTC is 09:00 in Shanghai.
+  const at = (iso: string) => new Date(iso);
+  assert.equal(cronMatches("0 9 * * 1-5", "Asia/Shanghai", at("2026-10-09T01:00:00Z")), true);
+  assert.equal(cronMatches("0 9 * * 1-5", "Asia/Shanghai", at("2026-10-09T01:01:00Z")), false);
+  assert.equal(cronMatches("0 9 * * 1-5", "UTC", at("2026-10-09T01:00:00Z")), false);
+  assert.equal(cronMatches("0 9 * * 1-5", "Asia/Shanghai", at("2026-10-10T01:00:00Z")), false, "Saturday");
+  assert.equal(cronMatches("0 9 * * 7", "Asia/Shanghai", at("2026-10-11T01:00:00Z")), true, "7 is Sunday");
+  assert.equal(cronMatches("*/15 * * * *", "UTC", at("2026-10-09T01:45:00Z")), true);
+  assert.equal(cronMatches("5/20 * * * *", "UTC", at("2026-10-09T01:45:00Z")), true, "from 5, every 20");
+  assert.equal(cronMatches("0 0 13 * 5", "UTC", at("2026-10-09T00:00:00Z")), true, "day and weekday: either one");
+  assert.equal(cronMatches("0 0 13 * *", "UTC", at("2026-10-09T00:00:00Z")), false);
+  assert.equal(cronMatches("0 0 * * *", "UTC", at("2026-10-09T00:00:59Z")), true, "any second of the minute");
+});
+
+test("the host's clock runs an enabled routine once per matching minute and never catches up", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-routine-clock-"));
+  const bridge = engine();
+  const api = await hostFor(dataDir, bridge);
+  try {
+    const routine = await createFromChat(api, bridge); // 0 9 * * 1-5, Asia/Shanghai
+    let now = new Date("2026-10-09T00:58:30Z");
+    const logs: Record<string, unknown>[] = [];
+    // A second service over the same store, with a clock the test moves.
+    const clock = () => createRoutineService({ dataDir, runtime: api.host.controller, permissionMode: "request", now: () => now,
+      log: (event, fields) => logs.push({ event, ...fields }) });
+    let routines = clock();
+    now = new Date("2026-10-09T01:00:10Z");
+    await routines.tick();
+    assert.equal(bridge.calls.length, 1, "switched off: the clock leaves it alone");
+
+    await api.call(`/routines/${routine.id}`, "POST", { enabled: true });
+    routines = clock();
+    now = new Date("2026-10-09T00:59:40Z");
+    await routines.tick();
+    assert.equal(bridge.calls.length, 1, "not yet 9:00");
+    now = new Date("2026-10-09T01:01:20Z"); // A late step still covers 9:00.
+    await routines.tick();
+    await routines.tick();
+    assert.equal(bridge.calls.length, 2, "one run for the minute, however many steps see it");
+    await until(() => routines.list()[0].lastRun?.status === "success");
+    assert.equal(routines.list()[0].lastRun?.occurrenceId, "at-20261009T0100Z");
+
+    // A clock restarted within 9:00 sees that minute again; the occurrence is refused.
+    now = new Date("2026-10-09T01:00:50Z");
+    routines = clock();
+    await routines.tick();
+    assert.equal(bridge.calls.length, 2);
+    assert.ok(logs.some((entry) => entry.event === "routine.clock_skipped" && /already/.test(String(entry.error))));
+
+    // Asleep over Monday 9:00, awake at 9:10: the missed run is skipped, not caught up.
+    now = new Date("2026-10-12T01:10:00Z");
+    await routines.tick();
+    assert.equal(bridge.calls.length, 2);
+  } finally { await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
 });
 
 test("a routine created in chat is saved switched off, with the turn's model and no secret", async () => {
@@ -158,6 +217,26 @@ test("a scheduled occurrence runs once as Raer in the routine's conversation, al
     assert.match(again.body.error, /already/);
     assert.equal(bridge.calls.length, 2, "the duplicate occurrence never reached the engine");
     assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: "bad id!" })).status, 400);
+  } finally { await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("a run held for an approval shows as waiting on the user until it is answered", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-routine-wait-"));
+  const bridge = engine();
+  const api = await hostFor(dataDir, bridge);
+  try {
+    const routine = await createFromChat(api, bridge);
+    await api.call(`/routines/${routine.id}`, "POST", { enabled: true });
+    bridge.setMode("ask");
+    assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: "wait" })).status, 202);
+    const waiting = await routineWhere(api, (item) => item.lastRun?.waiting === true);
+    assert.equal(waiting.lastRun?.status, "running");
+    assert.equal(api.host.controller.listConversations().find((entry) => entry.id === routine.conversationId)?.awaitingUser, true);
+    assert.equal(api.host.controller.listConversations().find((entry) => entry.id === "chat")?.awaitingUser, undefined);
+    assert.equal(api.host.controller.resolveApproval("call_ask", "yes", routine.conversationId), true);
+    const done = await routineWhere(api, (item) => item.lastRun?.status === "success");
+    assert.equal(done.lastRun?.waiting, undefined);
+    assert.equal(api.host.controller.awaitingUser(routine.conversationId), false);
   } finally { await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
 });
 

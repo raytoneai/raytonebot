@@ -24,7 +24,7 @@ import { lastClaudeTaskPlan } from "./claudeTaskPlan.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
 import { defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from "./permissionPolicy.ts";
 import { resolveWorkspaceLayout, type WorkspaceLayout } from "./workspaceLayout.ts";
-import { rolePrompt, withReplyLanguage, withConversationContext } from "./rolePrompt.ts";
+import { rolePrompt, withReplyLanguage, withConversationContext, withUnseenPrompts } from "./rolePrompt.ts";
 import { isAppLocale } from "../i18n/locales.ts";
 import { listWorkspaceFiles, openWorkspaceFile, promptWithWorkspaceFiles, uploadWorkspaceFile, WorkspaceFileError } from "./workspaceFiles.ts";
 import { sendWorkspaceFile } from "./workspaceDownload.ts";
@@ -42,6 +42,8 @@ import {
 import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
+import { createMcpService, McpError, type McpToolkit } from "./mcpServers.ts";
+import { createMemoryService, MemoryError, type HostTools, type MemoryService } from "./memories.ts";
 import { createWebTools, type WebTools } from "./webAccess.ts";
 import { createHostResources } from "./piResources.ts";
 import { piCancelledTurnEvents } from "./piCancelledTurn.ts";
@@ -114,8 +116,11 @@ export type PiRuntimeController = {
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
-  /** Saved conversations; `running` marks those with a turn in flight right now. */
-  listConversations(query?: string): (ConversationSummary & { running: boolean; activeRunId?: string })[];
+  /** Saved conversations; `running` marks those with a turn in flight right now, `awaitingUser`
+   *  those whose turn holds an approval or a question for the user. */
+  listConversations(query?: string): (ConversationSummary & { running: boolean; activeRunId?: string; awaitingUser?: boolean })[];
+  /** The conversation's turn waits on the user (an approval or a question), e.g. an unattended routine. */
+  awaitingUser(conversationId: string): boolean;
   conversationReadErrors(): string[];
   /**
    * Watch a run in flight from event `after` on: the saved events past it first, then live ones.
@@ -124,6 +129,8 @@ export type PiRuntimeController = {
   followRun(conversationId: string, after: number, onEvent: (event: AgentUXEvent) => void): { done: Promise<void>; stop(): void } | undefined;
   getConversation(id: string): (StoredConversation & { incomplete: boolean; activeRunId?: string }) | undefined;
   deleteConversation(id: string): void;
+  /** Saves a hand-written title; undefined when there is no such conversation. */
+  renameConversation(id: string, title: string): string | undefined;
   branchConversation(id: string, beforeRunId: string): ReturnType<ConversationStore["branch"]>;
   /** Answers a held tool call; with a conversation, only that conversation's gate is consulted. */
   resolveApproval(toolCallId: string, decision: PiApprovalDecision, conversationId?: string, runId?: string): boolean;
@@ -131,6 +138,8 @@ export type PiRuntimeController = {
   newSession(conversationId?: string): Promise<PiRuntimeState>;
   /** Forgets "always allow" grants: one agent's, or every agent's. */
   clearApprovals(agentPreset?: string): Record<string, string[]>;
+  /** MCP servers changed: Pi sessions reopen with the new tools, a running one after its run. */
+  refreshTools(): void;
   dispose(): void;
 };
 
@@ -150,12 +159,18 @@ export function createPiRuntimeController(options: {
   channelSetup?: (run: ChannelSetupRun) => Promise<ChannelSetupResult>;
   /** Saving a routine from chat; the host binds it to its routine service. */
   createRoutine?: (input: RoutineCreateInput) => RoutineView;
+  /** The enabled MCP servers' tools now (ADR-037); read when a run or Pi session starts. */
+  mcpTools?: () => McpToolkit | undefined;
+  /** Cross-conversation memory (ADR-038): its note joins a turn's prompt, its tools each run. */
+  memory?: MemoryService;
 }): GroupController {
   const { cwd } = options;
   const dataDir = options.dataDir ?? defaultDataDir();
   const store = options.store ?? createConversationStore(dataDir);
   const limits = options.limits ?? runLimits();
   const log = runtimeLogger(dataDir);
+  /** `runPrompt` has its own `options`; the memory service is read through this name. */
+  const memory = options.memory;
   const startedAt = Date.now();
   // A turn still open on disk was cut off when the last process ended (restart, crash, redeploy).
   // It is closed as interrupted and never replayed: replaying could repeat writes or outward calls.
@@ -194,6 +209,7 @@ export function createPiRuntimeController(options: {
     }
     return gate;
   };
+  const awaitingUser = (conversationId: string) => Boolean(approvalGates.get(conversationId)?.waiting) || userInputGate.waitingIn(conversationId);
   /** Search and page reads, performed by the bot for every engine (agents have no egress). */
   const webTools = createWebTools({ proxyFakeIp: !sandboxed });
   let gatewayPromise: ReturnType<typeof createModelGateway> | undefined;
@@ -228,8 +244,17 @@ export function createPiRuntimeController(options: {
       },
       modelLease: (provider, protocol, thinkingLevel) => modelLease(provider, protocol, id, thinkingLevel),
       webTools,
+      mcpTools: options.mcpTools?.(),
+      memoryTools: options.memory?.toolsFor({ conversationId: id, agent: "assistant" }),
     });
   });
+  /** Pi sessions opened with an older MCP tool list, closed when their run ends. */
+  const staleBridges = new Set<string>();
+  const dropBridge = (id: string) => {
+    const bridge = bridgePromises.get(id);
+    bridgePromises.delete(id);
+    void bridge?.then((current) => current.dispose(), () => undefined);
+  };
   const bridgePromises = new Map<string, Promise<PiSessionBridge>>();
   /** Conversations that have already announced their tool set — see `runPrompt`. */
   const announcedCapabilities = new Set<string>();
@@ -311,6 +336,19 @@ export function createPiRuntimeController(options: {
   const providerKeys = new Map<string, string>();
   /** Product conversation → the CLI's own session id, so follow-up turns resume it. */
   const cliSessions = new Map<string, { harness: AgentHarnessId; id: string }>();
+  /**
+   * Earlier prompts of this conversation that no engine received: every saved turn lacks a native
+   * checkpoint and the engine has no session to resume, so the next turn starts fresh without them.
+   * Legacy records (no turns, or Pi's absent session id) and branches resume as before.
+   */
+  const unseenPrompts = (conversationId: string, harness: AgentHarnessId): string[] => {
+    const saved = store.get(conversationId);
+    const turns = saved?.turns ?? [];
+    if (!saved || !turns.length || saved.branch || turns.some((turn) => turn.native)) return [];
+    const bound = harness === "pi" ? saved.piSessionId !== null
+      : (cliSessions.get(conversationId) ?? saved.cliSession)?.harness === harness;
+    return bound ? [] : turns.map((turn) => turn.prompt).filter((prompt): prompt is string => typeof prompt === "string" && prompt.trim().length > 0);
+  };
 
   const bridge = (conversationId = activeConversationId) => {
     const id = normalizeConversationId(conversationId);
@@ -583,6 +621,8 @@ export function createPiRuntimeController(options: {
           appendSystemPrompt: rolePrompt(role, layout, { sandboxed }),
           disallowedTools: agentPreset(role).disallowedTools,
           webTools,
+          mcpTools: options.mcpTools?.(),
+          memoryTools: options.memory?.toolsFor({ conversationId, agent: role }),
           async onPermission(request) {
             // The planner writes only into the shared directory: plans and handoffs for others.
             if (request.tool.name === "write" && !plannerMayWrite(request.tool.args)) {
@@ -623,6 +663,8 @@ export function createPiRuntimeController(options: {
           onSessionId,
           provider,
           webTools,
+          mcpTools: options.mcpTools?.(),
+          memoryTools: options.memory?.toolsFor({ conversationId, agent: role }),
           async onPermission(request) {
             if (approvalGate.isRefused(request.tool.name, request.tool.args)) return SECRET_REFUSAL;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
@@ -786,7 +828,8 @@ export function createPiRuntimeController(options: {
         const conversation = store.begin(conversationId, role, options?.title ?? prompt);
         opened = true;
         if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
-        const modelPrompt = withReplyLanguage(withConversationContext(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), options?.groupConversation), input.locale);
+        const memoryNote = memory?.noteFor(conversationId);
+        const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), options?.groupConversation), unseenPrompts(conversationId, harness))}${memoryNote ? `\n\n${memoryNote}` : ""}`, input.locale);
         store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt,
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, modelPrompt);
@@ -805,13 +848,19 @@ export function createPiRuntimeController(options: {
         options?.signal?.removeEventListener("abort", stopOnSignal);
         try {
           if (opened && !recorder.finish()) terminalStatus = "error";
-        } finally { runs.delete(conversationId); settle(); }
+        } finally {
+          runs.delete(conversationId);
+          if (staleBridges.delete(conversationId)) dropBridge(conversationId);
+          settle();
+        }
         log("run.ended", { conversationId, harness, status: terminalStatus, durationMs: Date.now() - runStartedAt, outputBytes });
         const stashed = pendingTitles.get(conversationId);
         if (stashed) { pendingTitles.delete(conversationId); applyTitle(conversationId, stashed.createdAt, stashed.title); }
       }
     },
-    listConversations: (query) => store.list(query).map((summary) => ({ ...summary, running: runs.has(summary.id), activeRunId: runs.get(summary.id)?.runId })),
+    listConversations: (query) => store.list(query).map((summary) => ({ ...summary, running: runs.has(summary.id), activeRunId: runs.get(summary.id)?.runId,
+      ...(runs.has(summary.id) && awaitingUser(summary.id) ? { awaitingUser: true } : {}) })),
+    awaitingUser: (conversationId) => awaitingUser(normalizeConversationId(conversationId)),
     conversationReadErrors: () => store.readErrors(),
     followRun(conversationId, after, onEvent) {
       const id = normalizeConversationId(conversationId);
@@ -828,11 +877,24 @@ export function createPiRuntimeController(options: {
       // Read-only warning: a failed disk cannot persist its own failure terminal.
       return saved && { ...saved, activeRunId: runs.get(normalized)?.runId, incomplete: !runs.has(normalized) && piCancelledTurnEvents(saved.events).length > 0 };
     },
+    refreshTools() {
+      for (const id of [...bridgePromises.keys()]) {
+        if (runs.has(id)) staleBridges.add(id);
+        else dropBridge(id);
+      }
+    },
     deleteConversation(id) {
       if (runs.has(normalizeConversationId(id))) {
         throw new Error("A run is already active in this conversation. Stop it before deleting the conversation.");
       }
       store.remove(normalizeConversationId(id));
+    },
+    renameConversation(id, title) {
+      const normalized = normalizeConversationId(id);
+      // A write during a run would also persist its buffered events, as with model titles.
+      if (runs.has(normalized)) throw new Error("A run is already active in this conversation. Stop it before renaming the conversation.");
+      pendingTitles.delete(normalized);
+      return store.rename(normalized, title);
     },
     branchConversation(id, beforeRunId) {
       const sourceId = normalizeConversationId(id);
@@ -909,16 +971,21 @@ export function createPiHttpHost(options: {
   bridgeFactory?: PiBridgeFactory;
   limits?: RunLimits;
   channelFactories?: ConnectorFactories;
+  /** Runs routines on their schedule (ADR-036); tests that drive runs by hand turn it off. */
+  routineClock?: boolean;
 }) {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: options.cwd });
   const privatePaths = [options.dataDir ?? defaultDataDir()];
   // Bound below: the setup needs the channel manager, which needs the controller.
   let channelSetup: ReturnType<typeof createChannelSetup> | undefined;
   let routines: RoutineService | undefined;
-  const controller = createPiRuntimeController({ ...options, layout, channelSetup: (run) => channelSetup!.run(run),
-    createRoutine: (input) => routines!.create(input) });
   const dataDir = options.dataDir ?? defaultDataDir();
+  const mcp = createMcpService({ dataDir, log: runtimeLogger(dataDir) });
+  const memory = createMemoryService({ dataDir, log: runtimeLogger(dataDir) });
+  const controller = createPiRuntimeController({ ...options, layout, channelSetup: (run) => channelSetup!.run(run),
+    createRoutine: (input) => routines!.create(input), mcpTools: () => mcp.toolkit(), memory });
   routines = createRoutineService({ dataDir, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
+  const stopClock = options.routineClock === false ? undefined : routines.startClock();
   // Starts the enabled channels; the vite plugin creates this host when its server starts.
   const channels = createChannelManager({ runtime: controller, dataDir, defaultPermissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir), factories: options.channelFactories });
   channelSetup = createChannelSetup(channels);
@@ -1008,6 +1075,41 @@ export function createPiHttpHost(options: {
             else sendJson(res, 404, { error: "Unknown routine request." });
           } catch (error) {
             if (!(error instanceof RoutineError)) throw error;
+            sendJson(res, error.status, { error: error.message });
+          }
+          return true;
+        }
+        if (url.pathname === `${PI_API_PREFIX}/memories` || url.pathname.startsWith(`${PI_API_PREFIX}/memories/`)) {
+          const [id] = url.pathname.slice(`${PI_API_PREFIX}/memories`.length).split("/").filter(Boolean).map(decodeURIComponent);
+          try {
+            if (req.method === "GET" && !id) sendJson(res, 200, memory.state());
+            else if (req.method === "POST" && id === "settings") {
+              const before = memory.enabled;
+              sendJson(res, 200, memory.setEnabled((await readJson(req)).enabled));
+              // Pi sessions hold their tools: reopen them with or without remember / forget.
+              if (memory.enabled !== before) controller.refreshTools();
+            }
+            else if (req.method === "POST" && !id) sendJson(res, 201, { memory: memory.add((await readJson(req)).text) });
+            else if (req.method === "POST" && id) sendJson(res, 200, { memory: memory.update(id, (await readJson(req)).text) });
+            else if (req.method === "DELETE" && id) { memory.remove(id); sendJson(res, 200, { ok: true }); }
+            else sendJson(res, 404, { error: "Unknown memory request." });
+          } catch (error) {
+            if (!(error instanceof MemoryError)) throw error;
+            sendJson(res, error.status, { error: error.message });
+          }
+          return true;
+        }
+        if (url.pathname === `${PI_API_PREFIX}/mcp` || url.pathname.startsWith(`${PI_API_PREFIX}/mcp/`)) {
+          // Carries bearer tokens on save: answered from the MCP store, never logged or echoed.
+          const [id, action] = url.pathname.slice(`${PI_API_PREFIX}/mcp`.length).split("/").filter(Boolean).map(decodeURIComponent);
+          try {
+            if (req.method === "GET" && !id) sendJson(res, 200, { servers: mcp.list() });
+            else if (req.method === "POST" && !action) { sendJson(res, id ? 200 : 201, { server: await mcp.save(id, await readJson(req)) }); controller.refreshTools(); }
+            else if (req.method === "POST" && id && action === "refresh") { sendJson(res, 200, { server: await mcp.refresh(id) }); controller.refreshTools(); }
+            else if (req.method === "DELETE" && id && !action) { mcp.remove(id); sendJson(res, 200, { ok: true }); controller.refreshTools(); }
+            else sendJson(res, 404, { error: "Unknown MCP request." });
+          } catch (error) {
+            if (!(error instanceof McpError)) throw error;
             sendJson(res, error.status, { error: error.message });
           }
           return true;
@@ -1110,6 +1212,17 @@ export function createPiHttpHost(options: {
           if (req.method === "DELETE") {
             controller.deleteConversation(id);
             sendJson(res, 200, { ok: true });
+            return true;
+          }
+          if (req.method === "PATCH") {
+            const raw = (await readJson(req)).title;
+            const title = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
+            if (!title || title.length > 80) sendJson(res, 400, { error: "A title of 1-80 characters is required." });
+            else {
+              const saved = controller.renameConversation(id, title);
+              if (saved) sendJson(res, 200, { title: saved });
+              else sendJson(res, 404, { error: "Conversation not found." });
+            }
             return true;
           }
         }
@@ -1228,6 +1341,7 @@ export function createPiHttpHost(options: {
       return true;
     },
     dispose() {
+      stopClock?.();
       channels.dispose();
       controller.dispose();
     },
@@ -1264,6 +1378,8 @@ async function createDefaultPiBridge(input: {
   onCreateRoutine?(request: RoutineRequest): Promise<RoutineView>;
   modelLease(provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic", thinkingLevel?: string): Promise<{ baseUrl: string; apiKey: string; revoke(): void }>;
   webTools?: WebTools;
+  mcpTools?: McpToolkit;
+  memoryTools?: HostTools;
 }): Promise<PiSessionBridge> {
   const pi = await import("@earendil-works/pi-coding-agent");
   const { planTool } = await import("./planTool.ts");
@@ -1306,6 +1422,11 @@ async function createDefaultPiBridge(input: {
     if (input.webTools) {
       const { webPiTools } = await import("./webTool.ts");
       definitions.push(...webPiTools(input.webTools));
+    }
+    for (const tools of [input.mcpTools, input.memoryTools]) {
+      if (!tools) continue;
+      const { mcpPiTools } = await import("./mcpTool.ts");
+      definitions.push(...mcpPiTools(tools).map((definition) => guardTool(definition, input.approvalGate)) as ToolDefinition<any, any, any>[]);
     }
     if (input.onChannelSetup) definitions.push(connectChannelTool(input.onChannelSetup));
     if (input.onCreateRoutine) {

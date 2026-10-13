@@ -10,9 +10,9 @@ import { ROUTINE_FAILURE_LIMIT, type RoutineRunStatus, type RoutineView } from "
 
 /**
  * Routines (ADR-033): saved instructions Raer runs on a schedule. The host keeps the definitions
- * and a run entry that is safe to call twice; an outside scheduler decides when (ADR-016), so
- * nothing here keeps time. Each routine runs in its own ordinary conversation, as Raer, with the
- * host's default permission mode and the server's environment key, like an IM chat.
+ * and a run entry that is safe to call twice; the host's own clock (ADR-036) calls it on each
+ * matching minute while the sandbox is awake. Each routine runs in its own ordinary conversation,
+ * as Raer, with the host's default permission mode and the server's environment key, like an IM chat.
  */
 
 export type Routine = Omit<RoutineView, "model"> & {
@@ -50,6 +50,40 @@ export function cronProblem(expression: string): string | undefined {
     }
   }
   return undefined;
+}
+
+/** The values a cron field allows, e.g. "1-5" → {1,2,3,4,5}. Assumes `cronProblem` passed. */
+function cronValues(field: string, index: number): Set<number> {
+  const [min, max] = CRON_FIELDS[index];
+  const values = new Set<number>();
+  for (const part of field.split(",")) {
+    const match = /^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/.exec(part)!;
+    const from = match[2] === undefined ? min : Number(match[2]);
+    // "5/15" means from 5 to the end, as in Vixie cron.
+    const to = match[3] !== undefined ? Number(match[3]) : match[2] === undefined || match[4] !== undefined ? max : from;
+    for (let value = from; value <= to; value += Number(match[4] ?? 1)) values.add(index === 4 && value === 7 ? 0 : value);
+  }
+  return values;
+}
+
+const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+const zoneFormats = new Map<string, Intl.DateTimeFormat>();
+
+/** Whether `expression` names the minute of `at` in `timezone`. Day of month and weekday follow
+ *  cron: when both are restricted, either one matching is enough. */
+export function cronMatches(expression: string, timezone: string, at: Date): boolean {
+  let format = zoneFormats.get(timezone);
+  if (!format) {
+    format = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hourCycle: "h23", weekday: "short",
+      month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
+    zoneFormats.set(timezone, format);
+  }
+  const parts = Object.fromEntries(format.formatToParts(at).map((part) => [part.type, part.value]));
+  const fields = expression.trim().split(/\s+/);
+  const local = [Number(parts.minute), Number(parts.hour), Number(parts.day), Number(parts.month), WEEKDAYS.indexOf(parts.weekday)];
+  const hit = fields.map((field, index) => cronValues(field, index).has(local[index]));
+  const day = fields[2].startsWith("*") || fields[4].startsWith("*") ? hit[2] && hit[4] : hit[2] || hit[4];
+  return hit[0] && hit[1] && hit[3] && day;
 }
 
 function timezoneProblem(timezone: string): string | undefined {
@@ -114,14 +148,19 @@ export function routinePrompt(routine: Routine, occurrenceId: string, now: Date)
 }
 
 const OCCURRENCE = /^[A-Za-z0-9._-]{1,80}$/;
-/** Accepted occurrences remembered per routine; a scheduler replaying older ones is out of contract. */
+/** Accepted occurrences remembered per routine; replaying older ones is out of contract. */
 const OCCURRENCE_MEMORY = 500;
 /** Refusals that are not the routine's fault: they never count towards switching it off. */
 const BUSY = /already|in progress|Stop this conversation/i;
+const MINUTE = 60_000;
+/** Checked twice a minute, so a step is never more than half a minute late. */
+const CLOCK_INTERVAL = 30_000;
+/** Minutes a late step still covers; anything older counts as slept through. */
+const CLOCK_LOOKBACK = 3;
 
 export function createRoutineService(options: {
   dataDir?: string;
-  runtime: Pick<PiRuntimeController, "runPrompt" | "configure" | "getConversation">;
+  runtime: Pick<PiRuntimeController, "runPrompt" | "configure" | "getConversation"> & Partial<Pick<PiRuntimeController, "awaitingUser">>;
   permissionMode: PiPermissionMode;
   log?(event: string, fields: Record<string, unknown>): void;
   now?(): Date;
@@ -164,8 +203,12 @@ export function createRoutineService(options: {
     if (record({ ...routine, lastRun: { occurrenceId, at: now().getTime(), status: "running" } })) finish(id, occurrenceId, "error", error);
   };
 
-  return {
-    list: () => store.list().map(routineView),
+  const service = {
+    list: () => store.list().map((routine) => {
+      const view = routineView(routine);
+      return view.lastRun?.status === "running" && options.runtime.awaitingUser?.(routine.conversationId)
+        ? { ...view, lastRun: { ...view.lastRun, waiting: true } } : view;
+    }),
 
     create(input: RoutineCreateInput): RoutineView {
       const title = input.title?.trim(), instructions = input.instructions?.trim();
@@ -202,7 +245,7 @@ export function createRoutineService(options: {
     },
 
     /**
-     * The scheduler's entry: resolves once the run is accepted and keeps it going in the
+     * The clock's and Run now's entry: resolves once the run is accepted and keeps it going in the
      * background. The same occurrence never runs twice, across restarts too: the routine keeps
      * the occurrences it accepted, and the request id is also checked against the conversation's
      * saved turns. Busy or full is a refusal, never a queue, and never counts as a failure.
@@ -264,6 +307,45 @@ export function createRoutineService(options: {
       } finally {
         if (!accepted) starting.delete(id);
       }
+    },
+  };
+
+  /** The last minute the clock looked at; minutes after it and up to now are due. */
+  let checked = Math.floor(now().getTime() / MINUTE) - 1;
+
+  /**
+   * One clock step: runs every enabled routine whose schedule names a minute since the last
+   * step. A late step (a busy event loop) still covers a few missed minutes; after a pause or a
+   * clock jump the older minutes are skipped, never caught up. The occurrence id is the UTC
+   * minute, so a step repeated for the same minute is refused by `run` like any duplicate.
+   */
+  const tick = async () => {
+    const current = Math.floor(now().getTime() / MINUTE);
+    const from = Math.max(checked + 1, current - CLOCK_LOOKBACK + 1);
+    checked = Math.max(checked, current);
+    const runs: Promise<unknown>[] = [];
+    for (let minute = from; minute <= current; minute += 1) {
+      const at = new Date(minute * MINUTE);
+      for (const routine of store.list()) {
+        if (!routine.enabled || !cronMatches(routine.schedule, routine.timezone, at)) continue;
+        const occurrenceId = `at-${at.toISOString().slice(0, 16).replace(/[-:]/g, "")}Z`;
+        runs.push(service.run(routine.id, occurrenceId).catch((failure: unknown) => {
+          // Refusals (busy, already run, switched off) are expected; failures are already on the routine.
+          options.log?.("routine.clock_skipped", { routineId: routine.id, occurrenceId, error: failure instanceof Error ? failure.message : String(failure) });
+        }));
+      }
+    }
+    await Promise.all(runs);
+  };
+
+  return {
+    ...service,
+    tick,
+    /** Starts the host's clock (ADR-036); returns the function that stops it. */
+    startClock() {
+      const timer = setInterval(() => void tick(), CLOCK_INTERVAL);
+      timer.unref();
+      return () => clearInterval(timer);
     },
   };
 }

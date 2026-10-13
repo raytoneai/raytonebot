@@ -179,6 +179,13 @@
 
 .settings-row-title strong { font-size: 13.5px; font-weight: 650; }
 
+/* A memory is a sentence, not a name: normal weight, wrapping. */
+.settings-memory-row .settings-row-title {
+  font-size: 13px;
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
 .settings-row-sub {
   margin: 0;
   overflow: hidden;

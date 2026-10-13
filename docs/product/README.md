@@ -18,12 +18,15 @@ RaytoneBot 是运行在 AgentSphere 云沙箱上的单用户 AI 工作助手：�
 | [10-agents-and-permissions.md](10-agents-and-permissions.md) | 三个预置角色、多引擎接入、权限模型 | 改引擎、审批、权限前 |
 | [11-parity.md](11-parity.md) | 参考项目源码基线、功能/UX 差距与模块验收 | 继续对齐 OpenBot / OpenMuse 时 |
 
-## 当前状态（2026-10-03）
+## 当前状态（2026-10-13，证据截至 2026-10-12）
 
 - 代码：AgentCanvas 导出的 React/Vite 前端 + 内置 Pi 运行时，本机与云端均可启动。
 - 云端：<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>（Basic Auth，凭据见本机 `.agentsphere/access.json`）。超时自动暂停；返回 502 时执行 `scripts/agentsphere/sandbox.py wake`。
 - 已验证（本机）：真实模型任务（DeepSeek）、三个角色（Pi / Claude Code / Codex）、执行前审批、权限分级、设置面板与头像的浏览器验收。
 - 已验证（云端）：Pi / Claude Code 真实任务、跨 Agent 协作、会话持久化（暂停/唤醒、进程重启）。Codex 用 DeepSeek key 运行，无需登录。平台限制与待决事项见根目录 [issue.md](../../issue.md)。
+
+- 后续能力：可见追问队列、全文消息搜索、删除/分支、群聊、IM、例行任务与交互 HTML 已有实现；完整度与验收边界见 [11-parity.md](11-parity.md)。
+- 部署边界：IM 与例行任务已有部署记录，10 月 10 日联网搜索/抓取已云端三引擎实测；最新 HTML 与思考档位尚未部署，群聊缺完整云端复验。例行任务未接外部调度，开启后不会按时自动运行。此处不代表 10 月 13 日重新检查了线上状态。
 
 ## 与旧文档的关系
 

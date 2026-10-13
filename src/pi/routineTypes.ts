@@ -5,7 +5,7 @@ export type RoutineRunStatus = "running" | "success" | "error" | "cancelled" | "
 export type RoutineView = {
   id: string;
   title: string;
-  /** Five-field cron, read by the outside scheduler in `timezone`. */
+  /** Five-field cron, read by the host's clock in `timezone`. */
   schedule: string;
   timezone: string;
   instructions: string;
@@ -16,7 +16,9 @@ export type RoutineView = {
   /** Errors in a row; reaching `ROUTINE_FAILURE_LIMIT` switches the routine off. */
   failures: number;
   disabledReason?: string;
-  lastRun?: { occurrenceId: string; at: number; status: RoutineRunStatus; error?: string };
+  lastRun?: { occurrenceId: string; at: number; status: RoutineRunStatus; error?: string;
+    /** Running, and held for an approval or a question in its conversation: nobody is watching it. */
+    waiting?: boolean };
   model?: { provider: string; model: string };
 };
 

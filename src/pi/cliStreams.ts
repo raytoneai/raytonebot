@@ -32,6 +32,8 @@ const CLAUDE_TOOL_NAMES: Record<string, string> = {
   // The host's web tools (cliHarness CLAUDE_HOST_MCP), named as Pi and Codex name them.
   mcp__raytone__web_search: "web_search",
   mcp__raytone__web_fetch: "web_fetch",
+  mcp__raytone__remember: "remember",
+  mcp__raytone__forget: "forget",
 };
 
 export function normalizeClaudeTool(name: string, input: unknown): NormalizedTool {

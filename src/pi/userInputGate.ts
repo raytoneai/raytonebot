@@ -24,6 +24,11 @@ export class UserInputGate {
     }
   }
 
+  /** A question in this conversation waits for the user right now. */
+  waitingIn(conversationId: string): boolean {
+    return [...this.pending.values()].some((entry) => entry.conversationId === conversationId);
+  }
+
   resolve(conversationId: string, requestId: string, value: unknown): boolean {
     const entry = this.pending.get(requestId) ?? this.receipts.get(requestId);
     if (!entry || entry.conversationId !== conversationId) return false;
