@@ -825,3 +825,10 @@
 - 等待用户：`routines.test.ts` 新增 1 项：例行任务运行停在写入审批上时，`lastRun.waiting` 与会话列表 `awaitingUser` 为真，其他会话不受影响；批准后成功、标记消失。本机真实 DeepSeek（5188）：Raer 从聊天创建写 `daily.txt` 的任务；Chrome for Testing 先打开页面，再经接口开启并立即运行，不刷新页面，25 秒内侧栏出现该任务对话、Raer 显示「等你确认」，设置页该任务为「等你处理」并显示说明；页面无错误。随后停止运行并删除任务。
 - 未被收到的请求：`piHost.test.ts` 新增 1 项：引擎未绑定会话时，下一轮模型提示词附上上一轮原文，转录不含该说明；绑定会话后不再附。本机真实 DeepSeek：Bob（Codex）第 9 秒停止「写 primes.py」，追问「我刚才让你做什么」，回答准确复述原请求并说明那条消息被中断、未真正收到。
 - 全量 `npm test` 275/275，build 通过。
+
+## BU 组：部署 5550924 后的线上验收（2026-10-13）
+
+- 部署：`deploy.py` 到 `id705on7k0a1ya1d90icj`；公网 9 项检查（鉴权、错误密码、外站来源、健康、状态、沙箱模式、分角色工作区）通过，`cloud-preview --check` PASS；三引擎可用（Pi、Claude Code 2.1.267、Codex 0.154.0）。沙箱 env 中的 DeepSeek 与 Tavily key 由脚本保留。
+- 真实 DeepSeek（deepseek-flash，自动模式，HTTP 脚本驱动，先按页面方式下发模型服务配置）：Raer `web_search` + `web_fetch` 6.4 s 并给官网来源；Raer `remember` 审批后保存（4.0 s）；新对话 Bob 解释 CDN 时以「结论」开头（2.8 s）；公开 DeepWiki MCP 保存即列出 3 个工具，Tonny 12.9 s、Bob 15.5 s、Raer 18.5 s 均经审批调用并答出 openai/codex 主要用 Rust（Tonny 也先给结论）；`PATCH /conversations/:id` 重命名 200。
+- 清理：删除 DeepWiki 服务、演示记忆与 6 个演示对话；未选「总是允许」。
+- 未做：线上浏览器界面走查、例行任务计时器与等待提示、停止后续问的线上复验。
