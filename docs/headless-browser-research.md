@@ -181,3 +181,18 @@ PoC（都要在**真实 AgentSphere 沙箱**里测，本文的内存数据来自
 - Anthropic computer use：https://platform.claude.com/docs/en/docs/agents-and-tools/tool-use/computer-use-tool ；OpenAI computer use：https://developers.openai.com/api/docs/guides/tools-computer-use ；Operator 系统卡片：https://cdn.openai.com/operator_system_card.pdf
 - OpenHands 安全：https://docs.openhands.dev/sdk/guides/security ；nightly openbot：https://github.com/nightly-labs/openbot
 - ClamAV 内存：https://docs.clamav.net/manual/Installing/Docker.html ，https://wiki.archlinux.org/title/ClamAV
+
+## 沙箱实测（2026-10-13）
+
+在测试沙箱 `id705on7k0a1ya1d90icj` 上运行 `scripts/agentsphere/browser_poc.py`（Ubuntu 22.04.5，内核 6.1.158，平台 2 核 / 4096 MB / 11416 MB 磁盘）。以下为实测值，取代上文的本机估算：
+
+| 项目 | 结果 |
+| --- | --- |
+| 安装 | headless shell 273 MB，playwright-core 14 MB，`--with-deps` 系统包可装 |
+| Chrome 自带沙箱 | 可用（`max_user_namespaces` 15734），不需要 `--no-sandbox` |
+| 内存 PSS / RSS | 空闲 156 / 386 MB，维基百科 262 / 521，GitHub 346 / 617 |
+| 页面快照 | 4.7–7.5 万字符（需裁剪后再交给模型） |
+| 画面流 | 滚动 5 秒 17 帧，平均 76 KB/帧，浏览器 CPU 1.09 s |
+| 下载 | 落在 `raytone-browser` 用户目录 |
+| 配置体积 | 两个公开页面后 11 MB（缓存 9 MB） |
+

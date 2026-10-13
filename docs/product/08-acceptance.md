@@ -826,6 +826,11 @@
 - 未被收到的请求：`piHost.test.ts` 新增 1 项：引擎未绑定会话时，下一轮模型提示词附上上一轮原文，转录不含该说明；绑定会话后不再附。本机真实 DeepSeek：Bob（Codex）第 9 秒停止「写 primes.py」，追问「我刚才让你做什么」，回答准确复述原请求并说明那条消息被中断、未真正收到。
 - 全量 `npm test` 275/275，build 通过。
 
+## BV 组：浏览器概念验证（2026-10-13，测试沙箱）
+
+- `scripts/agentsphere/browser_poc.py --sandbox id705on7k0a1ya1d90icj`（用户确认该沙箱为持续测试环境）；结果在 `.agentsphere/browser-poc.json`（不入库），摘要见 ADR-040。所有内存采样有效（PSS 经 sudo 读取另一 UID 的 /proc）；Chrome 自带沙箱启动成功；下载落盘；结束后 `raytone-browser` 无残留进程，应用 supervisor PID 不变。
+- 未覆盖：登录、备份恢复、出站代理与防火墙（实现阶段验收）。
+
 ## BU 组：部署 5550924 后的线上验收（2026-10-13）
 
 - 部署：`deploy.py` 到 `id705on7k0a1ya1d90icj`；公网 9 项检查（鉴权、错误密码、外站来源、健康、状态、沙箱模式、分角色工作区）通过，`cloud-preview --check` PASS；三引擎可用（Pi、Claude Code 2.1.267、Codex 0.154.0）。沙箱 env 中的 DeepSeek 与 Tavily key 由脚本保留。

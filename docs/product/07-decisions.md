@@ -242,13 +242,14 @@
 - **为什么不让 Raer 每条都当路由**：单独路由调用约 0.6–0.8 秒、约 400 输入 token；Raer 完整一轮 1.3–3.4 秒且可能先调用工具，交给 Tonny/Bob 的消息反而更慢，也会把编排混入 Raer 自己的会话。
 - **边界**：评测样例为合成短句；真实准确率以上线后的用户改判统计。外部 IM 群映射、Agent 发起的 `request_next_agent`、Supervisor 逐波编排不在首版。
 
-## ADR-040：浏览器接管：Playwright 独立进程驱动 Chromium headless shell（2026-10-13，规格；待沙箱概念验证）
+## ADR-040：浏览器接管：Playwright 独立进程驱动 Chromium headless shell（2026-10-13，规格；沙箱概念验证已通过）
 
 - **用户决定（2026-10-13）**：只接管浏览器画面，不做整台电脑；运行环境是沙箱；登录状态与其他数据一样进备份并随恢复迁移；只读操作不审批；允许下载，危险操作弹窗审批；点掉 cookie 横幅需要确认；下载上限每个文件 100 MiB、每个会话 500 MiB；驱动用 Playwright 独立进程（不用 agent-browser）。依据见 `docs/headless-browser-research.md`。
 - **决定**：Chromium headless shell 跑在单独的 `raytone-browser` UID，出站只能经 bot 内一个检查公网地址、仅 80/443 的回环代理（复用 `webAccess.ts` 的地址检查；关闭 QUIC 与非代理 WebRTC）。bot 只在浏览器使用期间启动一个 Playwright worker 进程，经 `connectOverCDP` 连接；页面快照用 `ariaSnapshot`，实时画面用 CDP screencast，经现有已鉴权的 HTTP 路由以 SSE 推给 Output 面板，面板不可见时停止推流。人工接管与交还复用 `chatframe/approval.tsx`。浏览器工具按 ADR-034 的主机工具通道交给三个引擎。
 - **审批**：沿用现有分类，由服务端快照判断，不信模型给的标签。`read`：打开网址、快照、截图、滚动、读文字。`mutating`：普通点击/输入、GET 搜索表单、普通下载（存工作区 `downloads/`，去掉可执行位）。`connector`：在用户接管登录过的站点上的写操作，可按站点「总是允许」。`outward`（每次询问、不能总是允许）：POST 提交；发送/支付/购买/删除/同意类按钮；cookie 横幅；上传工作区文件；确认网页弹窗；可执行文件或超限下载。`secret`（拒绝）：向密码、验证码、卡号字段输入；读取或导出 cookie 与配置；执行任意 JavaScript。
 - **备份**：浏览器配置加入 `backup_data.py` 的 `DATA_PATHS`（排除缓存），以 `--password-store=basic` 启动以便新实例能解密；备份前停止浏览器。备份因此包含网站登录凭据，记入 `issue.md`。
-- **待验证（`scripts/agentsphere/browser_poc.py`，临时沙箱）**：安装体积、Chrome 自带沙箱能否在该内核启动（否则 `--no-sandbox`，隔离只靠 UID 与防火墙）、空闲与真实页面的 RSS/PSS、screencast 帧率与 CPU、下载落盘、配置体积、磁盘配额（以平台 `cpuCount`/`memoryMB`/`diskSizeMB` 为准，`free`/`df` 只作参考）。它不登录、不备份恢复（配置体积只是访问两个公开页面后的值），也不配置出站代理与防火墙，因此不验证隔离方案；隔离在实现阶段另做验收。结果出来前不开始实现。
+- **待验证（`scripts/agentsphere/browser_poc.py`，临时沙箱）**：安装体积、Chrome 自带沙箱能否在该内核启动（否则 `--no-sandbox`，隔离只靠 UID 与防火墙）、空闲与真实页面的 RSS/PSS、screencast 帧率与 CPU、下载落盘、配置体积、磁盘配额（以平台 `cpuCount`/`memoryMB`/`diskSizeMB` 为准，`free`/`df` 只作参考）。它不登录、不备份恢复（配置体积只是访问两个公开页面后的值），也不配置出站代理与防火墙，因此不验证隔离方案；隔离在实现阶段另做验收。
+- **概念验证结果（2026-10-13，测试沙箱 `id705on7k0a1ya1d90icj`，Ubuntu 22.04.5、内核 6.1.158、平台 2 核 / 4096 MB / 11416 MB 磁盘，剩余 5.8 GB）**：headless shell 273 MB、playwright-core 14 MB。**Chrome 自带沙箱可用**（user namespaces 开启），无需 `--no-sandbox`。浏览器进程树空闲 PSS 156 MB（RSS 386），维基百科 262（521），GitHub 346（617）；页面快照 4.7–7.5 万字符。滚动时 screencast 5 秒 17 帧、平均 76 KB/帧（约 260 KB/s），浏览器 CPU 1.09 s（约单核 22%）。下载落在浏览器用户目录；访问两个公开页面后配置 11 MB，其中缓存 9 MB。结论：内存与磁盘余量足够单浏览器；画面流需限制帧率与只在可见时推送。
 
 ## ADR-039：没有被任何引擎收到的请求，作为上下文交给下一轮新会话（2026-10-13）
 
