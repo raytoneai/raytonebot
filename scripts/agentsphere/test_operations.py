@@ -18,7 +18,7 @@ from deploy import http
 from backup_data import restore_owners
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
-from supervisor import supervise
+from supervisor import reap_orphans, supervise
 
 
 class OperationsTest(unittest.TestCase):
@@ -86,6 +86,19 @@ class OperationsTest(unittest.TestCase):
             with self.assertRaises(ProcessLookupError):
                 os.kill(pid, 0)
 
+    @unittest.skipUnless(sys.platform == "linux", "uses /proc")
+    def test_supervisor_reaps_exited_orphans_but_not_the_app(self):
+        app = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(5)"])
+        orphan = subprocess.Popen([sys.executable, "-c", "pass"])
+        try:
+            time.sleep(0.5)  # the orphan has exited and is a zombie until someone waits on it
+            reap_orphans(app.pid)
+            self.assertFalse(Path(f"/proc/{orphan.pid}").exists())
+            self.assertIsNone(app.poll(), "the kept child is left to its own Popen")
+        finally:
+            app.kill()
+            app.wait()
+
     def test_supervisor_bounds_restarts_and_does_not_record_child_output(self):
         with tempfile.TemporaryDirectory() as directory:
             log = Path(directory) / "supervisor.jsonl"
@@ -145,12 +158,13 @@ class OperationsTest(unittest.TestCase):
     def test_privileged_restore_keeps_bot_and_agent_ownership_separate(self):
         with tempfile.TemporaryDirectory() as directory:
             root = Path(directory)
-            names = ["home/user/.raytonebot/data", "home/user/workspace", "home/raytone-agent/.codex/sessions"]
+            names = ["home/user/.raytonebot/data", "home/user/workspace", "home/raytone-agent/.codex/sessions", "home/raytone-browser/profile"]
             for name in names:
                 (root / name).mkdir(parents=True)
                 (root / name / "state").write_text("data")
             users = {"user": SimpleNamespace(pw_uid=1000, pw_gid=1000),
-                     "raytone-agent": SimpleNamespace(pw_uid=1001, pw_gid=1001)}
+                     "raytone-agent": SimpleNamespace(pw_uid=1001, pw_gid=1001),
+                     "raytone-browser": SimpleNamespace(pw_uid=1002, pw_gid=1002)}
             with patch("backup_data.os.geteuid", return_value=0), \
                     patch("backup_data.pwd.getpwnam", side_effect=users.__getitem__), \
                     patch("backup_data.os.chown") as chown:
@@ -158,6 +172,7 @@ class OperationsTest(unittest.TestCase):
                 chown.assert_any_call(root / names[0], 1000, 1000, follow_symlinks=False)
                 chown.assert_any_call(root / names[1], 1000, 1000, follow_symlinks=False)
                 chown.assert_any_call(root / names[2], 1001, 1000, follow_symlinks=False)
+                chown.assert_any_call(root / names[3], 1002, 1002, follow_symlinks=False)
                 self.assertTrue((root / names[1]).stat().st_mode & 0o2000)
 
 

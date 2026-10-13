@@ -19,6 +19,17 @@ export type HostTools = { specs: HostToolSpec[]; run(name: string, args: unknown
 
 export const MEMORY_TOOL_NAMES = ["remember", "forget"] as const;
 
+/** Several host tool sets as one, dispatched by tool name. */
+export function mergeHostTools(...sets: (HostTools | undefined)[]): HostTools | undefined {
+  const present = sets.filter((set): set is HostTools => Boolean(set));
+  if (present.length < 2) return present[0];
+  return {
+    specs: present.flatMap((set) => set.specs),
+    run: (name, args, signal) => (present.find((set) => set.specs.some((spec) => spec.name === name))?.run(name, args, signal)
+      ?? Promise.resolve({ text: `Unknown tool: ${name}.`, isError: true })),
+  };
+}
+
 /** The note's size in the prompt; older entries past it are counted, not shown. */
 const NOTE_LIMIT = 4000;
 /** Credentials have no place in a prompt every later turn reads. */

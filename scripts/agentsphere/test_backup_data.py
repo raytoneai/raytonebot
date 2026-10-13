@@ -11,6 +11,22 @@ from backup_data import DATA_PATHS, REQUIRED_PATHS, create_archive, restore_arch
 
 
 class BackupRecoveryTest(unittest.TestCase):
+    def test_browser_profile_keeps_logins_and_leaves_caches_out(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            source, archive = Path(temporary) / "source", Path(temporary) / "data.tgz"
+            for name in DATA_PATHS:
+                (source / name.lstrip("/")).mkdir(parents=True)
+            profile = source / "home/raytone-browser/profile/Default"
+            for name in ("Cookies", "Local Storage/leveldb/000003.log", "Cache/Cache_Data/f_000001", "Code Cache/js/index", "GPUCache/data_0"):
+                (profile / name).parent.mkdir(parents=True, exist_ok=True)
+                (profile / name).write_text("x")
+            create_archive(archive, source)
+            with tarfile.open(archive) as bundle:
+                names = bundle.getnames()
+            self.assertIn("home/raytone-browser/profile/Default/Cookies", names)
+            self.assertIn("home/raytone-browser/profile/Default/Local Storage/leveldb/000003.log", names)
+            self.assertFalse([name for name in names if "Cache" in name], names)
+
     def test_native_sessions_round_trip_without_credentials_and_replace_after_stop(self):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary)

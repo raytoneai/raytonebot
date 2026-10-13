@@ -242,7 +242,7 @@
 - **为什么不让 Raer 每条都当路由**：单独路由调用约 0.6–0.8 秒、约 400 输入 token；Raer 完整一轮 1.3–3.4 秒且可能先调用工具，交给 Tonny/Bob 的消息反而更慢，也会把编排混入 Raer 自己的会话。
 - **边界**：评测样例为合成短句；真实准确率以上线后的用户改判统计。外部 IM 群映射、Agent 发起的 `request_next_agent`、Supervisor 逐波编排不在首版。
 
-## ADR-040：浏览器接管：Playwright 独立进程驱动 Chromium headless shell（2026-10-13，规格；沙箱概念验证已通过）
+## ADR-040：浏览器接管：Playwright 独立进程驱动 Chromium headless shell（2026-10-13，已实现，测试沙箱已部署验收）
 
 - **用户决定（2026-10-13）**：只接管浏览器画面，不做整台电脑；运行环境是沙箱；登录状态与其他数据一样进备份并随恢复迁移；只读操作不审批；允许下载，危险操作弹窗审批；点掉 cookie 横幅需要确认；下载上限每个文件 100 MiB、每个会话 500 MiB；驱动用 Playwright 独立进程（不用 agent-browser）。依据见 `docs/headless-browser-research.md`。
 - **决定**：Chromium headless shell 跑在单独的 `raytone-browser` UID，出站只能经 bot 内一个检查公网地址、仅 80/443 的回环代理（复用 `webAccess.ts` 的地址检查；关闭 QUIC 与非代理 WebRTC）。bot 只在浏览器使用期间启动一个 Playwright worker 进程，经 `connectOverCDP` 连接；页面快照用 `ariaSnapshot`，实时画面用 CDP screencast，经现有已鉴权的 HTTP 路由以 SSE 推给 Output 面板，面板不可见时停止推流。人工接管与交还复用 `chatframe/approval.tsx`。浏览器工具按 ADR-034 的主机工具通道交给三个引擎。
@@ -250,6 +250,10 @@
 - **备份**：浏览器配置加入 `backup_data.py` 的 `DATA_PATHS`（排除缓存），以 `--password-store=basic` 启动以便新实例能解密；备份前停止浏览器。备份因此包含网站登录凭据，记入 `issue.md`。
 - **待验证（`scripts/agentsphere/browser_poc.py`，临时沙箱）**：安装体积、Chrome 自带沙箱能否在该内核启动（否则 `--no-sandbox`，隔离只靠 UID 与防火墙）、空闲与真实页面的 RSS/PSS、screencast 帧率与 CPU、下载落盘、配置体积、磁盘配额（以平台 `cpuCount`/`memoryMB`/`diskSizeMB` 为准，`free`/`df` 只作参考）。它不登录、不备份恢复（配置体积只是访问两个公开页面后的值），也不配置出站代理与防火墙，因此不验证隔离方案；隔离在实现阶段另做验收。
 - **概念验证结果（2026-10-13，测试沙箱 `id705on7k0a1ya1d90icj`，Ubuntu 22.04.5、内核 6.1.158、平台 2 核 / 4096 MB / 11416 MB 磁盘，剩余 5.8 GB）**：headless shell 273 MB、playwright-core 14 MB。**Chrome 自带沙箱可用**（user namespaces 开启），无需 `--no-sandbox`。浏览器进程树空闲 PSS 156 MB（RSS 386），维基百科 262（521），GitHub 346（617）；页面快照 4.7–7.5 万字符。滚动时 screencast 5 秒 17 帧、平均 76 KB/帧（约 260 KB/s），浏览器 CPU 1.09 s（约单核 22%）。下载落在浏览器用户目录；访问两个公开页面后配置 11 MB，其中缓存 9 MB。结论：内存与磁盘余量足够单浏览器；画面流需限制帧率与只在可见时推送。
+- **实现（2026-10-13）**：`src/pi/browser/`：`egressProxy.ts`（回环 HTTP 代理，CONNECT 与普通 HTTP，解析出的每个地址都须公网，仅 80/443，拒绝时返回说明）、`browserWorker.ts`（`fork` 的子进程，用完 10 分钟后随浏览器停止；沙箱以 `sudo -u raytone-browser setpriv --no-new-privs` 启动 headless shell，CDP 固定 5192；对话框一律关闭并在下次结果中说明；只开放列出的按键，不执行模型写的 JavaScript）、`browserPolicy.ts`（审批分级）、`browserService.ts`（单浏览器、动作串行、用户接管时拒绝 Agent 动作、下载归档）、`browserTools.ts`（8 个工具）。审批钩子经 `PermissionPolicy.hostCall` 进入既有闸门，「总是允许」的键可按站点。界面：Output 面板第三个来源「浏览器」（`outputframe/BrowserView.tsx`，面板状态由 shell 持有，项目 schema 不变，因 vendor 契约只允许 artifact/console）；接管请求经 `ask_user` 卡片，并自动切到浏览器。
+- **防火墙**：`raytone-browser` 独立 UID 与用户组，`ip raytone_browser` 表只放行 `daddr 127.0.0.1 dport 5191` 与 `saddr 127.0.0.1 sport 5192`（CDP 回包），其余与全部 IPv6 丢弃；Agent UID 规则不变（够不到 5191/5192）。部署时按 playwright-core 的 `browsers.json` 版本把 headless shell 装在 `/opt/pw-browsers`，标记文件记录浏览器用户与端口，沙箱中缺少则拒绝启动浏览器。
+- **下载**：浏览器写入自己目录，bot 以浏览器 UID 身份读取后删除（防止伪造的符号链接让 root 读到 bot 文件），检查大小与可执行文件头后，以 2770/0660 写入当前 Agent 工作区 `downloads/`（bot umask 077，需显式设权限；Agent 自建的目录不改）。可执行文件与超限下载直接丢弃并告知，不提供「询问后保留」。
+- **未做**：浏览器内上传文件、接受网页确认框、手机端的浏览器画面（仅桌面右侧面板）、多标签页、`?devtools=1` 浏览器 fixture（状态由主机测试与运行时测试覆盖）。
 
 ## ADR-039：没有被任何引擎收到的请求，作为上下文交给下一轮新会话（2026-10-13）
 

@@ -43,8 +43,8 @@ type CliRunBase = {
   webTools?: WebTools;
   /** The user's MCP servers (ADR-037), called by the host; each call passes the approval gate. */
   mcpTools?: McpToolkit;
-  /** remember / forget (ADR-038), in the host's own server beside the web tools; gated too. */
-  memoryTools?: HostTools;
+  /** Host tools (remember / forget, ADR-038; the browser, ADR-040) in the host's own server beside the web tools; gated too. */
+  hostTools?: HostTools;
 };
 
 export type ClaudePermissionRequest = {
@@ -122,7 +122,7 @@ export function detectCliHarnesses(): Promise<AgentHarnessStatus[]> {
 /** The in-process MCP server carrying the host's web tools (`mcp__raytone__web_search`). */
 export const CLAUDE_HOST_MCP = "raytone";
 
-export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode" | "resumeId" | "forkAtMessageId" | "provider" | "appendSystemPrompt" | "disallowedTools" | "addDirs" | "webTools" | "mcpTools" | "memoryTools">): string[] {
+export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode" | "resumeId" | "forkAtMessageId" | "provider" | "appendSystemPrompt" | "disallowedTools" | "addDirs" | "webTools" | "mcpTools" | "hostTools">): string[] {
   const args = [
     "-p",
     "--verbose",
@@ -158,8 +158,8 @@ export function buildClaudeArgs(options: Pick<ClaudeRunOptions, "permissionMode"
 }
 
 /** In-process MCP servers this run answers on the control channel: web tools, then the user's. */
-function claudeSdkServers(options: Pick<ClaudeRunOptions, "webTools" | "mcpTools" | "memoryTools">): string[] {
-  return [...options.webTools || options.memoryTools ? [CLAUDE_HOST_MCP] : [], ...options.mcpTools?.servers.map((server) => server.id) ?? []];
+function claudeSdkServers(options: Pick<ClaudeRunOptions, "webTools" | "mcpTools" | "hostTools">): string[] {
+  return [...options.webTools || options.hostTools ? [CLAUDE_HOST_MCP] : [], ...options.mcpTools?.servers.map((server) => server.id) ?? []];
 }
 
 /** Markers a parent Claude Code session sets for its own children; a product run is not one. */
@@ -459,8 +459,8 @@ async function answerClaudeControl(
   const requestId = typeof line.request_id === "string" ? line.request_id : undefined;
   const request = line.request && typeof line.request === "object" ? line.request as Record<string, unknown> : undefined;
   if (!requestId || !request) return;
-  if (request.subtype === "mcp_message" && request.server_name === CLAUDE_HOST_MCP && (options.webTools || options.memoryTools)) {
-    const { webTools: web, memoryTools: memory } = options;
+  if (request.subtype === "mcp_message" && request.server_name === CLAUDE_HOST_MCP && (options.webTools || options.hostTools)) {
+    const { webTools: web, hostTools: memory } = options;
     const response = await sdkMcpResponse(record(request.message), { name: CLAUDE_HOST_MCP,
       tools: [...web ? WEB_TOOL_SPECS : [], ...memory?.specs ?? []],
       run: (name, args, signal) => memory?.specs.some((spec) => spec.name === name) ? memory.run(name, args, signal)

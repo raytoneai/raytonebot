@@ -15,8 +15,12 @@ import time
 from pathlib import Path, PurePosixPath
 
 REQUIRED_PATHS = ["/home/user/.raytonebot/data", "/home/user/workspace"]
+# The browser profile holds the user's website logins (ADR-040): restored like the rest, caches left out.
+BROWSER_PROFILE = "/home/raytone-browser/profile"
 DATA_PATHS = [*REQUIRED_PATHS, "/home/user/.claude/projects", "/home/user/.claude/tasks", "/home/user/.codex/sessions",
-              "/home/raytone-agent/.claude/projects", "/home/raytone-agent/.claude/tasks", "/home/raytone-agent/.codex/sessions"]
+              "/home/raytone-agent/.claude/projects", "/home/raytone-agent/.claude/tasks", "/home/raytone-agent/.codex/sessions",
+              BROWSER_PROFILE]
+BROWSER_CACHE_EXCLUDES = [f"--exclude={BROWSER_PROFILE.lstrip('/')}/*{name}*" for name in ("Cache", "cache_data", "Crashpad")]
 ARCHIVE_PATHS = [path.lstrip("/") for path in DATA_PATHS]
 
 
@@ -74,7 +78,7 @@ def create_archive(archive: Path, root: Path = Path("/")) -> None:
         archive.touch(mode=0o600)
         archive.chmod(0o600)
         try:
-            subprocess.run(["tar", "czf", str(archive), "-C", str(root), *paths], check=True,
+            subprocess.run(["tar", "czf", str(archive), *BROWSER_CACHE_EXCLUDES, "-C", str(root), *paths], check=True,
                            stdout=subprocess.DEVNULL, stderr=subprocess.PIPE,
                            env={**os.environ, "COPYFILE_DISABLE": "1"})
         except subprocess.CalledProcessError as error:
@@ -201,15 +205,24 @@ def restore_owners(stage: Path, roots: list[str]) -> None:
         agent = pwd.getpwnam("raytone-agent")
     except KeyError:
         agent = None
+    try:
+        browser = pwd.getpwnam("raytone-browser")
+    except KeyError:
+        browser = None
     for name in roots:
         native = name.startswith("home/raytone-agent/")
+        profile = name.startswith("home/raytone-browser/")
         if native and agent is None:
             raise ValueError("deploy isolation before restoring isolated agent sessions")
-        owner = agent if native else user
+        if profile and browser is None:
+            raise ValueError("deploy isolation before restoring the browser profile")
+        # The profile stays the browser UID's alone: its own group, so the bot's group cannot read logins.
+        owner = browser if profile else agent if native else user
+        group = browser.pw_gid if profile else user.pw_gid
         shared = name == "home/user/workspace" and agent is not None
         source = stage / name
         for path in [source, *source.rglob("*")]:
-            os.chown(path, owner.pw_uid, user.pw_gid, follow_symlinks=False)
+            os.chown(path, owner.pw_uid, group, follow_symlinks=False)
             if shared and not path.is_symlink():
                 path.chmod(path.stat().st_mode | (0o2070 if path.is_dir() else 0o060))
 

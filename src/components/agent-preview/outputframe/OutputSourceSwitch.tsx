@@ -1,5 +1,5 @@
 import { motion, useReducedMotion } from "motion/react";
-import { FileCode2, PanelRight, TerminalSquare } from "lucide-react";
+import { FileCode2, Globe, PanelRight, TerminalSquare } from "lucide-react";
 
 import type { OutputSource } from "../../../schema/agentuxConfig";
 import type { OutputFrameCopy } from "./types";
@@ -8,38 +8,56 @@ export function OutputSourceSwitch({
   source,
   copy,
   onChange,
+  browser,
 }: {
   source: OutputSource;
   copy: OutputFrameCopy;
   onChange: (source: OutputSource) => void;
+  /** The browser view, a third source the shell holds (the project's source stays as it was). */
+  browser?: { selected: boolean; select(): void };
 }) {
   const reducedMotion = useReducedMotion();
+  const current = browser?.selected ? "browser" : source;
   return (
     <div className="output-source-switch" role="group" aria-label={copy.titleArtifactPrefix}>
       <button
         type="button"
         aria-label={copy.titleArtifactPrefix}
-        aria-pressed={source === "artifact"}
-        data-active={source === "artifact"}
+        aria-pressed={current === "artifact"}
+        data-active={current === "artifact"}
         title={copy.subtitleArtifactPreview}
         onClick={() => onChange("artifact")}
       >
-        {source === "artifact" ? <SourcePill reduced={reducedMotion} /> : null}
+        {current === "artifact" ? <SourcePill reduced={reducedMotion} /> : null}
         <FileCode2 size={15} />
         <span className="output-source-label">{copy.sourceArtifact}</span>
       </button>
       <button
         type="button"
         aria-label={copy.titleConsole}
-        aria-pressed={source === "console"}
-        data-active={source === "console"}
+        aria-pressed={current === "console"}
+        data-active={current === "console"}
         title={copy.consoleLogs}
         onClick={() => onChange("console")}
       >
-        {source === "console" ? <SourcePill reduced={reducedMotion} /> : null}
+        {current === "console" ? <SourcePill reduced={reducedMotion} /> : null}
         <TerminalSquare size={15} />
         <span className="output-source-label">{copy.sourceConsole}</span>
       </button>
+      {browser ? (
+        <button
+          type="button"
+          aria-label={copy.sourceBrowser}
+          aria-pressed={current === "browser"}
+          data-active={current === "browser"}
+          title={copy.browser.view}
+          onClick={browser.select}
+        >
+          {current === "browser" ? <SourcePill reduced={reducedMotion} /> : null}
+          <Globe size={15} />
+          <span className="output-source-label">{copy.sourceBrowser}</span>
+        </button>
+      ) : null}
     </div>
   );
 }

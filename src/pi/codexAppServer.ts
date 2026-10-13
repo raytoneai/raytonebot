@@ -43,8 +43,8 @@ export function createCodexAppServer(options: {
   webTools?: WebTools;
   /** The user's MCP servers' tools (ADR-037), also dynamic tools; each call passes the gate first. */
   mcpTools?: McpToolkit;
-  /** remember / forget (ADR-038), also dynamic tools that pass the gate first. */
-  memoryTools?: HostTools;
+  /** Host tools (remember / forget, the browser), also dynamic tools that pass the gate first. */
+  hostTools?: HostTools;
   signal: AbortSignal;
 }) {
   const translator = createCodexStreamTranslator(options.emit);
@@ -108,8 +108,8 @@ export function createCodexAppServer(options: {
     const name = sharedToolName(String(params.tool));
     let result: { text: string; isError: boolean };
     if (!threadId || params.threadId !== threadId || params.namespace != null) result = { text: "Unknown dynamic tool.", isError: true };
-    else if ((name.startsWith(MCP_TOOL_PREFIX) && options.mcpTools) || options.memoryTools?.specs.some((spec) => spec.name === name)) {
-      const gated = name.startsWith(MCP_TOOL_PREFIX) ? options.mcpTools! : options.memoryTools!;
+    else if ((name.startsWith(MCP_TOOL_PREFIX) && options.mcpTools) || options.hostTools?.specs.some((spec) => spec.name === name)) {
+      const gated = name.startsWith(MCP_TOOL_PREFIX) ? options.mcpTools! : options.hostTools!;
       const callId = String(params.callId ?? "");
       const tool = { name, args: record(params.arguments) };
       let allowed: true | string;
@@ -157,8 +157,8 @@ export function createCodexAppServer(options: {
               ...(options.webTools ? { web_search: "disabled" } : {}) },
             // Persisted with the thread: a resumed or forked thread keeps the tools it started with.
             // MCP tools added later reach new conversations; a removed one answers with an error.
-            ...((options.webTools || options.mcpTools || options.memoryTools) && !options.resumeId ? { dynamicTools: [
-              ...(options.webTools ? WEB_TOOL_SPECS : []), ...(options.mcpTools?.specs ?? []), ...(options.memoryTools?.specs ?? []),
+            ...((options.webTools || options.mcpTools || options.hostTools) && !options.resumeId ? { dynamicTools: [
+              ...(options.webTools ? WEB_TOOL_SPECS : []), ...(options.mcpTools?.specs ?? []), ...(options.hostTools?.specs ?? []),
             ].map((spec) => ({ type: "function", ...spec, name: codexToolName(spec.name) })) } : {}),
             ...(options.model ? { model: options.model, modelProvider: "raytonebot" } : {}),
             ...(options.developerInstructions ? { developerInstructions: options.developerInstructions } : {}),

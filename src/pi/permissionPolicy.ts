@@ -38,6 +38,9 @@ export type PermissionPolicy = {
   readOnlyPaths?: readonly string[];
   /** Agents run behind the sandbox's egress firewall: only the model proxy and package registries. */
   egressContained?: boolean;
+  /** Host tools that judge a call from live state (the browser's snapshot, ADR-040): the class,
+   *  and the key "always allow" remembers it under. Undefined for other tools. */
+  hostCall?: (toolName: string, args: unknown) => { kind: ToolCallClass; key: string } | undefined;
 };
 
 const MUTATING_TOOLS = new Set(["bash", "edit", "write", "powershell", "codex"]);
@@ -91,6 +94,8 @@ export function classifyToolCall(toolName: string, args: unknown, policy: Permis
   const record = args && typeof args === "object" ? args as Record<string, unknown> : {};
   const name = toolName.toLowerCase();
   const callCwd = typeof record.cwd === "string" ? resolve(policy.cwd, record.cwd) : policy.cwd;
+  const host = policy.hostCall?.(toolName, args);
+  if (host) return host.kind;
   // `mcp__raytone__*` is the host's own web_search / web_fetch as Claude names them.
   if (name.startsWith("mcp__") && !name.startsWith("mcp__raytone__")) return "connector";
   if (name === "remember" || name === "forget") return "connector";

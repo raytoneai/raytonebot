@@ -13,6 +13,11 @@ import sys
 
 AGENT = "raytone-agent"
 AGENT_HOME = Path("/home/raytone-agent")
+# The browser (ADR-040): its own UID, reaching only the bot's egress proxy and answering on CDP.
+BROWSER = "raytone-browser"
+BROWSER_HOME = Path("/home/raytone-browser")
+BROWSER_PROXY_PORT = 5191
+BROWSER_CDP_PORT = 5192
 MARKER = Path("/etc/raytonebot-isolation.json")
 
 
@@ -157,6 +162,7 @@ def main() -> None:
                 raise RuntimeError("Native gateway exception verification failed")
         if "drop" not in actual_rules[-1]["expr"][-1]:
             raise RuntimeError("Native firewall verdict verification failed")
+    browser_uid = setup_browser(home, config)
     launch = ["sudo", "-n", "-u", AGENT, "--", "setpriv", "--no-new-privs"]
     run(*launch, "test", "!", "-w", str(app))
     run(*launch, "test", "!", "-r", str(config))
@@ -166,9 +172,58 @@ def main() -> None:
         if not executable:
             raise RuntimeError(f"Runtime executable unavailable: {binary}")
         run(*launch, executable, "--version")
-    MARKER.write_text(json.dumps({"user": AGENT, "uid": account.pw_uid, "port": args.port, "network": "nft-dual-stack"}) + "\n")
+    MARKER.write_text(json.dumps({"user": AGENT, "uid": account.pw_uid, "port": args.port, "network": "nft-dual-stack",
+                                  "browserUser": BROWSER, "browserUid": browser_uid,
+                                  "browserPorts": [BROWSER_PROXY_PORT, BROWSER_CDP_PORT]}) + "\n")
     MARKER.chmod(0o644)
     print("Agent UID, filesystem permissions, no-new-privileges launcher and IPv4/IPv6 egress rules installed.")
+
+
+def setup_browser(bot_home: Path, config: Path) -> int:
+    """The browser UID: a private home for its profile and downloads, no group with the bot or
+    agents, and a firewall that lets it reach only the bot's egress proxy and answer CDP."""
+    try:
+        account = pwd.getpwnam(BROWSER)
+    except KeyError:
+        run("useradd", "--create-home", "--home-dir", str(BROWSER_HOME), "--shell", "/usr/sbin/nologin", "--user-group", BROWSER)
+        account = pwd.getpwnam(BROWSER)
+    if account.pw_uid == 0 or account.pw_dir != str(BROWSER_HOME) or BROWSER_HOME.is_symlink():
+        raise RuntimeError("Unexpected browser account")
+    run("passwd", "--lock", BROWSER)
+    for directory in (BROWSER_HOME, BROWSER_HOME / "profile", BROWSER_HOME / "downloads"):
+        if directory.is_symlink():
+            raise RuntimeError("Browser directories must be real directories")
+        directory.mkdir(exist_ok=True)
+        os.chown(directory, account.pw_uid, account.pw_gid)
+        directory.chmod(0o700)
+    rules = ""
+    for family in ("ip", "ip6"):
+        if subprocess.run(["nft", "list", "table", family, "raytone_browser"], capture_output=True).returncode == 0:
+            rules += f"delete table {family} raytone_browser\n"
+        allowed = (f"meta skuid {account.pw_uid} ip daddr 127.0.0.1 tcp dport {BROWSER_PROXY_PORT} accept\n"
+                   f"    meta skuid {account.pw_uid} ip saddr 127.0.0.1 tcp sport {BROWSER_CDP_PORT} accept\n") if family == "ip" else ""
+        rules += f"""table {family} raytone_browser {{
+  chain output {{
+    type filter hook output priority -10; policy accept;
+    {allowed}    meta skuid {account.pw_uid} drop
+  }}
+}}
+"""
+    result = subprocess.run(["nft", "-f", "-"], input=rules, text=True, capture_output=True)
+    if result.returncode:
+        raise RuntimeError(f"nft browser firewall transaction exited {result.returncode}")
+    for family, expected in (("ip", 3), ("ip6", 1)):
+        installed = json.loads(run("nft", "-j", "-n", "list", "table", family, "raytone_browser"))["nftables"]
+        actual = [item["rule"] for item in installed if "rule" in item]
+        if len(actual) != expected or "drop" not in actual[-1]["expr"][-1]:
+            raise RuntimeError("Browser firewall verification failed")
+        if not all(any(item.get("match", {}).get("left") == {"meta": {"key": "skuid"}} and item["match"].get("right") == account.pw_uid
+                       for item in rule["expr"]) for rule in actual):
+            raise RuntimeError("Browser firewall UID verification failed")
+    launch = ["sudo", "-n", "-u", BROWSER, "--", "setpriv", "--no-new-privs"]
+    run(*launch, "test", "!", "-r", str(config))
+    run(*launch, "test", "!", "-r", str(bot_home))
+    return account.pw_uid
 
 
 if __name__ == "__main__":

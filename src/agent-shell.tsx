@@ -38,6 +38,7 @@ import {
   checkPiAttachment,
   configurePiRuntime,
   getPiRuntimeState,
+  getBrowserState,
   getStoredConversation,
   getStoredConversationSummary,
   deleteStoredConversation,
@@ -195,6 +196,9 @@ export function AgentApp() {
   const [outputModalOpen, setOutputModalOpen] = useState(false);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [outputSource, setOutputSource] = useState(project.output.source);
+  /** The browser's live view, a third panel source held here (ADR-040); the project's stays. */
+  const [browserSelected, setBrowserSelected] = useState(false);
+  const [browserAvailable, setBrowserAvailable] = useState(false);
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
   const { project: configuredProject, setProject: setConfiguredProject, status: providerSettingsStatus } = useProviderSettings(project);
   const [piEvents, setPiEvents] = useState<AgentUXEvent[] | undefined>(undefined);
@@ -279,6 +283,10 @@ export function AgentApp() {
     : historyProblem === "incomplete" ? historyCopy.historyIncomplete
     : historyProblem ? historyCopy.historyFailed : historyListFailed ? historyCopy.listFailed : undefined);
   const pendingQuestion = useMemo(() => pendingUserInput(events), [events]);
+  useEffect(() => {
+    if (!piRuntimeState || streamId) return;
+    void getBrowserState().then((state) => setBrowserAvailable(state.available), () => setBrowserAvailable(false));
+  }, [Boolean(piRuntimeState), streamId]);
   const questionProps = useUserInput(pendingQuestion, activePiConversationId, locale);
   const pendingSetup = useMemo(() => pendingChannelSetup(events), [events]);
   const setupProps = useChannelSetup(pendingSetup, activePiConversationId, locale);
@@ -597,6 +605,7 @@ export function AgentApp() {
     setWorkspaceModalOpen(false);
     setActiveOutputPanelItemId(item.id);
     setOutputSource("artifact");
+    setBrowserSelected(false);
     if (rightPanelAvailable) {
       setOutputModalOpen(false);
       setRightCollapsed(false);
@@ -604,6 +613,20 @@ export function AgentApp() {
     }
     setOutputModalOpen(true);
   }
+
+  /** Shows the browser's live view in the Output panel, opening the panel if needed. */
+  function showBrowser() {
+    setBrowserSelected(true);
+    if (rightPanelAvailable) { setOutputModalOpen(false); setRightCollapsed(false); }
+  }
+  // An agent asking the user to take over brings the browser into view once per request.
+  const takeoverRequest = pendingQuestion?.questions.some((question) => question.id === "browser_takeover") ? pendingQuestion.requestId : undefined;
+  const shownTakeover = useRef<string>(undefined);
+  useEffect(() => {
+    if (!takeoverRequest || shownTakeover.current === takeoverRequest || !browserAvailable) return;
+    shownTakeover.current = takeoverRequest;
+    showBrowser();
+  }, [takeoverRequest, browserAvailable]);
 
   function closeOutputPanelItem(id: string) {
     setOutputPanelItems((current) => {
@@ -1248,7 +1271,7 @@ export function AgentApp() {
     activeOutputPanelItemId,
     onSelectOutputPanelItem: setActiveOutputPanelItemId,
     onCloseOutputPanelItem: closeOutputPanelItem,
-    onOutputSourceChange: setOutputSource,
+    onOutputSourceChange: (source: typeof outputSource) => { setBrowserSelected(false); setOutputSource(source); },
     // Not a no-op: starting a new conversation needs no backend, it just clears the transcript
     // and returns to the welcome screen. Wiring it to `noop` made the button look broken —
     // the one control in the shell a user is guaranteed to try.
@@ -1378,6 +1401,7 @@ export function AgentApp() {
       onChange: changeComposerDraft,
     },
     workspaceScope: agentSettings.presetId,
+    browserPanel: browserAvailable ? { selected: browserSelected, select: showBrowser } : undefined,
     workspaceRevision: piRunning,
     workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),
     workspace: piRuntimeState?.workspace,

@@ -86,6 +86,8 @@ export type ShellExtras = {
   /** Layout switches may remount the transcript while the user is reading history. */
   transcriptScroll?: RefObject<TranscriptScroll | undefined>;
   workspaceScope?: AgentPresetId;
+  /** The shared browser's live view in the Output panel (ADR-040); absent when the host has none. */
+  browserPanel?: { selected: boolean; select(): void };
   /** Refresh the visible directory when a run starts or finishes. */
   workspaceRevision?: boolean;
   workspaceSharedAvailable?: boolean;

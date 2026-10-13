@@ -32,6 +32,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+BROWSERS_DIR = "/opt/pw-browsers"
 STATE_DIR = ROOT / ".agentsphere"
 APP_DIR = "/home/user/raytonebot"
 CONFIG_DIR = "/home/user/.raytonebot"
@@ -170,6 +171,18 @@ def main() -> None:
         if "--no-require-git" not in run(sandbox, "fd --help").stdout:
             fail("fd version does not support the Pi find tool")
 
+    # The browser (ADR-040): the headless shell build the pinned playwright-core expects, read-only for
+    # every UID under /opt. Installed once with its system libraries; later deploys find it.
+    revision = run(sandbox, f"node -p \"require('{APP_DIR}/node_modules/playwright-core/browsers.json').browsers"
+                            ".find(b => b.name === 'chromium-headless-shell').revision\"").stdout.strip()
+    shell = f"{BROWSERS_DIR}/chromium_headless_shell-{revision}/chrome-headless-shell-linux64/chrome-headless-shell"
+    if run(sandbox, f"test -x {shell}", check=False).exit_code:
+        print(f"browser: installing headless shell {revision}")
+        run(sandbox, f"cd {APP_DIR} && sudo -n env PLAYWRIGHT_BROWSERS_PATH={BROWSERS_DIR} npx playwright-core install --with-deps chromium-headless-shell"
+                     f" && sudo -n chmod -R a+rX {BROWSERS_DIR}", timeout=900)
+    run(sandbox, f"test -x {shell}")
+    print(f"browser: headless shell {revision}")
+
     binaries = {name: run(sandbox, f"command -v {name}").stdout.strip() for name in ("node", "claude", "codex")}
     setup = ["sudo", "-n", "python3", f"{APP_DIR}/scripts/agentsphere/setup_isolation.py",
              "--app-dir", APP_DIR, "--workspace-root", WORKSPACE_ROOT, "--config-dir", CONFIG_DIR,
@@ -190,6 +203,7 @@ def main() -> None:
         "RAYTONEBOT_AGENT_HOME": "/home/raytone-agent",
         "RAYTONEBOT_GATEWAY_PORT": "5190",
         "RAYTONEBOT_ISOLATION_READY": "1",
+        "RAYTONEBOT_BROWSER_PATH": shell,
     }
     # Model keys: a value in this machine's environment wins; otherwise keep the sandbox's current
     # one, so a redeploy from a shell without the key does not silently disable the models.

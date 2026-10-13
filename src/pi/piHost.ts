@@ -43,7 +43,9 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
 import { createMcpService, McpError, type McpToolkit } from "./mcpServers.ts";
-import { createMemoryService, MemoryError, type HostTools, type MemoryService } from "./memories.ts";
+import { createMemoryService, MemoryError, mergeHostTools, type HostTools, type MemoryService } from "./memories.ts";
+import { createBrowserService, type BrowserService } from "./browser/browserService.ts";
+import type { BrowserInput } from "./browser/browserProtocol.ts";
 import { createWebTools, type WebTools } from "./webAccess.ts";
 import { createHostResources } from "./piResources.ts";
 import { piCancelledTurnEvents } from "./piCancelledTurn.ts";
@@ -163,6 +165,8 @@ export function createPiRuntimeController(options: {
   mcpTools?: () => McpToolkit | undefined;
   /** Cross-conversation memory (ADR-038): its note joins a turn's prompt, its tools each run. */
   memory?: MemoryService;
+  /** The shared browser (ADR-040): its tools each run, its snapshot judges each action. */
+  browser?: BrowserService;
 }): GroupController {
   const { cwd } = options;
   const dataDir = options.dataDir ?? defaultDataDir();
@@ -204,7 +208,8 @@ export function createPiRuntimeController(options: {
   const gateFor = (conversationId: string) => {
     let gate = approvalGates.get(conversationId);
     if (!gate) {
-      gate = new PiApprovalGate({ cwd, secretPaths, protectedPaths, readOnlyPaths, egressContained: sandboxed }, approvalMemory);
+      gate = new PiApprovalGate({ cwd, secretPaths, protectedPaths, readOnlyPaths, egressContained: sandboxed,
+        hostCall: options.browser ? (name, args) => options.browser!.classify(name, args) : undefined }, approvalMemory);
       approvalGates.set(conversationId, gate);
     }
     return gate;
@@ -245,7 +250,7 @@ export function createPiRuntimeController(options: {
       modelLease: (provider, protocol, thinkingLevel) => modelLease(provider, protocol, id, thinkingLevel),
       webTools,
       mcpTools: options.mcpTools?.(),
-      memoryTools: options.memory?.toolsFor({ conversationId: id, agent: "assistant" }),
+      hostTools: hostToolsFor(id, "assistant", input.cwd),
     });
   });
   /** Pi sessions opened with an older MCP tool list, closed when their run ends. */
@@ -289,6 +294,12 @@ export function createPiRuntimeController(options: {
     void op.then(clear, clear);
     return op;
   };
+  /** remember / forget and the browser for one conversation's agent; downloads land in `cwd`. */
+  const hostToolsFor = (conversationId: string, agent: AgentPresetId, cwd: string) => mergeHostTools(
+    options.memory?.toolsFor({ conversationId, agent }),
+    options.browser?.toolsFor({ conversationId, agent, workspace: cwd,
+      ask: (questions, signal) => askUser(conversationId, { toolCallId: `browser_takeover_${randomUUID()}`, questions, signal: signal ?? new AbortController().signal }) }),
+  );
   const askUser = async (conversationId: string, { toolCallId, questions, signal }: UserInputRequest) => {
     const adapter = runs.get(conversationId)?.adapter;
     if (!adapter) throw new Error("The question's run is no longer active.");
@@ -622,7 +633,7 @@ export function createPiRuntimeController(options: {
           disallowedTools: agentPreset(role).disallowedTools,
           webTools,
           mcpTools: options.mcpTools?.(),
-          memoryTools: options.memory?.toolsFor({ conversationId, agent: role }),
+          hostTools: hostToolsFor(conversationId, role, runCwd),
           async onPermission(request) {
             // The planner writes only into the shared directory: plans and handoffs for others.
             if (request.tool.name === "write" && !plannerMayWrite(request.tool.args)) {
@@ -664,7 +675,7 @@ export function createPiRuntimeController(options: {
           provider,
           webTools,
           mcpTools: options.mcpTools?.(),
-          memoryTools: options.memory?.toolsFor({ conversationId, agent: role }),
+          hostTools: hostToolsFor(conversationId, role, runCwd),
           async onPermission(request) {
             if (approvalGate.isRefused(request.tool.name, request.tool.args)) return SECRET_REFUSAL;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
@@ -973,6 +984,8 @@ export function createPiHttpHost(options: {
   channelFactories?: ConnectorFactories;
   /** Runs routines on their schedule (ADR-036); tests that drive runs by hand turn it off. */
   routineClock?: boolean;
+  /** The shared browser (ADR-040); tests without one turn it off. */
+  browser?: false;
 }) {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: options.cwd });
   const privatePaths = [options.dataDir ?? defaultDataDir()];
@@ -982,8 +995,9 @@ export function createPiHttpHost(options: {
   const dataDir = options.dataDir ?? defaultDataDir();
   const mcp = createMcpService({ dataDir, log: runtimeLogger(dataDir) });
   const memory = createMemoryService({ dataDir, log: runtimeLogger(dataDir) });
+  const browser = options.browser === false ? undefined : createBrowserService({ dataDir, log: runtimeLogger(dataDir) });
   const controller = createPiRuntimeController({ ...options, layout, channelSetup: (run) => channelSetup!.run(run),
-    createRoutine: (input) => routines!.create(input), mcpTools: () => mcp.toolkit(), memory });
+    createRoutine: (input) => routines!.create(input), mcpTools: () => mcp.toolkit(), memory, browser });
   routines = createRoutineService({ dataDir, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
   const stopClock = options.routineClock === false ? undefined : routines.startClock();
   // Starts the enabled channels; the vite plugin creates this host when its server starts.
@@ -1077,6 +1091,44 @@ export function createPiHttpHost(options: {
             if (!(error instanceof RoutineError)) throw error;
             sendJson(res, error.status, { error: error.message });
           }
+          return true;
+        }
+        if (url.pathname.startsWith(`${PI_API_PREFIX}/browser/`)) {
+          const action = url.pathname.slice(`${PI_API_PREFIX}/browser/`.length);
+          if (!browser) { sendJson(res, 404, { error: "No browser on this host." }); return true; }
+          if (req.method === "GET" && action === "state") { sendJson(res, 200, browser.view()); return true; }
+          if (req.method === "GET" && action === "stream") {
+            // Frames flow only while this stream is open: the Output panel opens it when visible.
+            res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", connection: "keep-alive" });
+            const stop = browser.watch((event) => {
+              if (res.destroyed) return;
+              // A slow viewer drops frames rather than queueing them.
+              if (event.type === "frame" && res.writableLength > 1_000_000) return;
+              res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.type === "frame" ? { data: event.data, width: event.width, height: event.height } : event.state)}\n\n`);
+            });
+            const heartbeat = setInterval(() => { if (!res.destroyed) res.write(": keep-alive\n\n"); }, 15_000);
+            res.once("close", () => { clearInterval(heartbeat); stop(); });
+            return true;
+          }
+          if (req.method === "POST" && action === "control") {
+            const command = (await readJson(req)).action;
+            try {
+              if (command === "takeover") await browser.takeover();
+              else if (command === "release") browser.release();
+              else if (command === "stop") await browser.stop();
+              else { sendJson(res, 400, { error: "action must be takeover, release or stop." }); return true; }
+              sendJson(res, 200, browser.view());
+            } catch (error) { sendJson(res, 409, { error: errorMessage(error) }); }
+            return true;
+          }
+          if (req.method === "POST" && action === "input") {
+            const input = browserInput((await readJson(req)).input);
+            if (!input) { sendJson(res, 400, { error: "Invalid browser input." }); return true; }
+            try { await browser.input(input); sendJson(res, 200, { ok: true }); }
+            catch (error) { sendJson(res, 409, { error: errorMessage(error) }); }
+            return true;
+          }
+          sendJson(res, 404, { error: "Unknown browser request." });
           return true;
         }
         if (url.pathname === `${PI_API_PREFIX}/memories` || url.pathname.startsWith(`${PI_API_PREFIX}/memories/`)) {
@@ -1342,6 +1394,7 @@ export function createPiHttpHost(options: {
     },
     dispose() {
       stopClock?.();
+      void browser?.stop();
       channels.dispose();
       controller.dispose();
     },
@@ -1379,7 +1432,7 @@ async function createDefaultPiBridge(input: {
   modelLease(provider: { baseUrl: string; apiKey: string; model: string }, protocol: "openai" | "anthropic", thinkingLevel?: string): Promise<{ baseUrl: string; apiKey: string; revoke(): void }>;
   webTools?: WebTools;
   mcpTools?: McpToolkit;
-  memoryTools?: HostTools;
+  hostTools?: HostTools;
 }): Promise<PiSessionBridge> {
   const pi = await import("@earendil-works/pi-coding-agent");
   const { planTool } = await import("./planTool.ts");
@@ -1423,7 +1476,7 @@ async function createDefaultPiBridge(input: {
       const { webPiTools } = await import("./webTool.ts");
       definitions.push(...webPiTools(input.webTools));
     }
-    for (const tools of [input.mcpTools, input.memoryTools]) {
+    for (const tools of [input.mcpTools, input.hostTools]) {
       if (!tools) continue;
       const { mcpPiTools } = await import("./mcpTool.ts");
       definitions.push(...mcpPiTools(tools).map((definition) => guardTool(definition, input.approvalGate)) as ToolDefinition<any, any, any>[]);
@@ -1640,6 +1693,23 @@ function guardTool<T extends { name: string; execute: (...args: any[]) => Promis
       return execute(toolCallId, params, signal, ...rest);
     },
   } as T;
+}
+
+/** The live view's input, checked field by field; anything else is refused. */
+function browserInput(value: unknown): BrowserInput | undefined {
+  const input = asRecord(value);
+  const number = (key: string) => typeof input[key] === "number" && Number.isFinite(input[key]) ? input[key] as number : undefined;
+  if (input.kind === "mouse" && ["move", "down", "up", "wheel"].includes(String(input.type))) {
+    const x = number("x"), y = number("y");
+    if (x === undefined || y === undefined || x < 0 || y < 0 || x > 4000 || y > 4000) return undefined;
+    const button = ["left", "right", "middle"].includes(String(input.button)) ? input.button as "left" | "right" | "middle" : undefined;
+    return { kind: "mouse", type: input.type as "move", x, y, ...(button ? { button } : {}),
+      ...(number("deltaX") !== undefined ? { deltaX: Math.max(-5000, Math.min(5000, number("deltaX")!)) } : {}),
+      ...(number("deltaY") !== undefined ? { deltaY: Math.max(-5000, Math.min(5000, number("deltaY")!)) } : {}) };
+  }
+  if (input.kind === "key" && (input.type === "down" || input.type === "up") && typeof input.key === "string" && input.key.length <= 20) return { kind: "key", type: input.type, key: input.key };
+  if (input.kind === "text" && typeof input.text === "string" && input.text.length <= 2000) return { kind: "text", text: input.text };
+  return undefined;
 }
 
 function permissionMode(value: unknown): PiPermissionMode {

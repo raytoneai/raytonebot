@@ -5,6 +5,7 @@ import type { ChannelPatch, ChannelPlatform, ChannelView } from "./imChannels/ty
 import type { RoutineView } from "./routineTypes.ts";
 import type { McpServerInput, McpServerView } from "./mcpTypes.ts";
 import type { MemoryState, MemoryView } from "./memoryTypes.ts";
+import type { BrowserInput, BrowserViewState } from "./browser/browserProtocol.ts";
 import type { AppLocale } from "../i18n/locales.ts";
 import type { AgentHarnessStatus, AgentPresetId, ClaudeCodeModelSource } from "./harnessCatalog.ts";
 
@@ -206,6 +207,22 @@ export async function renameStoredConversation(id: string, title: string, fetche
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Rename failed"));
   return ((await response.json()) as { title: string }).title;
 }
+
+export async function getBrowserState(fetcher: typeof fetch = fetch): Promise<BrowserViewState> {
+  return requestJson<BrowserViewState>(fetcher, `${PI_API_PREFIX}/browser/state`, undefined, AbortSignal.timeout(15_000));
+}
+
+/** Take over, hand back or close the shared browser (ADR-040). */
+export async function browserControl(action: "takeover" | "release" | "stop", fetcher: typeof fetch = fetch): Promise<BrowserViewState> {
+  return requestJson<BrowserViewState>(fetcher, `${PI_API_PREFIX}/browser/control`, { action }, AbortSignal.timeout(30_000));
+}
+
+export async function sendBrowserInput(input: BrowserInput, fetcher: typeof fetch = fetch): Promise<void> {
+  await requestJson(fetcher, `${PI_API_PREFIX}/browser/input`, { input }, AbortSignal.timeout(10_000));
+}
+
+/** Server-sent `state` and `frame` events; frames flow only while it is open. */
+export const BROWSER_STREAM_URL = `${PI_API_PREFIX}/browser/stream`;
 
 export async function getMemories(fetcher: typeof fetch = fetch): Promise<MemoryState> {
   return requestJson<MemoryState>(fetcher, `${PI_API_PREFIX}/memories`, undefined, AbortSignal.timeout(15_000));

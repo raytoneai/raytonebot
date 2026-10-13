@@ -13,7 +13,7 @@
     "preview:cloud": "node scripts/cloud-preview.mjs",
     "typecheck": "tsc --noEmit",
     "check:local": "node scripts/check-local.mjs",
-    "test": "node --test src/pi/*.test.ts src/pi/imChannels/*.test.ts src/harness/adapters/*.test.ts src/runtime/*.test.ts"
+    "test": "node --test src/pi/*.test.ts src/pi/browser/*.test.ts src/pi/imChannels/*.test.ts src/harness/adapters/*.test.ts src/runtime/*.test.ts"
   },
   "dependencies": {
     "@agent-ux/protocol": "file:./vendor/agent-ux/protocol",
@@ -43,6 +43,7 @@
     "lucide-react": "^1.16.0",
     "mermaid": "^11.17.2",
     "motion": "^12.40.0",
+    "playwright-core": "1.64.0",
     "react": "^19.2.6",
     "react-dom": "^19.2.6",
     "react-markdown": "^10.1.0",

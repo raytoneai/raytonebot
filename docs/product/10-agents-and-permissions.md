@@ -85,6 +85,7 @@ Claude Code / Codex 的 JSON 输出
 - bot 进程内的 gateway 只允许单轮固定 provider/model 路由，禁止转发重定向，token 结束撤销；默认 100 次请求、30 分钟有效期。云端只支持已配置的 HTTPS OpenAI-compatible / Anthropic 服务。本机的其他 Pi 协议、三引擎 HTTP 服务与 CLI 登录模式保持原路径，因此不声称有代理请求次数上限或真实 key 隔离。
 - Agent UID 的 IPv4/IPv6 直连、DNS 与 bot HTTP 端口均被防火墙拒绝；仅 loopback gateway 开放。原生 ACL 另拒绝 Agent 遍历 `/run/dbus`、`/run/systemd`，避免借系统 DNS 服务联网；每次启动 Agent 检查 ACL，丢失即拒绝执行。包下载允许 `registry.npmjs.org`、`pypi.org`、`files.pythonhosted.org` 的 CONNECT，校验 TLS ClientHello SNI、公网 IP，拒绝 ECH 与不匹配握手。任意网页访问、其他下载源默认不可用，确有任务需求时再显式扩域。
 - 联网工具（ADR-034）：三个引擎都有 `web_search`（Tavily）和 `web_fetch`，由 bot 进程执行，Agent UID 的防火墙不变。读取只到公网地址（连接时检查、跳转重检），只回文本；归为只读，不经审批。`TAVILY_API_KEY` 只在 bot 环境。Claude Code 自带 WebSearch/WebFetch、Codex 自带 web_search 均关闭。
+- 浏览器（ADR-040）：headless shell 跑在独立的 `raytone-browser` UID，只能连 bot 的出站代理（127.0.0.1:5191，只到公网 80/443）并在 CDP 端口 5192 回包；配置与下载目录 0700。浏览器工具的审批由 bot 的页面快照判定：读取不问；普通点击/输入/GET 搜索为 `mutating`；用户接管登录过的站点上的写操作为 `connector`，「总是允许」按站点记忆；发送/支付/购买/删除/同意/cookie 横幅、POST 提交、快照不认识的元素为 `outward`；向密码、验证码、卡号字段输入为 `secret`（worker 执行时再检查一次）。下载经大小与文件头检查后写入 Agent 工作区 `downloads/`，可执行文件不保留。
 - 白名单代理不解密 TLS，不是 DLP：不能保证阻止白名单站点上传或站点支持的 HTTP Host 域名前置。三个角色和并行任务仍共享 Agent UID，可以访问彼此的工作区与临时 token；当前范围是单用户 bot 与 Agent 的隔离，不是多租户或逐任务隔离。
 - macOS 开发不创建系统用户或防火墙，不具备以上硬边界。生产实例未更新之前仍保留旧架构风险。新 UID/原生会话目录已在两个独立 Linux 测试实例间完成恢复演练，三个引擎续接通过；具体范围见 [08](08-acceptance.md) G 组。
 

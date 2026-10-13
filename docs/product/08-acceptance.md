@@ -837,3 +837,10 @@
 - 真实 DeepSeek（deepseek-flash，自动模式，HTTP 脚本驱动，先按页面方式下发模型服务配置）：Raer `web_search` + `web_fetch` 6.4 s 并给官网来源；Raer `remember` 审批后保存（4.0 s）；新对话 Bob 解释 CDN 时以「结论」开头（2.8 s）；公开 DeepWiki MCP 保存即列出 3 个工具，Tonny 12.9 s、Bob 15.5 s、Raer 18.5 s 均经审批调用并答出 openai/codex 主要用 Rust（Tonny 也先给结论）；`PATCH /conversations/:id` 重命名 200。
 - 清理：删除 DeepWiki 服务、演示记忆与 6 个演示对话；未选「总是允许」。
 - 未做：线上浏览器界面走查、例行任务计时器与等待提示、停止后续问的线上复验。
+
+## BW 组：浏览器接管（2026-10-13，本机 + 测试沙箱）
+
+- 自动化：`src/pi/browser/browser.test.ts` 3 项（审批分级以服务端快照为准：未知 ref、发送/支付/cookie、POST 表单、密码与验证码字段、GET 搜索、已登录站点按站点记忆；代理拒绝回环/元数据/内网/解析到回环的域名/非 80·443；真实 headless shell：快照 ref、worker 拒绝向密码框输入、下载文本落盘 0660 且目录 2770、可执行文件被丢弃、接管期间 Agent 动作被拒、用户点击与中文输入到达页面、交还后该站点按 connector 处理），`src/runtime/browserView.test.ts` 2 项（留边坐标换算、按键映射），Python 增加备份排除缓存与 supervisor 回收孤儿 2 项（后者在沙箱运行通过）。`npm test` 280/280。
+- 本机真实 DeepSeek（5188，自动模式）：Raer 打开 HN 并点进评论页 12.5 s；Tonny 在维基百科搜索框输入并提交 23.5 s；Bob 读 GitHub star 19.1 s。浏览器界面：接管请求自动切到「浏览器」来源，接管后在画面中点用户名框输入 `demo-user`，交还并在卡片中选「已完成」，Raer 新快照读到用户名已填、密码为空。
+- 测试沙箱（部署后 9 项检查通过）：浏览器 UID 无 DNS、无直连、够不到 5188；Agent UID 够不到 5191；配置目录 0700 仅浏览器 UID 可读。真实 DeepSeek：Raer 读 HN 5.7 s（Chrome 自带沙箱在 `setpriv --no-new-privs` 下可用）；Bob 经 httpbin 附件下载并读出内容（首轮发现 Agent 读不到、Agent 自建目录 chmod 失败，修复后通过）；接管/输入/交还接口与 SSE 状态正常；云端界面经平台代理显示实时画面。浏览器打开 GitHub 时 PSS 340 MB，剩余可用约 2.9 GB。备份含配置 62 项且无缓存、含 Cookies；停止后浏览器进程与僵尸进程均为 0。演示对话与下载文件已删除。
+- 未做：浏览器内上传与网页确认框、手机端画面、多标签页、长时间（10 分钟空闲）自动停止的线上观察、接管后真实账号登录与新实例恢复登录。

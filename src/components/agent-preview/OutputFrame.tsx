@@ -15,6 +15,7 @@ import { resolveArtifactRenderer } from "./outputframe/artifactPreview";
 import type { OutputPanelItem, OutputPanelOpenRequest } from "./outputframe/panelItem";
 import { languageFromFileName, fallbackOutputPanelBody, normalizeOutputPanelRequest } from "./outputframe/panelItem";
 import { OutputPanelModal } from "./outputframe/OutputPanelModal";
+import { BrowserView } from "./outputframe/BrowserView";
 import { liveHtmlWrite, type LiveHtmlWrite } from "../../runtime/liveHtmlWrite";
 
 // The panel-item helpers stay re-exported from this module: App, ToolCallCard and ChatFrame
@@ -47,7 +48,7 @@ export function OutputFrame({
 }) {
   const copy = useCopy();
   const c = copy.workspace.outputFrame;
-  const { workspaceScope, workspaceRevision, workspaceSharedAvailable, onOpenFile } = useShellExtras();
+  const { workspaceScope, workspaceRevision, workspaceSharedAvailable, onOpenFile, browserPanel } = useShellExtras();
   const [expandedState, setExpanded] = useState(false);
   const expanded = fullscreen || expandedState;
   // The phone's workspace entry opens files; the desktop output keeps its artifact by default.
@@ -132,7 +133,8 @@ export function OutputFrame({
         <header className="utility-header output-header" aria-label={outputTitle(project.output.source, artifactRenderer, c)}>
           <div className="utility-header-leading">
             {onSourceChange ? (
-              <OutputSourceSwitch source={project.output.source} copy={c} onChange={(source) => { setShowFiles(false); onSourceChange(source); }} />
+              <OutputSourceSwitch source={project.output.source} copy={c} onChange={(source) => { setShowFiles(false); onSourceChange(source); }}
+                browser={browserPanel ? { selected: browserPanel.selected, select: () => { setShowFiles(false); browserPanel.select(); } } : undefined} />
             ) : null}
           </div>
           <div className="utility-header-actions">
@@ -168,7 +170,7 @@ export function OutputFrame({
             ) : null}
           </div>
         </header>
-        {showFiles && workspaceScope ? (
+        {browserPanel?.selected && !showFiles ? <BrowserView copy={c} /> : showFiles && workspaceScope ? (
           <div className="artifact-content workspace-files" aria-busy={loading}>
             <div className="artifact-title">
               <FolderOpen size={16} />

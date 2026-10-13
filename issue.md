@@ -326,3 +326,14 @@ AN acceptance covers continuing/completed host runs, delayed reads across conver
 run started during an old read, and undelivered-message recovery at 390px. 126 tests, build,
 local checks and 18 existing browser scenarios passed. This does not wake a paused sandbox or
 provide recovery for missing server data; the external-service and backup assumptions above remain.
+
+## 9. Backups now contain website logins
+
+**Status:** accepted risk, recorded 2026-10-13 (ADR-040).
+
+The browser profile (`/home/raytone-browser/profile`, caches excluded) is in `backup_data.py`'s
+`DATA_PATHS`, so a restored instance keeps the sites the user signed into while taking over the
+browser. Chrome runs with `--password-store=basic`, so the cookies in a backup are readable by
+anyone holding the archive. Treat backup archives (`backups/` on this machine, and any off-site
+copy) as credentials: keep them private, and delete the profile from a backup before sharing it.
+

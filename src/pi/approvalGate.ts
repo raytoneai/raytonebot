@@ -61,7 +61,7 @@ export class PiApprovalGate {
     if (kind === "protected") return true;
     if (this.mode === "allow-all") return false;
     if (kind === "outward") return true;
-    if (this.memory.has(this.agent, toolName)) return false;
+    if (this.memory.has(this.agent, this.memoryKey(toolName, args))) return false;
     return kind === "connector" || (this.mode === "request" && kind === "mutating");
   }
 
@@ -81,7 +81,12 @@ export class PiApprovalGate {
       this.pending.delete(toolCallId);
     });
     if (decision === "no") throw new Error("Tool execution was denied by the user.");
-    if (decision === "always") this.memory.add(this.agent, toolName);
+    if (decision === "always") this.memory.add(this.agent, this.memoryKey(toolName, args));
+  }
+
+  /** What "always allow" remembers: the tool, or e.g. a browser action on one site. */
+  private memoryKey(toolName: string, args: unknown) {
+    return this.policy.hostCall?.(toolName, args)?.key ?? toolName;
   }
 
   /** A call is held for the user's answer right now. */

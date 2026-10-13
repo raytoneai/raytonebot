@@ -39,6 +39,22 @@ def signal_group(pid: int, sig: int) -> None:
                        check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
 
+def reap_orphans(keep: int) -> None:
+    """Collect exited orphans the subreaper inherited while the app runs (e.g. a browser's
+    renderers after it stops). Only zombies other than `keep`, by pid, so Popen keeps its own."""
+    children_file = Path(f"/proc/{os.getpid()}/task/{os.getpid()}/children")
+    if not children_file.exists():
+        return
+    for pid in (int(item) for item in children_file.read_text().split()):
+        if pid == keep:
+            continue
+        try:
+            if Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0] == "Z":
+                os.waitpid(pid, os.WNOHANG)
+        except (FileNotFoundError, ChildProcessError, ProcessLookupError, IndexError):
+            continue
+
+
 def clean_children() -> None:
     # Linux subreaping keeps detached CLI children ours when Node crashes.
     children_file = Path(f"/proc/{os.getpid()}/task/{os.getpid()}/children")
@@ -87,8 +103,12 @@ def supervise(command: list[str], log: Path, *, max_restarts=3, window=300, dela
                 log_event(log, "process_started", pid=child.pid)
                 if stopping:
                     signal_group(child.pid, signal.SIGTERM)
+                ticks = 0
                 while child.poll() is None and not stopping:
                     time.sleep(0.1)
+                    ticks += 1
+                    if ticks % 50 == 0:
+                        reap_orphans(child.pid)
                 if stopping:
                     try:
                         child.wait(timeout=10)

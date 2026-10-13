@@ -88,13 +88,13 @@ test("remember and forget ask like connector calls, through every engine's host-
   assert.equal(classifyToolCall("forget", { id: "m1" }, policy), "connector");
   assert.equal(normalizeClaudeTool("mcp__raytone__remember", { text: "x" }).name, "remember");
 
-  const memoryTools = { specs: MEMORY_TOOL_SPECS, async run() { return { text: "{\"saved\":true}", isError: false }; } };
-  const args = buildClaudeArgs({ permissionMode: "request", memoryTools });
+  const hostTools = { specs: MEMORY_TOOL_SPECS, async run() { return { text: "{\"saved\":true}", isError: false }; } };
+  const args = buildClaudeArgs({ permissionMode: "request", hostTools });
   assert.deepEqual(JSON.parse(args[args.indexOf("--mcp-config") + 1]), { mcpServers: { raytone: { type: "sdk", name: "raytone" } } },
     "the host's own server carries memory tools even without web tools");
 
   const sent: Json[] = [], asked: string[] = [];
-  const protocol = createCodexAppServer({ cwd: "/workspace", prompt: "remember", signal: new AbortController().signal, memoryTools,
+  const protocol = createCodexAppServer({ cwd: "/workspace", prompt: "remember", signal: new AbortController().signal, hostTools,
     emit() {}, onSessionId() {}, async onPermission(request) { asked.push(request.tool.name); return true; } });
   const push = (line: Json) => protocol.push(line, (value) => sent.push(value));
   push({ id: "initialize", result: {} });

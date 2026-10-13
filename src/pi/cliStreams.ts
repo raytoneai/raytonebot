@@ -38,7 +38,8 @@ const CLAUDE_TOOL_NAMES: Record<string, string> = {
 
 export function normalizeClaudeTool(name: string, input: unknown): NormalizedTool {
   const raw = asRecord(input);
-  const mapped = CLAUDE_TOOL_NAMES[name];
+  // Every host tool in the `raytone` server is named as Pi and Codex name it.
+  const mapped = CLAUDE_TOOL_NAMES[name] ?? (name.startsWith("mcp__raytone__") ? name.slice("mcp__raytone__".length) : undefined);
   if (!mapped) return { name, args: raw };
   const { file_path: filePath, notebook_path: notebookPath, old_string: oldText, new_string: newText, ...rest } = raw;
   const path = stringValue(filePath) ?? stringValue(notebookPath);
