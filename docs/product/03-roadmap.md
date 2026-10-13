@@ -154,6 +154,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-13 部署 `22d41d2`（浏览器接管与审查三项修复）到测试沙箱 `id705on7k0a1ya1d90icj`：依赖未变跳过 `npm ci`，headless shell 1248 已在，原生隔离（含浏览器 UID 防火墙）校验通过；公网 9 项检查与 `cloud-preview --check` 通过，三引擎可用。本次只做部署检查，修复内容的线上复测见 08 BW 组。
+
 - 2026-10-13 浏览器接管（T4.6，ADR-040）：出站代理、浏览器 worker、审批分级、8 个浏览器工具（三引擎经主机工具通道）、Output 面板实时画面与接管/交还、下载归档、`raytone-browser` UID 与防火墙、部署安装 headless shell、备份带浏览器配置（排除缓存）。本机与测试沙箱真实 DeepSeek 三引擎均完成浏览任务；接管登录页、输入后交还，Raer 读到用户填写的状态；沙箱防火墙、下载权限、备份内容、僵尸进程均验证。修复过程中发现并修正：下载被 root 跟随符号链接的风险、bot umask 下 Agent 读不到下载、浏览器停止留下僵尸进程（supervisor 增加按 pid 回收）。`npm test` 280/280、Python 测试、build；部署 9 项检查通过。详见 08 BW 组。
 
 - 2026-10-13 部署 `5550924` 到现有 AgentSphere sandbox（`id705on7k0a1ya1d90icj`）：本机构建、上传，依赖未变跳过 `npm ci`，原生隔离校验通过；公网 9 项检查与 `cloud-preview --check` 通过，三引擎可用（Claude Code 2.1.267、Codex 0.154.0）。线上真实 DeepSeek（自动模式）：Raer `web_search`（Tavily）+ 官网读取 6.4 s；`remember` 审批后保存，新对话 Bob、Tonny 均先给结论；三引擎经公开 DeepWiki MCP（`mcp.deepwiki.com`，免鉴权）查询并审批后回答正确，Codex 0.154.0 下工具名映射有效；重命名接口 200。演示用 MCP 服务、记忆与对话已删除。未在线上做浏览器走查与例行任务计时复验；实例 2026-10-13T18:36Z 到期后暂停，暂停期间例行任务不运行。详见 08 BU 组。
