@@ -99,6 +99,20 @@ function artifactLaunchOpenRequest(item: AgentUXArtifactTimelineItem, copy: UiCo
     };
   }
   const website = artifactIsWebsite(item);
+  // A written or edited workspace file opens as itself, read from disk, under the same id the
+  // auto-open uses; its diff stays in the tool row and the panel's artifact view.
+  if (workspacePath) {
+    return {
+      id: `file:${workspacePath}`,
+      kind: "file",
+      title: artifactLaunchTitle(item),
+      subtitle: originalTitle,
+      workspacePath,
+      language: website ? "html" : undefined,
+      body: item.artifactKind === "diff" ? undefined : artifactBody(item),
+      revision: item.id,
+    };
+  }
   return {
     id: `artifact:${item.id}`,
     artifactId: item.id,

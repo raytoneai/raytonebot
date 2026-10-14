@@ -18,15 +18,15 @@ test("without a root every role shares one directory and nothing is created", ()
   assert.match(rolePrompt("planner", layout), /You are Tonny/);
 });
 
-test("with a root: own directory per role, a shared one, briefs that are not overwritten", () => {
+test("with a root: own directory per role, a shared one, no generated brief, edited briefs kept", () => {
   const root = mkdtempSync(join(tmpdir(), "rtb-ws-"));
   try {
     const layout = resolveWorkspaceLayout({ fallbackCwd: "/app", root });
     assert.equal(layout.agents.builder, join(root, "agents", "builder"));
     assert.equal(layout.shared, join(root, "shared"));
     ensureWorkspaceLayout(layout);
-    for (const dir of Object.values(layout.agents)) assert.ok(existsSync(join(dir, "AGENTS.md")));
-    assert.match(readFileSync(join(layout.agents.assistant, "AGENTS.md"), "utf8"), /shared/);
+    for (const dir of Object.values(layout.agents)) assert.ok(!existsSync(join(dir, "AGENTS.md")));
+    for (const dir of Object.values(layout.agents)) assert.ok(existsSync(join(dir, "SOUL.md")));
     assert.ok(existsSync(join(layout.shared!, "README.md")));
 
     writeFileSync(join(layout.agents.planner, "AGENTS.md"), "edited");

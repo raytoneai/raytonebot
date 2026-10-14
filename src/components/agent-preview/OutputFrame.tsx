@@ -109,7 +109,7 @@ export function OutputFrame({
     // Still writing but no longer shown: the user turned to something else; leave them there.
     if (writing?.toolCallId === last.toolCallId) return;
     const tool = viewModel.timeline.find((item) => item.kind === "tool" && item.id === last.toolCallId);
-    if (tool?.status === "success") onOpenFile?.({ id: `file:${last.path}`, kind: "file", title: last.title, subtitle: last.path, workspacePath: last.path });
+    if (tool?.status === "success") onOpenFile?.({ id: `file:${last.path}`, kind: "file", title: last.title, subtitle: last.path, workspacePath: last.path, revision: last.toolCallId });
   }, [liveHtml, writing, viewModel.timeline, onOpenFile]);
 
   return (

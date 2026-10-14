@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { join, resolve } from "node:path";
 
 import { AGENT_PRESETS, type AgentPresetId } from "./harnessCatalog.ts";
@@ -30,16 +30,16 @@ export function resolveWorkspaceLayout(options: { fallbackCwd: string; root?: st
 }
 
 /**
- * Create the directories and leave a short brief in each, plus the user-editable persona files
- * (`SOUL.md` per role, `shared/USER.md`). Edited files are never overwritten; a brief still
- * holding an earlier generated text is brought up to date.
+ * Create the directories and the user-editable persona files (`SOUL.md` per role,
+ * `shared/USER.md`). Edited files are never overwritten. The role prompt now carries the
+ * workspace facts to every engine, so a generated `AGENTS.md` brief is removed; an edited one stays.
  */
 export function ensureWorkspaceLayout(layout: WorkspaceLayout): void {
   for (const dir of new Set(Object.values(layout.agents))) mkdirSync(dir, { recursive: true });
   if (!layout.shared) return;
   mkdirSync(layout.shared, { recursive: true });
   for (const [role, dir] of Object.entries(layout.agents) as [AgentPresetId, string][]) {
-    refresh(join(dir, "AGENTS.md"), workspaceBrief(role, layout), legacyBriefs(role, layout));
+    retire(join(dir, "AGENTS.md"), [workspaceBrief(role, layout), ...legacyBriefs(role, layout)]);
     refresh(join(dir, "SOUL.md"), DEFAULT_SOULS[role], LEGACY_SOULS[role]);
   }
   const readme = join(layout.shared, "README.md");
@@ -53,7 +53,12 @@ function refresh(path: string, content: string, generated: readonly string[]) {
   if (!existsSync(path) || generated.includes(readFileSync(path, "utf8"))) writeFileSync(path, content);
 }
 
-/** Short: the role prompt carries the same facts; this is for engines that read AGENTS.md natively. */
+/** Removes `path` only while it still holds a generated version. */
+function retire(path: string, generated: readonly string[]) {
+  if (existsSync(path) && generated.includes(readFileSync(path, "utf8"))) rmSync(path);
+}
+
+/** The last generated brief, recognised so it can be retired. */
 function workspaceBrief(role: AgentPresetId, layout: WorkspaceLayout): string {
   const others = AGENT_PRESETS.filter((preset) => preset.id !== role).map((preset) => `\`${layout.agents[preset.id]}\``).join(", ");
   return `# Workspace (${role})
@@ -62,7 +67,7 @@ Shared: \`${layout.shared}\` (handoffs, plans, other agents' work only; names: \
 `;
 }
 
-/** Briefs written by earlier versions; the first told agents to read the shared directory every turn. */
+/** Briefs written by earlier versions, also retired; the first told agents to read the shared directory every turn. */
 function legacyBriefs(role: AgentPresetId, layout: WorkspaceLayout): string[] {
   return [
     "Read it for handoffs from the other agents;\n  put plans, results and files meant for them there.",

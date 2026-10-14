@@ -24,10 +24,10 @@
 
 | 路径 | 用途 |
 | --- | --- |
-| `agents/assistant/`、`agents/planner/`、`agents/builder/` | 各角色的工作目录（cwd），各放一份说明布局的 `AGENTS.md`（已存在则不覆盖） |
-| `shared/` | 所有角色可读写的协作目录：`plans/`、`handoffs/<from>-to-<to>.md`、`artifacts/`，含 `README.md` |
+| `agents/assistant/`、`agents/planner/`、`agents/builder/` | 各角色的工作目录（cwd），含人设 `SOUL.md`。不再生成 `AGENTS.md`：未改过的旧版启动时删除，用户改过的保留 |
+| `shared/` | 所有角色可读写的协作目录：`plans/`、`handoffs/<from>-to-<to>.md`、`artifacts/`，含 `README.md`、`USER.md` |
 
-- Codex 从 cwd 读取 `AGENTS.md`；云端 Pi 禁止 bot 身份自动读取工作区资源，工作区布局由固定代码生成的说明传入，需要其他说明时通过受限 read 工具读取。本机 Pi 保留自动读取。Claude Code 在 `--safe-mode` 下不读，改由 `--append-system-prompt` 告知同样内容。Claude 用 `--add-dir`，Codex 通过逐项文件/命令审批访问共享目录。
+- 工作区布局只经角色提示词传给三个引擎（Codex `developerInstructions`、Claude `--append-system-prompt`、Pi `appendSystemPrompt`）。用户文件列表不显示根目录的 `SOUL.md` 与共享目录根的 `USER.md`/`README.md`（同点文件一样隐藏）；Agent 仍可读写，按路径仍可打开/下载。云端 Pi 禁止 bot 身份自动读取工作区资源，工作区布局由固定代码生成的说明传入，需要其他说明时通过受限 read 工具读取。本机 Pi 保留自动读取。Claude Code 在 `--safe-mode` 下不读，改由 `--append-system-prompt` 告知同样内容。Claude 用 `--add-dir`，Codex 通过逐项文件/命令审批访问共享目录。
 - 规划角色只能把文件写进共享目录（其他位置的 Write 直接拒绝，Edit 类工具禁用）。
 - 工作区与应用目录分离后，应用代码自动成为受保护路径；每个角色目录与共享目录里的 `.claude/.codex/.agents`、`.git/hooks`、`.mcp.json`、`.npmrc`、`SOUL.md`、`USER.md`，以及 Agent HOME 的 shell 启动文件与 `.npmrc` 也受保护。受保护只管修改，读取不询问。
 - 未设置时（本机开发）所有角色共用一个目录，行为与之前一致。

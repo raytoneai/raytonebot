@@ -29,6 +29,36 @@ export function liveHtmlWrite(timeline: readonly { kind: string }[]): LiveHtmlWr
 }
 
 /**
+ * HTML files an edit just finished in this run (Codex `file_change`, Claude Edit), and writes
+ * that carried no content to stream (Codex's single-file add): the saved file opens when the
+ * call succeeds. Writes with content open through the live preview instead. Only calls of a run
+ * this page is following (`live`) that were not already done in `previous`; restored history,
+ * where every call arrives already done, opens nothing.
+ */
+export function finishedHtmlEdits(previous: readonly { kind: string; id?: string }[], timeline: readonly { kind: string; id?: string }[], live: (toolId: string) => boolean): { path: string; title: string; toolCallId: string }[] {
+  const before = new Map(previous.filter((item) => item.kind === "tool").map((item) => [item.id, (item as AgentUXToolTimelineItem).status]));
+  const files: { path: string; title: string; toolCallId: string }[] = [];
+  for (const item of timeline) {
+    if (item.kind !== "tool") continue;
+    const tool = item as AgentUXToolTimelineItem;
+    if (tool.status !== "success") continue;
+    const args = tool.args && typeof tool.args === "object" ? tool.args as Record<string, unknown> : {};
+    const concept = resolveToolConcept(tool.name);
+    if (concept !== "edit-file" && !(concept === "write-file" && typeof args.content !== "string")) continue;
+    if (before.get(tool.id) === "success" || !live(tool.id)) continue;
+    // Codex lists every file of a patch in `changes`; `path` is only the first.
+    const changes = Array.isArray(args.changes) ? args.changes.filter((change): change is Record<string, unknown> => Boolean(change) && typeof change === "object") : [];
+    const paths = changes.length
+      ? changes.filter((change) => change.kind !== "delete").map((change) => typeof change.move_path === "string" ? change.move_path : change.path)
+      : [PATH_KEYS.map((key) => args[key]).find((value) => typeof value === "string")];
+    for (const path of new Set(paths)) {
+      if (typeof path === "string" && /\.html?$/i.test(path)) files.push({ path, title: path.split("/").filter(Boolean).pop() ?? path, toolCallId: tool.id });
+    }
+  }
+  return files;
+}
+
+/**
  * The value of a top-level string field in JSON that may still be arriving: decoded up to the
  * last complete character. `complete` requires the closing quote (a half-written path is not
  * a path yet).

@@ -65,6 +65,7 @@ import { pendingUserInput, userInputEventsForReplay } from "./runtime/userInput"
 import { useUserInput } from "./runtime/useUserInput";
 import { pendingChannelSetup } from "./runtime/channelSetup";
 import { useChannelSetup } from "./runtime/useChannelSetup";
+import { finishedHtmlEdits } from "./runtime/liveHtmlWrite";
 import { approvalRequestKey } from "./runtime/approvalSubmission";
 import { approvalForReplay, identityEventForReplay } from "./runtime/replayIdentity";
 import { questionCopy } from "./i18n/copy/questions";
@@ -82,7 +83,10 @@ const PERMISSION_DEFAULT_KEY = "raytonebot.permissionDefault";
 
 // Rejected requests also synthesize run.started + user text, so those are not acceptance.
 // Any terminal other than a rejection means the host saved the prompt in the conversation.
+// The adapter's user text.finished is broadcast only after the recorder flushed the prompt, so it
+// clears the draft before a slow CLI's first output; a rejection's synthesized one is `<runId>_user_finished`.
 const confirmsPromptAccepted = (event: AgentUXEvent) => event.type.startsWith("tool.call.")
+  || (event.type === "text.finished" && event.id?.includes("_user_text_finished_"))
   || event.type.startsWith("reasoning.")
   || (event.type === "text.started" && (event.payload as { role?: string }).role === "assistant")
   || event.type === "run.finished"
@@ -614,6 +618,22 @@ export function AgentApp() {
     setOutputModalOpen(true);
   }
 
+  // An edited (or content-less) page has nothing to stream; it opens once saved, unless the user is
+  // watching the browser. Here rather than in OutputFrame, so a collapsed or hidden panel still opens.
+  // Only runs this page started or follows; the same `file:` id as the live preview's, one tab.
+  const liveRunIds = useRef(new Set<string>());
+  const lastTimeline = useRef({ conversationId: activePiConversationId, timeline: displayViewModel.timeline });
+  useEffect(() => {
+    const previous = lastTimeline.current;
+    lastTimeline.current = { conversationId: activePiConversationId, timeline: displayViewModel.timeline };
+    if (previous.conversationId !== activePiConversationId || previous.timeline === displayViewModel.timeline || browserSelected) return;
+    const live = new Set(replayEvents.flatMap((event) => event.type.startsWith("tool.call.") && event.runId && liveRunIds.current.has(event.runId)
+      ? [String(event.payload.toolCallId)] : []));
+    for (const file of finishedHtmlEdits(previous.timeline, displayViewModel.timeline, (id) => live.has(id))) {
+      openArtifact({ id: `file:${file.path}`, kind: "file", title: file.title, subtitle: file.path, workspacePath: file.path, revision: file.toolCallId });
+    }
+  }, [displayViewModel.timeline]);
+
   /** Shows the browser's live view in the Output panel, opening the panel if needed. */
   function showBrowser() {
     setBrowserSelected(true);
@@ -754,6 +774,7 @@ export function AgentApp() {
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
     };
     const runId = queued?.requestId ?? "pi_export_" + crypto.randomUUID();
+    liveRunIds.current.add(runId);
     runStop.bind(controller, runId);
     // The composer callback is bound to this conversation's draft, even after switching away.
     const onAccepted = () => {
@@ -923,6 +944,7 @@ export function AgentApp() {
             if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
             if (controller.signal.aborted) break;
             if (event.type === "run.started") runStop.bind(controller, event.runId);
+            if (event.runId) liveRunIds.current.add(event.runId);
             if (submission && event.runId === submission.requestId) submission.onAccepted?.();
             retries = 0;
             current = appendPiConversationEvents(current, [event]);

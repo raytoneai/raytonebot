@@ -13,6 +13,8 @@ export type OutputPanelItem = {
   workspacePath?: string;
   /** Follow the live artifact by identity, even when its title changes. */
   artifactId?: string;
+  /** Changes when the file on disk did (the call that wrote it), so an open preview reads it again. */
+  revision?: string;
 };
 
 export type OutputPanelOpenRequest = string | Omit<OutputPanelItem, "id"> & { id?: string };

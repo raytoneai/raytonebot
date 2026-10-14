@@ -6,7 +6,7 @@ import type { OutputPanelItem } from "./panelItem";
 /** The opened preview owns its fetch and Blob lifetime, never the persisted conversation. */
 export function useFilePreview(item: OutputPanelItem, downloadUrl?: string) {
   const [attempt, setAttempt] = useState(0);
-  const key = useMemo(() => ({}), [item.id, item.body, item.imageSrc, item.mediaSrc, item.title, item.language, item.kind, downloadUrl, attempt]);
+  const key = useMemo(() => ({}), [item.id, item.body, item.imageSrc, item.mediaSrc, item.title, item.language, item.kind, item.revision, downloadUrl, attempt]);
   const [result, setResult] = useState<{ key: object; body?: string; mediaSrc?: string; contentUrl?: string; error?: string }>();
   useEffect(() => {
     const controller = new AbortController();

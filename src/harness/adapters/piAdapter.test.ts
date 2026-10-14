@@ -55,3 +55,30 @@ test("overflow compaction clears the failed request only after a successful resp
     assert.deepEqual(adapter.finish("success"), [], "terminal is emitted once");
   }
 });
+
+test("a Codex file_change becomes the same file artifacts as Pi's write and edit", async () => {
+  const { createAgentUXViewModel } = await import("@agent-ux/render-core");
+  const { createCodexAppServer } = await import("../../pi/codexAppServer.ts");
+  const adapter = createPiEventAdapter({ runId: "r" });
+  const protocol = createCodexAppServer({ cwd: "/w", prompt: "x", signal: new AbortController().signal,
+    emit: adapter.apply, onSessionId() {}, onPermission: async () => true });
+  const push = (line: Record<string, unknown>) => protocol.push(line, () => {});
+  push({ id: "thread", result: { thread: { id: "main" } } });
+  const item = (id: string, changes: unknown[]) => ({ id, type: "fileChange", status: "completed", changes });
+  for (const [id, changes] of [
+    ["add", [{ path: "page.html", kind: { type: "add" }, diff: "<h1>x</h1>\n" }]],
+    ["patch", [{ path: "app.ts", kind: { type: "update" }, diff: "@@ -1 +1 @@\n-a\n+b\n" }, { path: "old.html", kind: { type: "delete" }, diff: "" },
+      { path: "a.htm", kind: { type: "update", move_path: "b.html" }, diff: "@@ -1 +1 @@\n-c\n+d\n" }]],
+  ] as const) {
+    push({ method: "item/started", params: { threadId: "main", item: item(id, [...changes]) } });
+    push({ method: "item/completed", params: { threadId: "main", item: item(id, [...changes]) } });
+  }
+  const artifacts = createAgentUXViewModel(JSON.parse(JSON.stringify(adapter.events))).timeline
+    .filter((entry) => entry.kind === "artifact") as { title?: string; artifactKind?: string; uri?: string; content?: string }[];
+  assert.deepEqual(artifacts.map((artifact) => [artifact.title, artifact.artifactKind, artifact.uri]), [
+    ["/w/page.html", "code", "file:///w/page.html"],
+    ["/w/app.ts", "diff", "file:///w/app.ts"],
+    ["/w/b.html", "diff", "file:///w/b.html"],
+  ]);
+  assert.match(artifacts[0].content ?? "", /<h1>x<\/h1>/);
+});

@@ -693,31 +693,36 @@ function emitFileArtifact(
   const resultRecord = asRecord(result);
   const details = asRecord(resultRecord.details);
   const path = stringField(args, "path");
-  let content: string | undefined;
-  let kind = "code";
-  if (tool.name === "write" && path) content = stringField(args, "content");
-  if (tool.name === "edit" && path) {
-    content = stringField(details, "diff") ?? stringField(details, "patch");
-    kind = "diff";
-  }
-  if (!path || !content) return;
-  const artifactId = `pi_file_${tool.id}`;
-  push(agentUXEventBuilders.artifactCreated(meta(`artifact_created_${artifactId}`) as never, {
-    artifactId,
-    kind,
-    title: path,
-    mimeType: "text/plain",
-  }), next);
-  push(agentUXEventBuilders.artifactDelta(meta(`artifact_delta_${artifactId}`) as never, {
-    artifactId,
-    delta: limitEventText(content),
-    format: "text",
-  }), next);
-  push(agentUXEventBuilders.artifactFinished(meta(`artifact_finished_${artifactId}`) as never, {
-    artifactId,
-    status: "success",
-    uri: `file://${path}`,
-  }), next);
+  const files: { path: string; content?: string; kind: string }[] = [];
+  if (Array.isArray(args.changes)) {
+    // Codex app-server `file_change`: one entry per file; an add carries the whole file, an
+    // update its diff. Same artifact as Pi's write or edit, so chat and panel show it alike.
+    for (const change of args.changes.map(asRecord)) {
+      const changePath = stringField(change, "move_path") ?? stringField(change, "path");
+      if (changePath && change.kind !== "delete") files.push({ path: changePath, content: stringField(change, "diff"), kind: change.kind === "add" ? "code" : "diff" });
+    }
+  } else if (tool.name === "write" && path) files.push({ path, content: stringField(args, "content"), kind: "code" });
+  else if (tool.name === "edit" && path) files.push({ path, content: stringField(details, "diff") ?? stringField(details, "patch"), kind: "diff" });
+  files.forEach((file, index) => {
+    if (!file.content) return;
+    const artifactId = index ? `pi_file_${tool.id}_${index}` : `pi_file_${tool.id}`;
+    push(agentUXEventBuilders.artifactCreated(meta(`artifact_created_${artifactId}`) as never, {
+      artifactId,
+      kind: file.kind,
+      title: file.path,
+      mimeType: "text/plain",
+    }), next);
+    push(agentUXEventBuilders.artifactDelta(meta(`artifact_delta_${artifactId}`) as never, {
+      artifactId,
+      delta: limitEventText(file.content),
+      format: "text",
+    }), next);
+    push(agentUXEventBuilders.artifactFinished(meta(`artifact_finished_${artifactId}`) as never, {
+      artifactId,
+      status: "success",
+      uri: `file://${file.path}`,
+    }), next);
+  });
 }
 
 function asRecord(value: unknown): Record<string, unknown> {

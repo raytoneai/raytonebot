@@ -201,12 +201,13 @@ export function createCodexAppServer(options: {
 
 function normalizedTool(item: Json, cwd: string): NormalizedTool | undefined {
   if (item.type !== "fileChange") return undefined;
-  const changes = (Array.isArray(item.changes) ? item.changes : []).map(record).map((change) => ({
-    ...change, path: resolve(cwd, String(change.path)), kind: record(change.kind).type,
-    move_path: record(change.kind).move_path,
-  }));
+  const changes = (Array.isArray(item.changes) ? item.changes : []).map(record).map((change) => {
+    const movePath = record(change.kind).move_path;
+    return { ...change, path: resolve(cwd, String(change.path)), kind: record(change.kind).type,
+      move_path: typeof movePath === "string" ? resolve(cwd, movePath) : movePath };
+  });
   if (!changes.length) return undefined;
-  const paths = changes.flatMap((change) => [change.path, ...(typeof change.move_path === "string" ? [resolve(cwd, change.move_path)] : [])]);
+  const paths = changes.flatMap((change) => [change.path, ...(typeof change.move_path === "string" ? [change.move_path] : [])]);
   return { name: "edit", args: { path: paths[0], paths, changes } };
 }
 

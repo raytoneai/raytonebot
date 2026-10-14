@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { createPiHttpHost, type PiBridgeFactory } from "./piHost.ts";
 import type { PiFileReference } from "./piClient.ts";
 import { ensureWorkspaceLayout, resolveWorkspaceLayout } from "./workspaceLayout.ts";
-import { MAX_UPLOAD_BYTES } from "./workspaceFiles.ts";
+import { listWorkspaceFiles, MAX_UPLOAD_BYTES, openWorkspaceFile } from "./workspaceFiles.ts";
 
 test("workspace HTTP upload → model file context → output download, with path and upload boundaries", async () => {
   const root = await mkdtemp(join(tmpdir(), "rtb-files-"));
@@ -109,4 +109,23 @@ test("workspace HTTP upload → model file context → output download, with pat
     await new Promise<void>((resolve) => server.close(() => resolve()));
     await rm(root, { recursive: true, force: true });
   }
+});
+
+test("seeded setup files stay out of the root file list but still open by path", async () => {
+  const root = await mkdtemp(join(tmpdir(), "rtb-files-"));
+  try {
+    const layout = resolveWorkspaceLayout({ fallbackCwd: root, root: join(root, "workspace") });
+    ensureWorkspaceLayout(layout);
+    await writeFile(join(layout.agents.builder, "page.html"), "<h1>x</h1>");
+    await mkdir(join(layout.agents.builder, "site"));
+    await writeFile(join(layout.agents.builder, "site", "SOUL.md"), "a project's own file");
+    await writeFile(join(layout.agents.builder, "README.md"), "Bob's project readme");
+    const names = async (scope: string, path = "") => (await listWorkspaceFiles(layout, scope, path)).files.map((file) => file.name);
+    assert.deepEqual(await names("builder"), ["site", "page.html", "README.md"]);
+    assert.deepEqual(await names("builder", "site"), ["SOUL.md"], "only the seeded root file is setup");
+    assert.deepEqual(await names("shared"), []);
+    const soul = await openWorkspaceFile(layout, "builder", "SOUL.md");
+    assert.equal(soul.name, "SOUL.md");
+    await soul.file.close();
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

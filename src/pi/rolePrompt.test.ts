@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
+import { linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync, existsSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -79,7 +79,7 @@ This directory is your own working directory in RaytoneBot.
     writeFileSync(join(layout.agents.planner, "SOUL.md"), "# Tonny\n\nmine");
     writeFileSync(join(layout.agents.assistant, "SOUL.md"), LEGACY_SOULS.assistant[0]);
     ensureWorkspaceLayout(layout);
-    assert.match(readFileSync(join(layout.agents.assistant, "AGENTS.md"), "utf8"), /handoffs, plans, other agents' work only/);
+    assert.ok(!existsSync(join(layout.agents.assistant, "AGENTS.md")), "a generated brief is retired");
     assert.match(readFileSync(join(layout.agents.planner, "AGENTS.md"), "utf8"), /my note/);
     assert.equal(readFileSync(join(layout.agents.planner, "SOUL.md"), "utf8"), "# Tonny\n\nmine");
     assert.equal(readFileSync(join(layout.agents.assistant, "SOUL.md"), "utf8"), DEFAULT_SOULS.assistant, "an untouched earlier default is updated");

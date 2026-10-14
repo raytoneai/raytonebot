@@ -81,6 +81,14 @@ async function anchoredDirectory(path: string): Promise<{ path: string; close():
   }
 }
 
+/**
+ * Setup the host seeds at a directory root, left out of the user's file list like dotfiles:
+ * persona and coordination notes, not work. Agents still read and edit them (the user may ask
+ * for a different character), and a path still opens or downloads them.
+ */
+const AGENT_SETUP_FILES = new Set(["SOUL.md"]);
+const SHARED_SETUP_FILES = new Set(["USER.md", "README.md"]);
+
 export async function listWorkspaceFiles(layout: WorkspaceLayout, scope: unknown, path: unknown, excluded?: readonly string[]): Promise<{ files: PiWorkspaceFile[] }> {
   const location = await checkedTarget(layout, scope, path, excluded);
   if (!(await lstat(location.target)).isDirectory()) fail(400, "Workspace path is not a directory.");
@@ -89,6 +97,7 @@ export async function listWorkspaceFiles(layout: WorkspaceLayout, scope: unknown
   try {
   for (const entry of await readdir(directory.path, { withFileTypes: true })) {
     if (entry.name.startsWith(".") || (!entry.isDirectory() && !entry.isFile())) continue;
+    if (!location.path && entry.isFile() && (location.scope === "shared" ? SHARED_SETUP_FILES : AGENT_SETUP_FILES).has(entry.name)) continue;
     const child = location.path ? `${location.path}/${entry.name}` : entry.name;
     try {
       const item = await checkedTarget(layout, scope, child, excluded);
