@@ -1,6 +1,3 @@
-// Straight from the protocol package rather than the `src/agentux` barrel: the barrel is App's
-// React-facing surface and `App.test.tsx` mocks it wholesale, which would leave this module
-// without an event-type list and silently reject every event.
 import { AGENT_UX_EVENT_TYPES, type AgentUXEvent } from "@agent-ux/protocol";
 import { limitEventText } from "./eventLimits.ts";
 
@@ -57,8 +54,7 @@ export const TOOL_CONCEPT_ALIASES: Record<ToolConcept, readonly string[]> = {
   validate: ["validate", "test", "check", "verify", "lint", "typecheck", "run_tests", "run_checks"],
   fetch: ["fetch", "web.fetch", "web_search", "http", "curl", "browse"],
   delete: ["rm", "delete", "delete_file", "remove_file", "filesystem.rm"],
-  // Plans / todo lists are common in modern agents but this UI has no component for them
-  // yet, so they are recognised (not "unknown") and deliberately kept out of the transcript.
+  // Plan snapshots render as artifacts; omit raw plan tool rows from the transcript.
   plan: ["todo", "todos", "update_todo", "update_todo_list", "todo_write", "plan", "update_plan", "task_list"],
 };
 

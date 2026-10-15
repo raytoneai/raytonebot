@@ -359,7 +359,7 @@ svg.lucide { stroke-width: 1.5; }
   display: none;
 }
 
-/* Minimal style: keep only the first four user avatar options for now. */
+/* The illustrated preset shows the first four user avatar options in registry order. */
 .preset-panel[data-style-preset="illustrated"] .am-state-options[data-slot="author.user"] .am-state-option:nth-of-type(n + 5) {
   display: none;
 }
