@@ -77,6 +77,7 @@
 
 - **两个标签页同时认领会建两个沙箱**（2026-10-16）→ 处理器先读 owner 再 `await` 请求体，两个请求都读到「还没有 bot」，随后各自 `create`，存储层也不拦重复，其中一条记录再没有页面入口 → 把 check-and-create 合成存储层一次同步调用（`Store.claim`）。回归要精确交叠两次请求（假 req/res 让两个请求体在两次 ownership 读取之后才到达），顺序调用的单元测试抓不到。
 - **暂停前备份被跳过，短任务没进任何归档**（2026-10-16）→ keeper 每分钟采样一次 `activeRuns`，两次采样之间跑完的短轮次不留痕迹，「上次备份后有过活动」不成立 → 主机在 health 里报最近一次轮次距今的毫秒数（报「距今」而不是时间戳，主机与沙箱的时钟不必一致），keeper 在自身记录、该报告、正在运行的轮次里取较大者。
+- **从没有交接密钥的 state 目录再部署一次，欢迎页就进不去了，而且不报错**（2026-10-16）→ `deploy.py` 的 env 文件是**整份重写**，只从沙箱旧环境里合并 `DEEPSEEK_API_KEY`/`TAVILY_API_KEY`，所以 `RAYTONEBOT_HANDOFF_SECRET`/`RAYTONEBOT_CONTROL_ORIGIN` 不会被继承 → 认领之后这台 bot 的权威状态在 control 的 `bots/<id>/access.json`，**别再用仓库 `.agentsphere/` 部署它**，要用 `--state-dir <control 数据目录>/bots/<id>`（`provision` 内部就是这么调的）。症状是 `POST /api/bot/enter` 返回 409「Bot needs one more deploy to accept the welcome page」，欢迎页只显示「运行中」但点不进去；bot 本身仍能用 Basic Auth 正常使用，`cloud-preview.mjs` 没有密钥时走 Basic 分支是设计如此，不是回归。恢复：从 control 再 provision 一次（复用原 sandbox、保留密码、重新写入手交密钥）。
 
 ## 构建与体积
 
