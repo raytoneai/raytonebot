@@ -91,6 +91,7 @@
 - **HTML 产物“只去掉 `<script>`”仍会执行代码** → `onerror`/`onclick` 等事件属性与 `javascript:` URL 在 `allow-scripts` 的 iframe 里照样运行（Codex review 复现）→ 不能执行的内容用不含 `unsafe-inline` 的 nonce CSP，让浏览器拒绝，再在惰性 `<template>` 里清洗作第二道（`htmlStreamDocument`）。
 - **HTML 产物加载时自动发送追问被放行** → 打开文件那一下点击的用户激活还在有效期内 → 同时要求 iframe 持有焦点（ADR-035）。
 - **一次性入场标记写成受控属性，动画会静默不播**（2026-10-16）→ 入队会 render 两次（本地状态 + 主机回显），按"上一帧差集"算出的 prop 在第二次 render 变回 `undefined`，React 就把属性移除、动画在首帧前被取消 —— 线上实测 `data-entering` 设上后 **6ms 被移除，`animationstart` 从未触发**，但 CSS 规则、纯函数单测、编译产物全都对，只有真实运行能发现 → 判定状态放进**只会增长的 ref**（"这个列表见过哪些 id"），属性用 ref 回调**命令式** `setAttribute`（React 不碰它不拥有的属性，已实测属性可跨两次强制重渲染存活），`onAnimationEnd` 负责清除。同理，"是否新出现"不要按上一帧差集算，否则空列表加第一条也会被判成"没有前一项"而拒掉。验收要在真实运行里对 `animationstart`/`animationend` 的时间戳，只测 CSS 或纯函数会漏掉这类竞态。
+- **浏览器拒绝写剪贴板不是能修掉的缺陷，但失败提示必须让用户一键复制**（2026-10-16）→ 未聚焦或 `document.hidden` 的文档会被 `writeText` 直接拒（`NotAllowedError: Document is not focused`），页面无法强制写入；`execCommand` 在同条件下也返回 false（实测），所以"复制失败"这件事本身修不掉 —— 能修的是收尾。顺序试 async API → `window.focus()` 后重试（救回只是丢了焦点的窗口）→ `execCommand` 回退（治权限被拒或 API 缺失），三条都失败时**自动选中该条消息正文**并把文案说成"复制被浏览器拦下了…按 ⌘C 或 Ctrl+C"，而不是让用户自己去找文字。排查时先分清是"功能坏了"还是"环境拒绝"：聚焦的前台 tab 里复制是好的，别照着后台 tab 的失败去改代码。验收两条都要跑：干净后台 tab（`focused:false`）应看到新文案且 `getSelection().length > 0`；聚焦 tab 应直接"已复制"且没有多余选中。
 
 ## 浏览器验收
 

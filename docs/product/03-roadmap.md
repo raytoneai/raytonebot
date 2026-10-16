@@ -171,6 +171,10 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-16 复制失败的回退与收尾（`0464fb6`，已部署）：核对后确认「复制失败」不是本仓缺陷，而是浏览器对未聚焦/隐藏文档直接拒绝 `writeText`（`NotAllowedError: Document is not focused`）——聚焦的前台 tab 里复制本来就是成功的（线上实测 `已复制` + `message-action-pop` running/120ms）。真正要修的是收尾：原来一次尝试失败就给「请选择文本后手动复制」却不帮忙选中。现在按 async API → `window.focus()` 后重试 → `execCommand` 回退的顺序试，三条都失败才报错，并**自动选中该条消息正文**，文案改为「复制被浏览器拦下了…按 ⌘C 或 Ctrl+C」（三语）。
+  - 验证：新增 4 项测试（真实写入优先、丢焦点的窗口被 focus 救回、async 被拒后走 legacy、三条全失败必须报 failed 且 legacy 抛错不能逃逸）；`npm test` 321/319（仍只有那 2 项环境相关的浏览器用例）、build、typecheck；部署后线上双路径实测 —— **干净后台 tab**（`focused:false, hidden:true`）点复制 → 文案「复制被浏览器拦下了。已选中这条消息的文字，按 ⌘C 或 Ctrl+C 复制。」且 `getSelection().length = 38`（正是消息正文）；**聚焦 tab** 点复制 → 「已复制」、`svg.message-action-pop` 存在、`getSelection().length = 0`（成功路径没有多余选中）。
+  - 边界：`execCommand` **成功**那一支只有单测覆盖，线上没构造出「真实用户手势 + 未聚焦」的组合，实到的是三条全失败分支；用户机器为何丢焦点仍未确定（可排除 iframe：`x-frame-options: DENY` 会直接拦掉框嵌入）。前端只能保证失败时一键可复制，不能保证写入。
+
 - 2026-10-16 修队列入场 + 线上复验（`b802918`，已部署）：真实运行时这条动画**根本没播**。线上实测入队后 `data-entering` 6ms 就被移除、没有 `animationstart` —— 入队 render 两次（本地状态 + 主机回显），而标记是"只亮一帧"的受控 prop，第二次 render 算出空集就被 React 抹掉；另外旧门控把"空队列加第一条"也当成了恢复历史而拒掉。改为判定放进只会增长的 ref、属性由 ref 回调命令式设置、`onAnimationEnd` 清除；settling 语义不变（首帧与换会话都整队视为已展示）。验证：4 项测试（新增空队列与"回显第二次 render"两个反例）、`npm test` 317/315（仍只有那 2 项环境相关的浏览器用例）、build、typecheck；部署后用 control 的 state 目录（`RAYTONEBOT_HANDOFF_SECRET` 保留，10 项自检含 handoff 401 全过），在同一沙箱真实 DeepSeek 运行里复验：空→首条与追加第二条都抓到 `animationstart composer-queue-item-in` → 158ms 后 `animationend`，属性**恰在 animationend 时刻**清除（不再是 6ms）。坑记入 09「界面」。测试用的对话「请写一篇 1200 字的中文短篇小说《灯塔》」留在沙箱侧栏，未删除。
 
 - 2026-10-16 部署 `ffb8730` 到生产沙箱 `id705on7k0a1ya1d90icj`（<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>）：实例处于暂停态，先 `sandbox.py wake`（27.8 s，窗口至 2026-10-18T14:12Z）再 `deploy.py`（不带 `--timeout`，原因见 09）；本机构建 → 上传 6669 KB → 锁文件未变跳过 `npm ci` → 原生隔离校验通过 → headless shell 1248 → supervisor pid 27435。self-check 9 项全过（鉴权页、未登录/错误密码 401、health、未登录 health 401、Pi state、沙箱模式、三角色工作区、外站 403），三引擎可用（Claude Code 2.1.267、Codex 0.154.0）。
