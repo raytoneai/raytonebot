@@ -171,6 +171,9 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-16 复制失败的选中扩到全部复制入口（`cb91803`，已部署到 `id705on7k0a1ya1d90icj`，用 `--state-dir .agentsphere/control-dev/bots/bd8639aea7f`，10 项自检全过、交接密钥保留）：`0464fb6` 只给聊天消息做了自动选中，但输出面板代码复制和设置页复制按钮也复用了「已选中这条消息」的文案，实际什么都没选中。`useClipboardFeedback().copy(source)` 改为接收页面上显示同一段文字的元素，全部失败时由 hook 选中（消息→`.msg-surface`，输出面板→`<pre>`，设置→同行 `<code>`），后两处用新文案 `copyFailedText`「已选中这段文字」。另修 legacy 路径：`execCommand` 抛错时 textarea 残留、焦点没回到按钮（都移进 `finally`）。
+  - 验证：新增 1 项测试，`npm test` 322/322、typecheck、build；在三条写入路径都被强制拒绝的条件下实测——线上聊天消息（选中即正文、无残留 textarea、焦点在按钮）、线上设置「关于」（选中 `v0.1.0` 与 `<code>` 一致）、本地 dev `Coding agent` fixture 的输出面板代码（选中与 `<pre>` 一致、焦点回到 `code-copy-button`）。
+
 - 2026-10-16 复制失败的回退与收尾（`0464fb6`，已部署）：核对后确认「复制失败」不是本仓缺陷，而是浏览器对未聚焦/隐藏文档直接拒绝 `writeText`（`NotAllowedError: Document is not focused`）——聚焦的前台 tab 里复制本来就是成功的（线上实测 `已复制` + `message-action-pop` running/120ms）。真正要修的是收尾：原来一次尝试失败就给「请选择文本后手动复制」却不帮忙选中。现在按 async API → `window.focus()` 后重试 → `execCommand` 回退的顺序试，三条都失败才报错，并**自动选中该条消息正文**，文案改为「复制被浏览器拦下了…按 ⌘C 或 Ctrl+C」（三语）。
   - 验证：新增 4 项测试（真实写入优先、丢焦点的窗口被 focus 救回、async 被拒后走 legacy、三条全失败必须报 failed 且 legacy 抛错不能逃逸）；`npm test` 321/319（仍只有那 2 项环境相关的浏览器用例）、build、typecheck；部署后线上双路径实测 —— **干净后台 tab**（`focused:false, hidden:true`）点复制 → 文案「复制被浏览器拦下了。已选中这条消息的文字，按 ⌘C 或 Ctrl+C 复制。」且 `getSelection().length = 38`（正是消息正文）；**聚焦 tab** 点复制 → 「已复制」、`svg.message-action-pop` 存在、`getSelection().length = 0`（成功路径没有多余选中）。
   - 边界：`execCommand` **成功**那一支只有单测覆盖，线上没构造出「真实用户手势 + 未聚焦」的组合，实到的是三条全失败分支；用户机器为何丢焦点仍未确定（可排除 iframe：`x-frame-options: DENY` 会直接拦掉框嵌入）。前端只能保证失败时一键可复制，不能保证写入。
