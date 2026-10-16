@@ -76,7 +76,11 @@ export function MessageActions({ project, role, text = "", messageId }: { projec
                 .finally(() => setBranchPending(false));
             }}>
             {action.id === "copy" && feedback
-              ? clipboard.status === "copied" ? <Check size={14} /> : <CircleAlert size={14} /> : action.icon}
+              ? clipboard.status === "copied"
+                // Copy is a hot path, so the confirmation is one small pop, not a flourish: the
+                // glyph swaps in place and the pop is what makes the swap read as "done".
+                ? <Check size={14} className="message-action-pop" />
+                : <CircleAlert size={14} /> : action.icon}
           </button>
         </IconTooltip>
       ))}

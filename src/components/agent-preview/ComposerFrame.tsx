@@ -2,6 +2,7 @@ import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, ListPlus
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { useShellExtras } from "../shell/ShellExtras";
 import { applyMention, mentionMatches, mentionQuery } from "../../runtime/mentionCompletion";
+import { appendedIds } from "../../runtime/queueEntrance";
 import type { PiPromptAttachment } from "../../pi/piClient";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
 import {
@@ -157,6 +158,12 @@ export function ComposerFrame({
   const permissionMode = composerOptions?.value.permissionMode ?? localPermissionMode;
   const setPermissionMode = (value: PermissionMode) => composerOptions
     ? composerOptions.onChange({ permissionMode: value }) : setLocalPermissionMode(value);
+  // Only a follow-up the user just added gets the queue's entrance; a queue restored with a
+  // conversation renders settled (see runtime/queueEntrance.ts).
+  const previousQueueIds = useRef<readonly string[]>([]);
+  const queueIds = composerQueue?.items.map((item) => item.id) ?? [];
+  const enteringQueueIds = new Set(appendedIds(previousQueueIds.current, queueIds));
+  useEffect(() => { previousQueueIds.current = queueIds; });
   const permissionModeChosen = useRef(false);
   // The host reports its default after mount; follow it until the user picks a mode.
   useEffect(() => {
@@ -418,7 +425,17 @@ export function ComposerFrame({
           </div>
           <ol className="composer-queue-list">
             {composerQueue.items.map((item, index) => (
-              <li className="composer-queue-item" key={item.id}>
+              <li
+                className="composer-queue-item"
+                key={item.id}
+                data-entering={enteringQueueIds.has(item.id) ? "true" : undefined}
+                // The entrance is a mount-time one-shot; clear the flag once it has run so the row
+                // does not claim to be entering for the rest of its life. Reduced motion swaps in
+                // a plain fade, hence the target check rather than a name check.
+                onAnimationEnd={(event) => {
+                  if (event.target === event.currentTarget) event.currentTarget.removeAttribute("data-entering");
+                }}
+              >
                 <span className="composer-queue-index" aria-hidden="true">{index + 1}</span>
                 <span className="composer-queue-text" title={item.prompt}>{item.prompt}</span>
                 {item.attachmentCount ? (

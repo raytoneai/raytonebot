@@ -4886,6 +4886,21 @@ textarea:focus-visible {
   color: var(--text-secondary);
 }
 
+/* Copy confirmation: the glyph swaps Copy → Check in place, and without this the swap reads as
+   a flicker. Copy is a hot path, so it stays this small — no colour change, no ring, no exit. */
+.message-action-pop {
+  animation: message-action-pop 120ms var(--ease-out) both;
+}
+
+@keyframes message-action-pop {
+  from { opacity: 0; transform: scale(0.9); }
+}
+
+/* Reduced motion drops the scale, not the confirmation: opacity alone still says "done". */
+@media (prefers-reduced-motion: reduce) {
+  .message-action-pop { animation: overlay-fade-in 80ms linear both; }
+}
+
 .message-action-time {
   display: inline-flex;
   align-items: center;
@@ -12477,7 +12492,21 @@ pre {
 .preview-frame .image-output-preview img { width: 100%; height: auto; max-height: 65vh; object-fit: contain; }
 .preview-frame .audio-output-preview audio,
 .preview-frame .video-output-preview video { width: 100%; max-height: 65vh; }
-.composer-draft-status { display: block; padding: 6px 12px 0; color: var(--text-muted); font-size: 12px; }
+/* Steering notice and draft status sit under the prompt row and are mounted in place, so they
+   enter where they belong instead of flashing on as a line of text. Entrance only: the line
+   unmounts when it clears, and keeping it mounted just to fade it out would leave a stale
+   status on screen for as long as the fade lasted. */
+.composer-draft-status {
+  display: block;
+  padding: 6px 12px 0;
+  color: var(--text-muted);
+  font-size: 12px;
+  animation: composer-status-in 160ms var(--ease-out) both;
+}
+
+@keyframes composer-status-in {
+  from { opacity: 0; transform: translateY(4px); }
+}
 
 /* Follow-up queue: above the composer, capped so a long queue scrolls on its own instead of
    squeezing the transcript on narrow screens. */
@@ -12487,6 +12516,20 @@ pre {
 .composer-queue-header [role="status"] { flex: 1 1 auto; min-width: 0; color: var(--text-muted); }
 .composer-queue-list { display: grid; gap: 2px; min-width: 0; max-height: min(30vh, 168px); margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; }
 .composer-queue-item { display: flex; min-width: 0; align-items: center; gap: 6px; min-height: 30px; padding: 0 2px 0 4px; border-radius: var(--radius-sm); font-size: 13px; color: var(--text-secondary); }
+/* A queued follow-up arrives above the composer while the eye is on the transcript. Only rows
+   that were genuinely appended carry data-entering — see runtime/queueEntrance.ts, which keeps a
+   queue restored with a conversation from replaying this. Curve matches composer-mentions-in. */
+.composer-queue-item[data-entering="true"] { animation: composer-queue-item-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes composer-queue-item-in { from { opacity: 0; transform: translateY(4px); } }
+
+/* Reduced motion keeps the fade and drops the travel. The queue row also clears its
+   data-entering flag on animationend, which needs an animation that actually ends. */
+@media (prefers-reduced-motion: reduce) {
+  .composer-draft-status,
+  .composer-queue-item[data-entering="true"] {
+    animation: overlay-fade-in 80ms linear both;
+  }
+}
 .composer-queue-item:hover { background: var(--surface-hover); }
 .composer-queue-index { flex: none; min-width: 1.5em; color: var(--text-muted); font-variant-numeric: tabular-nums; }
 .composer-queue-text { flex: 1 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
