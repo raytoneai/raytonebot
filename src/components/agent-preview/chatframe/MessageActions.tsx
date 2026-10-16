@@ -1,5 +1,5 @@
 import { Check, CircleAlert, Copy, Pencil, RotateCcw } from "lucide-react";
-import { useState, type ReactElement } from "react";
+import { useEffect, useRef, useState, type ReactElement } from "react";
 
 import { useCopy } from "../../../i18n/LocaleContext";
 import type { AgentFrontendProject } from "../../../schema/agentuxConfig";
@@ -15,6 +15,22 @@ export function MessageActions({ project, role, text = "", messageId }: { projec
   const [actionError, setActionError] = useState<string>();
   const [branchPending, setBranchPending] = useState(false);
   const clipboard = useClipboardFeedback(text);
+  const actionsRef = useRef<HTMLDivElement>(null);
+  /**
+   * The browser refused the write (an unfocused or hidden document, or a denied permission), so the
+   * message itself is the only copy source left. Select it, so the failure copy can say "press ⌘C"
+   * instead of asking the user to find the text and drag across it themselves.
+   */
+  useEffect(() => {
+    if (clipboard.status !== "failed") return;
+    const body = actionsRef.current?.closest(".message-item, .lane-message")?.querySelector(".msg-surface");
+    if (!body) return;
+    const range = document.createRange();
+    range.selectNodeContents(body);
+    const selection = window.getSelection();
+    selection?.removeAllRanges();
+    selection?.addRange(range);
+  }, [clipboard.status]);
   const feedback = clipboard.status === "copied" ? copy.chat.message.actions.copied
     : clipboard.status === "failed" ? copy.chat.message.actions.copyFailed : undefined;
   const { messageActions } = project.conversation;
@@ -55,6 +71,7 @@ export function MessageActions({ project, role, text = "", messageId }: { projec
   return (
     <div
       className="message-actions"
+      ref={actionsRef}
       data-message-actions={role}
       data-preview-anchor={role === "user" ? "user-message-actions" : "agent-message-actions"}
       aria-label={role === "user" ? copy.chat.message.actions.userActionsLabel : copy.chat.message.actions.agentActionsLabel}
