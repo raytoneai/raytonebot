@@ -1,26 +1,40 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { appendedIds } from "./queueEntrance.ts";
+import { createQueueEntrance, queueRowEnters, queueSeen } from "./queueEntrance.ts";
 
-test("only a grown, prefix-stable queue animates its new rows", () => {
-  assert.deepEqual(appendedIds(["a"], ["a", "b"]), ["b"], "an append is the one thing that animates");
-  assert.deepEqual(appendedIds(["a"], ["a", "b", "c"]), ["b", "c"], "every appended row animates once");
-  assert.deepEqual(appendedIds(["a", "b"], ["a", "b", "c"]), ["c"]);
+// The order below is the real one: a row's ref callback reads the entrance before the effect that
+// records the queue runs, so `queueRowEnters` is asked first and `queueSeen` follows.
+
+test("a queue restored with the conversation settles, while a follow-up the user adds enters", () => {
+  const entrance = createQueueEntrance();
+  assert.equal(queueRowEnters(entrance, "c1", "a"), false, "the first paint is a restored queue, not an append");
+  queueSeen(entrance, "c1", ["a"]);
+
+  assert.equal(queueRowEnters(entrance, "c1", "b"), true, "the user just added this one");
+  queueSeen(entrance, "c1", ["a", "b"]);
+  assert.equal(queueRowEnters(entrance, "c1", "b"), false, "the echo render of that same enqueue must not decide again");
+  assert.equal(queueRowEnters(entrance, "c1", "a"), false);
 });
 
-test("a restored queue renders settled instead of replaying the entrance", () => {
-  assert.deepEqual(appendedIds([], ["a", "b"]), [], "first paint with a restored queue");
-  assert.deepEqual(appendedIds([], []), [], "no queue yet");
-  assert.deepEqual(appendedIds(["a", "b"], ["a", "b"]), [], "an unchanged queue never animates");
+test("queueing into an empty queue enters: empty is not the same as restored", () => {
+  const entrance = createQueueEntrance();
+  queueSeen(entrance, "c1", []);
+  assert.equal(queueRowEnters(entrance, "c1", "a"), true, "the first item added to an empty queue is still the user's append");
 });
 
-test("another conversation's queue is a replacement, not an append", () => {
-  assert.deepEqual(appendedIds(["a", "b"], ["c", "d", "e"]), [], "shared prefix differs, so nothing is new");
-  assert.deepEqual(appendedIds(["a"], ["b", "c"]), [], "grew, but the head was replaced");
+test("switching conversations settles the whole queue and still enters a later append", () => {
+  const entrance = createQueueEntrance();
+  queueSeen(entrance, "c1", ["a"]);
+  assert.equal(queueRowEnters(entrance, "c2", "x"), false, "another conversation's restored queue is not an append");
+  queueSeen(entrance, "c2", ["x", "y"]);
+  assert.equal(queueRowEnters(entrance, "c2", "z"), true, "an append in the new conversation enters");
 });
 
-test("a shrinking or reordered queue keeps its rows still", () => {
-  assert.deepEqual(appendedIds(["a", "b"], ["a"]), [], "a submitted follow-up is a removal");
-  assert.deepEqual(appendedIds(["a", "b"], ["b", "c"]), [], "same length, so the grow check stops it");
-  assert.deepEqual(appendedIds(["a", "b"], ["b"]), [], "the head left without a replacement");
+test("a row that left and came back does not enter a second time", () => {
+  const entrance = createQueueEntrance();
+  queueSeen(entrance, "c1", []);
+  assert.equal(queueRowEnters(entrance, "c1", "a"), true);
+  queueSeen(entrance, "c1", ["a", "b"]);
+  queueSeen(entrance, "c1", ["b"]);
+  assert.equal(queueRowEnters(entrance, "c1", "b"), false, "the surviving row keeps its identity");
 });

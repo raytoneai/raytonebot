@@ -2,7 +2,7 @@ import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, ListPlus
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { useShellExtras } from "../shell/ShellExtras";
 import { applyMention, mentionMatches, mentionQuery } from "../../runtime/mentionCompletion";
-import { appendedIds } from "../../runtime/queueEntrance";
+import { createQueueEntrance, queueRowEnters, queueSeen, type QueueEntrance } from "../../runtime/queueEntrance";
 import type { PiPromptAttachment } from "../../pi/piClient";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
 import {
@@ -163,11 +163,13 @@ export function ComposerFrame({
   const setPermissionMode = (value: PermissionMode) => composerOptions
     ? composerOptions.onChange({ permissionMode: value }) : setLocalPermissionMode(value);
   // Only a follow-up the user just added gets the queue's entrance; a queue restored with a
-  // conversation renders settled (see runtime/queueEntrance.ts).
-  const previousQueueIds = useRef<readonly string[]>([]);
+  // conversation, and another conversation's queue, render settled (see runtime/queueEntrance.ts).
+  // Read from a ref by the row's ref callback and written by the effect below, so the two renders
+  // an enqueue produces cannot clear it.
   const queueIds = composerQueue?.items.map((item) => item.id) ?? [];
-  const enteringQueueIds = new Set(appendedIds(previousQueueIds.current, queueIds));
-  useEffect(() => { previousQueueIds.current = queueIds; });
+  const queueScope = composerQueue?.inputScope;
+  const queueEntrance = useRef<QueueEntrance>(createQueueEntrance());
+  useEffect(() => { queueSeen(queueEntrance.current, queueScope, queueIds); });
   const permissionModeChosen = useRef(false);
   // The host reports its default after mount; follow it until the user picks a mode.
   useEffect(() => {
@@ -432,10 +434,15 @@ export function ComposerFrame({
               <li
                 className="composer-queue-item"
                 key={item.id}
-                data-entering={enteringQueueIds.has(item.id) ? "true" : undefined}
-                // The entrance is a mount-time one-shot; clear the flag once it has run so the row
-                // does not claim to be entering for the rest of its life. Reduced motion swaps in
-                // a plain fade, hence the target check rather than a name check.
+                // Set imperatively rather than as a prop: enqueueing renders twice, and React strips a
+                // prop that goes back to undefined on the second render, which cancelled the animation
+                // before its first frame. React leaves an attribute it does not own alone, so the
+                // entrance survives until onAnimationEnd clears it.
+                ref={(node) => {
+                  if (node && queueRowEnters(queueEntrance.current, queueScope, item.id) && node.getAttribute("data-entering") !== "true") {
+                    node.setAttribute("data-entering", "true");
+                  }
+                }}
                 onAnimationEnd={(event) => {
                   if (event.target === event.currentTarget) event.currentTarget.removeAttribute("data-entering");
                 }}
