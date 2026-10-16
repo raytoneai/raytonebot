@@ -24,6 +24,22 @@
 
 `.gitignore` 已排除 `.agentsphere/`、`.env*`、`backups/`。
 
+## 欢迎/管理服务（control，ADR-041）
+
+在一台常驻主机上，从仓库根目录运行（需要 `npm ci`、`e2b<2` 的 Python venv，以及 git）：
+
+```bash
+E2B_API_KEY=... CONTROL_PUBLIC_ORIGIN=https://raytone.example.com CONTROL_HOST=127.0.0.1 \
+  node control/server.ts        # 默认端口 5199，数据在 ~/.raytone-control（CONTROL_DATA_DIR）
+node control/server.ts import --owner <用户 id>   # 把 .agentsphere/ 里现有的实例交给某个用户；启动时会重新部署一次，写入交接密钥
+```
+
+- 前面要放 HTTPS 反向代理。`CONTROL_PUBLIC_ORIGIN` 必须是用户实际访问的地址，POST 的同源校验和 bot 401 页面上「回到欢迎页」的链接都依赖它。
+- `CONTROL_DEV_USER=<id>` 会跳过登录（原型阶段），这时服务只能监听回环地址。
+- 模型 key 有两种来法：control 进程环境里有就用它；没有就保留沙箱里原有的值（与直接执行 `deploy.py` 相同）。
+- 备份在 `bots/<id>/backups/`，保留最近 7 份。恢复仍然手动执行：`sandbox.py --state-dir bots/<id> restore FILE`，然后再部署一次。
+- 交接密钥丢失或 control 数据目录丢失时，bot 只剩 Basic Auth 可用；重新 import 并部署即可恢复。
+
 ## 当前实例
 
 - `id705on7k0a1ya1d90icj`（自动暂停），URL：<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>

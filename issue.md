@@ -10,7 +10,10 @@ Platform facts come from probes against `api.agentsphere.run` with throwaway san
 ## 1. No long-lived sandbox on AgentSphere: lifetime is at most 50 hours per window
 
 **Status:** open, platform limitation. External-service wake is the working assumption as of
-2026-10-04; no external service has been connected or deployed.
+2026-10-04. Update 2026-10-14: the control service (`control/`, ADR-041) now implements it —
+wake on entry, renewal while active, waking before each routine, backup before pausing — and was
+verified against the test sandbox, but it only ran on this machine; it is not deployed on an
+always-on host yet, so routines still do not fire while nothing runs it.
 
 Verified:
 

@@ -5,6 +5,7 @@
   sandbox.py status | wake | pause | renew [SECONDS]
   sandbox.py backup                 # pull data, workspaces and native CLI sessions
   sandbox.py restore FILE           # validate, stop writers, restore; deploy again to restart
+  sandbox.py --state-dir DIR ...    # another instance's state (the control service keeps one per bot)
 
 `create` makes a sandbox that PAUSES at its timeout instead of being destroyed (full memory
 snapshot: processes, files and open ports come back as they were). The platform's proxy does
@@ -212,7 +213,7 @@ def backup(sid: str, *, quiet=False) -> Path:
         payload = bytes(sandbox.files.read(archive, format="bytes"))
     finally:
         run(sandbox, f"rm -f {shlex.quote(archive)}")
-    BACKUPS.mkdir(exist_ok=True)
+    BACKUPS.mkdir(mode=0o700, exist_ok=True)
     target = BACKUPS / f"{sid}-{datetime.now().strftime('%Y%m%d-%H%M%S-%f')}.tgz"
     partial = target.with_suffix(".partial")
     try:
@@ -224,7 +225,8 @@ def backup(sid: str, *, quiet=False) -> Path:
     finally:
         partial.unlink(missing_ok=True)
     if not quiet:
-        print(f"backup: {target.relative_to(ROOT)} ({len(payload) // 1024} KB; {present})")
+        shown = target.relative_to(ROOT) if target.is_relative_to(ROOT) else target
+        print(f"backup: {shown} ({len(payload) // 1024} KB; {present})")
     return target
 
 
@@ -285,6 +287,7 @@ def main() -> None:
     if os.environ.get("E2B_DOMAIN") != "agentsphere.run" or not os.environ.get("E2B_API_KEY"):
         fail("set E2B_DOMAIN=agentsphere.run and E2B_API_KEY")
     parser = argparse.ArgumentParser()
+    parser.add_argument("--state-dir", type=Path, help="separate deployment/access state; backups go to its backups/ folder")
     sub = parser.add_subparsers(dest="command", required=True)
     create = sub.add_parser("create")
     create.add_argument("--template", default="agentmatrix-v1")
@@ -307,6 +310,10 @@ def main() -> None:
     restore.add_argument("file")
     restore.set_defaults(handler=cmd_restore)
     args = parser.parse_args()
+    if args.state_dir:
+        global STATE, BACKUPS
+        STATE = args.state_dir.resolve() / "deployment.json"
+        BACKUPS = STATE.parent / "backups"
     args.handler(args)
 
 

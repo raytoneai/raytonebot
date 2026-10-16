@@ -205,6 +205,13 @@ def main() -> None:
         "RAYTONEBOT_ISOLATION_READY": "1",
         "RAYTONEBOT_BROWSER_PATH": shell,
     }
+    # Entering from the welcome page (ADR-041): the control service keeps this bot's handoff secret
+    # in the same state directory; without it the bot keeps Basic Auth only.
+    handoff_secret = access.get("handoffSecret")
+    if handoff_secret:
+        env["RAYTONEBOT_HANDOFF_SECRET"] = handoff_secret
+        if access.get("controlOrigin"):
+            env["RAYTONEBOT_CONTROL_ORIGIN"] = access["controlOrigin"]
     # Model keys: a value in this machine's environment wins; otherwise keep the sandbox's current
     # one, so a redeploy from a shell without the key does not silently disable the models.
     previous = {}
@@ -262,6 +269,8 @@ def main() -> None:
     status, body = http(f"{origin}/__agentcanvas/pi/health", password)
     expect("application health", status == 200 and json.loads(body).get("status") == "ok")
     expect("unauthenticated health blocked", http(f"{origin}/__agentcanvas/pi/health", None)[0] == 401)
+    if handoff_secret:
+        expect("handoff without token blocked", http(f"{origin}/__raytone/handoff", None)[0] == 401)
     status, body = http(f"{origin}/__agentcanvas/pi/state", password)
     expect("Pi state", status == 200)
     state = json.loads(body)
