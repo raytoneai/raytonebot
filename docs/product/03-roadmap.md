@@ -171,6 +171,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-16 修队列入场 + 线上复验（`b802918`，已部署）：真实运行时这条动画**根本没播**。线上实测入队后 `data-entering` 6ms 就被移除、没有 `animationstart` —— 入队 render 两次（本地状态 + 主机回显），而标记是"只亮一帧"的受控 prop，第二次 render 算出空集就被 React 抹掉；另外旧门控把"空队列加第一条"也当成了恢复历史而拒掉。改为判定放进只会增长的 ref、属性由 ref 回调命令式设置、`onAnimationEnd` 清除；settling 语义不变（首帧与换会话都整队视为已展示）。验证：4 项测试（新增空队列与"回显第二次 render"两个反例）、`npm test` 317/315（仍只有那 2 项环境相关的浏览器用例）、build、typecheck；部署后用 control 的 state 目录（`RAYTONEBOT_HANDOFF_SECRET` 保留，10 项自检含 handoff 401 全过），在同一沙箱真实 DeepSeek 运行里复验：空→首条与追加第二条都抓到 `animationstart composer-queue-item-in` → 158ms 后 `animationend`，属性**恰在 animationend 时刻**清除（不再是 6ms）。坑记入 09「界面」。测试用的对话「请写一篇 1200 字的中文短篇小说《灯塔》」留在沙箱侧栏，未删除。
+
 - 2026-10-16 部署 `ffb8730` 到生产沙箱 `id705on7k0a1ya1d90icj`（<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>）：实例处于暂停态，先 `sandbox.py wake`（27.8 s，窗口至 2026-10-18T14:12Z）再 `deploy.py`（不带 `--timeout`，原因见 09）；本机构建 → 上传 6669 KB → 锁文件未变跳过 `npm ci` → 原生隔离校验通过 → headless shell 1248 → supervisor pid 27435。self-check 9 项全过（鉴权页、未登录/错误密码 401、health、未登录 health 401、Pi state、沙箱模式、三角色工作区、外站 403），三引擎可用（Claude Code 2.1.267、Codex 0.154.0）。
   - 本次上线三个提交：`f0adf19` 队列新增/复制成功/状态行入场动效；`e2de227` 插话客户端（`useSteeringInput` + `steerPiTurn`）与 Raer 进度契约；`ffb8730` 欢迎页会话交接（ADR-041）与部署工具。
   - deploy.py 之外的独立复核：`curl` 未登录 401、错误密码 401、登录 200、`/health` 200；线上 `assets/index-*.css` 含 `composer-queue-item-in`、`composer-status-in`、`message-action-pop`，线上 `assets/index-*.js` 含插话文案「补充已接收」「未确认接收」；`POST /__agentcanvas/pi/steer` 空体 400、假 run 409，与 `piHost.ts` 的判定一致（路由与控制器都在线上）。

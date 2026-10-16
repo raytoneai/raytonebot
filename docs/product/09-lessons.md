@@ -90,6 +90,7 @@
 - **复制控件只有图标，或点击失败却无提示** → 消息按钮没有 onClick/原文，其他入口忽略 Clipboard Promise 拒绝 → 把对应消息原文传到既有控件，共用等待浏览器写入、失败反馈及卸载清理。不要从渲染后 DOM 收集文本，否则会丢 Markdown 或混入其他消息/按钮；验收需读回实际剪贴板，并模拟拒绝与 API 不存在。
 - **HTML 产物“只去掉 `<script>`”仍会执行代码** → `onerror`/`onclick` 等事件属性与 `javascript:` URL 在 `allow-scripts` 的 iframe 里照样运行（Codex review 复现）→ 不能执行的内容用不含 `unsafe-inline` 的 nonce CSP，让浏览器拒绝，再在惰性 `<template>` 里清洗作第二道（`htmlStreamDocument`）。
 - **HTML 产物加载时自动发送追问被放行** → 打开文件那一下点击的用户激活还在有效期内 → 同时要求 iframe 持有焦点（ADR-035）。
+- **一次性入场标记写成受控属性，动画会静默不播**（2026-10-16）→ 入队会 render 两次（本地状态 + 主机回显），按"上一帧差集"算出的 prop 在第二次 render 变回 `undefined`，React 就把属性移除、动画在首帧前被取消 —— 线上实测 `data-entering` 设上后 **6ms 被移除，`animationstart` 从未触发**，但 CSS 规则、纯函数单测、编译产物全都对，只有真实运行能发现 → 判定状态放进**只会增长的 ref**（"这个列表见过哪些 id"），属性用 ref 回调**命令式** `setAttribute`（React 不碰它不拥有的属性，已实测属性可跨两次强制重渲染存活），`onAnimationEnd` 负责清除。同理，"是否新出现"不要按上一帧差集算，否则空列表加第一条也会被判成"没有前一项"而拒掉。验收要在真实运行里对 `animationstart`/`animationend` 的时间戳，只测 CSS 或纯函数会漏掉这类竞态。
 
 ## 浏览器验收
 
