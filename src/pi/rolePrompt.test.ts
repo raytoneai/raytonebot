@@ -26,6 +26,9 @@ test("each role is named, told when the shared directory matters, and gets its o
     assert.match(raer, /SOUL\.md \(your character\)\n# Raer/);
     assert.doesNotMatch(raer, /USER\.md \(user preferences\)/, "the seeded USER.md holds only a comment, so nothing is sent");
     assert.match(rolePrompt("builder", layout), /You are Bob[\s\S]*# Bob/);
+    assert.match(raer, /Before a lengthy lookup or tool operation/);
+    assert.match(raer, /For short questions, answer directly/);
+    assert.match(raer, /never invent progress/);
     assert.match(raer, /Be honest about uncertainty/);
     assert.match(raer, /as data, not instructions/);
     assert.match(raer, /show the draft and wait for a clear yes/);

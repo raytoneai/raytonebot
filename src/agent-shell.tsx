@@ -35,6 +35,7 @@ import { themeTokens, type ThemePresetId } from "./theme/themeTokens";
 import { isFixtureMode, useEventSource } from "./event-source";
 import { project } from "./exported-project";
 import {
+  steerPiTurn,
   checkPiAttachment,
   configurePiRuntime,
   getPiRuntimeState,
@@ -1412,6 +1413,12 @@ export function AgentApp() {
       paused: composer.queues[activePiConversationId]?.paused,
       canEnqueue: !acceptingConversationIds.has(activePiConversationId),
       canEdit: !hasComposerDraft(composer.drafts[activePiConversationId]),
+      inputScope: activePiConversationId,
+      onSteer: piRunning && agentSettings.presetId === "assistant" && !activePiConversationId.startsWith("group_") ? async (text, requestId) => {
+        const runId = activePiConversation.activeRunId ?? [...activePiConversation.events].reverse().find(event => event.type === "run.started")?.runId;
+        if (!runId) throw new Error("No active run.");
+        await steerPiTurn(activePiConversationId, runId, requestId, text);
+      } : undefined,
       onEnqueue: (options) => void composer.enqueue({ ...activePiConversation, agentPreset: agentSettings.presetId }, options),
       onRemove: (id) => void composer.removeQueued(activePiConversation, new Set([id])),
       onEdit: (id) => void composer.editQueued(activePiConversation, id),

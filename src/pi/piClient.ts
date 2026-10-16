@@ -529,3 +529,7 @@ function parseEventLine(line: string): AgentUXEvent | undefined {
     return undefined;
   }
 }
+
+export async function steerPiTurn(conversationId: string, runId: string, requestId: string, text: string) {
+  await requestJson(fetch, `${PI_API_PREFIX}/steer`, { conversationId, runId, requestId, text }, AbortSignal.timeout(15_000));
+}

@@ -73,6 +73,8 @@ export type ShellExtras = {
     paused?: "stopped" | "failed" | "restored";
     canEnqueue: boolean;
     canEdit: boolean;
+    inputScope?: string;
+    onSteer?: (text: string, requestId: string) => Promise<void>;
     onEnqueue: (options: ComposerRunOptions) => void;
     onRemove: (id: string) => void;
     onEdit: (id: string) => void;

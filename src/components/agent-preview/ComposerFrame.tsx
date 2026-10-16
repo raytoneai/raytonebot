@@ -13,7 +13,8 @@ import {
 } from "../../schema/agentuxConfig";
 
 import { StateIcon } from "../../agentmatrix";
-import { useCopy } from "../../i18n/LocaleContext";
+import { useSteeringInput } from "../../runtime/useSteeringInput";
+import { useCopy, useLocale } from "../../i18n/LocaleContext";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, IconButton, SelectMenu, Textarea } from "../ui";
 
 /**
@@ -133,6 +134,8 @@ export function ComposerFrame({
   defaultPermissionMode?: PermissionMode;
 }) {
   const copy = useCopy();
+  const { locale } = useLocale();
+  const steerLabel = locale === "zh" ? "调整当前任务" : locale === "ja" ? "現在のタスクを調整" : "Adjust current task";
   const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions } = useShellExtras();
   const promptShortcuts = [
     { label: copy.composer.frame.shortcuts.inspectFiles, Icon: Search },
@@ -146,6 +149,7 @@ export function ComposerFrame({
   const [localDraft, setLocalDraft] = useState<ComposerDraft>({ prompt: "", attachments: [] });
   const draft = composerDraft?.value ?? localDraft;
   const updateDraft = composerDraft?.onChange ?? setLocalDraft;
+  const { steering, notice: steeringNotice, submit: submitSteering } = useSteeringInput(composerQueue?.onSteer, updateDraft, locale, composerQueue?.inputScope);
   const promptValue = draft.prompt;
   const attachedFiles = draft.attachments;
   const setPromptValue = (value: SetStateAction<string>) => updateDraft((current) => ({
@@ -266,7 +270,7 @@ export function ComposerFrame({
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-    if (restoringDrafts) return;
+    if (restoringDrafts || steering) return;
     if (canQueue) {
       composerQueue!.onEnqueue({ permissionMode, budgetMode });
       textareaRef.current?.focus({ preventScroll: true });
@@ -760,8 +764,11 @@ export function ComposerFrame({
                 </span>
               </IconButton>
             ) : null}
+            {canQueue && composerQueue?.onSteer && attachedFiles.length === 0 ? (
+              <Button variant="primary" type="button" disabled={steering} aria-label={steerLabel} title={locale === "zh" ? "在下一次模型调用前接收补充，不会立即停止当前输出" : "Applies before the next model call; does not stop current output"} onClick={() => void submitSteering(promptValue)}>{locale === "zh" ? "插话" : locale === "ja" ? "補足" : "Adjust"}</Button>
+            ) : null}
             {canQueue ? (
-              <Button className="send-button composer-queue-add" variant="primary" type="submit">
+              <Button className="send-button composer-queue-add" variant="primary" type="submit" disabled={steering}>
                 <ListPlus size={16} />
                 {copy.composer.frame.queue.add}
               </Button>
@@ -784,6 +791,7 @@ export function ComposerFrame({
           </div>
         </div>
       </div>
+      {steeringNotice ? <small className="composer-draft-status" role="status">{steeringNotice}</small> : null}
       {stopStatus === "pending" || stopStatus === "failed" || composerDraft?.status && (canSubmit || draft.runOptions || composerDraft.status !== "saved") ? (
         <small className="composer-draft-status" role="status">
           {[stopFeedback, composerDraft?.status && (canSubmit || draft.runOptions || composerDraft.status !== "saved")
