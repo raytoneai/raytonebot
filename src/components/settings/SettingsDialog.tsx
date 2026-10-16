@@ -727,7 +727,7 @@ function Segmented<T extends string>({ value, options, onChange, ariaLabel, disa
 
 function CopyButton({ t, value }: { t: { copy: string; copied: string }; value: string }) {
   const clipboard = useClipboardFeedback(value);
-  const failure = useCopy().chat.message.actions.copyFailed;
+  const failure = useCopy().chat.message.actions.copyFailedText;
   const label = clipboard.status === "copied" ? t.copied : clipboard.status === "failed" ? failure : t.copy;
   return (
     <button
@@ -735,7 +735,7 @@ function CopyButton({ t, value }: { t: { copy: string; copied: string }; value: 
       className="settings-copy"
       aria-label={label}
       title={label}
-      onClick={() => void clipboard.copy()}
+      onClick={(event) => void clipboard.copy(event.currentTarget.closest(".settings-about-row")?.querySelector("code"))}
     >
       {clipboard.status === "copied" ? <Check size={13} aria-hidden="true" /> : clipboard.status === "failed" ? <CircleAlert size={13} aria-hidden="true" /> : <Copy size={13} aria-hidden="true" />}
     </button>

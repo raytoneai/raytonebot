@@ -50,7 +50,7 @@ export function OutputContent({
   const code = artifact && renderer === "code" ? artifactCodePreview(artifact, copy) : undefined;
   const clipboard = useClipboardFeedback(source === "artifact" && !openItems.length ? code?.code ?? "" : "");
   const labels = useCopy().chat.message.actions;
-  const feedback = clipboard.status === "copied" ? labels.copied : clipboard.status === "failed" ? labels.copyFailed : undefined;
+  const feedback = clipboard.status === "copied" ? labels.copied : clipboard.status === "failed" ? labels.copyFailedText : undefined;
   if (source === "console") {
     return <ConsoleOutput copy={copy} entries={consoleEntries} />;
   }
@@ -97,7 +97,7 @@ export function OutputContent({
             aria-label={feedback ?? copy.copyCode}
             title={feedback ?? copy.copyCode}
             disabled={!code.code}
-            onClick={() => void clipboard.copy()}
+            onClick={(event) => void clipboard.copy(event.currentTarget.closest(".code-output")?.querySelector("pre"))}
           >
             {clipboard.status === "copied" ? <Check size={14} /> : clipboard.status === "failed" ? <CircleAlert size={14} /> : <Copy size={14} />}
           </button>

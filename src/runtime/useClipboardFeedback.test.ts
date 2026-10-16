@@ -2,22 +2,23 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { copyText } from "./useClipboardFeedback.ts";
 
-type Fake = { write: number; focus: number; command: number };
+type Fake = { write: number; focus: number; command: number; removed: number; refocused: number };
 
 /**
  * The browser APIs copyText reaches for. `clipboard: "deny"` is what an unfocused or hidden
  * document gets; `focusRescues: true` is a window that had merely lost focus.
  */
 function fakeBrowser(options: { clipboard: "ok" | "deny"; focusRescues?: boolean; command?: boolean | "throw" }): Fake {
-  const calls: Fake = { write: 0, focus: 0, command: 0 };
+  const calls: Fake = { write: 0, focus: 0, command: 0, removed: 0, refocused: 0 };
   let remainingFailures = options.clipboard === "ok" ? 0 : options.focusRescues ? 1 : Number.POSITIVE_INFINITY;
-  const area = { value: "", style: { cssText: "" }, setAttribute() {}, select() {}, remove() {} };
+  const area = { value: "", style: { cssText: "" }, setAttribute() {}, select() {}, remove() { calls.removed += 1; } };
   // `navigator` is a getter-only global, so the fakes are installed with defineProperty.
   const define = (name: string, value: unknown) =>
     Object.defineProperty(globalThis, name, { value, configurable: true, writable: true });
   define("window", { focus: () => { calls.focus += 1; } });
   define("document", {
     createElement: () => area,
+    activeElement: { focus: () => { calls.refocused += 1; } },
     body: { appendChild() {} },
     execCommand: () => {
       calls.command += 1;
@@ -63,4 +64,11 @@ test("every path failing is reported as failed, never as copied", async () => {
   assert.equal(await copyText("hello"), "failed");
   const throwing = fakeBrowser({ clipboard: "deny", command: "throw" });
   assert.equal(await copyText("hello"), "failed", "a throwing legacy command must not escape");
+});
+
+test("the legacy path always removes its textarea and hands focus back, even when it throws", async () => {
+  const calls = fakeBrowser({ clipboard: "deny", command: "throw" });
+  assert.equal(await copyText("hello"), "failed");
+  assert.equal(calls.removed, 1, "no textarea is left in the page");
+  assert.equal(calls.refocused, 1, "focus returns to the copy button");
 });

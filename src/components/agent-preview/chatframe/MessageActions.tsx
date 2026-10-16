@@ -1,5 +1,5 @@
 import { Check, CircleAlert, Copy, Pencil, RotateCcw } from "lucide-react";
-import { useEffect, useRef, useState, type ReactElement } from "react";
+import { useRef, useState, type ReactElement } from "react";
 
 import { useCopy } from "../../../i18n/LocaleContext";
 import type { AgentFrontendProject } from "../../../schema/agentuxConfig";
@@ -16,21 +16,6 @@ export function MessageActions({ project, role, text = "", messageId }: { projec
   const [branchPending, setBranchPending] = useState(false);
   const clipboard = useClipboardFeedback(text);
   const actionsRef = useRef<HTMLDivElement>(null);
-  /**
-   * The browser refused the write (an unfocused or hidden document, or a denied permission), so the
-   * message itself is the only copy source left. Select it, so the failure copy can say "press ⌘C"
-   * instead of asking the user to find the text and drag across it themselves.
-   */
-  useEffect(() => {
-    if (clipboard.status !== "failed") return;
-    const body = actionsRef.current?.closest(".message-item, .lane-message")?.querySelector(".msg-surface");
-    if (!body) return;
-    const range = document.createRange();
-    range.selectNodeContents(body);
-    const selection = window.getSelection();
-    selection?.removeAllRanges();
-    selection?.addRange(range);
-  }, [clipboard.status]);
   const feedback = clipboard.status === "copied" ? copy.chat.message.actions.copied
     : clipboard.status === "failed" ? copy.chat.message.actions.copyFailed : undefined;
   const { messageActions } = project.conversation;
@@ -84,7 +69,7 @@ export function MessageActions({ project, role, text = "", messageId }: { projec
         <IconTooltip key={action.id} label={action.id === "copy" && feedback ? feedback : action.label}>
           <button className="message-action-icon" aria-label={action.id === "copy" && feedback ? feedback : action.label} type="button"
             disabled={action.id === "copy" ? !text : !messageBranch?.canBranch(messageId)}
-            onClick={action.id === "copy" ? () => void clipboard.copy() : () => {
+            onClick={action.id === "copy" ? () => void clipboard.copy(actionsRef.current?.closest(".message-item, .lane-message")?.querySelector(".msg-surface")) : () => {
               if (!messageId || !messageBranch || (action.id !== "edit" && action.id !== "regenerate")) return;
               setActionError(undefined);
               setBranchPending(true);
