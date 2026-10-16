@@ -171,6 +171,11 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 ## 进度日志
 
+- 2026-10-16 部署 `ffb8730` 到生产沙箱 `id705on7k0a1ya1d90icj`（<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>）：实例处于暂停态，先 `sandbox.py wake`（27.8 s，窗口至 2026-10-18T14:12Z）再 `deploy.py`（不带 `--timeout`，原因见 09）；本机构建 → 上传 6669 KB → 锁文件未变跳过 `npm ci` → 原生隔离校验通过 → headless shell 1248 → supervisor pid 27435。self-check 9 项全过（鉴权页、未登录/错误密码 401、health、未登录 health 401、Pi state、沙箱模式、三角色工作区、外站 403），三引擎可用（Claude Code 2.1.267、Codex 0.154.0）。
+  - 本次上线三个提交：`f0adf19` 队列新增/复制成功/状态行入场动效；`e2de227` 插话客户端（`useSteeringInput` + `steerPiTurn`）与 Raer 进度契约；`ffb8730` 欢迎页会话交接（ADR-041）与部署工具。
+  - deploy.py 之外的独立复核：`curl` 未登录 401、错误密码 401、登录 200、`/health` 200；线上 `assets/index-*.css` 含 `composer-queue-item-in`、`composer-status-in`、`message-action-pop`，线上 `assets/index-*.js` 含插话文案「补充已接收」「未确认接收」；`POST /__agentcanvas/pi/steer` 空体 400、假 run 409，与 `piHost.ts` 的判定一致（路由与控制器都在线上）。
+  - 边界：`access.json` 只有 `username`/`password`，没有 `handoffSecret`，所以沙箱仍只有 Basic Auth，欢迎页交接（`/__raytone/handoff`）**未启用**、其自检未执行；插话只验证到编译、测试与端点判定，**未在真实运行的模型回合里试过**，也未做浏览器视觉验收；`tmp/avatar-eye-study/` 的 125 个改动文件未提交，工作区仍留作脏。
+
 - 2026-10-16 动效第一批（参照 Motion Prompt 命名库，只借动作与参数，不引依赖；工作树，未部署）：① 追问队列新增项入场 —— 只有纯追加的 id 才带 `data-entering`（`src/runtime/queueEntrance.ts`），恢复会话的队列与另一会话的队列都不重播，曲线复用仓库已有的 `composer-mentions-in`（160ms `cubic-bezier(0.2, 0.8, 0.2, 1)`）；② 消息复制成功后 Copy→Check 的 120ms 缩放淡入（`.message-action-pop`，失败态与其余动作不变），补上原先图标瞬切没有的"已完成"信号；③ 插话提示与草稿状态在原位 160ms 上移淡入。三条都不新增曲线（`--ease-out` 或既有曲线），减少动效时只保留 80ms 纯淡入、去掉位移与缩放。
   - 验证：新增 4 项测试（`src/runtime/queueEntrance.test.ts`：纯追加才动、恢复不重播、换会话不算追加、缩短或重排不动）；`npm run typecheck` 与 `npm run build` 通过；`npm test` 303 项 / 301 通过，2 项失败都在 `src/pi/browser/browser.test.ts` 的真实浏览器用例（`Target crashed`、下载目录权限），本机 `sudo -n -u raytone-browser` 不可用即构造性失败，且该用例与本次改动无依赖路径。本机 Chrome 走查 `http://127.0.0.1:5188/?devtools=1`：真实点击复制后新渲染的 `<svg class="message-action-pop">` 上 `getAnimations()` 为 `message-action-pop` / running / 120ms / fill both；在输入框输入触发草稿状态后 `composer-status-in` running 160ms；向真实页面注入带 `data-entering` 的队列行，实测计算值为 `composer-queue-item-in`、0.16s、`cubic-bezier(0.2, 0.8, 0.2, 1)`、fill both。未调用真实模型，未部署。
   - 边界：队列的端到端入场（真实排队一次追问后新行出现）**未做视觉验收**——本机没有能产出 `composerQueue` 的 fixture（该状态只由主机的真实排队产生），上面验的是规则与门控，不是那一次真实入场；第 5 条候选（用户气泡入场）、群聊「正在输入」气泡、空状态错峰与设置保存扩散环本轮均未做。

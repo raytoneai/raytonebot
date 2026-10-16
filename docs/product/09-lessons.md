@@ -18,6 +18,7 @@
 - **想给现有沙箱开自动暂停** → 生命周期只能在创建时设置 → 新建沙箱再部署。
 - **`autoResume: true` 报 400** → 该字段是对象 → `{"autoPause": true, "autoResume": {"enabled": true}}`。
 - **暂停后访问 URL 得到 502** → 平台代理不唤醒 → 本机 `sandbox.py wake`。
+- **暂停中的实例上部署直接失败：`404: Sandbox "…" doesn't exist or you don't have access to it`** → 暂停态不接受 `set_timeout`，`Sandbox.connect` 的自动恢复不替它兜住；`deploy.py --timeout` 是 connect 之后立刻 set_timeout，所以只要实例是暂停的就必失败（`sandbox.py status` 仍能报出它是 paused，容易误判为实例已销毁）。→ 先 `sandbox.py wake`（2026-10-16 实测恢复 27.8 s），再 `deploy.py` **不带** `--timeout`。注意窗口从恢复时起算（本次至 `2026-10-18T14:12Z` ≈ 满 50 h），此时再传 `--timeout 86400` 反而会把窗口**缩短**一天。
 - **沙箱在运行，URL 却 502，日志无报错** → 服务用 SDK `background=True` 启动，挂在 SDK 命令会话上，部署脚本退出后被一起清理 → 用 `setsid nohup … &` 完全脱离后启动（`deploy.py` 已改）。先用 `sandbox.py status` 区分「沙箱暂停」与「进程不在」。
 
 ## Claude Code / Codex CLI
