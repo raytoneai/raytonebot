@@ -84,6 +84,7 @@ export type { PiPermissionMode } from "./approvalGate.ts";
 export type PiSessionBridge = {
   subscribe(listener: (event: PiWireEvent) => void): () => void;
   prompt(text: string): Promise<void>;
+  steer?(text: string): Promise<void>;
   abort(): Promise<void>;
   dispose(): void;
   configure(input: PiRuntimeConfiguration): Promise<void>;
@@ -106,7 +107,7 @@ export type PiBridgeFactory = (input: {
 export type PiRuntimeController = {
   /** Permission mode a turn gets when its client does not choose one (IM channels). */
   readonly defaultPermissionMode: PiPermissionMode;
-  health(): { status: "ok"; activeRuns: number; maxConcurrentRuns: number; uptimeSeconds: number };
+  health(): { status: "ok"; activeRuns: number; maxConcurrentRuns: number; uptimeSeconds: number; lastRunAgoMs?: number };
   state(conversationId?: string): Promise<PiRuntimeState>;
   configure(input: PiRuntimeConfiguration): Promise<PiRuntimeState>;
   /** `signal` belongs to the caller's stream: aborting it stops this run, and only once the run
@@ -117,6 +118,7 @@ export type PiRuntimeController = {
   runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
+  steer(conversationId: string, runId: string, requestId: string, text: string): Promise<boolean>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
   /** Saved conversations; `running` marks those with a turn in flight right now, `awaitingUser`
    *  those whose turn holds an approval or a question for the user. */
@@ -270,10 +272,13 @@ export function createPiRuntimeController(options: {
   type RunSlot = {
     runId: string;
     fromChannel?: boolean;
+    groupConversation?: boolean;
     /** The turn's model service and language, for a routine created during it. */
     turn: Pick<PiPromptInput, "provider" | "model" | "locale">;
     adapter?: PiEventAdapter;
     stop?: () => Promise<void>;
+    steer?: (text: string, requestId: string) => Promise<void>;
+    steering?: Map<string, { text: string; done: Promise<void> }>;
     stopRequested: boolean;
     limit?: string;
     /** Browsers watching the run; it keeps going with none (a closed tab does not stop it). */
@@ -281,6 +286,9 @@ export function createPiRuntimeController(options: {
     done: Promise<void>;
   };
   const runs = new Map<string, RunSlot>();
+  /** When a turn was last accepted or ended. The keeper's per-minute sampling cannot see a short
+   *  turn, so it reads this (as an age) instead of inferring activity from `activeRuns`. */
+  let lastRunTouchedAt: number | undefined;
   const disposed = new AbortController();
   /** Session resets and configurations in flight, one at a time per conversation. A turn waits
    *  for both; a reset that fails also fails the turns queued behind it. */
@@ -537,6 +545,11 @@ export function createPiRuntimeController(options: {
       // with no await between this check and the prompt.
       if (runs.get(conversationId)?.stopRequested) return;
       adapter.startUserMessage(prompt);
+      const slot = runs.get(conversationId)!;
+      if (current.steer && !slot.groupConversation) slot.steer = async (text, requestId) => {
+        await current.steer!(withReplyLanguage(text, input.locale));
+        adapter.startUserMessage(text, requestId);
+      };
       await current.prompt(modelPrompt);
       adapter.finish(runs.get(conversationId)?.stopRequested ? "cancelled" : "success");
     } catch (error) {
@@ -721,7 +734,9 @@ export function createPiRuntimeController(options: {
   const api: PiRuntimeController = {
     state,
     defaultPermissionMode,
-    health: () => ({ status: "ok", activeRuns: runs.size, maxConcurrentRuns, uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000) }),
+    health: () => ({ status: "ok", activeRuns: runs.size, maxConcurrentRuns, uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+      // An age, not a timestamp: the keeper's clock and the sandbox's need not agree.
+      lastRunAgoMs: lastRunTouchedAt === undefined ? undefined : Math.max(0, Date.now() - lastRunTouchedAt) }),
     async configure(input) {
       const conversationId = normalizeConversationId(input.conversationId);
       const idle = () => { if (runs.has(conversationId)) throw new Error("Stop this conversation's run before changing its configuration."); };
@@ -773,9 +788,10 @@ export function createPiRuntimeController(options: {
       }
       // No await after the final checks: another prompt cannot take this conversation or slot.
       let settle!: () => void;
-      const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel,
+      const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, groupConversation: options?.groupConversation,
         turn: { provider: input.provider, model: input.model, locale: input.locale }, stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
+      lastRunTouchedAt = Date.now();
       const stopOnSignal = () => void abortRuns(conversationId, slot.runId).catch(() => undefined);
       if (options?.signal?.aborted) stopOnSignal();
       options?.signal?.addEventListener("abort", stopOnSignal, { once: true });
@@ -866,6 +882,7 @@ export function createPiRuntimeController(options: {
           settle();
         }
         log("run.ended", { conversationId, harness, status: terminalStatus, durationMs: Date.now() - runStartedAt, outputBytes });
+        lastRunTouchedAt = Date.now();
         const stashed = pendingTitles.get(conversationId);
         if (stashed) { pendingTitles.delete(conversationId); applyTitle(conversationId, stashed.createdAt, stashed.title); }
       }
@@ -919,6 +936,21 @@ export function createPiRuntimeController(options: {
         || providerKeys.get(definition.id)
         || (definition.apiKeyEnvVar ? process.env[definition.apiKeyEnvVar]?.trim() : undefined);
       return probeProvider(definition, definition.authMode === "none" ? undefined : key);
+    },
+    async steer(conversationId, runId, requestId, text) {
+      const slot = runs.get(conversationId);
+      if (!slot || slot.runId !== runId || slot.stopRequested || !slot.steer || awaitingUser(conversationId)) return false;
+      const previous = slot.steering?.get(requestId);
+      if (previous) {
+        if (previous.text !== text) throw new Error("This input id already belongs to another message.");
+        await previous.done;
+        return true;
+      }
+      const done = slot.steer(text, requestId);
+      (slot.steering ??= new Map()).set(requestId, { text, done });
+      await done;
+      store.flush(conversationId);
+      return true;
     },
     abort: abortRuns,
     resolveUserInput: (conversationId, requestId, answers) => userInputGate.resolve(normalizeConversationId(conversationId), requestId, answers),
@@ -1172,6 +1204,17 @@ export function createPiHttpHost(options: {
           const body = await readJson(req);
           const result = controller.branchConversation(decodeURIComponent(branchMatch[1]), stringField(body, "beforeRunId") ?? "");
           sendJson(res, 201, { conversationId: result.conversation.id, draft: result.draft });
+          return true;
+        }
+        if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/steer`) {
+          const body = await readJson(req);
+          const conversationId = stringField(body, "conversationId"), runId = stringField(body, "runId");
+          const requestId = stringField(body, "requestId"), text = stringField(body, "text")?.trim();
+          if (!conversationId || !runId || !requestId || !/^[a-zA-Z0-9_-]{1,100}$/.test(requestId) || !text || text.length > 16000 || text.startsWith("/")) {
+            sendJson(res, 400, { error: "A conversation, active run, input id and plain text (up to 16000 characters) are required." });
+          } else if (!await controller.steer(conversationId, runId, requestId, text)) {
+            sendJson(res, 409, { error: "This run cannot accept input now. Keep the draft or add it to the follow-up queue." });
+          } else sendJson(res, 200, { ok: true });
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/abort`) {
@@ -1532,9 +1575,19 @@ async function createDefaultPiBridge(input: {
         await session.setModel(modelRuntime.getModel(definition.id, selected.id)!);
       }
     },
+    async steer(text) {
+      if (session.isIdle) throw new Error("This run is no longer accepting input.");
+      const disposition = await session.steer(text);
+      if (session.isIdle) {
+        session.clearQueue();
+        throw new Error("The run ended before input could be confirmed.");
+      }
+      if (disposition !== "queued") throw new Error("The input was handled by an extension instead of queued.");
+    },
     abort() {
       stopEpoch++;
-      return session.abort();
+      session.clearQueue();
+      return session.abort().finally(() => { session.clearQueue(); });
     },
     dispose() {
       stopEpoch++;

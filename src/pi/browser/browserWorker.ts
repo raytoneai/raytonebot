@@ -11,6 +11,7 @@ import { createServer } from "node:net";
 import { chromium, type Browser, type CDPSession, type Page } from "playwright-core";
 
 import type { BrowserElement, BrowserRequest, BrowserWorkerMessage, BrowserLaunch } from "./browserProtocol.ts";
+import { elementSubmitFacts, enrichmentPlan } from "./browserPolicy.ts";
 
 const VIEWPORT = { width: 1280, height: 800 };
 const ACTION_TIMEOUT = 10_000;
@@ -19,8 +20,6 @@ const NAVIGATION_TIMEOUT = 30_000;
 const FRAME_INTERVAL_MS = 160;
 const FILE_LIMIT = 100 * 1024 * 1024;
 const KEYS = new Set(["Enter", "Escape", "Tab", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", "Space"]);
-/** Roles worth a DOM look before acting: what they submit, and whether they take a secret. */
-const ENRICHED = new Set(["textbox", "searchbox", "combobox", "button", "spinbutton"]);
 
 let launchOptions: BrowserLaunch;
 let chrome: ChildProcess | undefined;
@@ -122,17 +121,18 @@ async function snapshot(current: Page): Promise<{ text: string; elements: Record
   const elements: Record<string, BrowserElement> = {};
   const lines = [...text.matchAll(/^\s*- ([a-z]+)(?: "((?:[^"\\]|\\.)*)")?[^\n]*\[ref=([a-z0-9]+)\]/gm)];
   for (const [line, role, name = "", ref] of lines) elements[ref] = { role, name: name.replace(/\\"/g, "\""), ...(line.includes("[active]") ? { active: true } : {}) };
-  const enrich = Object.entries(elements).filter(([, element]) => ENRICHED.has(element.role)).slice(0, 200);
-  await Promise.all(enrich.map(async ([ref, element]) => {
-    const details = await current.getByRef(ref).evaluate((node) => {
-      const el = node as HTMLInputElement & HTMLButtonElement;
-      const form = el.form ?? el.closest("form");
-      const type = (el.getAttribute("type") ?? "").toLowerCase();
-      const autocomplete = (el.getAttribute("autocomplete") ?? "").toLowerCase();
-      const submits = el.tagName === "BUTTON" ? (type === "" || type === "submit") && Boolean(form) : type === "submit" || type === "image";
-      return { inputType: type || el.tagName.toLowerCase(), autocomplete, formMethod: form ? (form.getAttribute("method") ?? "get").toLowerCase() : undefined, submits };
-    }, undefined, { timeout: 1000 }).catch(() => undefined);
+  const plan = enrichmentPlan(elements);
+  // Past the read limit there are no facts to judge with: mark them unknown so approval asks
+  // instead of treating a late POST button as an ordinary click.
+  for (const [, element] of plan.unknown) element.unresolved = true;
+  await Promise.all(plan.read.map(async ([ref, element]) => {
+    // The page reads its own attributes: a button's `formmethod` and the form's default submit
+    // button decide the real method, so approval never trusts the form's declared one alone.
+    const details = await current.getByRef(ref).evaluate(elementSubmitFacts, undefined, { timeout: 1000 }).catch(() => undefined);
+    // Facts that never arrived cannot be judged (the element went away, or the read timed out):
+    // approval must ask instead of assuming an ordinary click, and the policy sees the marker.
     if (details) Object.assign(element, details);
+    else element.unresolved = true;
   }));
   return { text, elements };
 }

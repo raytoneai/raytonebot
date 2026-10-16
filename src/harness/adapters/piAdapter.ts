@@ -28,7 +28,7 @@ export type PiEventAdapter = {
    * come from Pi itself (`session.getActiveToolNames()`), so this reports rather than invents.
    */
   attachCapabilities(toolNames: readonly string[]): AgentUXEvent[];
-  startUserMessage(text: string): AgentUXEvent[];
+  startUserMessage(text: string, inputId?: string): AgentUXEvent[];
   apply(raw: unknown): AgentUXEvent[];
   resolveApproval(toolCallId: string, decision: PiApprovalDecision): AgentUXEvent[];
   /**
@@ -650,12 +650,12 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
       }
       return next;
     },
-    startUserMessage(text) {
+    startUserMessage(text, inputId) {
       const next: AgentUXEvent[] = [];
       const content = text.trim();
       if (!content) return next;
       ensureRun(next);
-      const messageId = `${runId}_user`;
+      const messageId = inputId ? `${runId}_input_${inputId}` : `${runId}_user`;
       const textId = `${messageId}_text`;
       push(agentUXEventBuilders.textStarted(meta("user_text_started", messageId), {
         textId,

@@ -35,10 +35,16 @@ export function titlePiConversation(
   return { ...conversation, title: normalized.length > 42 ? `${normalized.slice(0, 42)}…` : normalized };
 }
 
+/** The events that end the run a conversation is following. */
+const RUN_TERMINALS = new Set(["run.finished", "run.error"]);
+
 /**
  * Pi starts event sequence numbers at one for every model turn. AgentUX sorts a combined stream by
  * sequence number, so each event appended to a browser conversation receives a conversation-wide
  * monotonic sequence while retaining its original event ID and run ID.
+ *
+ * `activeRunId` follows those events too. It is otherwise only a snapshot taken when the history
+ * was read, so a finished run would keep naming itself and steering would address the wrong turn.
  */
 export function appendPiConversationEvents(
   conversation: EphemeralPiConversation,
@@ -50,7 +56,12 @@ export function appendPiConversationEvents(
     ...event,
     seq: offset + index + 1,
   })) as AgentUXEvent[];
-  return { ...conversation, events: [...conversation.events, ...appended] };
+  let activeRunId = conversation.activeRunId;
+  for (const event of incoming) {
+    if (event.type === "run.started" && event.runId) activeRunId = event.runId;
+    else if (RUN_TERMINALS.has(event.type) && event.runId === activeRunId) activeRunId = undefined;
+  }
+  return { ...conversation, activeRunId, events: [...conversation.events, ...appended] };
 }
 
 export function replacePiConversation(

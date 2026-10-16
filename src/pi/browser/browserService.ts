@@ -82,10 +82,12 @@ function safeName(name: string): string {
 }
 
 export function createBrowserService(options: { dataDir: string; log?(event: string, fields: Record<string, unknown>): void;
+  /** Tests only: treat this path as the installed headless shell instead of searching for one. */
+  executable?: string;
   /** Tests only: let the proxy reach a local test server. */
   allowAddress?: (address: string) => boolean; allowPort?: (port: number) => boolean }) {
   const sandboxed = agentIsolationEnabled();
-  const executable = findHeadlessShell();
+  const executable = options.executable ?? findHeadlessShell();
   const stateFile = join(options.dataDir, "browser.json");
   const localDir = join(options.dataDir, "browser");
   let loggedIn = new Set<string>();
@@ -235,11 +237,16 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     options.log?.("browser.started", { sandboxed });
   })().finally(() => { starting = undefined; });
 
-  /** One agent action at a time, never while the user holds the browser. */
-  const act = (body: BrowserRequest) => {
+  /** One agent action at a time, never while the user holds the browser. A run that was stopped
+   *  while its action waited in the queue never starts it: approval is not a licence to act after
+   *  the turn it belonged to has ended. */
+  const act = (body: BrowserRequest, signal?: AbortSignal) => {
     const run = queue.then(async () => {
+      if (signal?.aborted) signal.throwIfAborted();
       if (state.controller === "user") throw new Error("The user is controlling the browser right now. Wait for them to hand it back, then take a new snapshot.");
       if (!worker?.connected) await start();
+      // Starting the browser awaited: check again before the action leaves the host.
+      if (signal?.aborted) signal.throwIfAborted();
       touch();
       const result = await request(body);
       await stream();
@@ -293,24 +300,24 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
           currentSave = context.saveDownload;
           try {
             switch (name) {
-              case "browser_open": return { text: describe(await act({ op: "open", url: String(input.url ?? "") }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
+              case "browser_open": return { text: describe(await act({ op: "open", url: String(input.url ?? "") }, signal) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               case "browser_snapshot": {
                 const offset = Number.isInteger(input.offset) && (input.offset as number) > 0 ? input.offset as number : 0;
-                const summary = offset && snapshotText ? { url: state.url ?? "", title: state.title ?? "", snapshot: snapshotText, elements, notes: [] } : await act({ op: "snapshot" }) as BrowserPageSummary;
+                const summary = offset && snapshotText ? { url: state.url ?? "", title: state.title ?? "", snapshot: snapshotText, elements, notes: [] } : await act({ op: "snapshot" }, signal) as BrowserPageSummary;
                 return { text: describe(summary, PAGE_CHARS, offset), isError: false };
               }
-              case "browser_click": return { text: describe(await act({ op: "click", ref: String(input.ref ?? "") }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
+              case "browser_click": return { text: describe(await act({ op: "click", ref: String(input.ref ?? "") }, signal) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               case "browser_type": {
-                return { text: describe(await act({ op: "type", ref: String(input.ref ?? ""), text: String(input.text ?? ""), submit: input.submit === true }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
+                return { text: describe(await act({ op: "type", ref: String(input.ref ?? ""), text: String(input.text ?? ""), submit: input.submit === true }, signal) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               }
               case "browser_press": {
                 const key = String(input.key ?? "");
                 // The same focused element the approval was judged on, or the worker refuses.
                 const expectRef = key === "Enter" || key === "Space" ? focusedRef() : undefined;
-                return { text: describe(await act({ op: "press", key, ...(expectRef ? { expectRef } : {}) }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
+                return { text: describe(await act({ op: "press", key, ...(expectRef ? { expectRef } : {}) }, signal) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               }
-              case "browser_scroll": return { text: describe(await act({ op: "scroll", direction: input.direction === "up" ? "up" : "down" }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
-              case "browser_back": return { text: describe(await act({ op: "back" }) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
+              case "browser_scroll": return { text: describe(await act({ op: "scroll", direction: input.direction === "up" ? "up" : "down" }, signal) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
+              case "browser_back": return { text: describe(await act({ op: "back" }, signal) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               case "browser_request_takeover": {
                 if (!worker?.connected) await start();
                 const reason = String(input.reason ?? "").trim().slice(0, 300) || "The agent needs you in the browser.";

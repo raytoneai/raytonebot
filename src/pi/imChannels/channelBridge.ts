@@ -39,7 +39,13 @@ type Pending = {
   /** Set once the run is handed to the runtime; before that, /stop cancels it here. */
   started?: boolean;
   stopped?: boolean;
-  approval?: { toolCallId: string; name: string };
+  /** Every approval the engine is waiting on, in the order it asked. An engine may run tools in
+   *  parallel, so the chat answers the first and is then asked the next; none is ever dropped. */
+  approvals: { toolCallId: string; name: string; preview: string }[];
+  /** The approval the chat was last asked about, so one tool is never announced twice. */
+  announced?: string;
+  /** Tool calls already answered or finished: a late replay of their hold must not re-ask. */
+  settled: Set<string>;
   input?: { requestId: string; questions: UserQuestion[] };
 };
 
@@ -50,6 +56,8 @@ const HELP = [
   "需要批准时回复「同意」「总是允许」或「拒绝」。",
 ].join("\n");
 const STREAM_INTERVAL_MS = 1_000;
+/** How many settled tool calls to remember per run, to recognise a replayed hold. */
+const SETTLED_LIMIT = 200;
 
 type ChannelBridgeOptions = {
   platform: ChannelPlatform;
@@ -106,12 +114,19 @@ export class ChannelBridge {
       this.options.store.bindConversation(chatKey, newConversationId(chatKey));
       return message.reply.send("已开始新对话。");
     }
-    if (pending?.approval) {
+    if (pending?.approvals.length) {
+      const approval = pending.approvals[0];
       const decision = approvalDecision(text);
-      if (!decision) return message.reply.send(`「${pending.approval.name}」正在等待批准。回复「同意」「总是允许」或「拒绝」，或发送 /stop 停止。`);
-      const resolved = this.options.runtime.resolveApproval(pending.approval.toolCallId, decision, pending.conversationId, pending.runId);
-      pending.approval = undefined;
-      return message.reply.send(!resolved ? "这个批准请求已经结束。" : decision === "no" ? "已拒绝。" : "已批准，继续执行。");
+      if (!decision) return message.reply.send(approvalReminder(approval.name));
+      const resolved = this.options.runtime.resolveApproval(approval.toolCallId, decision, pending.conversationId, pending.runId);
+      pending.approvals.shift();
+      settledApproval(pending, approval.toolCallId);
+      // The one the chat was asked about is answered. A request that arrives while this reply is
+      // being sent is announced by the event path, so do not announce the same tool again here.
+      if (pending.announced === approval.toolCallId) pending.announced = undefined;
+      await message.reply.send(!resolved ? "这个批准请求已经结束。" : decision === "no" ? "已拒绝。" : "已批准，继续执行。");
+      announceApproval(pending, (text) => void message.reply.send(text));
+      return;
     }
     if (pending?.input) {
       const answers = questionAnswers(text, pending.input.questions);
@@ -138,12 +153,14 @@ export class ChannelBridge {
       this.options.store.bindConversation(chatKey, conversationId);
     }
     const runId = `im_${randomUUID()}`;
-    const pending: Pending = { conversationId, runId };
+    const pending: Pending = { conversationId, runId, approvals: [], settled: new Set() };
     this.pending.set(chatKey, pending);
     const assistantTexts = new Set<string>();
     /** The approval event carries only the call id; the name comes with the call's start. */
     const toolNames = new Map<string, string>();
     let answer = "";
+    let activeMessage: string | undefined;
+    const textMessages = new Map<string, string>();
     let status = "";
     let failure = "";
     let cancelled = false;
@@ -152,12 +169,25 @@ export class ChannelBridge {
     let flushing = Promise.resolve();
     const preview = () => `${answer || "思考中…"}${status ? `\n\n> ${status}` : ""}`;
     const scheduleFlush = () => {
-      if (!stream || flushTimer) return;
+      if (!message.reply.stream || flushTimer) return;
       flushTimer = setTimeout(() => {
         flushTimer = undefined;
         const text = preview();
         flushing = flushing.then(() => stream?.update(text)).catch(() => undefined);
       }, STREAM_INTERVAL_MS);
+    };
+    const completeSegment = () => {
+      if (!answer.trim()) return;
+      clearTimeout(flushTimer);
+      flushTimer = undefined;
+      const completed = answer.trim();
+      flushing = flushing.then(async () => {
+        if (stream) await stream.finish(completed);
+        else await message.reply.send(completed);
+        stream = message.reply.stream ? await message.reply.stream("思考中…").catch(() => undefined) : undefined;
+      }).catch(() => { failure = "部分回复发送失败，请在网页会话中查看完整记录。"; stream = undefined; });
+      answer = "";
+      activeMessage = undefined;
     };
     const notify = (text: string) => void message.reply.send(text).catch(() => undefined);
     try {
@@ -184,11 +214,18 @@ export class ChannelBridge {
             case "text.started":
               if (payload.role === "assistant") {
                 assistantTexts.add(payload.textId);
-                if (answer && !answer.endsWith("\n\n")) answer += "\n\n";
+                const messageId = event.messageId ?? payload.textId;
+                textMessages.set(payload.textId, messageId);
+                if (activeMessage === messageId && answer) answer += "\n\n";
               }
               break;
             case "text.delta":
               if (assistantTexts.has(payload.textId) && typeof payload.delta === "string") {
+                const messageId = textMessages.get(payload.textId)!;
+                if (activeMessage && activeMessage !== messageId && answer.trim()) {
+                  completeSegment();
+                }
+                activeMessage = messageId;
                 answer += payload.delta;
                 status = "";
                 scheduleFlush();
@@ -200,14 +237,27 @@ export class ChannelBridge {
               scheduleFlush();
               break;
             case "tool.call.awaiting_approval": {
-              const name = String(payload.title ?? payload.name ?? toolNames.get(String(payload.toolCallId)) ?? "工具");
-              pending.approval = { toolCallId: String(payload.toolCallId), name };
-              notify(`需要你的批准：${name}\n${argsPreview(payload.argsPreview)}\n回复「同意」「总是允许」或「拒绝」。`);
+              const toolCallId = String(payload.toolCallId);
+              // A replayed hold for a tool that is already waiting, or already answered, is ignored.
+              if (!pending.settled.has(toolCallId) && !pending.approvals.some((waiting) => waiting.toolCallId === toolCallId)) {
+                const name = String(payload.title ?? payload.name ?? toolNames.get(toolCallId) ?? "工具");
+                pending.approvals.push({ toolCallId, name, preview: argsPreview(payload.argsPreview) });
+              }
+              announceApproval(pending, notify);
               break;
             }
-            case "tool.call.finished":
-              if (pending.approval?.toolCallId === payload.toolCallId) pending.approval = undefined;
+            case "tool.call.finished": {
+              const index = pending.approvals.findIndex((waiting) => waiting.toolCallId === payload.toolCallId);
+              if (index >= 0) {
+                pending.approvals.splice(index, 1);
+                // The one being asked about is gone (answered elsewhere, or cancelled): ask the next.
+                if (pending.announced === payload.toolCallId) pending.announced = undefined;
+              }
+              // A hold that is replayed after its tool finished must not be queued again.
+              settledApproval(pending, String(payload.toolCallId));
+              announceApproval(pending, notify);
               break;
+            }
             case "run.awaiting_input":
               if (Array.isArray(payload.questions)) {
                 pending.input = { requestId: String(payload.requestId), questions: payload.questions };
@@ -247,6 +297,30 @@ export class ChannelBridge {
 function newConversationId(chatKey: string): string {
   const digest = createHash("sha256").update(chatKey).digest("hex").slice(0, 12);
   return `im-${chatKey.split(":")[0]}-${digest}-${Date.now().toString(36)}`;
+}
+
+/** What the chat is told about one held tool call; the same wording for a queued next approval. */
+function approvalPrompt(approval: { name: string; preview: string }): string {
+  return `需要你的批准：${approval.name}\n${approval.preview}\n回复「同意」「总是允许」或「拒绝」。`;
+}
+
+/** Remembers an approval that can no longer be answered, so a late replay cannot re-ask it. */
+function settledApproval(pending: Pending, toolCallId: string): void {
+  pending.settled.add(toolCallId);
+  // A long run makes many calls; the newest are enough to recognise a replayed hold.
+  if (pending.settled.size > SETTLED_LIMIT) pending.settled.delete(pending.settled.values().next().value!);
+}
+
+/** Asks the chat about the approval at the head of the queue; each tool is announced at most once. */
+function announceApproval(pending: Pending, send: (text: string) => void): void {
+  const head = pending.approvals[0];
+  if (!head || pending.announced === head.toolCallId) return;
+  pending.announced = head.toolCallId;
+  send(approvalPrompt(head));
+}
+
+function approvalReminder(name: string): string {
+  return `「${name}」正在等待批准。回复「同意」「总是允许」或「拒绝」，或发送 /stop 停止。`;
 }
 
 export function approvalDecision(text: string): PiApprovalDecision | undefined {

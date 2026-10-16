@@ -845,3 +845,40 @@
 - 测试沙箱（部署后 9 项检查通过）：浏览器 UID 无 DNS、无直连、够不到 5188；Agent UID 够不到 5191；配置目录 0700 仅浏览器 UID 可读。真实 DeepSeek：Raer 读 HN 5.7 s（Chrome 自带沙箱在 `setpriv --no-new-privs` 下可用）；Bob 经 httpbin 附件下载并读出内容（首轮发现 Agent 读不到、Agent 自建目录 chmod 失败，修复后通过）；接管/输入/交还接口与 SSE 状态正常；云端界面经平台代理显示实时画面。浏览器打开 GitHub 时 PSS 340 MB，剩余可用约 2.9 GB。备份含配置 62 项且无缓存、含 Cookies；停止后浏览器进程与僵尸进程均为 0。演示对话与下载文件已删除。
 - 未做：浏览器内上传与网页确认框、手机端画面、多标签页、长时间（10 分钟空闲）自动停止的线上观察、接管后真实账号登录与新实例恢复登录。
 - 审查修复（2026-10-13，Codex review 三项）：① Tab 到发送按钮后 Enter 绕过审批：改按快照焦点判定，并在 worker 执行前核对焦点；真实 headless shell 回归覆盖「输入 → Tab → Tab 到 Place order → Enter 判为 outward」与「页面在快照后移动焦点 → Enter 被拒」。② 下载跟随 `downloads` 目录链接写出工作区：改用锚定目录写入；单测覆盖目录链接、文件链接与非法名，私有目录内容与权限不变；测试沙箱上以 Agent UID 把 `downloads` 换成指向 `~/.raytonebot/logs` 的链接后由 Bob 触发下载，被拒且该目录仍为 700、无新文件。③ 停止未真正发送关闭：改为经保存的引用关闭并等待 Chrome 退出；本机测试确认停止后无进程使用该配置，沙箱停止后浏览器进程与僵尸进程均为 0。`npm test` 281/281，部署 9 项检查通过。
+
+## BX 组：外部审查 6 项修复（2026-10-16，工作树）
+
+- 范围：`browserWorker.ts` + `browserPolicy.ts`（提交方法）、`browserService.ts`（队列取消）、`imChannels/channelBridge.ts`（并行审批）、`piConversationState.ts`（运行身份）、`control/store.ts` + `control/server.ts`（认领）、`control/keeper.ts` + `src/pi/piHost.ts`（活动识别）。未新增组件、路由、依赖或存储；`02`、`03`、`07`、`09` 已同步。
+- 自动化：新增 10 项测试，全部先按修复前语义确认会失败，再验证修复后通过 ——
+  - 浏览器：`elementSubmitFacts` 在假 DOM 上覆盖「表单 get + 按钮 `formmethod=post`」（点击算 outward、字段按 Enter 的 `submit` 也算 outward）、反向覆盖（表单 post + 按钮 `formmethod=get` 仍是普通修改）、`formmethod=dialog` 算 outward、表单 get 且只有 GET 按钮时仍是普通修改；并验证该函数经 `String()` 序列化后能在没有模块作用域的环境里独立运行（Playwright 就是这样把它送进页面的）。`createBrowserService` 的测试专用 `executable` 让「已停止的一轮不执行已排队的动作」能在没有 Chromium 的机器上运行（修复前该调用会真的去启动浏览器并报 `browser worker stopped`）。
+  - IM：一次轮次里两个 `awaiting_approval`，修复前只提示两条但只能回答后一个（`decisions = ["second"]`），修复后先 write 后 bash 逐个回答且都落到 `resolveApproval`。
+  - 会话身份：`activeRunId` 从 A 的快照开始，追加 A 的终态后清空，追加 B 的 `run.started` 后为 B，A 的迟到终态不会清掉 B；seq 仍单调。
+  - 认领：`Store.claim` 第二次返回既有记录；路由层用假 req/res 让两个请求体在两次 ownership 读取之后才到达，修复前返回 `[201, 201]`（两个 bot），修复后 `[200, 201]` 且只有一条记录。
+  - keeper：`seenActivity` 取自身记录、`lastRunAgoMs`、正在运行的较大者；用「3 小时前的备份、2.5 小时前的短轮次」验证修复前暂停前不备份、修复后备份。
+  - health：无轮次时不返回 `lastRunAgoMs`（既有键集合断言不变），跑完一轮后返回一个很小的数值。
+- 本机结果：`npm test` **309 项 / 307 通过 / 1 跳过**；当时的失败是 `saveWorkspaceDownload` 的 setgid 断言、跳过的是真实浏览器用例 —— 两者后来查明都是本机运行环境所致（工作区文件沙箱会把 `chmod 2770` 读回 `0770`；Playwright 缓存缺失），不是代码问题，见本节末的补记。`npm run build`（tsc + vite）、本机 `check:local`（11 工具、空 prompt 400、跨源 403）、`node scripts/cloud-preview.mjs --check` 均通过。
+- 未验证：真实模型下三种引擎的各条路径（浏览器真实提交、IM 并行审批、插话、短任务备份）都没有跑。浏览器用例的真实页面分支（`formmethod` 的 DOM 读取、`form.elements`）已在本机真实 Chromium 上跑通，见补记。停止时已在执行中的那一个浏览器动作仍可能完成，属已知边界，不宣称「已停止 = 一定没发生」。
+- 变更未被本机浏览器视觉验收：六项修复都不改 UI 结构与文案，但 IM 与审批的提示顺序有变化，部署前应在真实 IM 里走一次「并行两个审批」。
+
+### 第二轮：审查者复跑后提出的三处修正（2026-10-16，工作树）
+
+Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复方向，并提出三处要改。均已处理，每处同样先按修复前语义验证会失败：
+
+- **取数失败的按钮/输入框改判对外**：`BrowserElement` 增加 `unresolved`；worker 的逐元素取数超时或元素消失时打上该标记，`activation`、`submitClass`、`browser_type` 对带标记的元素一律算 outward。此前注释写着「读不到就按 outward」但代码实际落回 `mutating`（页面取数超时后，`formmethod=post` 的按钮会被当成普通点击放行）。红绿：去掉标记检查 → `actual: 'mutating', expected: 'outward'`。
+- **默认提交按钮改用 `form.elements`**：`form.elements` 是按树序列出的表单所属控件，包含用 `form="…"` 关联到表单、但位于表单之外的那个按钮；原先的 `owner.querySelectorAll("button, input")` 看不到它，字段按 Enter 因此会读到表单声明的 `get`。红绿：改回 `querySelectorAll` → `actual: 'get', expected: 'post'`。测试的假表单特意让 `elements` 与 `querySelectorAll` 返回不同集合，退化即失败。
+- **IM 审批只提示一次**：`Pending` 增加 `announced`（已提示的 `toolCallId`），提示与「回答后问下一个」都走同一个 `announceApproval`；同一工具的重复 `awaiting_approval`（重放/重连）不再排队，回答期间到达的下一项也不会在回复发送完成后再提示一次。红绿：忽略 `announced` → bash 被提示 2 次；去掉重复事件去重 → 已答的工具被再问一次。
+- 本轮新增 3 项测试（浏览器 1：取数失败判对外；IM 2：回答期间到达只提示一次、重复事件不留幽灵项），并给既有的 formmethod 用例补了 `form.elements`/`form="…"` 与序列化断言。`npm test` **312 项 / 310 通过 / 1 失败 / 1 跳过**，唯一失败仍是上述 macOS setgid 断言。
+- 已知边界（审查者提出，未改）：被停止的那一个排队动作要等前一个动作结束才返回错误，不是立刻返回；正在执行中的动作不能被中断；keeper 的活动时间只在内存里，进程重启后从零开始，且只统计「轮次」，用户在网页上传文件、改设置这类不经轮次的修改仍统计不到。
+
+### 第三轮：审查者复跑后指出的一处缺口与一处报告不准（2026-10-16，工作树）
+
+- **取数上限之外的元素也必须算未知**（缺口）：`snapshot()` 原先只给前 200 个交互元素读提交信息（`slice(0, 200)`），第 201 个之后既不读取也不打 `unresolved`，点击会按普通修改放行 —— 长列表/电商页里排在后面的 POST 按钮因此能在 `auto` 模式下提交。现在上限与「哪些没读」由 `browserPolicy.enrichmentPlan` 决定（导出、可测），超出上限的交互元素统一标记 `unresolved`。红绿：把 `unknown` 改成空数组（等于旧行为）→ `actual: 0, expected: 6`。测试同时断言链接这类不需要取数的角色既不被读也不被标未知（否则每次点链接都要审批）。
+- **更正上一轮的报告**：「重复事件不留幽灵队列项」上一轮只说对了一半 —— 去重只和**仍在等待**的审批比较，一个在工具已经答完之后才到达的重复 `awaiting_approval` 仍会重新入队并再问一次。现在 `Pending.settled`（有界 200）记录已回答/已结束的 `toolCallId`，入队前一并检查；红线：去掉 `settled` 记录 → 迟到的重放让同一工具被问第 2 次（`actual: 2, expected: 1`）。事件流正常不会重复，但既然报告写「已修」，代码与测试现在都对得上。
+- 本轮新增 1 项测试（取数上限）并把既有「重放」用例扩成「等待中重复 + 答完之后重放」两种顺序。`npm run build` exit 0。
+
+### 补记：装上 headless shell 后的本机复核（2026-10-16，工作树）
+
+- 装上 `chromium-headless-shell` v1248（`npx playwright-core install chromium-headless-shell`，99 MiB + ffmpeg）后，`src/pi/browser/browser.test.ts` 在本机 **8 项全过**：既有 4 项（含真实 headless shell 那项）加上本轮新增的 4 项。真实页面里新加的两条断言因此得到端到端验证 —— `<form method="get"><button formmethod="post">Continue</button>` 的点击判 `outward`、该表单里字段按 Enter（`type` 带 `submit`）也判 `outward`，走的是 `elementSubmitFacts` 真实 DOM 路径。
+- 同一次运行里 `saveWorkspaceDownload` 的 setgid 断言也通过了，于是对比了两种沙箱：`chmod 2770` 在解除文件沙箱后读回 `2770`，在工作区沙箱下读回 `0770`。此前把它记成「macOS 不保留 setgid」是错的（[09](09-lessons.md) 已更正）。
+- 完整套件在无沙箱限制下的本机结果：**`npm test` 313 项 / 313 通过 / 0 失败 / 0 跳过**；`npm run build` exit 0；`check:local` 与 `cloud-preview --check` 通过。
+- 仍未验证：真实模型下三种引擎的路径（浏览器真实提交、IM 并行审批、插话、短任务备份）与浏览器视觉验收，都没有跑。

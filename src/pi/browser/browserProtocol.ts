@@ -20,6 +20,9 @@ export type BrowserElement = {
   autocomplete?: string;
   formMethod?: string;
   submits?: boolean;
+  /** The page never reported this element's facts (it went away, or the read timed out):
+   *  approval treats it as an element it does not know rather than as an ordinary click. */
+  unresolved?: boolean;
   /** Focused in the snapshot (`[active]`): what Enter or Space would act on. */
   active?: boolean;
 };

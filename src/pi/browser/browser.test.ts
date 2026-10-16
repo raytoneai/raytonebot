@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { classifyBrowserCall } from "./browserPolicy.ts";
+import { ENRICH_LIMIT, classifyBrowserCall, elementSubmitFacts, enrichmentPlan } from "./browserPolicy.ts";
 import { createBrowserService, findHeadlessShell } from "./browserService.ts";
 import { startEgressProxy } from "./egressProxy.ts";
 import { saveWorkspaceDownload } from "../workspaceFiles.ts";
@@ -58,6 +58,124 @@ test("browser actions are judged from the host's snapshot, never the model's lab
   const signedIn = { loggedIn: new Set(["https://shop.example"]) };
   assert.deepEqual(classifyBrowserCall("browser_click", { ref: "e1" }, context(elements, signedIn)), { kind: "connector", key: "browser_click@https://shop.example" });
   assert.equal(kind("browser_click", { ref: "e2" }, signedIn), "outward");
+});
+
+test("a submit button's own formmethod decides, for clicks and for Enter in a field", () => {
+  // Just enough of the DOM for elementSubmitFacts, which runs in the page and reads these members.
+  type FakeForm = {
+    getAttribute(name: string): string | null;
+    /** The browser's own collection: every control the form owns, in tree order. */
+    readonly elements: Fake[];
+    /** What a query inside the form finds — deliberately not the same set, so going back to a
+     *  subtree search would miss the `form="…"` button asserted below. */
+    querySelectorAll(selector: string): Fake[];
+  };
+  type Fake = {
+    tagName: string;
+    form?: FakeForm;
+    isContentEditable?: boolean;
+    attributes: Record<string, string>;
+    getAttribute(name: string): string | null;
+    closest(selector: string): FakeForm | null;
+  };
+  const owner = (method: string | undefined, inside: Fake[] = [], outside: Fake[] = []): FakeForm => ({
+    getAttribute: (name: string) => (name === "method" ? method ?? null : null),
+    get elements() { return [...inside, ...outside]; },
+    querySelectorAll: () => inside,
+  });
+  const make = (tagName: string, attributes: Record<string, string>, form?: FakeForm): Fake => ({
+    tagName, form, attributes,
+    getAttribute: (name) => attributes[name] ?? null,
+    closest: () => form ?? null,
+  });
+
+  // <form method="get"><button formmethod="post">Continue</button></form>
+  const buttons: Fake[] = [];
+  const getForm = owner("get", buttons);
+  const override = make("BUTTON", { formmethod: "post" }, getForm);
+  const field = make("INPUT", {}, getForm);
+  buttons.push(override, field);
+  const facts = (element: Fake) => elementSubmitFacts(element as unknown as Element);
+  const classOf = (name: string, args: object, element: Fake, key = "e1") =>
+    classifyBrowserCall(name, args, context({ [key]: { role: element === override ? "button" : "textbox", name: "Continue", ...facts(element) } }))?.kind;
+
+  // The regression: the form says get, the button's own formmethod says post, and the browser posts.
+  assert.equal(facts(override).formMethod, "post");
+  // Playwright serializes this function and runs it in the page, where no module scope exists.
+  const revived = new Function(`return (${String(elementSubmitFacts)})`)() as typeof elementSubmitFacts;
+  assert.equal(revived(override as unknown as Element).formMethod, "post", "the page-side function must survive serialization");
+  assert.equal(classOf("browser_click", { ref: "e1" }, override), "outward");
+  // Enter in the field submits through that same default button.
+  assert.equal(facts(field).formMethod, "post");
+  assert.equal(classOf("browser_type", { ref: "e1", text: "x", submit: true }, field), "outward");
+  assert.equal(classifyBrowserCall("browser_press", { key: "Enter" },
+    context({}, { focused: { role: "textbox", name: "", ...facts(field) } }))?.kind, "outward");
+
+  // The override works the other way too, and a plain GET form stays an ordinary mutation.
+  const postForm = owner("post", []);
+  const getOverride = make("BUTTON", { formmethod: "get" }, postForm);
+  assert.equal(facts(getOverride).formMethod, "get");
+  assert.equal(classOf("browser_click", { ref: "e1" }, getOverride), "mutating");
+  const plain = make("BUTTON", {}, postForm);
+  assert.equal(facts(plain).formMethod, "post");
+  assert.equal(classOf("browser_click", { ref: "e1" }, plain), "outward");
+  const plainGet = make("BUTTON", {}, owner("get", []));
+  assert.equal(classOf("browser_click", { ref: "e1" }, plainGet), "mutating");
+  // A method the policy does not know must not be treated as an ordinary mutation.
+  const dialog = make("BUTTON", { formmethod: "dialog" }, owner("get", []));
+  assert.equal(classOf("browser_click", { ref: "e1" }, dialog), "outward");
+  // A field in a form whose only button submits with GET is still an ordinary mutation.
+  const searchButtons: Fake[] = [];
+  const searchForm = owner("get", searchButtons);
+  const searchButton = make("BUTTON", {}, searchForm);
+  const searchField = make("INPUT", { type: "search" }, searchForm);
+  searchButtons.push(searchButton, searchField);
+  assert.equal(facts(searchField).formMethod, "get");
+  assert.equal(classOf("browser_type", { ref: "e1", text: "x", submit: true }, searchField), "mutating");
+
+  // A button linked by `form="…"` sits outside the form in the DOM but is still the form's default
+  // submit button, and only `form.elements` lists it.
+  const insideOnly: Fake[] = [];
+  const linked: Fake[] = [];
+  const linkedForm = owner("get", insideOnly, linked);
+  const linkedField = make("INPUT", {}, linkedForm);
+  const linkedButton = make("BUTTON", { formmethod: "post" }, linkedForm);
+  insideOnly.push(linkedField);
+  linked.push(linkedButton);
+  assert.equal(linkedForm.querySelectorAll("button, input").length, 1, "a query inside the form cannot see the linked button");
+  assert.equal(facts(linkedField).formMethod, "post");
+  assert.equal(classOf("browser_type", { ref: "e1", text: "x", submit: true }, linkedField), "outward");
+});
+
+test("an element whose facts never arrived is asked about, not assumed to be an ordinary click", () => {
+  const kinds = (element: object) => classifyBrowserCall("browser_click", { ref: "e1" }, context({ e1: { role: "button", name: "Go", ...element } }))?.kind;
+  // A known GET submit is still an ordinary mutation...
+  assert.equal(kinds({ submits: true, formMethod: "get" }), "mutating");
+  // ...but facts that never arrived (the read timed out, the element went away) must ask.
+  assert.equal(kinds({ unresolved: true, submits: true, formMethod: "get" }), "outward");
+  assert.equal(kinds({ unresolved: true }), "outward");
+  const field = { role: "textbox", name: "Note", unresolved: true };
+  assert.equal(classifyBrowserCall("browser_type", { ref: "e1", text: "x" }, context({ e1: field }))?.kind, "outward");
+  assert.equal(classifyBrowserCall("browser_type", { ref: "e1", text: "x", submit: true }, context({ e1: field }))?.kind, "outward");
+  assert.equal(classifyBrowserCall("browser_press", { key: "Enter" }, context({}, { focused: field }))?.kind, "outward");
+  assert.equal(classifyBrowserCall("browser_press", { key: "Enter" }, context({}, { focused: { role: "button", name: "Go", unresolved: true } }))?.kind, "outward");
+});
+
+test("interactive elements past the read limit are treated as unknown, not as ordinary clicks", () => {
+  const elements: Record<string, { role: string; name: string }> = {
+    l1: { role: "link", name: "Docs" },
+    t1: { role: "textbox", name: "Note" },
+  };
+  for (let index = 1; index <= 205; index += 1) elements[`b${index}`] = { role: "button", name: "Go" };
+  const plan = enrichmentPlan(elements as never);
+  assert.equal(plan.read.length, ENRICH_LIMIT);
+  assert.equal(plan.unknown.length, 205 + 1 - ENRICH_LIMIT, "every interactive element past the limit is left unread");
+  assert.equal(plan.unknown[0][0], "b200", "the first unread button is the one right after the limit");
+  // A link needs no facts, so it is neither read nor treated as unknown (an unknown link would ask).
+  assert.ok(!plan.read.some(([ref]) => ref === "l1") && !plan.unknown.some(([ref]) => ref === "l1"));
+  // The worker marks the unread ones `unresolved`, and that is what makes approval ask.
+  const element = { ...plan.unknown[0][1], unresolved: true };
+  assert.equal(classifyBrowserCall("browser_click", { ref: "b200" }, context({ b200: element }))?.kind, "outward");
 });
 
 test("the egress proxy refuses private addresses, other ports and names that resolve privately", async () => {
@@ -122,6 +240,26 @@ test("a download never follows a link out of the workspace, and only a folder th
 
 const shell = findHeadlessShell();
 
+test("a stopped turn never runs the browser action it queued", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-browser-cancel-"));
+  // The install is irrelevant: the action must be refused before the browser is even started.
+  const service = createBrowserService({ dataDir, executable: "/nonexistent/chrome-headless-shell" });
+  const tools = service.toolsFor({ conversationId: "c", agent: "assistant", saveDownload: async () => "/tmp/unused", ask: async () => null })!;
+  try {
+    // The action was approved while it waited behind another one; the turn stopped before its turn came.
+    const stopped = new AbortController();
+    stopped.abort();
+    const queued = await tools.run("browser_snapshot", {}, stopped.signal);
+    assert.equal(queued.isError, true, "a stopped action is refused, not run");
+    // Refused by the stop itself, not by a browser that was already being launched for it.
+    assert.match(queued.text, /abort/i, queued.text);
+    assert.equal(service.view().running, false, "the refused action never started the browser");
+  } finally {
+    await service.stop();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("a real browser: snapshot refs, secret fields refused, takeover, per-site sign-in and downloads", { skip: !shell && "no Chromium headless shell installed" }, async () => {
   const dataDir = mkdtempSync(join(tmpdir(), "rtb-browser-"));
   const layout = resolveWorkspaceLayout({ fallbackCwd: dataDir, root: join(dataDir, "ws") });
@@ -132,7 +270,8 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
     if (req.url === "/tool.bin") { res.writeHead(200, { "content-type": "application/octet-stream", "content-disposition": "attachment; filename=tool.bin" }); res.end(Buffer.from([0x7f, 0x45, 0x4c, 0x46, 1, 2, 3])); return; }
     res.writeHead(200, { "content-type": "text/html" });
     res.end(`<title>Shop</title><input aria-label="Pinned" style="position:absolute;left:0;top:0;width:300px;height:40px"><button type="button" style="position:absolute;left:320px;top:0" onclick="setTimeout(() => document.querySelector('[aria-label=Pinned]').focus(), 800)">Later</button><div style="height:60px"></div><form method="post" action="/order"><label>Note <input name="note"></label><label>Password <input type="password" name="pw"></label><button>Place order</button></form>
-      <a href="/report.txt">Report</a> <a href="/tool.bin">Tool</a>`);
+      <a href="/report.txt">Report</a> <a href="/tool.bin">Tool</a>
+      <form method="get" action="/search"><label>Query <input name="q"></label><button formmethod="post">Continue</button></form>`);
   });
   await new Promise<void>((resolve) => site.listen(0, "127.0.0.1", resolve));
   const port = (site.address() as { port: number }).port;
@@ -150,6 +289,11 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
     assert.equal(service.classify("browser_type", { ref: password, text: "x" })?.kind, "secret");
     assert.equal(service.classify("browser_click", { ref: order })?.kind, "outward");
     assert.equal(service.classify("browser_type", { ref: note, text: "x" })?.kind, "mutating");
+    // A button's own `formmethod` overrides the form's: this GET form really posts.
+    const query = ref(opened.text, /textbox "Query" \[ref=([a-z0-9]+)\]/)!;
+    const cont = ref(opened.text, /button "Continue" \[ref=([a-z0-9]+)\]/)!;
+    assert.equal(service.classify("browser_click", { ref: cont })?.kind, "outward");
+    assert.equal(service.classify("browser_type", { ref: query, text: "x", submit: true })?.kind, "outward");
     // Even if a gate were bypassed, the worker refuses to type into the password field.
     const typed = await tools.run("browser_type", { ref: password, text: "hunter2" });
     assert.equal(typed.isError, true);

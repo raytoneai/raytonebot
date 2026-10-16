@@ -15,6 +15,16 @@ AgentSphere 沙箱 agentmatrix-v1（2C/4G, Linux x86_64, Node 24）
    数据 = /home/user/.raytonebot/data/（对话 JSON + Pi 文件会话）
 ```
 
+沙箱外（ADR-041，原型）：
+
+```
+Raytone 登录 → control/（Node，常驻主机，持有 E2B key）
+   /welcome 认领 → 建沙箱 → deploy.py --state-dir bots/<id> → 进度条
+   「进入」→ 唤醒/续期 → 一次性令牌 → bot 的 /__raytone/handoff 换 cookie → 聊天页
+   keeper（每分钟）：续期或任其暂停 · 例行任务前 90 秒唤醒 · 暂停前备份到 bots/<id>/backups
+数据 = ~/.raytone-control/（store.json 无密钥；bots/<id>/access.json 存密码与交接密钥）
+```
+
 本机开发时链路相同，只是 `npm run dev` 监听 `127.0.0.1:5188`，没有 Basic Auth，由 `requestOrigin.ts` 只放行 loopback。
 
 ### 请求接口（`src/pi/piClient.ts` ↔ `src/pi/piHost.ts`）
@@ -31,7 +41,7 @@ Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子�
 
 | 方法 | 路径 | 作用 |
 | --- | --- | --- |
-| GET | `/__agentcanvas/pi/health` | 无模型调用的进程健康、活跃任务数、并发上限与运行时长；云端仍需 Basic Auth |
+| GET | `/__agentcanvas/pi/health` | 无模型调用的进程健康、活跃任务数、并发上限、运行时长与最近一次轮次距今时间（`lastRunAgoMs`，keeper 的活动识别用它，见 ADR-041）；云端仍需 Basic Auth |
 | POST | `/__agentcanvas/pi/files?scope=&name=` | 单文件原始字节上传，≤10 MiB；返回 `{scope,path,name,size}`，重名不覆盖 |
 | GET | `/__agentcanvas/pi/files?scope=&path=` | 当前角色或 shared 工作区的只读目录列表 |
 | GET / HEAD | `/__agentcanvas/pi/files/download?scope=&path=` | 下载普通文件，支持单段 Range 与元数据读取，强制附件响应；拒绝隐藏路径、链接与越界路径 |
@@ -207,3 +217,14 @@ nftables ip/ip6 + meta skuid 按 UID 禁止直连，只开放 loopback gateway�
 网页搜索与读取由 bot 进程代为执行（`src/pi/webAccess.ts`，ADR-034）：Pi 原生工具、Claude Code 进程内 MCP、Codex dynamicTools，Agent 只拿到文本。
 Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发不声称具有这些系统隔离保证。
 详细适用范围与剩余风险见 [10](10-agents-and-permissions.md)。
+
+### 2026-10-16 Pi 运行中补充
+
+`POST /__agentcanvas/pi/steer` 接收 `{conversationId,runId,requestId,text}`，只交给活跃的非群聊 Pi session。纯文字上限 16000 字符，不接受 `/` 命令；不越过审批或提问。回执表示已进入 SDK steering 队列，下一次模型调用前处理，不表示已经应用。请求 id 在本轮内去重；用户消息复用 adapter 与对话存储，落盘后返回成功。停止清除 SDK 待处理输入。页面错误保留草稿并沿用原 id 重试；重启不自动重发。IM 继续使用原有忙碌提示，分段输出不改变输入语义。
+
+### 2026-10-16 审查修复补充
+
+- **插话身份**：会话的 `activeRunId` 由事件维护 —— `run.started` 记入，`run.finished`/`run.error`（限同一 runId）清除。它此前只是读取历史时的一张快照，A 轮结束后仍留着 A 的身份，于是刷新或重连后启动的 B 轮里点「插话」会一直发给 A，被主机按旧轮次拒绝（ADR-041 之外的既有 steering 语义不变）。
+- **IM 审批**：同一轮的多个 `tool.call.awaiting_approval` 全部按提问顺序保存，聊天一次只回答最早的一个，回答或结束后自动问下一个；每个工具最多提示一次（重复到达的事件不排队，回答期间到达的下一项不会在回复发送完成后再提示一次）。此前只留一个 pending，第二个覆盖第一个，被覆盖的那个工具在引擎侧一直等，IM 里再回复只会得到「上一个任务还在运行」。
+- **浏览器审批与取消**：提交方法按页面实际会用的值判定 —— 按钮自身的 `formmethod`、字段按 Enter 时表单的默认提交按钮（用 `form.elements`，因此 `form="…"` 关联在表单之外的按钮也算），只有 `get` 是普通修改，`post`/`dialog` 都算对外；取数失败的元素、以及超出每次快照 200 个交互元素上限而没取数的元素都带 `unresolved` 标记，同样算对外（`enrichmentPlan` 决定读哪些、标哪些）。浏览器动作队列随所属轮次的 signal 取消，尚未派发的动作在停止后不再执行，已在执行中的一个不中断。IM 侧同一工具最多提示一次：记录最后提示的 `toolCallId`，并用有界的 `settled` 集合忽略「已经答完才到达」的重复 hold。见 ADR-040 的两条「审查修复」。
+- **欢迎页认领**：`Store.claim` 一次同步 check-and-create，两个标签页同时认领只会建一个沙箱（ADR-041）。

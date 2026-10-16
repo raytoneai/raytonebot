@@ -32,10 +32,65 @@ export type BrowserCallContext = {
 };
 
 const TEXT_ROLES = new Set(["textbox", "searchbox", "combobox", "spinbutton"]);
+/** Roles the worker reads submit facts for: what they submit, and whether they take a secret. */
+const ENRICHED = new Set(["textbox", "searchbox", "combobox", "button", "spinbutton"]);
+/** Facts are read for at most this many interactive elements per snapshot. */
+export const ENRICH_LIMIT = 200;
+
+/**
+ * Which elements the worker reads facts for, and which are past that limit. Elements past the limit
+ * get no facts at all, so approval must treat them as unknown rather than as ordinary clicks — a
+ * long page has far more than 200 interactive elements, and a POST button among them must not be
+ * waved through just because it came later.
+ */
+export function enrichmentPlan(elements: Readonly<Record<string, BrowserElement>>, limit = ENRICH_LIMIT):
+  { read: [string, BrowserElement][]; unknown: [string, BrowserElement][] } {
+  const interactive = Object.entries(elements).filter(([, element]) => ENRICHED.has(element.role));
+  return { read: interactive.slice(0, limit), unknown: interactive.slice(limit) };
+}
+
+/**
+ * The submit facts of one element, read inside the page (ADR-040). It must stay self-contained:
+ * the worker hands this function to Playwright, which serializes its source and runs it in the
+ * page, so it cannot reference anything from this module.
+ *
+ * A submit button's own `formmethod` overrides its form's `method`, and Enter in a field submits
+ * through the form's default button, whose override counts there too. `formMethod` is therefore
+ * the method the browser will really use, not the form's declared one.
+ */
+export function elementSubmitFacts(node: Element) {
+  const el = node as HTMLInputElement & HTMLButtonElement;
+  const tag = el.tagName;
+  const type = (el.getAttribute("type") ?? "").toLowerCase();
+  const autocomplete = (el.getAttribute("autocomplete") ?? "").toLowerCase();
+  const owner = (el.form ?? el.closest("form")) as HTMLFormElement | null;
+  const formMethod = (owner?.getAttribute("method") ?? "get").toLowerCase();
+  const methodOf = (button: Element) => (button.getAttribute("formmethod") ?? formMethod).toLowerCase();
+  const isButton = tag === "BUTTON";
+  const submits = Boolean(owner) && (isButton ? type === "" || type === "submit" : type === "submit" || type === "image");
+  const isField = tag === "INPUT" || tag === "TEXTAREA" || tag === "SELECT" || Boolean(el.isContentEditable);
+  let effective: string | undefined;
+  if (submits) effective = methodOf(el);
+  else if (isField && owner) {
+    // The browser's implicit submission picks the form's default button: the first submit button in
+    // tree order that the form owns. `form.elements` is that set — it also holds a button linked by
+    // `form="…"` from outside the form, which a query inside the form would miss.
+    let defaultButton: Element | undefined;
+    for (const candidate of owner.elements) {
+      const candidateType = (candidate.getAttribute("type") ?? "").toLowerCase();
+      if ((candidate.tagName === "BUTTON" && (candidateType === "" || candidateType === "submit")) ||
+          (candidate.tagName === "INPUT" && (candidateType === "submit" || candidateType === "image"))) { defaultButton = candidate; break; }
+    }
+    effective = defaultButton ? methodOf(defaultButton) : formMethod;
+  }
+  return { inputType: type || tag.toLowerCase(), autocomplete, submits, formMethod: effective };
+}
 
 /** A click on `element`, or Enter/Space on it while it has focus. */
 function activation(element: BrowserElement | undefined): ToolCallClass {
   if (!element) return "outward";
+  // Facts that never arrived cannot be judged as an ordinary click.
+  if (element.unresolved) return "outward";
   if (LASTING.test(element.name) || COOKIES.test(element.name)) return "outward";
   return element.submits ? submitClass(element) : "mutating";
 }
@@ -46,7 +101,10 @@ export function secretElement(element: BrowserElement | undefined): boolean {
 }
 
 function submitClass(element: BrowserElement | undefined): ToolCallClass {
-  return element?.formMethod === "post" ? "outward" : "mutating";
+  // Only a plain GET is an ordinary mutation. Anything else — post, dialog, or an element whose
+  // facts the snapshot never got — reaches out, so a submit never rides along unapproved.
+  if (!element || element.unresolved) return "outward";
+  return element.formMethod && element.formMethod !== "get" ? "outward" : "mutating";
 }
 
 /** The class and the "always allow" key of one browser call; undefined for other tools. */
@@ -59,7 +117,7 @@ export function classifyBrowserCall(name: string, args: unknown, context: Browse
   if (name === "browser_click") {
     kind = activation(element);
   } else if (name === "browser_type") {
-    if (!element) kind = "outward";
+    if (!element || element.unresolved) kind = "outward";
     else if (secretElement(element)) kind = "secret";
     else kind = input.submit === true ? submitClass(element) : "mutating";
   } else if (name === "browser_press") {

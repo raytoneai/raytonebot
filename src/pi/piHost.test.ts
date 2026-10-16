@@ -62,6 +62,12 @@ test("HTTP stop identities reject old or malformed requests without stopping the
       assert.equal((await stop(body)).status, 400);
     assert.deepEqual(aborted, []);
     assert.equal(host.controller.health().activeRuns, 2);
+    const steer = (body: unknown) => fetch(url.replace("/abort", "/steer"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const input = { conversationId: "a", runId: "second", requestId: "input-1", text: "adjust" };
+    for (const body of [{ ...input, text: "" }, { ...input, requestId: "../bad" }, { ...input, text: "/new" }, { ...input, text: "x".repeat(16001) }, { ...input, runId: 42 }])
+      assert.equal((await steer(body)).status, 400);
+    assert.equal((await steer(input)).status, 409, "a bridge without steering rejects input without stopping the run");
+
     assert.equal((await stop({ conversationId: "a", runId: "second" })).status, 200);
     await second; assert.deepEqual(aborted, ["a"]);
     assert.equal((await stop({ conversationId: "a", runId: "second" })).status, 409);
@@ -700,6 +706,33 @@ test("health is cheap, same-origin guarded, and does not initialize a model sess
   }
 });
 
+test("health reports the last turn, so the keeper sees work it never sampled", async () => {
+  const root = mkdtempSync(join(tmpdir(), "rtb-activity-"));
+  const controller = createPiRuntimeController({ cwd: root, dataDir: join(root, "data"), bridgeFactory: async () => {
+    let listener: ((event: never) => void) | undefined;
+    return {
+      subscribe(next) { listener = next as never; return () => { listener = undefined; }; },
+      async prompt() {
+        const emit = (event: unknown) => listener?.(event as never);
+        emit({ type: "message_start", message: { role: "assistant" } });
+        emit({ type: "agent_settled" });
+      },
+      abort: async () => undefined, dispose: () => undefined, configure: async () => undefined, newSession: async () => undefined,
+      state: async () => ({ models: [], tools: [] }) as never,
+    };
+  } });
+  try {
+    assert.equal(controller.health().lastRunAgoMs, undefined, "nothing has run yet");
+    await controller.runPrompt({ conversationId: "a", prompt: "hello" }, () => {});
+    const ago = controller.health().lastRunAgoMs;
+    assert.equal(typeof ago, "number");
+    assert.ok((ago ?? -1) >= 0 && (ago ?? 1) < 60_000, `a just-finished turn is reported as recent, got ${ago}`);
+  } finally {
+    controller.dispose();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("synchronous engine completion cannot turn an exceeded output budget into success", async () => {
   const root = mkdtempSync(join(tmpdir(), "rtb-sync-limit-"));
   let emit: (event: any) => void = () => {};
@@ -930,4 +963,40 @@ test("a turn no engine received is shown to the next fresh session, and only unt
     await controller.runPrompt({ conversationId: "a", requestId: "r3", prompt: "继续" }, () => undefined);
     assert.doesNotMatch(prompts[2], /stopped before reaching you/);
   } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("steering is scoped to an active run, idempotent and saved as a distinct user message", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-steer-"));
+  const fake = fakeBridges();
+  const inputs: string[] = [];
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: async input => ({
+    ...await fake.factory(input), steer: async text => { inputs.push(text); },
+  }) });
+  try {
+    const run = controller.runPrompt({ conversationId: "a", requestId: "run-a", prompt: "original" }, () => {});
+    await tick();
+    assert.equal(await controller.steer("a", "old-run", "input-1", "change direction"), false);
+    assert.equal(await controller.steer("other", "run-a", "input-1", "change direction"), false);
+    await Promise.all([controller.steer("a", "run-a", "input-1", "change direction"), controller.steer("a", "run-a", "input-1", "change direction")]);
+    assert.deepEqual(inputs, ["change direction"]);
+    await assert.rejects(controller.steer("a", "run-a", "input-1", "different"), /another message/);
+    const events = controller.getConversation("a")!.events;
+    const users = events.filter(event => event.type === "text.started" && event.payload.role === "user");
+    assert.equal(users.length, 2);
+    assert.notEqual(users[0].messageId, users[1].messageId);
+    const saved = readFileSync(join(dataDir, "conversations", "a.json"), "utf8");
+    assert.match(saved, /change direction/);
+    await controller.abort("a", "run-a");
+    await run;
+    assert.equal(await controller.steer("a", "run-a", "input-2", "late"), false);
+    const group = controller.runPrompt({ conversationId: "group-child", requestId: "group-run", prompt: "wait" }, () => {}, { groupConversation: true });
+    await tick();
+    assert.equal(await controller.steer("group-child", "group-run", "input-3", "change"), false);
+    await controller.abort("group-child"); await group;
+    const approval = controller.runPrompt({ conversationId: "approval", requestId: "approval-run", prompt: "write" }, () => {});
+    await tick();
+    assert.equal(await controller.steer("approval", "approval-run", "input-4", "change"), false);
+    await controller.abort("approval"); await approval;
+
+  } finally { await controller.abort(); controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
 });

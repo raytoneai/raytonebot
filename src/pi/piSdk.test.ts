@@ -128,3 +128,51 @@ test("installed Pi SDK preserves guarded tools, approval effects, cancellation a
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("installed Pi SDK receives steering before the next model call and keeps one successful run", { timeout: 15000 }, async () => {
+  const root = mkdtempSync(join(tmpdir(), "rtb-sdk-steer-"));
+  let requests = 0, sawInput = false;
+  let finishFirst: (() => void) | undefined;
+  const server = createServer(async (req, res) => {
+    const chunks = [];
+    for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    if (body.stream === false) { res.end(JSON.stringify({ choices: [{ message: { content: "Steering test" } }] })); return; }
+    requests++;
+    sawInput ||= JSON.stringify(body.messages).includes("steering-sentinel");
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    const send = (delta: unknown, finish_reason: string | null = null) => res.write(`data: ${JSON.stringify({
+      id: `s${requests}`, object: "chat.completion.chunk", created: 1, model: body.model, choices: [{ index: 0, delta, finish_reason }],
+    })}\n\n`);
+    const finish = () => { send({}, "stop"); res.end("data: [DONE]\n\n"); };
+    if (requests === 1) finishFirst = finish;
+    send({ role: "assistant", content: requests === 1 ? "First response." : "Adjusted response." });
+    if (requests > 1) finish();
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const host = createPiRuntimeController({ cwd: root, dataDir: join(root, "data"), sandboxed: false });
+  const events: AgentUXEvent[] = [];
+  let steering: Promise<boolean> | undefined;
+  try {
+    await host.configure({ conversationId: "steer", provider: "local-steer", model: "deepseek-flash", apiKey: "local-test",
+      providerDefinition: { id: "local-steer", name: "Local test", protocol: "openai-compatible", baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}/v1`, models: ["deepseek-flash"], authMode: "required" } });
+    await host.runPrompt({ conversationId: "steer", requestId: "test-run", prompt: "Start", provider: "local-steer", model: "deepseek-flash" }, event => {
+      events.push(event);
+      if (!steering && event.type === "text.delta" && event.payload.delta === "First response.") {
+        steering = host.steer("steer", "test-run", "input-1", "steering-sentinel");
+        void steering.finally(() => finishFirst?.());
+      }
+    }, { signal: AbortSignal.timeout(10000) });
+    assert.equal(await steering, true);
+    assert.equal(requests, 2);
+    assert.equal(sawInput, true);
+    assert.equal(events.filter(event => event.type === "run.finished").length, 1);
+    assert.equal(events.at(-1)?.payload.status, "success");
+    assert.equal(events.filter(event => event.type === "text.started" && event.payload.role === "assistant").length, 2);
+    assert.equal(events.filter(event => event.type === "text.started" && event.payload.role === "user").length, 2);
+  } finally {
+    await host.abort(); host.dispose(); server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    rmSync(root, { recursive: true, force: true });
+  }
+});
