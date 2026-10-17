@@ -448,3 +448,5 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 - 2026-10-17 浏览器登录入口 UI 调整：空闲视图改为居中授权样式，四个品牌图标/域名卡片；点击沿用 Output 原有展开视图显示真实远端登录页，不新增弹层组件。Chrome 实测卡片→GitHub 登录页展开，保存 `output/browser-login/auth-cards.png` 与 `auth-expanded.png`；build 通过，未部署云端，未进行真实账号登录。
 
 - 2026-10-17 登录卡片补充 Apple 与底部「其他」：展开网址表单、HTTP(S) 校验并沿用原出站代理；完整登录入口系列一起提交。build、327 项测试、check:local 通过；Chrome 验证新增卡片、网址表单与 example.com 远端展开。未部署云端，未验证 Apple 真实账号登录。
+
+- 2026-10-17 浏览器清除登录状态：底部文字入口、二次确认/取消、关闭按钮明确保留登录；确认后停止浏览器、删除当前 profile 并清空登录站点记录，清理期间拒绝新动作。真实 Chromium 临时配置测试覆盖普通关闭保留 cookie、清除后重开退出；327 项测试与 check:local 通过，最终修改后 9 项浏览器测试通过；Chrome 检查确认界面/取消与按钮可见，截图 `output/browser-login/clear-confirm.png`。未清理实际用户 profile，未验证 Linux sandbox 真实清理，未部署云端。

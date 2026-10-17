@@ -1156,7 +1156,8 @@ export function createPiHttpHost(options: {
               else if (command === "takeover") await browser.takeover();
               else if (command === "release") browser.release();
               else if (command === "stop") await browser.stop();
-              else { sendJson(res, 400, { error: "action must be takeover, release or stop." }); return true; }
+              else if (command === "clear-logins") await browser.clearLogins();
+              else { sendJson(res, 400, { error: "action must be login, takeover, release, stop or clear-logins." }); return true; }
               sendJson(res, 200, browser.view());
             } catch (error) { sendJson(res, 409, { error: errorMessage(error) }); }
             return true;

@@ -23,6 +23,7 @@ const LOGIN_SITES = [
  */
 export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLoginOpen?: () => void }) {
   const c = copy.browser;
+  const [confirmClear, setConfirmClear] = useState(false);
   const [otherOpen, setOtherOpen] = useState(false);
   const [address, setAddress] = useState("");
   const view = useBrowserView(true);
@@ -135,6 +136,19 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
         ) : null}
       </div>
       )}
+      {state?.available ? (
+        <div className="browser-auth-clear">
+          {confirmClear ? (
+            <div role="group" aria-label={c.clearLogins}>
+              <p>{c.clearConfirm}</p>
+              <div className="browser-auth-clear-actions">
+                <button type="button" className="browser-view-action" disabled={view.busy} onClick={() => setConfirmClear(false)}>{c.cancelClear}</button>
+                <button type="button" className="browser-view-action" data-danger="true" disabled={view.busy} onClick={() => { void view.control("clear-logins").then(() => setConfirmClear(false)); }}>{c.confirmClear}</button>
+              </div>
+            </div>
+          ) : <button type="button" className="browser-auth-clear-link" disabled={view.busy} onClick={() => setConfirmClear(true)}>{c.clearLogins}</button>}
+        </div>
+      ) : null}
     </div>
   );
 }

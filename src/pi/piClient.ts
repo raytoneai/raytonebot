@@ -213,7 +213,7 @@ export async function getBrowserState(fetcher: typeof fetch = fetch): Promise<Br
 }
 
 /** Take over, hand back or close the shared browser (ADR-040). */
-export async function browserControl(action: "takeover" | "release" | "stop", fetcher: typeof fetch = fetch): Promise<BrowserViewState> {
+export async function browserControl(action: "takeover" | "release" | "stop" | "clear-logins", fetcher: typeof fetch = fetch): Promise<BrowserViewState> {
   return requestJson<BrowserViewState>(fetcher, `${PI_API_PREFIX}/browser/control`, { action }, AbortSignal.timeout(30_000));
 }
 

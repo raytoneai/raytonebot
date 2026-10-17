@@ -96,6 +96,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
   let worker: ChildProcess | undefined;
   let proxy: EgressProxy | undefined;
   let starting: Promise<void> | undefined;
+  let clearing = false;
   let nextId = 0;
   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void }>();
   let queue: Promise<unknown> = Promise.resolve();
@@ -241,12 +242,15 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
    *  while its action waited in the queue never starts it: approval is not a licence to act after
    *  the turn it belonged to has ended. */
   const act = (body: BrowserRequest, signal?: AbortSignal) => {
+    if (clearing) return Promise.reject(new Error("Browser login state is being cleared."));
     const run = queue.then(async () => {
+      if (clearing) throw new Error("Browser login state is being cleared.");
       if (signal?.aborted) signal.throwIfAborted();
       if (state.controller === "user") throw new Error("The user is controlling the browser right now. Wait for them to hand it back, then take a new snapshot.");
       if (!worker?.connected) await start();
       // Starting the browser awaited: check again before the action leaves the host.
       if (signal?.aborted) signal.throwIfAborted();
+      if (clearing) throw new Error("Browser login state is being cleared.");
       touch();
       const result = await request(body);
       await stream();
@@ -343,19 +347,23 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
 
     /** The user takes the browser: agent actions wait until it is handed back. */
     async takeover(loginUrl?: string) {
+      if (clearing) throw new Error("Browser login state is being cleared.");
       if (!state.available) throw new Error(state.reason);
       if (!worker?.connected) await start();
       await queue;
+      if (clearing) throw new Error("Browser login state is being cleared.");
       state.controller = "user";
       takeoverOrigins = new Set(origin()?.startsWith("http") ? [origin()!] : []);
       touch();
       publish();
       await stream();
+      if (clearing) throw new Error("Browser login state is being cleared.");
       if (loginUrl) await request({ op: "open", url: loginUrl });
     },
     release,
     /** Input from the live view, only while the user holds the browser. */
     async input(input: BrowserInput) {
+      if (clearing) throw new Error("Browser login state is being cleared.");
       if (state.controller !== "user") throw new Error("Take over the browser first.");
       touch();
       await request({ op: "input", input });
@@ -366,6 +374,30 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       listener({ type: "state", state: { ...state } });
       void stream();
       return () => { watchers.delete(listener); void stream(); };
+    },
+    async clearLogins() {
+      if (clearing) throw new Error("Browser login state is being cleared.");
+      clearing = true;
+      try {
+        await starting?.catch(() => {});
+        await queue;
+        await stop();
+        const profile = sandboxed ? join(SANDBOX.home, "profile") : join(localDir, "profile");
+        if (sandboxed) {
+          asBrowser("/usr/bin/rm", "-rf", "--", profile);
+          asBrowser("/usr/bin/mkdir", "-m", "700", "--", profile);
+        } else {
+          rmSync(profile, { recursive: true, force: true });
+        }
+        loggedIn.clear();
+        takeoverOrigins.clear();
+        saveLoggedIn();
+        elements = {};
+        snapshotText = "";
+        delete state.url;
+        delete state.title;
+        publish();
+      } finally { clearing = false; }
     },
     stop,
   };

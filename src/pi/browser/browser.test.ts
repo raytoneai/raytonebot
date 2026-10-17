@@ -266,6 +266,8 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
   const workspace = layout.agents.assistant;
   mkdirSync(workspace, { recursive: true });
   const site: Server = createServer((req, res) => {
+    if (req.url === "/login-status") { res.writeHead(200, { "content-type": "text/html" }); res.end(`<p>${req.headers.cookie?.includes("test_login=1") ? "Signed in" : "Signed out"}</p>`); return; }
+    res.setHeader("Set-Cookie", "test_login=1; Max-Age=3600; Path=/; HttpOnly");
     if (req.url === "/report.txt") { res.writeHead(200, { "content-type": "text/plain", "content-disposition": "attachment; filename=report.txt" }); res.end("quarterly numbers\n"); return; }
     if (req.url === "/tool.bin") { res.writeHead(200, { "content-type": "application/octet-stream", "content-disposition": "attachment; filename=tool.bin" }); res.end(Buffer.from([0x7f, 0x45, 0x4c, 0x46, 1, 2, 3])); return; }
     res.writeHead(200, { "content-type": "text/html" });
@@ -355,6 +357,14 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
     assert.equal(service.view().running, false);
     const left = (() => { try { return execFileSync("pgrep", ["-f", join(dataDir, "browser", "profile")], { encoding: "utf8" }).trim(); } catch { return ""; } })();
     assert.equal(left, "", "a browser process outlived stop()");
+    assert.match((await tools.run("browser_open", { url: `http://127.0.0.1:${port}/login-status` })).text, /Signed in/, "closing preserves login cookies");
+    await service.clearLogins();
+    assert.equal(service.view().running, false);
+    assert.equal(service.view().url, undefined);
+    assert.equal(existsSync(join(dataDir, "browser", "profile")), false);
+    assert.deepEqual(JSON.parse(readFileSync(join(dataDir, "browser.json"), "utf8")), { loggedIn: [] });
+    assert.match((await tools.run("browser_open", { url: `http://127.0.0.1:${port}/login-status` })).text, /Signed out/, "clearing removes login cookies after restart");
+    assert.equal(service.classify("browser_type", { ref: "unknown", text: "x" })?.kind, "outward");
   } finally {
     await service.stop();
     site.close();

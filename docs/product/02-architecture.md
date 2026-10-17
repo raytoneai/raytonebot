@@ -237,3 +237,5 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 `AgentAvatar` 优先使用已保存配置并调用 `botAvatarSVG`，其他入口与动画层保持共用；编辑器显式传入草稿。Shell 使用当前 `streamId` 隔离示例回放，不能使用 `isFixtureMode`：产品 `runtime.transport` 按规定保持 replay，真实对话仍通过 Pi client。
 
 浏览器登录快捷入口（2026-10-17）：Output 内现有 `BrowserView` 在空闲/用户接管时提供 Google / GitHub / Reddit / Apple / X 及「其他」入口。`POST /browser/control` 增加 `{action:"login",site:"google"|"github"|"reddit"|"apple"|"x"|"other",url?:string}`，服务端白名单映射登录 URL；other 校验 HTTP(S) URL 并拒绝内嵌凭据，出站仍经原代理，复用 takeover 与 worker open；用户直接导航无需模型审批，成员工具仍受原审批与接管互斥约束。profile 与备份路径不变。
+
+浏览器全局清理（2026-10-17）：`POST /browser/control` 的 `clear-logins` 操作在清理期间拒绝新的浏览器动作，等待启动/排队动作结束，关闭 Chromium 后删除当前 profile（sandbox 使用浏览器 UID）并重置 `browser.json` 的登录站点记录、快照与页面标题。现有 BrowserView 底部提供二次确认；普通关闭保留 profile。旧备份与网站端会话不受影响。

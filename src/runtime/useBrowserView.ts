@@ -10,7 +10,7 @@ export type BrowserViewModel = {
   connected: boolean;
   error?: string;
   busy: boolean;
-  control(action: "takeover" | "release" | "stop"): Promise<void>;
+  control(action: "takeover" | "release" | "stop" | "clear-logins"): Promise<void>;
   login(site: string, url?: string): Promise<void>;
   input(input: BrowserInput): void;
 };
@@ -53,7 +53,7 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
   // The state alone (available or not) is enough for the switch before the view opens.
   useEffect(() => { if (visible && !state) void getBrowserState().then(setState, () => undefined); }, [visible, state]);
 
-  const control = useCallback(async (action: "takeover" | "release" | "stop") => {
+  const control = useCallback(async (action: "takeover" | "release" | "stop" | "clear-logins") => {
     setBusy(true);
     setError(undefined);
     try { setState(await browserControl(action)); }
