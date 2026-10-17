@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 import { createAgentUXViewModel } from "@agent-ux/render-core";
 import type { AgentUXEvent } from "@agent-ux/protocol";
-import { artifactBody, artifactEventForReplay } from "./artifactContent.ts";
+import { artifactAuthor, artifactBody, artifactEventForReplay, refreshArtifactItems } from "./artifactContent.ts";
 import { htmlPreviewDocument } from "../components/agent-preview/outputframe/htmlPreview.ts";
 import { normalizeOutputPanelRequest } from "../components/agent-preview/outputframe/panelItem.ts";
 import { createServer } from "vite";
@@ -56,4 +56,20 @@ test("code and diff previews preserve tool artifact content, including fences, w
     assert.equal(artifactCodePreview({ ...written, content: "" }, copy).code, "");
     assert.equal(artifactDiffPreview({ ...edited, content: undefined }, copy), copy.artifactMetadataEmpty);
   } finally { await server.close(); }
+});
+
+test("open file tabs refresh the exact path and never adopt another directory's matching basename", () => {
+  const a = createPiEventAdapter({ runId: "versions" });
+  a.apply({ type: "artifact_published", artifactId: "old", title: "/work/report.html", uri: "file:///work/report.html" });
+  a.apply({ type: "artifact_published", artifactId: "other", title: "/other/report.html", uri: "file:///other/report.html" });
+  a.apply({ type: "artifact_published", artifactId: "latest", title: "/work/report.html", uri: "file:///work/report.html" });
+  const item = { id: "artifact:old", artifactId: "old", kind: "file" as const, title: "report.html", workspacePath: "/work/report.html", downloadUrl: "/files?path=report.html", body: "old bytes" };
+  const [updated] = refreshArtifactItems([item], createAgentUXViewModel(a.events).timeline);
+  assert.equal(updated.artifactId, "latest"); assert.match(updated.downloadUrl!, /revision=latest/);
+  assert.equal(updated.body, undefined, "refresh reads actual file bytes instead of the prior snapshot");
+});
+
+test("group artifact ownership survives replay wrapping and is never inferred from a filename", () => {
+  for (const id of ['builder~file', 'artifact:builder~file', 'artifact:["group","artifactId","builder~file"]']) assert.equal(artifactAuthor(id), "builder");
+  for (const id of ["report.html", "artifact:builder-report.html", "unrelated~file"]) assert.equal(artifactAuthor(id), undefined);
 });

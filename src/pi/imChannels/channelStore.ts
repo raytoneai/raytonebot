@@ -1,7 +1,8 @@
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname } from "node:path";
 
 import { isAgentPresetId, type AgentPresetId } from "../harnessCatalog.ts";
+import { readSettingsFile } from "../settingsFile.ts";
 import { CHANNEL_FIELDS, CHANNEL_PLATFORMS, type ChannelAccess, type ChannelModel, type ChannelPatch, type ChannelPlatform } from "./types.ts";
 
 export type ChannelSettings = {
@@ -29,12 +30,22 @@ type ChannelFile = {
 export class ChannelStore {
   private data: ChannelFile = { channels: {}, chats: {} };
   private readonly file?: string;
+  readonly error?: Error;
 
   constructor(file?: string) {
     this.file = file;
-    if (!file) return;
-    try {
-      const parsed = JSON.parse(readFileSync(file, "utf8")) as Partial<ChannelFile>;
+    const loaded = readSettingsFile<ChannelFile>(file, data => Boolean(data.channels && typeof data.channels === "object" && !Array.isArray(data.channels)
+      && data.chats && typeof data.chats === "object" && !Array.isArray(data.chats)
+      && Object.values(data.chats).every(id => typeof id === "string")
+      && Object.values(data.channels).every(settings => settings && typeof settings.enabled === "boolean"
+        && ["open", "allowlist"].includes(settings.access) && isAgentPresetId(settings.agentPreset)
+        && Array.isArray(settings.allowUsers) && settings.allowUsers.every(id => typeof id === "string")
+        && settings.credentials && typeof settings.credentials === "object" && !Array.isArray(settings.credentials)
+        && Object.values(settings.credentials).every(value => typeof value === "string"))
+      && (data.telegramOffset === undefined || Number.isSafeInteger(data.telegramOffset))));
+    this.error = loaded.error;
+    if (loaded.data) {
+      const parsed = loaded.data;
       for (const platform of CHANNEL_PLATFORMS) {
         const saved = parsed.channels?.[platform];
         if (saved) this.data.channels[platform] = normalize(platform, saved);
@@ -43,12 +54,11 @@ export class ChannelStore {
         this.data.chats = Object.fromEntries(Object.entries(parsed.chats).filter(([, id]) => typeof id === "string"));
       }
       if (Number.isSafeInteger(parsed.telegramOffset)) this.data.telegramOffset = parsed.telegramOffset;
-    } catch {
-      // Missing or unreadable: every channel starts off. Nothing connects until saved again.
     }
   }
 
   get(platform: ChannelPlatform): ChannelSettings {
+    if (this.error) throw this.error;
     return this.data.channels[platform] ?? normalize(platform, {});
   }
 
@@ -71,41 +81,42 @@ export class ChannelStore {
       ...(patch.agentPreset ? { agentPreset: patch.agentPreset } : {}),
       ...(patch.model ? { model: patch.model } : {}),
     });
-    this.data.channels[platform] = next;
-    this.save();
+    this.save({ ...this.data, channels: { ...this.data.channels, [platform]: next } });
     return next;
   }
 
   /** Puts back settings read earlier with `get`, credentials included (undoing a failed connect). */
   restore(platform: ChannelPlatform, settings: ChannelSettings) {
-    this.data.channels[platform] = normalize(platform, settings);
-    this.save();
+    this.save({ ...this.data, channels: { ...this.data.channels, [platform]: normalize(platform, settings) } });
   }
 
   conversationFor(chatKey: string): string | undefined {
+    if (this.error) throw this.error;
     return this.data.chats[chatKey];
   }
 
   bindConversation(chatKey: string, conversationId: string) {
-    this.data.chats[chatKey] = conversationId;
-    this.save();
+    this.save({ ...this.data, chats: { ...this.data.chats, [chatKey]: conversationId } });
   }
 
   get telegramOffset(): number | undefined {
+    if (this.error) throw this.error;
     return this.data.telegramOffset;
   }
 
   set telegramOffset(offset: number) {
-    this.data.telegramOffset = offset;
-    this.save();
+    this.save({ ...this.data, telegramOffset: offset });
   }
 
-  private save() {
-    if (!this.file) return;
-    mkdirSync(dirname(this.file), { recursive: true, mode: 0o700 });
-    const temp = `${this.file}.tmp`;
-    writeFileSync(temp, JSON.stringify(this.data, null, 2), { mode: 0o600 });
-    renameSync(temp, this.file);
+  private save(next: ChannelFile) {
+    if (this.error) throw this.error;
+    if (this.file) {
+      mkdirSync(dirname(this.file), { recursive: true, mode: 0o700 });
+      const temp = `${this.file}.tmp`;
+      writeFileSync(temp, JSON.stringify(next, null, 2), { mode: 0o600 });
+      renameSync(temp, this.file);
+    }
+    this.data = next;
   }
 }
 

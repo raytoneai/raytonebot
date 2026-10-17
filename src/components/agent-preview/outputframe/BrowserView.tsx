@@ -1,6 +1,6 @@
 import { AppleLogo, GithubLogo, GoogleLogo, RedditLogo, XLogo } from "@phosphor-icons/react";
 import { ArrowUpRight, Globe, Hand, LockKeyhole, MousePointerClick, Power } from "lucide-react";
-import { useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
+import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
 import { framePoint, keyInput, mouseButton } from "../../../runtime/browserView";
 import { useBrowserView } from "../../../runtime/useBrowserView";
@@ -34,7 +34,17 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
   const lastMove = useRef(0);
   const state = view.state;
   const controlling = state?.controller === "user";
-  const canInput = controlling && !view.busy && view.frame?.pageId === state?.pageId;
+  const canInput = view.connected && controlling && !view.busy && view.frame?.pageId === state?.pageId;
+
+  useEffect(() => {
+    const shown = view.frame, image = imageRef.current;
+    if (!shown?.inputId || !image) return;
+    let cancelled = false;
+    void image.decode().then(() => requestAnimationFrame(() => requestAnimationFrame(() => {
+      if (!cancelled && imageRef.current?.src === shown.src) view.displayed(shown);
+    })), () => {});
+    return () => { cancelled = true; };
+  }, [view.frame]);
 
   const point = (event: ReactPointerEvent | WheelEvent) => {
     const box = imageRef.current?.getBoundingClientRect();
@@ -52,7 +62,7 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
   };
 
   return (
-    <div className="artifact-content browser-view" data-controller={state?.controller ?? "agent"}>
+    <div className="artifact-content browser-view" data-latency-count={view.latency.count} data-latency-p50={view.latency.p50} data-latency-p95={view.latency.p95} data-latency-pending={view.latency.pending} data-latency-missed={view.latency.missed} data-controller={state?.controller ?? "agent"}>
       <div className="browser-view-bar">
         <Globe size={14} aria-hidden="true" />
         <span className="browser-view-url" title={state?.url}>{state?.running ? state.title || state.url || c.view : c.view}</span>

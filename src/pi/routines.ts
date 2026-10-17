@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { AgentUXEvent } from "@agent-ux/protocol";
@@ -7,6 +7,7 @@ import type { AppLocale } from "../i18n/locales.ts";
 import type { ChannelModel } from "./imChannels/types.ts";
 import type { PiPermissionMode, PiRuntimeController } from "./piHost.ts";
 import { ROUTINE_FAILURE_LIMIT, type RoutineRunStatus, type RoutineView } from "./routineTypes.ts";
+import { readSettingsFile } from "./settingsFile.ts";
 
 /**
  * Routines (ADR-033): saved instructions Raer runs on a schedule. The host keeps the definitions
@@ -95,31 +96,39 @@ function timezoneProblem(timezone: string): string | undefined {
 export class RoutineStore {
   private routines: Routine[] = [];
   private readonly file?: string;
+  readonly error?: Error;
 
   constructor(file?: string) {
     this.file = file;
-    if (!file) return;
-    try {
-      const parsed = JSON.parse(readFileSync(file, "utf8")) as { routines?: Routine[] };
-      this.routines = (parsed.routines ?? []).filter((routine) => routine && typeof routine.id === "string")
+    const loaded = readSettingsFile<{ routines: Routine[] }>(file, data => Array.isArray(data.routines) && data.routines.every(routine =>
+      routine && typeof routine.id === "string" && typeof routine.title === "string" && typeof routine.instructions === "string"
+      && typeof routine.schedule === "string" && !cronProblem(routine.schedule)
+      && typeof routine.timezone === "string" && !timezoneProblem(routine.timezone)
+      && typeof routine.enabled === "boolean" && Number.isFinite(routine.createdAt) && Number.isFinite(routine.failures)
+      && typeof routine.conversationId === "string" && (routine.occurrences === undefined || Array.isArray(routine.occurrences) && routine.occurrences.every(id => typeof id === "string"))
+      && (routine.lastRun === undefined || routine.lastRun && typeof routine.lastRun.occurrenceId === "string"
+        && Number.isFinite(routine.lastRun.at) && ["running", "success", "error", "cancelled", "interrupted"].includes(routine.lastRun.status))));
+    this.error = loaded.error;
+    if (loaded.data) {
+      this.routines = loaded.data.routines
         // A run in flight when the host stopped is not resumed or replayed.
         .map((routine) => routine.lastRun?.status === "running"
           ? { ...routine, lastRun: { ...routine.lastRun, status: "interrupted" as const } } : routine);
-    } catch {
-      // Missing or unreadable: no routines. Nothing runs until one is created again.
     }
   }
 
-  list() { return this.routines.map((routine) => structuredClone(routine)); }
-  get(id: string) { const routine = this.routines.find((item) => item.id === id); return routine && structuredClone(routine); }
+  list() { if (this.error) throw this.error; return this.routines.map((routine) => structuredClone(routine)); }
+  get(id: string) { if (this.error) throw this.error; const routine = this.routines.find((item) => item.id === id); return routine && structuredClone(routine); }
 
   put(routine: Routine) {
+    if (this.error) throw this.error;
     const next = [...this.routines.filter((item) => item.id !== routine.id), routine].sort((a, b) => a.createdAt - b.createdAt);
     this.save(next);
     this.routines = next;
   }
 
   remove(id: string) {
+    if (this.error) throw this.error;
     const next = this.routines.filter((item) => item.id !== id);
     if (next.length === this.routines.length) return false;
     this.save(next);
@@ -320,6 +329,7 @@ export function createRoutineService(options: {
    * minute, so a step repeated for the same minute is refused by `run` like any duplicate.
    */
   const tick = async () => {
+    if (store.error) return; // Settings reports the error; a broken clock must not stop ordinary chat.
     const current = Math.floor(now().getTime() / MINUTE);
     const from = Math.max(checked + 1, current - CLOCK_LOOKBACK + 1);
     checked = Math.max(checked, current);

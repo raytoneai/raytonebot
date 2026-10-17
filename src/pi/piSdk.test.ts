@@ -5,6 +5,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 import type { AgentUXEvent } from "@agent-ux/protocol";
+import { createAgentUXViewModel } from "@agent-ux/render-core";
+import { workArtifacts } from "../runtime/workArtifacts.ts";
 import { createPiRuntimeController } from "./piHost.ts";
 
 // Exercise the installed SDK and real tools through the model protocol, without a paid request.
@@ -14,7 +16,7 @@ test("installed Pi SDK preserves guarded tools, approval effects, cancellation a
   mkdirSync(cwd);
   const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
   process.env.PI_CODING_AGENT_DIR = join(root, "agent");
-  const names = ["ask_user", "bash", "edit", "find", "grep", "ls", "read", "update_plan", "web_fetch", "web_search", "write"];
+  const names = ["ask_user", "bash", "edit", "find", "grep", "ls", "publish_artifact", "read", "update_plan", "web_fetch", "web_search", "write"];
   let operations: [string, Record<string, unknown>][] = [], request = 0, turn = 0;
   let requestError: unknown, resumedContext = false, failStoreOnCompletion = false;
   const server = createServer(async (req, res) => {
@@ -74,16 +76,19 @@ test("installed Pi SDK preserves guarded tools, approval effects, cancellation a
       ["edit", { path: "check.txt", edits: [{ oldText: "before", newText: "after" }] }],
       ["grep", { path: ".", pattern: "after" }], ["find", { path: ".", pattern: "*.txt" }],
       ["ls", { path: "." }], ["bash", { command: "printf sdk-shell-ok" }],
+      ["publish_artifact", { path: "check.txt" }],
       ["update_plan", { plan: [{ step: "Check SDK compatibility", status: "completed" }] }],
     ];
     const first = await run("yes", "SDK original context sentinel");
     assert.equal(approvals, 3);
     assert.deepEqual(beforeApproval, ["", "before\n", "after\n"]);
     assert.equal(readFileSync(file, "utf8"), "after\n");
-    assert.equal(first.filter((event) => event.type === "tool.call.result").length, 8, JSON.stringify(first.filter((event) => event.type === "tool.call.error")));
+    assert.equal(first.filter((event) => event.type === "tool.call.result").length, 9, JSON.stringify(first.filter((event) => event.type === "tool.call.error")));
     assert.equal(first.at(-1)?.type, "run.finished");
     assert.equal(first.at(-1)?.payload.status, "success");
     assert.match(JSON.stringify(first), /sdk-shell-ok/);
+    assert.equal(workArtifacts(createAgentUXViewModel(first).timeline).length, 1, "write/edit and explicit registration use the same real path");
+    assert.ok(first.some((e) => e.type === "artifact.finished" && String(e.payload.artifactId).startsWith("published_")));
     const sessionId = (await host.state(conversationId)).sessionId;
 
     operations = [["write", { path: "blocked.txt", content: "must not exist" }]];

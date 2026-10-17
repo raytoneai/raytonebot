@@ -2,12 +2,13 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BROWSER_STREAM_URL, browserControl, browserLogin, browserSelectTab, getBrowserState, sendBrowserInputs } from "../pi/piClient";
 import type { BrowserInput, BrowserViewState } from "../pi/browser/browserProtocol";
+import { createBrowserLatencyTracker } from "./browserLatency";
 import { createBrowserInputQueue } from "./browserView";
 
 export type BrowserViewModel = {
   state?: BrowserViewState;
   /** The latest frame as a data URL, with its size in page pixels. */
-  frame?: { src: string; width: number; height: number; pageId?: string; seq?: number; capturedAt?: number; receivedAt: number };
+  frame?: { src: string; width: number; height: number; pageId?: string; seq?: number; capturedAt?: number; inputId?: string };
   connected: boolean;
   error?: string;
   busy: boolean;
@@ -15,6 +16,8 @@ export type BrowserViewModel = {
   login(site: string, url?: string): Promise<void>;
   selectTab(pageId: string): Promise<void>;
   input(input: BrowserInput): void;
+  displayed(frame: NonNullable<BrowserViewModel["frame"]>): void;
+  latency: ReturnType<ReturnType<typeof createBrowserLatencyTracker>["summary"]>;
 };
 
 /**
@@ -27,6 +30,8 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
   const [connected, setConnected] = useState(false);
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState(false);
+  const latency = useRef(createBrowserLatencyTracker());
+  const [latencySummary, setLatencySummary] = useState(latency.current.summary());
   const lastFrameSeq = useRef(0);
   const activePage = useRef<string | undefined>(undefined);
   const controlEpoch = useRef(0);
@@ -47,19 +52,19 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
   }, []);
 
   useEffect(() => {
-    if (!visible || !foreground) { setConnected(false); return; }
+    if (!visible || !foreground) { setConnected(false); setFrame(undefined); latency.current.reset(); return; }
     const source = new EventSource(BROWSER_STREAM_URL);
     source.addEventListener("open", () => setConnected(true));
-    source.addEventListener("error", () => setConnected(false));
+    source.addEventListener("error", () => { setConnected(false); setFrame(undefined); latency.current.reset(); });
     source.addEventListener("state", (event) => {
       acceptState(JSON.parse((event as MessageEvent<string>).data) as BrowserViewState);
     });
     source.addEventListener("frame", (event) => {
-      const next = JSON.parse((event as MessageEvent<string>).data) as { data: string; width: number; height: number; pageId?: string; seq?: number; capturedAt?: number };
+      const next = JSON.parse((event as MessageEvent<string>).data) as { data: string; width: number; height: number; pageId?: string; seq?: number; capturedAt?: number; inputId?: string };
       if (next.pageId && next.pageId !== activePage.current) return;
       if (next.seq && next.seq <= lastFrameSeq.current) return;
       lastFrameSeq.current = next.seq ?? 0;
-      setFrame({ src: `data:image/jpeg;base64,${next.data}`, width: next.width, height: next.height, pageId: next.pageId, seq: next.seq, capturedAt: next.capturedAt, receivedAt: Date.now() });
+      setFrame({ src: `data:image/jpeg;base64,${next.data}`, width: next.width, height: next.height, pageId: next.pageId, seq: next.seq, capturedAt: next.capturedAt, inputId: next.inputId });
     });
     return () => { source.close(); setConnected(false); };
   }, [visible, foreground, acceptState]);
@@ -67,9 +72,13 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
   // The state alone (available or not) is enough for the switch before the view opens.
   useEffect(() => { if (visible && !state) void getBrowserState().then(acceptState, () => undefined); }, [visible, state, acceptState]);
 
-  const inputs = useMemo(() => createBrowserInputQueue((batch, signal) => sendBrowserInputs(batch, signal, fetch, inputTarget.current), (failure) => setError(failure instanceof Error ? failure.message : String(failure))), []);
+  const inputs = useMemo(() => createBrowserInputQueue(async (batch, signal) => {
+    const inputId = new URLSearchParams(window.location.search).get("devtools") === "1" ? crypto.randomUUID() : undefined;
+    if (inputId) latency.current.begin(inputId);
+    await sendBrowserInputs(batch, signal, fetch, { ...inputTarget.current, inputId });
+  }, (failure) => setError(failure instanceof Error ? failure.message : String(failure))), []);
   useEffect(() => () => inputs.reset(), [inputs]);
-  useEffect(() => { if (state?.controller !== "user" || !visible || !foreground) inputs.reset(); }, [state?.controller, visible, foreground, inputs]);
+  useEffect(() => { inputs.reset(); latency.current.reset(); }, [state?.controller, state?.pageId, state?.controlEpoch, connected, visible, foreground, inputs]);
 
   const control = useCallback(async (action: "takeover" | "release" | "stop" | "clear-logins") => {
     inputs.reset();
@@ -100,10 +109,15 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
   }, [inputs, acceptState]);
 
   const input = (event: BrowserInput) => {
-    if (busy || state?.controller !== "user" || !frame || frame.pageId !== state.pageId) return;
+    if (!connected || busy || state?.controller !== "user" || !frame || frame.pageId !== state.pageId) return;
     if (inputTarget.current.pageId !== state.pageId || inputTarget.current.controlEpoch !== state.controlEpoch) inputs.reset();
     inputTarget.current = { pageId: state.pageId, controlEpoch: state.controlEpoch };
     inputs.input(event);
   };
-  return { state, frame, connected, error, busy, control, login, selectTab, input };
+  const displayed = (shown: NonNullable<BrowserViewModel["frame"]>) => {
+    if (shown.pageId !== activePage.current) return;
+    latency.current.displayed(shown.inputId);
+    setLatencySummary(latency.current.summary());
+  };
+  return { state, frame, connected, error, busy, control, login, selectTab, input, displayed, latency: latencySummary };
 }

@@ -15,6 +15,7 @@ export type PiEventAdapterOptions = {
   runId?: string;
   now?: number;
   onEvent?: (event: AgentUXEvent) => void;
+  resolveFilePath?: (path: string) => string;
   requiresApproval?: (toolName: string, args: unknown) => boolean;
 };
 
@@ -394,6 +395,13 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
           toolCallId: event.toolCallId, inputRequestId: event.requestId,
         }), next);
         break;
+      case "artifact_published": {
+        const artifactId = stringField(event, "artifactId"), uri = stringField(event, "uri"), title = stringField(event, "title");
+        if (!artifactId || !uri?.startsWith("file://") || !title) break;
+        push(agentUXEventBuilders.artifactCreated(meta("published_created"), { artifactId, kind: "file", title, mimeType: stringField(event, "mimeType") }), next);
+        push(agentUXEventBuilders.artifactFinished(meta("published_ready"), { artifactId, status: "success", uri }), next);
+        break;
+      }
       case "plan_update": {
         emitPlan(event.plan, event.explanation, next);
         break;
@@ -547,7 +555,7 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
             result: limitToolResult(event.result),
             resultPreview: previewText(event.result),
           }), next);
-          emitFileArtifact(tool, event.result, next, meta, push);
+          emitFileArtifact(tool, event.result, next, meta, push, options.resolveFilePath);
           if (tool.name === "update_plan") {
             const details = asRecord(asRecord(event.result).details);
             emitPlan(details.plan, details.explanation, next);
@@ -688,6 +696,7 @@ function emitFileArtifact(
   next: AgentUXEvent[],
   meta: (suffix: string, messageId?: string) => Record<string, unknown>,
   push: (event: AgentUXEvent, next: AgentUXEvent[]) => void,
+  resolveFilePath: (path: string) => string = path => path,
 ) {
   const args = asRecord(tool.args);
   const resultRecord = asRecord(result);
@@ -720,7 +729,7 @@ function emitFileArtifact(
     push(agentUXEventBuilders.artifactFinished(meta(`artifact_finished_${artifactId}`) as never, {
       artifactId,
       status: "success",
-      uri: `file://${file.path}`,
+      uri: `file://${resolveFilePath(file.path)}`,
     }), next);
   });
 }

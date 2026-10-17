@@ -1,0 +1,48 @@
+✔ an asynchronous browser download stays with its initiating conversation (1179.417583ms)
+✔ shared browser refs cannot cross conversations, snapshots or user takeover (1934.348ms)
+✔ a popup's slow download keeps its GUID owner while another turn navigates (1268.522208ms)
+✖ a new iframe in a background tab retains its initiating task's download (5253.498583ms)
+▶ browser worker lifecycle through real Chromium and IPC
+  ✔ popups become active, receive input, switch tabs and close back to their opener (997.400292ms)
+  ✔ cross-origin iframe boundaries are explicit and never retarget parent refs (480.834292ms)
+  ✖ embedded navigation preserves main-frame refs and ordinary frame-named selectors work (899.027667ms)
+  ✔ input receipts carry a frame captured after dispatch and survive screencast reconnect (582.938875ms)
+  ✔ disconnect and handoff cleanup release held modifiers instead of leaking them into the next driver (278.590417ms)
+  ✔ repeated popup initialization does not leave a five-second unrelated-page wait (1891.017583ms)
+  ✔ snapshot IDs bind actions to the exact snapshot and user input invalidates them (475.137083ms)
+  ✔ live formmethod and accessible name changes refuse previously approved actions (1808.290875ms)
+  ✔ click result includes a deferred SPA render without waiting for network idle (659.5195ms)
+  ✔ a continuously changing DOM returns within its budget without repeating the action (1307.673125ms)
+  ✔ slow SPA text waits and explicit timeouts work with a persistent SSE connection (1128.260625ms)
+  ✔ text wait finds a visible duplicate after a hidden first match (233.660292ms)
+  ✔ hidden wait refuses success while any duplicate remains visible (435.031542ms)
+  ✔ closing a tab during wait reports its real failure rather than a timeout (899.15175ms)
+  ✔ user input remains responsive while an agent is waiting (1749.575334ms)
+  ✔ scoped full, interactive and content snapshots keep usable links and redact secrets (769.081708ms)
+  ✔ controls past the safety read limit stay unresolved and their values are redacted (431.200834ms)
+✖ browser worker lifecycle through real Chromium and IPC (15308.456833ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 19
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15398.55475
+
+✖ failing tests:
+
+test at src/pi/browser/browserWorkflow.test.ts:205:1
+✖ a new iframe in a background tab retains its initiating task's download (5253.498583ms)
+  Error: background download was discarded
+      at Timeout.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/browser/browserWorkflow.test.ts:235:102)
+      at listOnTimeout (node:internal/timers:605:17)
+      at process.processTimers (node:internal/timers:541:7)
+
+test at src/pi/browser/workerLifecycle.test.ts:142:13
+✖ embedded navigation preserves main-frame refs and ordinary frame-named selectors work (899.027667ms)
+  Error: The page or target changed since approval. Take a new browser_snapshot before acting; the action was not repeated.
+      at ChildProcess.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/browser/workerLifecycle.test.ts:73:25)
+      at ChildProcess.emit (node:events:508:28)
+      at emit (node:internal/child_process:948:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:91:21)

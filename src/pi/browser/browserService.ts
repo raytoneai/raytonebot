@@ -118,9 +118,8 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
   let downloadedBytes = 0;
   let takeoverOrigins = new Set<string>();
   let streaming = false;
-  /** Where the agent acting now files its downloads. */
-  let currentSave: BrowserToolContext["saveDownload"] | undefined;
-  const watchers = new Set<(event: { type: "state"; state: BrowserViewState } | { type: "frame"; data: string; width: number; height: number; seq: number; capturedAt: number; pageId: string }) => void>();
+  const downloadOwners = new Map<string, { save: BrowserToolContext["saveDownload"]; signal?: AbortSignal }>();
+  const watchers = new Set<(event: { type: "state"; state: BrowserViewState } | { type: "frame"; data: string; width: number; height: number; seq: number; capturedAt: number; pageId: string; inputId?: string }) => void>();
   const notes: string[] = [];
   const invalidate = () => { elements = {}; snapshotText = ""; snapshotId = undefined; snapshotOwner = undefined; };
 
@@ -182,6 +181,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     delete state.pageId;
     delete state.tabs;
     pageRevision = undefined;
+    downloadOwners.clear();
     delete state.requested;
     publish();
     options.log?.("browser.stopped", {});
@@ -198,6 +198,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
   const asBrowser = (command: string, ...args: string[]) => execFileSync("/usr/bin/sudo", ["-n", "-u", SANDBOX.user, "--", command, ...args], { maxBuffer: 110 * 1024 * 1024 });
 
   const fileDownload = async (message: Extract<BrowserWorkerMessage, { event: "download" }>, staging: string) => {
+    if (message.state === "started") { options.log?.("browser.download_started", { owned: Boolean(message.owner) }); return; }
     const name = safeName(message.name);
     if (!/^[A-Za-z0-9-]{1,64}$/.test(message.guid)) { notes.push(`The download ${name} was refused: unexpected id.`); return; }
     const source = join(staging, message.guid);
@@ -210,8 +211,10 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       if (body.length > 100 * 1024 * 1024) { notes.push(`The download ${name} was discarded: it is over 100 MB.`); return; }
       if (downloadedBytes + body.length > SESSION_DOWNLOAD_LIMIT) { notes.push(`The download ${name} was discarded: this browser session already downloaded 500 MB.`); return; }
       if (executableFile(body, name)) { notes.push(`The download ${name} looks like a program and was not kept.`); options.log?.("browser.download_blocked", { name }); return; }
-      if (!currentSave) { notes.push(`The download ${name} was discarded: no workspace for it.`); return; }
-      const file = await currentSave(name, body);
+      // Capture owner before any await: a queued release can delete its entry; move this lookup ahead of future async file reads.
+      const owner = message.owner ? downloadOwners.get(message.owner) : undefined;
+      if (!owner || owner.signal?.aborted) { notes.push(`The download ${name} was discarded: its initiating task stopped or no task owns it.`); return; }
+      const file = await owner.save(name, body);
       downloadedBytes += body.length;
       notes.push(`Downloaded ${name} (${body.length < 1024 ? `${body.length} bytes` : `${Math.round(body.length / 1024)} KB`}) to ${file}.`);
       options.log?.("browser.downloaded", { bytes: body.length });
@@ -244,7 +247,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
           pending.delete(message.id);
           if (message.ok) waiter?.resolve(message.result); else waiter?.reject(new Error(message.error));
         } else if (message.event === "frame") {
-          for (const watch of watchers) watch({ type: "frame", data: message.data, width: message.width, height: message.height, seq: message.seq, capturedAt: message.capturedAt, pageId: message.pageId });
+          for (const watch of watchers) watch({ type: "frame", data: message.data, width: message.width, height: message.height, seq: message.seq, capturedAt: message.capturedAt, pageId: message.pageId, inputId: message.inputId });
         } else if (message.event === "state") {
           if (state.pageId !== message.pageId || pageRevision !== message.revision) invalidate();
           state.url = message.url; state.title = message.title;
@@ -252,6 +255,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
           if (state.controller === "user") { const now = origin(); if (now?.startsWith("http")) takeoverOrigins.add(now); }
           publish();
         } else if (message.event === "download") void fileDownload(message, staging);
+        else if (message.event === "download-owner-released") downloadOwners.delete(message.owner);
         else if (message.event === "exit") { options.log?.("browser.exited", { code: message.code }); void stop(); }
       });
       child.once("exit", () => {
@@ -269,7 +273,8 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
   /** One agent action at a time, never while the user holds the browser. A run that was stopped
    *  while its action waited in the queue never starts it: approval is not a licence to act after
    *  the turn it belonged to has ended. */
-  const act = (body: BrowserRequest, signal?: AbortSignal, conversationId?: string) => {
+  const act = (body: BrowserRequest, signal?: AbortSignal, conversationId?: string,
+    saveDownload?: BrowserToolContext["saveDownload"]) => {
     if (stopping) return Promise.reject(new Error(CLOSING));
     if (clearing || changingControl) return Promise.reject(new Error("Browser login state or control is changing."));
     const run = queue.then(async () => {
@@ -287,6 +292,13 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       if (clearing) throw new Error("Browser login state is being cleared.");
       if (stopping) throw new Error(CLOSING);
       touch();
+      if (saveDownload && ["open", "click", "type", "press", "scroll", "back"].includes(body.op)) {
+        for (const [id, entry] of downloadOwners) if (entry.signal?.aborted) downloadOwners.delete(id);
+        // A token is never reused: a late release cannot delete a newly dispatched callback.
+        const downloadOwner = randomUUID();
+        downloadOwners.set(downloadOwner, { save: saveDownload, signal });
+        body = { ...body, downloadOwner };
+      }
       const result = await request(body);
       await stream();
       return result;
@@ -312,6 +324,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     invalidate();
     // Already dispatched input completes before an agent can navigate this same Page.
     await inputQueue;
+    if (worker?.connected) await request({ op: "reset-input" }).catch(() => {});
     state.controller = "agent";
     // A site the user visited while in control may now be signed in as them.
     for (const site of takeoverOrigins) loggedIn.add(site);
@@ -358,7 +371,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
         specs: BROWSER_TOOL_SPECS,
         async run(name, args, signal) {
           const input = args && typeof args === "object" ? args as Record<string, unknown> : {};
-          currentSave = context.saveDownload;
+          const actFor = (body: BrowserRequest) => act(body, signal, context.conversationId, context.saveDownload);
           const describeResult = (result: unknown, limit = SNAPSHOT_CHARS) => describe(result as BrowserPageSummary, limit, context.conversationId);
           const target = (ref?: string) => {
             if (!snapshotId || snapshotOwner !== context.conversationId || (ref && !elements[ref])) throw new Error("The page or snapshot changed. Take a new browser_snapshot before acting.");
@@ -371,7 +384,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
                 signal?.throwIfAborted();
                 return { text: accountNote(), isError: false };
               }
-              case "browser_open": return { text: describeResult(await act({ op: "open", url: String(input.url ?? "") }, signal)), isError: false };
+              case "browser_open": return { text: describeResult(await actFor({ op: "open", url: String(input.url ?? "") })), isError: false };
               case "browser_snapshot": {
                 const offset = Number.isInteger(input.offset) && (input.offset as number) > 0 ? input.offset as number : 0;
                 if (offset) {
@@ -382,32 +395,32 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
                 const scope = typeof input.scope === "string" ? input.scope.trim() : undefined;
                 if (scope && scope.length > 512) throw new Error("Snapshot scope is too long.");
                 const mode = input.mode === "interactive" || input.mode === "content" ? input.mode : "full";
-                return { text: describeResult(await act({ op: "snapshot", scope, mode }, signal), PAGE_CHARS), isError: false };
+                return { text: describeResult(await actFor({ op: "snapshot", scope, mode }), PAGE_CHARS), isError: false };
               }
               case "browser_tabs": {
                 const pageId = typeof input.pageId === "string" ? input.pageId : undefined;
-                const result = await act({ op: "tabs", pageId }, signal);
+                const result = await actFor({ op: "tabs", pageId });
                 return { text: pageId ? describeResult(result) : JSON.stringify(result), isError: false };
               }
               case "browser_wait_for": {
                 const text = String(input.text ?? "").trim();
                 if (!text || text.length > 500) throw new Error("Expected text must be 1–500 characters.");
                 const timeout = typeof input.timeoutMs === "number" && Number.isFinite(input.timeoutMs) ? Math.max(1, Math.min(10_000, input.timeoutMs)) : 5000;
-                return { text: describeResult(await act({ op: "wait", text, hidden: input.hidden === true, timeout }, signal)), isError: false };
+                return { text: describeResult(await actFor({ op: "wait", text, hidden: input.hidden === true, timeout })), isError: false };
               }
-              case "browser_click": return { text: describeResult(await act({ op: "click", ref: String(input.ref ?? ""), ...target(String(input.ref ?? "")) }, signal, context.conversationId)), isError: false };
+              case "browser_click": return { text: describeResult(await actFor({ op: "click", ref: String(input.ref ?? ""), ...target(String(input.ref ?? "")) })), isError: false };
               case "browser_type": {
-                return { text: describeResult(await act({ op: "type", ref: String(input.ref ?? ""), text: String(input.text ?? ""), submit: input.submit === true, ...target(String(input.ref ?? "")) }, signal, context.conversationId)), isError: false };
+                return { text: describeResult(await actFor({ op: "type", ref: String(input.ref ?? ""), text: String(input.text ?? ""), submit: input.submit === true, ...target(String(input.ref ?? "")) })), isError: false };
               }
               case "browser_press": {
                 const key = String(input.key ?? "");
                 if (typeof input.snapshotId !== "string" || input.snapshotId !== snapshotId) throw new Error("The page or snapshot changed. Pass the Snapshot ID from a new browser_snapshot before pressing a key.");
                 // The same focused element the approval was judged on, or the worker refuses.
                 const expectRef = key === "Enter" || key === "Space" ? focusedRef() : undefined;
-                return { text: describeResult(await act({ op: "press", key, ...target(), ...(expectRef ? { expectRef: expectRef.slice(refPrefix.length) } : {}) }, signal, context.conversationId)), isError: false };
+                return { text: describeResult(await actFor({ op: "press", key, ...target(), ...(expectRef ? { expectRef: expectRef.slice(refPrefix.length) } : {}) })), isError: false };
               }
-              case "browser_scroll": return { text: describeResult(await act({ op: "scroll", direction: input.direction === "up" ? "up" : "down" }, signal)), isError: false };
-              case "browser_back": return { text: describeResult(await act({ op: "back" }, signal)), isError: false };
+              case "browser_scroll": return { text: describeResult(await actFor({ op: "scroll", direction: input.direction === "up" ? "up" : "down" })), isError: false };
+              case "browser_back": return { text: describeResult(await actFor({ op: "back" })), isError: false };
               case "browser_request_takeover": {
                 if (!worker?.connected) await start();
                 const reason = String(input.reason ?? "").trim().slice(0, 300) || "The agent needs you in the browser.";
@@ -446,6 +459,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
         if (stopping) throw new Error(CLOSING);
         if (clearing) throw new Error("Browser login state is being cleared.");
         if (!worker?.connected) await start();
+        await request({ op: "clear-download-owners" });
         state.controller = "user";
         takeoverOrigins = new Set(origin()?.startsWith("http") ? [origin()!] : []);
         touch(); publish();
@@ -475,14 +489,14 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       } finally { changingControl = false; publish(); }
     },
     /** Input from the live view, only while the user holds the browser. */
-    async input(input: BrowserInput, target = { pageId: state.pageId, controlEpoch: state.controlEpoch }) {
+    async input(input: BrowserInput, target = { pageId: state.pageId, controlEpoch: state.controlEpoch }, inputId?: string) {
       if (clearing || changingControl || stopping) throw new Error("Browser control is changing.");
       const run = inputQueue.then(async () => {
         if (clearing || changingControl || stopping) throw new Error("Browser control is changing.");
         if (state.controller !== "user") throw new Error("Take over the browser first.");
         if (!target.pageId || target.pageId !== state.pageId || target.controlEpoch !== state.controlEpoch) throw new Error("Browser control or tab changed; wait for its new frame before typing.");
         touch();
-        await request({ op: "input", input, pageId: target.pageId });
+        await request({ op: "input", input, pageId: target.pageId, inputId });
       });
       inputQueue = run.catch(() => undefined);
       await run;
@@ -492,7 +506,10 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       watchers.add(listener);
       listener({ type: "state", state: { ...state } });
       void stream();
-      return () => { watchers.delete(listener); void stream(); };
+      return () => {
+        watchers.delete(listener); void stream();
+        if (!watchers.size && state.controller === "user") void request({ op: "reset-input" }).catch(() => {});
+      };
     },
     async clearLogins() {
       if (clearing) throw new Error("Browser login state is being cleared.");

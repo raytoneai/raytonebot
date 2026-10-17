@@ -8,9 +8,11 @@ import capabilityFilesystemRaw from "../fixtures/agentux/capability-filesystem.e
 import reasoningKindsRaw from "../fixtures/agentux/reasoning-kinds.events.jsonl?raw";
 import blockErrorRaw from "../fixtures/agentux/block-error.events.jsonl?raw";
 import toolApprovalRaw from "../fixtures/agentux/tool-approval-lifecycle.events.jsonl?raw";
+import groupChatRaw from "../fixtures/agentux/group-chat.events.jsonl?raw";
 import htmlStreamRaw from "../fixtures/agentux/html-artifact-stream.events.jsonl?raw";
 
 export type PreviewFixtureId =
+  | "group-chat"
   | "coding-agent"
   | "basic-text"
   | "reasoning-kinds"
@@ -25,9 +27,11 @@ export type PreviewFixture = {
   label: string;
   description: string;
   raw: string;
+  enabledSlots?: readonly string[];
 };
 
 export const previewFixtures: PreviewFixture[] = [
+  { id: "group-chat", label: "Group chat", description: "Three members with authored text, planning and execution.", raw: groupChatRaw },
   {
     id: "coding-agent",
     label: "Coding agent",
@@ -63,6 +67,7 @@ export const previewFixtures: PreviewFixture[] = [
     label: "Capability tray",
     description: "Capability attached event for the utility panel.",
     raw: capabilityFilesystemRaw,
+    enabledSlots: ["capabilities"],
   },
   {
     id: "html-artifact-stream",

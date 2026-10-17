@@ -1,0 +1,5 @@
+CONFIRMED: corrupted memory/routine/MCP files appear empty and are overwritten by the next save. No network was used.
+CONFIRMED: failed control claim remains in memory; retry returns created=false with a provisioning bot absent from disk.
+CONFIRMED: failed approval clear removes the in-memory grant but the grant returns after restart.
+CONFIRMED: missing attachment fails before the bridge receives a prompt; the valid retry never includes saved memory. Host path exercised with a fake bridge.
+CONFIRMED: A starts a delayed download; B only calls browser_accounts; A download is saved with B context: [{"conversationId":"conversation-B","agent":"builder","name":"probe.txt","bytes":"firstlater"}]

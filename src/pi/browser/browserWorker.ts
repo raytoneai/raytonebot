@@ -33,10 +33,26 @@ let activation = Promise.resolve();
 let activationVersion = 0;
 let revision = 0;
 let screencasting = false;
+const pressedKeys = new Map<Page, Set<string>>();
+const pressedButtons = new Map<Page, Set<"left" | "right" | "middle">>();
+async function resetInput() {
+  for (const [page, keys] of pressedKeys) for (const key of keys) await page.keyboard.up(key).catch(() => {});
+  for (const [page, buttons] of pressedButtons) {
+    // Releasing on the original button could submit it after the viewer disconnected.
+    await page.mouse.move(-1, -1).catch(() => {});
+    for (const button of buttons) await page.mouse.up({ button }).catch(() => {});
+  }
+  pressedKeys.clear(); pressedButtons.clear();
+}
 let frameSeq = 0;
+let confirmedInput: { page: Page; id: string; capturedAt: number } | undefined;
 let lastFrameAt = 0;
 const frameTimers = new Set<ReturnType<typeof setTimeout>>();
 const pages = new Map<Page, string>();
+const pageOwners = new Map<Page, string>();
+const framePages = new Map<string, Page>();
+const frameObservers = new Map<Page, Promise<CDPSession | undefined>>();
+const downloads = new Map<string, { url: string; name: string; owner?: string }>();
 const pendingPopups = new Set<Promise<unknown>>();
 const dialogs: string[] = [];
 let settleNote: string | undefined;
@@ -44,6 +60,36 @@ type Shot = { id: string; page: Page; revision: number; elements: Record<string,
 let lastSnapshot: Shot | undefined;
 
 const send = (message: BrowserWorkerMessage) => { process.send?.(message); };
+/** Keep callbacks only while a page or an in-flight GUID can still use them. */
+function releaseDownloadOwner(owner?: string) {
+  if (!owner || [...pageOwners.values()].includes(owner) || [...downloads.values()].some(download => download.owner === owner)) return;
+  send({ event: "download-owner-released", owner });
+}
+function setPageOwner(current: Page, owner?: string) {
+  const previous = pageOwners.get(current);
+  if (owner) pageOwners.set(current, owner); else pageOwners.delete(current);
+  if (previous !== owner) releaseDownloadOwner(previous);
+}
+
+/** Observe frames for the page's lifetime, including newly attached background frames. */
+async function observeFrames(current: Page): Promise<CDPSession | undefined> {
+  const session = await context!.newCDPSession(current).catch(() => undefined);
+  if (!session) return;
+  if (current.isClosed()) { void session.detach().catch(() => {}); return; }
+  session.on("Page.frameAttached", ({ frameId }) => framePages.set(frameId, current));
+  session.on("Page.frameNavigated", ({ frame }) => framePages.set(frame.id, current));
+  session.on("Page.frameDetached", ({ frameId }) => framePages.delete(frameId));
+  await session.send("Page.enable").catch(() => {});
+  const tree = await session.send("Page.getFrameTree").catch(() => undefined);
+  if (!current.isClosed() && tree) {
+    const bind = (node: { frame: { id: string }; childFrames?: typeof node[] }) => {
+      framePages.set(node.frame.id, current);
+      for (const child of node.childFrames ?? []) bind(child);
+    };
+    bind(tree.frameTree);
+  }
+  return session;
+}
 function invalidate() { revision += 1; lastSnapshot = undefined; }
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
@@ -56,9 +102,28 @@ function freePort(): Promise<number> {
   });
 }
 
+const pageTitles = new Map<Page, string>();
+const titleReads = new Map<Page, Promise<string>>();
+/** A download navigation can leave DOM title reads pending until all bytes arrive. */
+async function pageTitle(current: Page): Promise<string> {
+  let reading = titleReads.get(current);
+  if (!reading) {
+    const url = current.url();
+    reading = current.title().then(title => {
+      if (!current.isClosed() && current.url() === url) pageTitles.set(current, title);
+      return pageTitles.get(current) ?? "";
+    }, () => pageTitles.get(current) ?? "");
+    titleReads.set(current, reading);
+    void reading.finally(() => { if (titleReads.get(current) === reading) titleReads.delete(current); });
+  }
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  try { return await Promise.race([reading, new Promise<string>(resolve => { timer = setTimeout(() => resolve(pageTitles.get(current) ?? ""), 250); })]); }
+  finally { clearTimeout(timer); }
+}
+
 async function tabs() {
   return Promise.all([...pages].filter(([current]) => !current.isClosed()).map(async ([current, id]) => ({
-    id, url: current.url(), title: await current.title().catch(() => ""),
+    id, url: current.url(), title: await pageTitle(current),
   })));
 }
 
@@ -66,7 +131,7 @@ async function reportState() {
   const current = page;
   const atRevision = revision;
   if (!current || current.isClosed()) return;
-  const [title, list] = await Promise.all([current.title().catch(() => ""), tabs()]);
+  const [title, list] = await Promise.all([pageTitle(current), tabs()]);
   if (page !== current || revision !== atRevision || current.isClosed()) return;
   send({ event: "state", url: current.url(), title, pageId: pages.get(current)!, revision, tabs: list });
 }
@@ -87,20 +152,29 @@ function activate(current: Page): Promise<void> {
   page = current;
   invalidate();
   activation = activation.catch(() => {}).then(async () => {
+    await resetInput();
     const old = pageCdp;
     pageCdp = undefined;
     clearFrameTimers();
-    await old?.detach().catch(() => {});
+    // Chromium can defer detach until a download navigation finishes. Stale-session
+    // handlers are already guarded; do not hold the new tab behind the old transport.
+    void old?.send("Page.stopScreencast").catch(() => {});
+    void old?.detach().catch(() => {});
     if (version !== activationVersion || current.isClosed() || !context) return;
     const session = await context.newCDPSession(current).catch(() => undefined);
     if (!session) return;
-    if (version !== activationVersion || current.isClosed()) { await session.detach().catch(() => {}); return; }
+    if (version !== activationVersion || current.isClosed()) { void session.detach().catch(() => {}); return; }
     pageCdp = session;
+    await frameObservers.get(current);
+    await session.send("Page.enable").catch(() => {});
+    if (version !== activationVersion || current.isClosed()) return;
     await current.bringToFront().catch(() => {});
     session.on("Page.screencastFrame", ({ data, sessionId, metadata }) => {
       const ack = () => void session.send("Page.screencastFrameAck", { sessionId }).catch(() => {});
       if (!screencasting || pageCdp !== session || page !== current || version !== activationVersion || current.isClosed()) return ack();
-      send({ event: "frame", data, width: metadata.deviceWidth, height: metadata.deviceHeight, pageId: pages.get(current)!, seq: ++frameSeq, capturedAt: Date.now() });
+      const capturedAt = metadata.timestamp ? Math.round(metadata.timestamp * 1000) : Date.now();
+      const inputId = confirmedInput?.page === current && capturedAt >= confirmedInput.capturedAt ? confirmedInput.id : undefined;
+      send({ event: "frame", data, width: metadata.deviceWidth, height: metadata.deviceHeight, pageId: pages.get(current)!, seq: ++frameSeq, capturedAt, inputId });
       const wait = Math.max(0, FRAME_INTERVAL_MS - (Date.now() - lastFrameAt));
       lastFrameAt = Date.now() + wait;
       const timer = setTimeout(() => { frameTimers.delete(timer); ack(); }, wait);
@@ -116,6 +190,7 @@ function activate(current: Page): Promise<void> {
 function register(current: Page) {
   if (pages.has(current)) return;
   pages.set(current, randomUUID());
+  frameObservers.set(current, observeFrames(current));
   current.setDefaultTimeout(ACTION_TIMEOUT);
   current.setDefaultNavigationTimeout(NAVIGATION_TIMEOUT);
   void current.setViewportSize(VIEWPORT).catch(() => {});
@@ -124,11 +199,19 @@ function register(current: Page) {
     void dialog.dismiss().catch(() => {});
   });
   current.on("framenavigated", (frame) => {
-    if (frame === current.mainFrame() && page === current) { invalidate(); void reportState(); }
+    if (page === current && frame === current.mainFrame()) { invalidate(); void reportState(); }
   });
   current.on("load", () => void reportState());
+  current.on("popup", (popup) => {
+    const owner = pageOwners.get(current);
+    if (owner) setPageOwner(popup, owner);
+  });
   current.on("close", () => {
-    pages.delete(current);
+    pages.delete(current); pageTitles.delete(current); titleReads.delete(current); pressedKeys.delete(current); pressedButtons.delete(current);
+    setPageOwner(current);
+    void frameObservers.get(current)?.then(session => session?.detach().catch(() => {}));
+    frameObservers.delete(current);
+    for (const [id, ownerPage] of framePages) if (ownerPage === current) framePages.delete(id);
     if (page !== current) { void reportState(); return; }
     invalidate();
     const version = ++activationVersion;
@@ -185,7 +268,7 @@ async function launch(): Promise<Page> {
   chrome.stderr?.on("data", (chunk) => { stderr = (stderr + chunk).slice(-2000); });
   chrome.once("exit", (code) => {
     send({ event: "exit", code }); browser = undefined; context = undefined; page = undefined;
-    pages.clear(); invalidate(); clearFrameTimers();
+    pages.clear(); pageOwners.clear(); framePages.clear(); frameObservers.clear(); downloads.clear(); invalidate(); clearFrameTimers();
   });
   for (let i = 0; i < 150; i += 1) {
     if (chrome.exitCode !== null) throw new Error(`The browser exited while starting (${chrome.exitCode}). ${stderr.trim().split("\n").at(-1) ?? ""}`);
@@ -208,18 +291,24 @@ async function launch(): Promise<Page> {
   });
   await browserCdp.send("Target.setDiscoverTargets", { discover: true });
   await browserCdp.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: launchOptions.downloadDir, eventsEnabled: true });
-  const downloads = new Map<string, { url: string; name: string }>();
-  browserCdp.on("Browser.downloadWillBegin", ({ guid, url, suggestedFilename }) => downloads.set(guid, { url, name: suggestedFilename }));
+  browserCdp.on("Browser.downloadWillBegin", ({ guid, url, suggestedFilename, frameId }) => {
+    const source = framePages.get(frameId);
+    const download = { url, name: suggestedFilename, owner: source ? pageOwners.get(source) : undefined };
+    downloads.set(guid, download);
+    send({ event: "download", guid, ...download, size: 0, state: "started" });
+  });
   browserCdp.on("Browser.downloadProgress", ({ guid, receivedBytes, totalBytes, state }) => {
     const download = downloads.get(guid);
     if (!download) return;
     if (state === "inProgress" && Math.max(receivedBytes, totalBytes) > FILE_LIMIT) {
       void browserCdp?.send("Browser.cancelDownload", { guid }).catch(() => {});
       downloads.delete(guid);
-      send({ event: "download", guid, url: download.url, name: download.name, size: Math.max(receivedBytes, totalBytes), state: "too-large" });
+      send({ event: "download", guid, ...download, size: Math.max(receivedBytes, totalBytes), state: "too-large" });
+      releaseDownloadOwner(download.owner);
     } else if (state === "completed" || state === "canceled") {
       downloads.delete(guid);
-      send({ event: "download", guid, url: download.url, name: download.name, size: receivedBytes, state: state === "completed" ? "completed" : "canceled" });
+      send({ event: "download", guid, ...download, size: receivedBytes, state: state === "completed" ? "completed" : "canceled" });
+      releaseDownloadOwner(download.owner);
     }
   });
   return page!;
@@ -255,7 +344,10 @@ function parseElements(text: string): Record<string, BrowserElement> {
 async function summary(options: { scope?: string; mode?: "full" | "interactive" | "content" } = {}) {
   const current = await start();
   const atRevision = revision;
+  const frameScopeError = "Frame-scoped snapshots are not supported. Open the frame URL as a tab or ask the user to take over.";
+  if (options.scope && /(?:^|>>)\s*internal:control\s*=\s*enter-frame(?:\s*(?:>>|$))/i.test(options.scope)) throw new Error(frameScopeError);
   const region = options.scope ? current.locator(options.scope) : current.locator("body");
+  if (options.scope && await region.evaluate(el => /^(IFRAME|FRAME)$/.test(el.tagName))) throw new Error(frameScopeError);
   let text = options.scope ? await region.ariaSnapshot({ mode: "ai" }) : await current.ariaSnapshot({ mode: "ai" });
   if (options.mode === "interactive" || options.mode === "content") {
     let keepLink = false;
@@ -294,7 +386,7 @@ async function summary(options: { scope?: string; mode?: "full" | "interactive" 
       return parts.join("\n");
     });
   }
-  const title = await current.title().catch(() => "");
+  const title = await pageTitle(current);
   // Publish the current revision before the result so a later unchanged state event cannot
   // invalidate the host's newly accepted snapshot.
   await reportState();
@@ -303,6 +395,7 @@ async function summary(options: { scope?: string; mode?: "full" | "interactive" 
   lastSnapshot = { id, page: current, revision, elements };
   const notes = dialogs.splice(0).map((dialog) => dialog.startsWith("page answered") ? `The ${dialog}.` : `A ${dialog} (dismissed)`);
   if (settleNote) { notes.push(settleNote); settleNote = undefined; }
+  if (current.frames().length > 1) notes.push("Embedded frames are not supported by agent refs in this version. Open the frame URL as a tab or request user takeover; never guess a parent-page target.");
   notes.push("Asynchronous content may arrive later; use browser_wait_for for specific text.");
   return { url: current.url(), title, pageId: pages.get(current)!, snapshotId: id, snapshot: text, ...(content !== undefined ? { content } : {}), elements, notes };
 }
@@ -356,12 +449,18 @@ async function target(current: Page, id: string | undefined, ref: string) {
 }
 
 async function handle(request: BrowserRequest): Promise<unknown> {
+  const ownDownloads = (current: Page) => {
+    setPageOwner(current, request.downloadOwner);
+  };
   switch (request.op) {
+    case "reset-input": await resetInput(); return {};
     case "launch": launchOptions = request.options; return {};
+    case "clear-download-owners": for (const current of pageOwners.keys()) setPageOwner(current); return {};
     case "open": {
       const current = await start();
       const url = new URL(request.url);
       if (url.protocol !== "http:" && url.protocol !== "https:") throw new Error("Only http(s) pages can be opened.");
+      ownDownloads(current);
       invalidate();
       const response = await current.goto(url.href, { waitUntil: "domcontentloaded" });
       await settle();
@@ -393,6 +492,7 @@ async function handle(request: BrowserRequest): Promise<unknown> {
     case "click": {
       const current = await start();
       await target(current, request.snapshotId, request.ref);
+      ownDownloads(current);
       invalidate();
       await current.getByRef(request.ref).click();
       await settle();
@@ -401,6 +501,7 @@ async function handle(request: BrowserRequest): Promise<unknown> {
     case "type": {
       const current = await start();
       const shot = await target(current, request.snapshotId, request.ref);
+      ownDownloads(current);
       invalidate();
       const actionRevision = revision;
       await current.getByRef(request.ref).fill(request.text);
@@ -427,6 +528,7 @@ async function handle(request: BrowserRequest): Promise<unknown> {
         if (!facts || secretElement(facts as BrowserElement)) throw new Error("Agents never type into secret fields; ask the user to take over the browser.");
       }
       approvedSnapshot(current, request.snapshotId);
+      ownDownloads(current);
       invalidate();
       await current.keyboard.press(request.key === "Space" ? " " : request.key);
       await settle();
@@ -434,6 +536,7 @@ async function handle(request: BrowserRequest): Promise<unknown> {
     }
     case "scroll": {
       const current = await start();
+      ownDownloads(current);
       invalidate();
       await current.mouse.wheel(0, request.direction === "up" ? -600 : 600);
       await settle();
@@ -441,6 +544,7 @@ async function handle(request: BrowserRequest): Promise<unknown> {
     }
     case "back": {
       const current = await start();
+      ownDownloads(current);
       invalidate();
       await current.goBack({ waitUntil: "domcontentloaded" }).catch(() => null);
       await settle();
@@ -457,18 +561,38 @@ async function handle(request: BrowserRequest): Promise<unknown> {
     case "input": {
       const current = await start();
       if (request.pageId && request.pageId !== pages.get(current)) throw new Error("The active browser tab changed; this input was discarded.");
+      ownDownloads(current);
       invalidate();
       void reportState();
+      confirmedInput = undefined;
       const input = request.input;
       if (input.kind === "mouse") {
         await current.mouse.move(input.x, input.y);
-        if (input.type === "down") await current.mouse.down({ button: input.button ?? "left" });
-        if (input.type === "up") await current.mouse.up({ button: input.button ?? "left" });
+        if (input.type === "down") {
+          await current.mouse.down({ button: input.button ?? "left" });
+          const held = pressedButtons.get(current) ?? new Set(); held.add(input.button ?? "left"); pressedButtons.set(current, held);
+        }
+        if (input.type === "up") { await current.mouse.up({ button: input.button ?? "left" }); pressedButtons.get(current)?.delete(input.button ?? "left"); }
         if (input.type === "wheel") await current.mouse.wheel(input.deltaX ?? 0, input.deltaY ?? 0);
       } else if (input.kind === "key") {
-        if (input.type === "down") await current.keyboard.down(input.key);
-        else await current.keyboard.up(input.key);
+        if (input.type === "down") {
+          await current.keyboard.down(input.key);
+          const held = pressedKeys.get(current) ?? new Set(); held.add(input.key); pressedKeys.set(current, held);
+        } else { await current.keyboard.up(input.key); pressedKeys.get(current)?.delete(input.key); }
       } else await current.keyboard.insertText(input.text);
+      // An input receipt needs a frame captured after dispatch, not an arbitrary in-flight
+      // screencast frame. One per client batch, only while the view is watched.
+      if (request.inputId && screencasting) {
+        await within(current.evaluate(() => new Promise<void>((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => resolve())))), 250).catch(() => false);
+        if (page === current && !current.isClosed()) {
+          const capturedAt = Date.now();
+          const data = await current.screenshot({ type: "jpeg", quality: 65, timeout: 2000 });
+          if (page === current && !current.isClosed()) {
+            confirmedInput = { page: current, id: request.inputId, capturedAt };
+            send({ event: "frame", data: data.toString("base64"), ...VIEWPORT, seq: ++frameSeq, capturedAt, pageId: pages.get(current)!, inputId: request.inputId });
+          }
+        }
+      }
       return {};
     }
     case "close": {
@@ -482,12 +606,12 @@ async function handle(request: BrowserRequest): Promise<unknown> {
 let requests = Promise.resolve();
 let manualRequests = Promise.resolve();
 process.on("message", (message: { id: number; request: BrowserRequest }) => {
-  const answer = () => handle(message.request).then(
+  const answer = () => handle(message.request).finally(() => releaseDownloadOwner(message.request.downloadOwner)).then(
     (result) => send({ id: message.id, ok: true, result }),
     (error: unknown) => send({ id: message.id, ok: false, error: error instanceof Error ? error.message.split("\n")[0].slice(0, 500) : String(error) }),
   );
   if (message.request.op === "close") void answer();
-  else if (["input", "tabs", "screencast"].includes(message.request.op)) manualRequests = manualRequests.then(answer, answer);
+  else if (["input", "tabs", "screencast", "reset-input"].includes(message.request.op)) manualRequests = manualRequests.then(answer, answer);
   else requests = requests.then(answer, answer);
 });
 

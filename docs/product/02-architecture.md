@@ -2,6 +2,14 @@
 
 ## 当前架构（2026-10-04 工作树；生产实例尚未更新）
 
+2026-10-18 sandbox 内可靠性补充（本机工作树）：`settingsFile.ts` 统一区分 ENOENT 与不可读/结构错误。记忆、MCP、例行任务和 IM 的坏文件保留并拒绝保存，设置接口返回错误；不可用的工具/时钟/连接器停用，普通聊天主机仍可启动。用户修复后重启重新读取，不自动替换为默认配置。授权和 IM 配置、映射、Telegram 游标在文件成功替换后才更新内存。
+
+记忆 `noteFor` 现在返回说明及捕获版本的交付确认函数；附件校验先执行，Pi 的原生 preflight 接受、CLI 的原生 turn/assistant 身份确认后才提交版本。成功完成和测试 bridge 的助手事件也可确认；接受前失败不消费版本，迟到的旧确认不能抹掉新版本。
+
+浏览器内部 IPC 的动作可携带不暴露给模型的 `downloadOwner` token；worker 按 Page/Frame 记录所属任务，在 `Browser.downloadWillBegin` 时把 token 固定进 GUID 记录，完成事件带回同一 token。host 据此找发起任务的保存回调并检查取消状态。读账号/快照/切标签不转移归属；用户接管先清页面归属，没有任务归属的手动下载不进入任意 Agent 工作区，会报告丢弃。关闭浏览器清理归属；未知 frame 同样不猜保存目标。HTTP 接口及界面结构未改变。
+
+2026-10-18 交叉 review 补充：每个 Page 使用独立于当前截图会话的 CDP frame 观察器，后台新增 frame 也能匹配下载来源。每次修改动作使用一次性 token；页面换归属、关闭、接管或 GUID 结束后，worker 只释放已无 Page/GUID 引用的 token，host 随即删除保存回调；未接管页面的失败动作也释放。保留回调数量随活页和未完成下载变化，不随历史轮次累积。主页面快照仅因主 frame 导航失效；作用域校验识别真实 frame 元素/穿帧语法，普通名称含 frame 的容器可用。devtools 保留同一浏览器单调时钟的输入→显示延迟，移除浏览器与 sandbox 时间相减的帧年龄。fixture 的临时槽位开关经动态事件源元数据传递，产品组件不识别 fixture id。
+
 ```
 浏览器  React UI（AgentCanvas 导出组件 + AgentUX 渲染）
    │  HTTPS + Basic Auth（仅云端）
@@ -251,3 +259,11 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭回 opener；现有 BrowserView 在多页时增加标签页选择，只有用户接管时能操作。`browser_tabs` 读取/选择，`browser_wait_for` 有界等文本（至多10秒）；`browser_snapshot` 增加 `scope` CSS区域及 full/interactive/content 模式、按行分页，正文模式保留链接，未知/秘密字段不暴露值。每次快照给模型不同的 refs 前缀，内部快照ID绑定页面/版本/对话；press 显式携带结果中的 snapshotId，防旧按键审批采用新快照。动作派发前用旧ref与Playwright角色/可访问名称交集核对目标，再读提交事实；不重建整页树或修改兄弟ref。正文与带ref的链接树通过独立IPC字段传递，只改写真实树中的refs。动作后等待DOM安静200ms，最多1秒；持续变化则明确提示未收敛，较晚的异步结果仍需定向等待，不自动重放不确定动作。
 
 接管输入批次在服务端冻结 pageId/controlEpoch，逐项检查，worker 再核 pageId。切页/交还先封住新输入和Agent动作、等待已派发输入结束；`release()` 因此为异步，所有调用必须 await。原 `/browser/control` 增加 `{action:"select-tab",pageId}`，`/browser/input` 兼容旧格式并可携带目标；新前端换目标清空队列，busy或画面页不匹配时不发输入。帧附加 pageId/seq/capturedAt，前端丢旧页/旧seq并记录 receivedAt；有界 runtime 日志仅记每批输入数量与处理时间，不记内容。关闭采用单次清理、Chrome优雅退出5秒，TERM/KILL后备总预算约8秒，服务层等待12秒；关闭期间拒绝新启动、模型动作和接管，已开始的启动完成后再关闭；SSE、首次HTTP和控制操作的返回统一检查controlEpoch。代理、UID、持久profile和审批分级保持。
+
+### M5 第一批：群附件、工作产物与浏览器边界（2026-10-18）
+
+- 群 HTTP prompt 与普通 prompt 共用 attachments 引用契约；新上传群文件存 shared。`groupChat` 路由后、接受消息前按所有可能的任务读取者调用现有文件校验；PM 说明和新成员介绍不传附件，摘要需要附件时校验 assistant。父轮记录附件引用；单个成员仍走原 `runPrompt` 二次验证。首条接收回执先落盘，之后保存 turn metadata，失败不会把未接受的请求 id 变成不可重试。
+- IndexedDB 的现有 conversation draft metadata 增加可选 groupMembers；只有尚无历史的新群允许仅成员名单的空记录保留。正常单聊及接受后的空记录行为不变，权限仍不恢复 allow-all。
+- `src/pi/artifactTool.ts` 提供 `publish_artifact`，主机验证后调用当前 adapter，走既有 artifact 事件和 OutputFrame。`resolveFilePath` 是 adapter 的可选主机回调，默认保持旧 fixture 行为；主机按各引擎 cwd 生成绝对 URI。参考 ADR-044。
+- 浏览器既有 `/browser/input` 可选 inputId（仅标识符，最多64字符），SSE frame 可选同名关联。开发诊断在输入批次执行并让页面渲染后截一帧；BrowserView 解码并经过绘制帧后才记录浏览器单调时钟的 send→display 延迟，最多200样本，不保留输入内容/不落盘，普通入口不请求额外截图。capturedAt 来自 CDP 帧时间；跨设备帧年龄需考虑时钟偏差。
+- 所有子 frame 导航均使 ref 失效；iframe scope 明确不支持、提示独立打开或接管。切换标签不阻塞在旧 CDP detach 上，旧帧仍由 page/session/version 检查拒绝；标题读取250ms后用缓存回退。交还/最后观看连接关闭/换页清理按键，鼠标移出再释放，防止清理本身点中原按钮。

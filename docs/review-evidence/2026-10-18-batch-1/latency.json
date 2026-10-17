@@ -1,0 +1,23 @@
+{
+  "phase": "Earlier successful measurements in this batch; final recapture failed because CUA timed out. Not final-build or production SLA evidence.",
+  "method": "Browser input batch send -> correlated post-dispatch JPEG decode -> two requestAnimationFrame callbacks. Monotonic browser clock; includes diagnostic screenshot overhead; excludes queue wait before send.",
+  "normal": {
+    "samples": 20,
+    "p50Ms": 91,
+    "p95Ms": 101,
+    "lastFrameAgeMs": 61,
+    "pending": 0,
+    "missed": 0
+  },
+  "artificialSlow": {
+    "eachDirectionDelayMs": 150,
+    "samples": 20,
+    "p50Ms": 406,
+    "p95Ms": 416,
+    "lastFrameAgeMs": 152,
+    "pending": 0,
+    "missed": 0
+  },
+  "frameAgeCaveat": "Client and server were on the same machine. Cross-device wall-clock skew invalidates a direct frame-age comparison.",
+  "finalRecapture": "Two CUA calls timed out; no final measurements saved; temporary viewport reset requested but no response received."
+}

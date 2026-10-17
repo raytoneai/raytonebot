@@ -10,7 +10,7 @@ import { dirname } from "node:path";
  * cannot read or write.
  */
 export class ApprovalMemory {
-  private readonly allowed = new Map<string, Set<string>>();
+  private allowed = new Map<string, Set<string>>();
   private readonly file?: string;
 
   constructor(file?: string) {
@@ -31,29 +31,33 @@ export class ApprovalMemory {
   }
 
   add(agent: string, toolName: string) {
-    const tools = this.allowed.get(agent) ?? new Set<string>();
+    const tools = new Set(this.allowed.get(agent));
     if (tools.has(toolName)) return;
     tools.add(toolName);
-    this.allowed.set(agent, tools);
-    this.save();
+    const next = new Map(this.allowed);
+    next.set(agent, tools);
+    this.save(next);
   }
 
   /** Forget one agent's grants, or every agent's. */
   clear(agent?: string) {
-    if (agent === undefined) this.allowed.clear();
-    else this.allowed.delete(agent);
-    this.save();
+    const next = new Map(this.allowed);
+    if (agent === undefined) next.clear();
+    else next.delete(agent);
+    this.save(next);
   }
 
   list(): Record<string, string[]> {
     return Object.fromEntries([...this.allowed].filter(([, tools]) => tools.size > 0).map(([agent, tools]) => [agent, [...tools].sort()]));
   }
 
-  private save() {
-    if (!this.file) return;
-    mkdirSync(dirname(this.file), { recursive: true });
-    const temporary = `${this.file}.tmp`;
-    writeFileSync(temporary, `${JSON.stringify(this.list(), null, 2)}\n`, { mode: 0o600 });
-    renameSync(temporary, this.file);
+  private save(next: Map<string, Set<string>>) {
+    if (this.file) {
+      mkdirSync(dirname(this.file), { recursive: true });
+      const temporary = `${this.file}.tmp`;
+      writeFileSync(temporary, `${JSON.stringify(Object.fromEntries([...next].map(([agent, tools]) => [agent, [...tools].sort()])), null, 2)}\n`, { mode: 0o600 });
+      renameSync(temporary, this.file);
+    }
+    this.allowed = next;
   }
 }

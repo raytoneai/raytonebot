@@ -1,0 +1,26 @@
+Node tests
+✔ deliverables exclude plans, source, directory snapshots and unsaved diffs; latest file wins (0.755166ms)
+ℹ tests 359
+ℹ suites 0
+ℹ pass 359
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13748.229625
+
+Build
+
+[plugin builtin:vite-reporter]
+(!) Some chunks are larger than 500 kB after minification. Consider:
+- Using dynamic import() to code-split the application
+- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting
+- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.
+✓ built in 626ms
+
+Python operations
+..................sss.
+----------------------------------------------------------------------
+Ran 22 tests in 1.204s
+
+OK (skipped=3)

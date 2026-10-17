@@ -121,7 +121,7 @@ export function createChannelManager(options: {
     };
   };
 
-  for (const platform of CHANNEL_PLATFORMS) if (store.get(platform).enabled) restart(platform);
+  if (!store.error) for (const platform of CHANNEL_PLATFORMS) if (store.get(platform).enabled) restart(platform);
 
   return {
     list: () => CHANNEL_PLATFORMS.map(view),

@@ -1,3 +1,4 @@
+import { realpathSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
 
@@ -65,11 +66,17 @@ import type { ChannelSetupRequest } from "./imChannels/connectChannelTool.ts";
 import { redactCredentials } from "./imChannels/redactCredentials.ts";
 import { CHANNEL_PLATFORMS, type ChannelPatch, type ChannelPlatform } from "./imChannels/types.ts";
 import { deepSeekThinking, createModelGateway } from "./runtime/modelGateway.ts";
+import { artifactTools } from "./artifactTool.ts";
 import { attachGroupChat, type GroupController } from "./groupChat.ts";
 import { isolatePiTool } from "./runtime/isolatedPiTools.ts";
 import { requireAgentIsolation } from "./runtime/agentProcess.ts";
 import { createRoutineService, RoutineError, type RoutineCreateInput, type RoutineRequest, type RoutineService } from "./routines.ts";
 import type { RoutineView } from "./routineTypes.ts";
+
+function artifactPath(cwd: string, path: string): string {
+  const absolute = resolvePath(cwd, path);
+  try { return realpathSync(absolute); } catch { return absolute; }
+}
 
 export { PiApprovalGate } from "./approvalGate.ts";
 import {
@@ -251,6 +258,7 @@ export function createPiRuntimeController(options: {
         if (runId) store.saveNativeTurn(id, runId, { harness: "pi", sessionId, sourceId: id, beforeEntryId });
         else store.setPiSession(id, sessionId);
       },
+      onPromptAccepted: () => runs.get(id)?.memoryDelivered?.(),
       modelLease: (provider, protocol, thinkingLevel) => modelLease(provider, protocol, id, thinkingLevel),
       webTools,
       mcpTools: options.mcpTools?.(),
@@ -282,6 +290,7 @@ export function createPiRuntimeController(options: {
     steer?: (text: string, requestId: string) => Promise<void>;
     steering?: Map<string, { text: string; done: Promise<void> }>;
     stopRequested: boolean;
+    memoryDelivered?: () => void;
     limit?: string;
     /** Browsers watching the run; it keeps going with none (a closed tab does not stop it). */
     watchers: Set<(event: AgentUXEvent) => void>;
@@ -306,6 +315,11 @@ export function createPiRuntimeController(options: {
   };
   /** remember / forget and the browser for one conversation's agent; downloads land in its own workspace. */
   const hostToolsFor = (conversationId: string, agent: AgentPresetId) => mergeHostTools(
+    artifactTools(layout, agent, [dataDir], (file) => {
+      const slot = runs.get(conversationId);
+      if (!slot?.adapter || slot.stopRequested) throw new Error("The artifact run is no longer active.");
+      slot.adapter.apply({ type: "artifact_published", ...file });
+    }),
     options.memory?.toolsFor({ conversationId, agent }),
     options.browser?.toolsFor({ conversationId, agent,
       saveDownload: (name, bytes) => saveWorkspaceDownload(layout, agent, name, bytes, [dataDir]),
@@ -516,10 +530,12 @@ export function createPiRuntimeController(options: {
 
     const adapter = createPiEventAdapter({
       runId: input.requestId ?? `pi_${randomUUID()}`,
+      resolveFilePath: path => artifactPath(layout.agents[isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant"], path),
       onEvent,
       requiresApproval: (toolName, args) => toolName !== "ask_user" && approvalGate.requiresApproval(toolName, args),
     });
     const unsubscribe = current.subscribe((event) => {
+      if (event.type === "message_start" && asRecord(event.message).role === "assistant") runs.get(conversationId)?.memoryDelivered?.();
       // The SDK reports a cancelled approval/tool as an error before abort() settles.
       // Leave it open for the final cancellation, rather than persisting a false failure.
       if (runs.get(conversationId)?.stopRequested && event.type === "tool_execution_end" && event.isError === true) return;
@@ -553,6 +569,7 @@ export function createPiRuntimeController(options: {
         adapter.startUserMessage(text, requestId);
       };
       await current.prompt(modelPrompt);
+      if (!slot.stopRequested) slot.memoryDelivered?.();
       adapter.finish(runs.get(conversationId)?.stopRequested ? "cancelled" : "success");
     } catch (error) {
       if (runs.get(conversationId)?.stopRequested) adapter.finish("cancelled");
@@ -589,6 +606,7 @@ export function createPiRuntimeController(options: {
     let announcingHold = false;
     const adapter = createPiEventAdapter({
       runId: input.requestId ?? `${harness}_${randomUUID()}`,
+      resolveFilePath: path => artifactPath(runCwd, path),
       onEvent,
       requiresApproval: () => announcingHold,
     });
@@ -612,6 +630,7 @@ export function createPiRuntimeController(options: {
     let nativeTurn: NativeTurnCheckpoint | undefined;
     const onNativeTurn = ({ sessionId, id }: { sessionId: string; id: string }) => {
       nativeTurn = harness === "claude-code" ? { harness, sessionId, afterMessageId: id } : { harness, sessionId, turnId: id };
+      runs.get(conversationId)?.memoryDelivered?.();
     };
     const onUserInput = (request: UserInputRequest) => askUser(conversationId, request);
     let lease: { revoke(): void } | undefined;
@@ -858,9 +877,11 @@ export function createPiRuntimeController(options: {
         const conversation = store.begin(conversationId, role, options?.title ?? prompt);
         opened = true;
         if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
+        const workspacePrompt = await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]);
         const memoryNote = memory?.noteFor(conversationId);
+        slot.memoryDelivered = memoryNote?.delivered;
         const browserNote = browser?.contextNote();
-        const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), options?.groupConversation), unseenPrompts(conversationId, harness))}${memoryNote ? `\n\n${memoryNote}` : ""}${browserNote ? `\n\n${browserNote}` : ""}`, input.locale);
+        const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(workspacePrompt, options?.groupConversation), unseenPrompts(conversationId, harness))}${memoryNote?.text ? `\n\n${memoryNote.text}` : ""}${browserNote ? `\n\n${browserNote}` : ""}`, input.locale);
         store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt,
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, modelPrompt);
@@ -1000,7 +1021,9 @@ export function createPiRuntimeController(options: {
     },
   };
   // Group chat wraps the controller (groupChat.ts, ADR-032).
-  return attachGroupChat(api, { store, userInputGate, credentials: providerCredentials,
+  return attachGroupChat(api, { store, userInputGate,
+    validateAttachments: (attachments, role) => promptWithWorkspaceFiles("", attachments, role, layout, [dataDir]).then(() => {}),
+    credentials: providerCredentials,
     providerDefinition: (id) => id ? providerDefinitions.get(id) : undefined,
     providerKey: (id) => id ? providerKeys.get(id) : undefined, log, providerIds: () => [...providerDefinitions.keys()],
     titleGroup: async (id, input, prompt) => {
@@ -1021,7 +1044,7 @@ export function createPiHttpHost(options: {
   /** Runs routines on their schedule (ADR-036); tests that drive runs by hand turn it off. */
   routineClock?: boolean;
   /** The shared browser (ADR-040); tests without one turn it off. */
-  browser?: false;
+  browser?: false | BrowserService;
 }) {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: options.cwd });
   const privatePaths = [options.dataDir ?? defaultDataDir()];
@@ -1031,7 +1054,7 @@ export function createPiHttpHost(options: {
   const dataDir = options.dataDir ?? defaultDataDir();
   const mcp = createMcpService({ dataDir, log: runtimeLogger(dataDir) });
   const memory = createMemoryService({ dataDir, log: runtimeLogger(dataDir) });
-  const browser = options.browser === false ? undefined : createBrowserService({ dataDir, log: runtimeLogger(dataDir) });
+  const browser = options.browser === false ? undefined : options.browser ?? createBrowserService({ dataDir, log: runtimeLogger(dataDir) });
   const controller = createPiRuntimeController({ ...options, layout, channelSetup: (run) => channelSetup!.run(run),
     createRoutine: (input) => routines!.create(input), mcpTools: () => mcp.toolkit(), memory, browser });
   routines = createRoutineService({ dataDir, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
@@ -1140,7 +1163,7 @@ export function createPiHttpHost(options: {
               if (res.destroyed) return;
               // A slow viewer drops frames rather than queueing them.
               if (event.type === "frame" && res.writableLength > 1_000_000) return;
-              res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.type === "frame" ? { data: event.data, width: event.width, height: event.height, seq: event.seq, capturedAt: event.capturedAt, pageId: event.pageId } : event.state)}\n\n`);
+              res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.type === "frame" ? { data: event.data, width: event.width, height: event.height, seq: event.seq, capturedAt: event.capturedAt, pageId: event.pageId, inputId: event.inputId } : event.state)}\n\n`);
             });
             const heartbeat = setInterval(() => { if (!res.destroyed) res.write(": keep-alive\n\n"); }, 15_000);
             res.once("close", () => { clearInterval(heartbeat); stop(); });
@@ -1170,14 +1193,14 @@ export function createPiHttpHost(options: {
             const values = Array.isArray(body.inputs) ? body.inputs : [body.input];
             const inputs = values.map(browserInput);
             if (!inputs.length || inputs.length > 64 || inputs.some((input) => !input)) { sendJson(res, 400, { error: "Invalid browser input." }); return true; }
-            if ((body.pageId !== undefined && (typeof body.pageId !== "string" || !/^[a-zA-Z0-9-]{1,64}$/.test(body.pageId))) ||
+            if ((body.inputId !== undefined && (typeof body.inputId !== "string" || !/^[a-zA-Z0-9-]{1,64}$/.test(body.inputId))) || (body.pageId !== undefined && (typeof body.pageId !== "string" || !/^[a-zA-Z0-9-]{1,64}$/.test(body.pageId))) ||
               (body.controlEpoch !== undefined && (!Number.isSafeInteger(body.controlEpoch) || Number(body.controlEpoch) < 0))) { sendJson(res, 400, { error: "Invalid browser input target." }); return true; }
             // Freeze even legacy requests once per batch: a tab/control change rejects its remainder.
             const view = browser.view();
             const target = { pageId: typeof body.pageId === "string" ? body.pageId : view.pageId, controlEpoch: typeof body.controlEpoch === "number" ? body.controlEpoch : view.controlEpoch };
             const began = Date.now();
             try {
-              for (const input of inputs) await browser.input(input!, target);
+              for (let index = 0; index < inputs.length; index++) await browser.input(inputs[index]!, target, index === inputs.length - 1 ? body.inputId as string | undefined : undefined);
               runtimeLogger(dataDir)("browser.input_batch", { count: inputs.length, durationMs: Date.now() - began });
               sendJson(res, 200, { ok: true });
             }
@@ -1382,7 +1405,7 @@ export function createPiHttpHost(options: {
           res.once("close", () => clearInterval(heartbeat));
           try {
             await controller.runGroupPrompt({
-              conversationId, requestId, prompt,
+              conversationId, requestId, prompt, attachments: body.attachments as PiPromptInput["attachments"],
               ...(Array.isArray(body.members) ? { members: body.members.filter((m: unknown) => isAgentPresetId(m)) } : {}),
               provider: stringField(body, "provider"),
               model: stringField(body, "model"),
@@ -1492,6 +1515,7 @@ function channelPatch(body: Record<string, unknown>): ChannelPatch {
 async function createDefaultPiBridge(input: {
   cwd: string; approvalGate: PiApprovalGate; sessionDir?: string; sandboxed: boolean; rolePrompt?: string;
   sessionId?: string | null; hasHistory: boolean; onSessionId(id: string, beforeEntryId: string | null): void;
+  onPromptAccepted?(): void;
   branch?: { sessionDir: string; sessionId: string; entryId: string };
   onUserInput(request: UserInputRequest): Promise<UserAnswers>;
   onChannelSetup?(request: ChannelSetupRequest): Promise<ChannelSetupResult>;
@@ -1524,6 +1548,7 @@ async function createDefaultPiBridge(input: {
     // Bind before the SDK can call the model or tools; configuration failures leave null intact.
     input.onSessionId(session.sessionId, session.sessionManager.getLeafId());
     sessionStarted = true;
+    input.onPromptAccepted?.();
   } });
 
   async function createSession(fresh: boolean) {

@@ -225,7 +225,7 @@ export async function browserLogin(site: string, url?: string, fetcher: typeof f
   return requestJson<BrowserViewState>(fetcher, `${PI_API_PREFIX}/browser/control`, { action: "login", site, url }, AbortSignal.timeout(60_000));
 }
 
-export async function sendBrowserInputs(inputs: BrowserInput[], signal: AbortSignal, fetcher: typeof fetch = fetch, target?: { pageId?: string; controlEpoch?: number }): Promise<void> {
+export async function sendBrowserInputs(inputs: BrowserInput[], signal: AbortSignal, fetcher: typeof fetch = fetch, target?: { pageId?: string; controlEpoch?: number; inputId?: string }): Promise<void> {
   await requestJson(fetcher, `${PI_API_PREFIX}/browser/input`, { inputs, ...target }, AbortSignal.any([signal, AbortSignal.timeout(10_000)]));
 }
 

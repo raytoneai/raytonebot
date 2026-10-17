@@ -1,8 +1,9 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { McpServerInput, McpServerView } from "./mcpTypes.ts";
+import { readSettingsFile } from "./settingsFile.ts";
 
 /**
  * Remote MCP servers the user adds in Settings (ADR-037). The bot process is the MCP client:
@@ -204,29 +205,32 @@ export function mcpResultText(result: Record<string, unknown>): string {
 class McpStore {
   private servers: McpServer[] = [];
   private readonly file?: string;
+  readonly error?: Error;
 
   constructor(file?: string) {
     this.file = file;
-    if (!file) return;
-    try {
-      const parsed = JSON.parse(readFileSync(file, "utf8")) as { servers?: McpServer[] };
-      this.servers = (parsed.servers ?? []).filter((server) => server && typeof server.id === "string" && typeof server.url === "string")
-        .map((server) => ({ ...server, tools: Array.isArray(server.tools) ? server.tools : [] }));
-    } catch {
-      // Missing or unreadable: no servers until one is added again.
-    }
+    const loaded = readSettingsFile<{ servers: McpServer[] }>(file, data => Array.isArray(data.servers) && data.servers.every(server =>
+      server && typeof server.id === "string" && typeof server.url === "string" && typeof server.name === "string"
+      && Number.isFinite(server.createdAt) && (server.error === undefined || typeof server.error === "string")
+      && typeof server.enabled === "boolean" && (server.token === undefined || typeof server.token === "string")
+      && Array.isArray(server.tools) && server.tools.every(tool => tool && typeof tool.name === "string" && typeof tool.original === "string"
+        && typeof tool.description === "string" && tool.inputSchema && typeof tool.inputSchema === "object" && !Array.isArray(tool.inputSchema))));
+    this.error = loaded.error;
+    this.servers = loaded.data?.servers ?? [];
   }
 
-  list() { return this.servers.map((server) => structuredClone(server)); }
-  get(id: string) { const server = this.servers.find((item) => item.id === id); return server && structuredClone(server); }
+  list() { if (this.error) throw this.error; return this.servers.map((server) => structuredClone(server)); }
+  get(id: string) { if (this.error) throw this.error; const server = this.servers.find((item) => item.id === id); return server && structuredClone(server); }
 
   put(server: McpServer) {
+    if (this.error) throw this.error;
     const next = [...this.servers.filter((item) => item.id !== server.id), server].sort((a, b) => a.createdAt - b.createdAt);
     this.save(next);
     this.servers = next;
   }
 
   remove(id: string) {
+    if (this.error) throw this.error;
     const next = this.servers.filter((item) => item.id !== id);
     if (next.length === this.servers.length) return false;
     this.save(next);
@@ -377,6 +381,7 @@ export function createMcpService(options: {
 
     /** The enabled servers' tools for one run; servers that failed to list offer nothing. */
     toolkit(): McpToolkit | undefined {
+      if (store.error) return undefined;
       const servers = store.list().filter((server) => server.enabled && !server.error && server.tools.length);
       if (!servers.length) return undefined;
       return {

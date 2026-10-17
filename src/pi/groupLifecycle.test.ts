@@ -837,3 +837,92 @@ for (const scenario of ["follow-up", "several answered", "nobody answered yet", 
     } finally { controller.dispose(); await router.close(); rmSync(dataDir, { recursive: true, force: true }); }
   });
 }
+
+test("group HTTP retains shared attachments and rejects inaccessible references before accepting a draft", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-group-files-"));
+  const { ensureWorkspaceLayout, resolveWorkspaceLayout } = await import("./workspaceLayout.ts");
+  const { writeFileSync } = await import("node:fs");
+  const layout = resolveWorkspaceLayout({ fallbackCwd: dataDir, root: join(dataDir, "workspace") }); ensureWorkspaceLayout(layout);
+  writeFileSync(join(layout.shared!, "brief.txt"), "shared attachment sentinel");
+  writeFileSync(join(layout.agents.builder, "private.txt"), "member scoped");
+  const bridge = controlledBridges();
+  const host = createPiHttpHost({ cwd: layout.agents.assistant, layout, dataDir: join(dataDir, "data"), bridgeFactory: bridge.factory });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  const base = await listen(server);
+  try {
+    for (const [index, attachment, succeeds] of [
+      [0, { scope: "shared", path: "brief.txt" }, true],
+      [1, { scope: "shared", path: "missing.txt" }, false],
+      [2, { scope: "builder", path: "private.txt" }, false],
+    ] as const) {
+      const request = { ...input(`attached-${index}`), conversationId: `group_files_${index}`, attachments: [attachment] };
+      const response = await fetch(`${base}/__agentcanvas/pi/group/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
+      const events = eventsFrom(await response.text());
+      assert.equal(events.at(-1)?.type, succeeds ? "run.finished" : "run.error");
+      if (succeeds) {
+        assert.match(bridge.calls.at(-1)!.prompt, /attached_workspace_files/);
+        assert.match(bridge.calls.at(-1)!.prompt, /brief.txt/);
+        assert.deepEqual(host.controller.getConversation(request.conversationId)?.turns?.[0].attachments, [attachment]);
+      } else {
+        assert.equal(events.at(-1)?.payload.code, "prompt_rejected");
+        assert.equal(host.controller.getConversation(request.conversationId), undefined, "no accepted receipt clears the draft");
+      }
+    }
+    assert.equal(bridge.calls.length, 1);
+  } finally { host.dispose(); await close(server); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("group attachments follow only actual task readers through mention, sequence and discussion", async () => {
+  const { writeFileSync } = await import("node:fs");
+  const { ensureWorkspaceLayout, resolveWorkspaceLayout } = await import("./workspaceLayout.ts");
+  const root = mkdtempSync(join(tmpdir(), "rtb-group-readers-"));
+  const layout = resolveWorkspaceLayout({ fallbackCwd: root, root: join(root, "work") }); ensureWorkspaceLayout(layout);
+  writeFileSync(join(layout.shared!, "brief.txt"), "shared"); writeFileSync(join(layout.agents.builder, "private.txt"), "builder");
+  let route = "plan_then_build";
+  const router = createServer((_req, res) => res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ route }) } }] })));
+  const url = await listen(router);
+  const harnesses = AGENT_PRESETS.map(p => p.harness); for (const p of AGENT_PRESETS) p.harness = "pi";
+  const bridge = controlledBridges();
+  const store = createConversationStore(join(root, "data"));
+  const controller = createPiRuntimeController({ cwd: layout.agents.assistant, layout, dataDir: join(root, "data"), store, bridgeFactory: bridge.factory });
+  const config = { provider: "router", model: "fixture", providerDefinition: { id: "router", name: "Router", protocol: "openai-compatible" as const, baseUrl: url, models: ["fixture"], authMode: "none" as const } };
+  try {
+    await controller.configure(config);
+    const run = async (id: string, prompt: string, attachments: { scope: "builder" | "shared"; path: string }[]) => {
+      const events: AgentUXEvent[] = [];
+      await controller.runGroupPrompt({ ...config, conversationId: `group_${id}`, requestId: id, prompt, attachments }, event => {
+        events.push(event);
+        if (event.type === "run.awaiting_input") controller.resolveUserInput(`group_${id}`, event.payload.requestId as string, { plan: ["开始"] });
+      });
+      assert.equal(events.at(-1)?.payload.status, "success", JSON.stringify(events.at(-1)));
+    };
+    await run("mention-files", "@Bob read this", [{ scope: "builder", path: "private.txt" }]);
+    assert.deepEqual(bridge.calls.map(c => c.id), ["group_mention-files.m.builder"]);
+    assert.match(bridge.calls[0].prompt, /attached_workspace_files/);
+    bridge.calls.length = 0;
+    store.begin("group_newcomer-files", "assistant", "seed");
+    store.setExtra("group_newcomer-files", { group: { members: ["assistant", "builder"], introduced: ["builder"], lines: [
+      { author: "user", text: "Previous task" }, { author: "builder", text: "Done" },
+    ] } });
+    await run("newcomer-files", "@Bob read this", [{ scope: "builder", path: "private.txt" }]);
+    assert.deepEqual(bridge.calls.map(c => c.id), ["group_newcomer-files.m.assistant", "group_newcomer-files.m.builder"]);
+    assert.doesNotMatch(bridge.calls[0].prompt, /attached_workspace_files/, "a newcomer outside the preflight reader list receives no attachment");
+    assert.match(bridge.calls[1].prompt, /attached_workspace_files/);
+    bridge.calls.length = 0;
+    await run("first-intro-files", "你好", [{ scope: "shared", path: "brief.txt" }]);
+    assert.equal(bridge.calls.length, 3);
+    assert.ok(bridge.calls.every(c => c.prompt.includes("attached_workspace_files")), "first-turn intro speakers are all preflight-validated readers");
+    bridge.calls.length = 0;
+    await run("sequence-files", "先规划再实现", [{ scope: "shared", path: "brief.txt" }]);
+    assert.deepEqual(bridge.calls.map(c => c.id), ["group_sequence-files.m.assistant", "group_sequence-files.m.planner", "group_sequence-files.m.builder", "group_sequence-files.m.assistant"]);
+    assert.doesNotMatch(bridge.calls[0].prompt, /attached_workspace_files/, "PM announcement receives no attachment");
+    assert.ok(bridge.calls.slice(1).every(c => c.prompt.includes("attached_workspace_files")));
+    bridge.calls.length = 0; route = "discussion";
+    await run("discussion-files", "大家讨论一轮", [{ scope: "shared", path: "brief.txt" }]);
+    assert.equal(bridge.calls.length, 4);
+    assert.ok(bridge.calls.every(c => c.prompt.includes("attached_workspace_files")));
+    bridge.calls.length = 0;
+    await assert.rejects(run("denied-sequence", "先规划再实现", [{ scope: "builder", path: "private.txt" }]), /Attachments must belong/);
+    assert.equal(bridge.calls.length, 0, "no PM or member starts after failed preflight");
+  } finally { controller.dispose(); await close(router); AGENT_PRESETS.forEach((p, i) => p.harness = harnesses[i]); rmSync(root, { recursive: true, force: true }); }
+});

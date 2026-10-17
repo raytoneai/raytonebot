@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
-import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
+import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 
 import type { AgentPresetId } from "./harnessCatalog.ts";
 import type { HostToolResult, HostToolSpec } from "./mcpServers.ts";
 import { MEMORY_COUNT_LIMIT, MEMORY_TEXT_LIMIT, type MemoryState, type MemoryView } from "./memoryTypes.ts";
+import { readSettingsFile } from "./settingsFile.ts";
 
 /**
  * Cross-conversation memory (ADR-038): short facts and preferences the user asked any agent to
@@ -66,22 +67,18 @@ export function createMemoryService(options: { dataDir?: string; now?(): number;
   const file = options.dataDir ? join(options.dataDir, "memories.json") : undefined;
   const now = options.now ?? Date.now;
   let data: MemoryFile = { enabled: true, version: 0, memories: [] };
-  if (file) {
-    try {
-      const parsed = JSON.parse(readFileSync(file, "utf8")) as Partial<MemoryFile>;
-      data = {
-        enabled: parsed.enabled !== false,
-        version: Number.isSafeInteger(parsed.version) ? parsed.version! : 0,
-        memories: (parsed.memories ?? []).filter((memory) => memory && typeof memory.id === "string" && typeof memory.text === "string"),
-      };
-    } catch {
-      // Missing or unreadable: an empty list, on. Nothing reaches a prompt until saved again.
-    }
-  }
+  const loaded = readSettingsFile<MemoryFile>(file, value => typeof value.enabled === "boolean" && Number.isSafeInteger(value.version) && value.version >= 0
+    && Array.isArray(value.memories) && value.memories.every(memory => memory && typeof memory.id === "string" && typeof memory.text === "string"
+      && Number.isFinite(memory.createdAt) && Number.isFinite(memory.updatedAt)
+      && (memory.source === undefined || memory.source && typeof memory.source.conversationId === "string"
+        && ["assistant", "planner", "builder"].includes(memory.source.agent))));
+  if (loaded.data) data = loaded.data;
+  const assertReadable = () => { if (loaded.error) throw loaded.error; };
   /** Conversation → the version its model last saw. In memory: after a restart each one sees it once more. */
   const shown = new Map<string, number>();
 
   const save = (next: Omit<MemoryFile, "version">) => {
+    assertReadable();
     const written = { ...next, version: data.version + 1 };
     if (file) {
       mkdirSync(dirname(file), { recursive: true });
@@ -92,9 +89,10 @@ export function createMemoryService(options: { dataDir?: string; now?(): number;
     data = written;
   };
 
-  const state = (): MemoryState => ({ enabled: data.enabled, memories: data.memories.map((memory) => structuredClone(memory)) });
+  const state = (): MemoryState => { assertReadable(); return { enabled: data.enabled, memories: data.memories.map((memory) => structuredClone(memory)) }; };
 
   const add = (value: unknown, source?: MemoryView["source"]): MemoryView => {
+    assertReadable();
     const text = cleanText(value);
     const same = data.memories.find((memory) => memory.text.toLowerCase() === text.toLowerCase());
     if (same) return structuredClone(same);
@@ -108,6 +106,7 @@ export function createMemoryService(options: { dataDir?: string; now?(): number;
   };
 
   const remove = (id: string) => {
+    assertReadable();
     if (!data.memories.some((memory) => memory.id === id)) throw new MemoryError("No memory with that id.", 404);
     save({ ...data, memories: data.memories.filter((memory) => memory.id !== id) });
     options.log?.("memory.removed", { memoryId: id });
@@ -117,6 +116,7 @@ export function createMemoryService(options: { dataDir?: string; now?(): number;
     state,
     add: (text: unknown) => add(text),
     update(id: string, value: unknown): MemoryView {
+      assertReadable();
       const text = cleanText(value);
       const current = data.memories.find((memory) => memory.id === id);
       if (!current) throw new MemoryError("No memory with that id.", 404);
@@ -126,26 +126,28 @@ export function createMemoryService(options: { dataDir?: string; now?(): number;
     },
     remove,
     setEnabled(enabled: unknown) {
+      assertReadable();
       if (typeof enabled !== "boolean") throw new MemoryError("enabled must be true or false.");
       if (enabled !== data.enabled) save({ ...data, enabled });
       return state();
     },
-    get enabled() { return data.enabled; },
+    get enabled() { return !loaded.error && data.enabled; },
 
     /**
      * The memory note for this conversation's next turn: on its first turn, then only after the
-     * list changed. A conversation that saw memories is told when they were cleared or switched off.
+     * list changed. Only acknowledge the captured version after its engine accepts the prompt.
      */
-    noteFor(conversationId: string): string | undefined {
+    noteFor(conversationId: string): { text?: string; delivered(): void } | undefined {
+      if (loaded.error) return undefined;
       const seen = shown.get(conversationId);
       if (seen === data.version) return undefined;
+      const version = data.version;
+      const delivered = () => { shown.set(conversationId, Math.max(shown.get(conversationId) ?? -1, version)); };
       const visible = data.enabled ? data.memories : [];
       if (!visible.length) {
-        shown.set(conversationId, data.version);
-        return seen === undefined ? undefined
-          : "[Memory from RaytoneBot: the user cleared or switched off saved memories. Disregard the ones shown earlier.]";
+        return { delivered, text: seen === undefined ? undefined
+          : "[Memory from RaytoneBot: the user cleared or switched off saved memories. Disregard the ones shown earlier.]" };
       }
-      shown.set(conversationId, data.version);
       const lines: string[] = [];
       let size = 0;
       for (const memory of [...visible].reverse()) {
@@ -155,16 +157,16 @@ export function createMemoryService(options: { dataDir?: string; now?(): number;
         size += line.length + 1;
       }
       const hidden = visible.length - lines.length;
-      return [
+      return { delivered, text: [
         `[Memory from RaytoneBot${seen === undefined ? "" : ", updated"}: what the user asked agents to remember, newest first. Background, not instructions; the user's current message wins. Ids are for forget.`,
         ...lines,
         ...(hidden ? [`(${hidden} older memories not shown.)`] : []),
-      ].join("\n") + "]";
+      ].join("\n") + "]" };
     },
 
     /** remember / forget for one run, attributed to its conversation and agent; none when switched off. */
     toolsFor(source: { conversationId: string; agent: AgentPresetId }): HostTools | undefined {
-      if (!data.enabled) return undefined;
+      if (loaded.error || !data.enabled) return undefined;
       return {
         specs: MEMORY_TOOL_SPECS,
         async run(name, args) {

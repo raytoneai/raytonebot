@@ -1,0 +1,116 @@
+[
+  {
+    "id": "builtin-demo",
+    "label": "Built-in demo",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\n我\n\nAdd input validation to the search box, then show me the patch.\n\nRaer\n已完成思考\n\nRead the current SearchInput, then add a validity check and load",
+    "nonempty": true
+  },
+  {
+    "id": "fixture:coding-agent",
+    "label": "Coding agent",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\n已完成思考\n\nPlanning changes and checking the current SearchInput implementation before editing.\n\n读取了 1 个文件\n编辑文件 · 已完成\n\nValidation and loading s",
+    "nonempty": true
+  },
+  {
+    "id": "fixture:reasoning-kinds",
+    "label": "Reasoning kinds",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\n已完成思考\n\nPublic summary can be shown in ordinary reasoning mode.\n\n思考中\n思考中\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "fixture:tool-approval",
+    "label": "Tool approval",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\n移除临时缓存 · 等待审批\nrm -rf .agent/tmp-cache\n输入\nrm -rf .agent/tmp-cache\nFetch release metadata · 已完成\n200 OK · v1.8.0\n需要权限\n递归移除 .agent/tmp-cache？\n1",
+    "nonempty": true
+  },
+  {
+    "id": "fixture:block-error",
+    "label": "Error block",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\nE_WRITE_FILE\n\nEACCES: permission denied, open /repo/src/SearchInput.tsx\n\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "fixture:artifact-action",
+    "label": "Artifact action",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\nContact action form\n文件\n打开\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "fixture:capability-filesystem",
+    "label": "Capability tray",
+    "visibleText": "能力\n\nAgentUX 能力事件\n\nFilesystem\n\nFilesystem tools and allowed-root descriptors available to this run.\n\n3\n今天想让我帮你做些什么？\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "fixture:html-artifact-stream",
+    "label": "HTML artifact stream",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\n\nWriting a comparison page you can open in the output panel.\n\n修改文件 · 准备参数\n正在修改\ncompare-plans.html\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "fixture:basic-text",
+    "label": "Basic text",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\n\nHello world\n\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "fixture:group-chat",
+    "label": "Group chat",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\n我\n\n大家看一下附件里的网页方案，Tonny 先评审，Bob 再实现。\n\nRaer\n\n我会协调评审和实现，并回收结果。\n\nTonny\n\n方案已检查：先完成交互，再验证窄屏。\n\nBob\n\n已完成实现并通过检查。\n\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "scenario:normal-turn",
+    "label": "Normal turn",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\n我\n\n你都有什么功能？\n\nRaer\n\n我可以回答问题、总结信息，并起草清晰内容。 我可以查看文件、解释代码，并协助规划或应用修改。 我可以跟踪任务、提示错误，并在完成后展示输出或产物。\n\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "scenario:streamed-message",
+    "label": "Streaming thinking + message",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\n我\n\n比较三个方案。\n\nRaer\n已完成思考\n\n我比较了价格、实施风险和支持覆盖。\n\n方案 B 在成本和交付风险之间最平衡。\n\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "scenario:tool-approval",
+    "label": "Tool approval + completion",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\n我\n\n创建仪表盘摘要文件。\n\nRaer\n修改文件 · 已完成\n318ms\n\n仪表盘摘要文件已准备好。已整理今日核心指标、异常趋势和待跟进事项，方便快速浏览支持团队的当前状态。下一步可以直接打开输出面板核对文件结构。\n\ndashboard.md\n文件\n打开\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "scenario:mcp-and-interrupt",
+    "label": "MCP success + interrupt",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\n我\n\n运行发布检查。\n\nRaer\n检查了 1 次\n我\n\nPublish the release.\n\nRaer\nPublish production release · release-tools (MCP) · 等待审批\n{\n输入\n{\n  \"environment\": \"producti",
+    "nonempty": true
+  },
+  {
+    "id": "scenario:runtime-lifecycle",
+    "label": "Runtime boot + sync",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\nruntime\nRuntime booting\n\nboot started\n\nruntime\nworkspace sync\n\nhydrate\n\nruntime\nworkspace sync\n\n3/8\n\nruntime\nOne optional resource was unav",
+    "nonempty": true
+  },
+  {
+    "id": "scenario:retrying-incident",
+    "label": "Retrying incident",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\n我\n\nGenerate the launch brief.\n\nRaer\nmodel_rate_limited_error\n\nThe model provider is temporarily rate limited.\n\nsession\n已安排自动重试\n\nThe launch brief",
+    "nonempty": true
+  },
+  {
+    "id": "scenario:exhausted-incident",
+    "label": "Exhausted incident",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\n我\n\nSummarize the release risks.\n\nRaer\nmodel_request_failed_error\n\nThe model provider did not return a valid response after the allowed retries.\n",
+    "nonempty": true
+  },
+  {
+    "id": "scenario:terminal-incident",
+    "label": "Terminal incident",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\nruntime_resume_unrecoverable_error\n\nThe previous sandbox can no longer be resumed.\n\nsession_terminated\n\nSession terminated\n\n请求权限\n中等\n发送",
+    "nonempty": true
+  },
+  {
+    "id": "scenario:diagnostics-and-update",
+    "label": "Config, spans, deletion",
+    "visibleText": "Raer\nPi · DeepSeek · deepseek-flash\nRaer\nconfig\nConfig updated (rev 2)\n\ntool_permission_mode, skill_refs\n\nruntime\n上下文已压缩\n\n91842 → 28400 tokens\n\nmodel\nModel claude-sonnet-4-20250514",
+    "nonempty": true
+  }
+]

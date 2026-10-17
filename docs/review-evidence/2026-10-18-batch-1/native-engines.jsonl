@@ -1,0 +1,3 @@
+{"engine":"Pi SDK","sameTask":true,"approvals":4,"file":true,"registered":true,"restart":true,"memory":true,"mcp":true,"stoppedBeforeWrite":true}
+{"engine":"Claude CLI","sameTask":true,"approvals":4,"file":true,"registered":true,"restart":true,"memory":true,"mcp":true,"stoppedBeforeWrite":true}
+{"engine":"Codex app-server","sameTask":true,"approvals":4,"file":true,"registered":true,"restart":true,"memory":true,"mcp":true,"stoppedBeforeWrite":true}

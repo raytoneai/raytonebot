@@ -1,3 +1,4 @@
+import type { AgentPresetId } from "../pi/harnessCatalog.ts";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import type { AgentUXTimelineItem } from "@agent-ux/render-core";
 import type { OutputPanelItem } from "../components/agent-preview/outputframe/panelItem.ts";
@@ -11,16 +12,25 @@ export function artifactEventForReplay(event: AgentUXEvent): AgentUXEvent {
   return { ...event, payload: { ...rest, data: delta } } as AgentUXEvent;
 }
 
-export function artifactBody(artifact: { content?: string; data?: unknown }): string | undefined {
+export function artifactBody(artifact: { content?: string; data?: unknown; artifactKind?: string; uri?: string }): string | undefined {
+  if (artifact.artifactKind === "file" && artifact.uri?.startsWith("file://")) return undefined;
   if (artifact.data !== undefined) return JSON.stringify(artifact.data, null, 2);
   return artifact.content;
 }
 
-/** Open tabs follow their own artifact, not the newest artifact or a matching filename. */
+/** File tabs follow the latest artifact at the exact registered path; other snapshots keep their identity. */
 export function refreshArtifactItems(items: readonly OutputPanelItem[], timeline: readonly AgentUXTimelineItem[]): OutputPanelItem[] {
-  const artifacts = new Map(timeline.filter((item) => item.kind === "artifact").map((item) => [item.id, item]));
+  const all = timeline.filter((item) => item.kind === "artifact");
+  const artifacts = new Map(all.map((item) => [item.id, item]));
+  const paths = new Map(all.filter((item) => item.uri?.startsWith("file://") && item.status === "success").map((item) => [item.uri!.slice(7), item]));
   return items.map((item) => {
-    const artifact = item.artifactId ? artifacts.get(item.artifactId) : undefined;
-    return artifact ? { ...item, title: (artifact.title ?? item.title).split("/").pop()!, subtitle: artifact.title ?? item.subtitle, body: artifactBody(artifact) } : item;
+    const artifact = (item.workspacePath ? paths.get(item.workspacePath) : undefined) ?? (item.artifactId ? artifacts.get(item.artifactId) : undefined);
+    return artifact ? { ...item, artifactId: artifact.id,
+      ...(artifact.id !== item.artifactId && item.downloadUrl ? { downloadUrl: `${item.downloadUrl.split("&revision=")[0]}&revision=${encodeURIComponent(artifact.id)}` } : {}), title: (artifact.title ?? item.title).split("/").pop()!, subtitle: artifact.title ?? item.subtitle, body: artifactBody(artifact) } : item;
   });
+}
+
+/** Replay wraps group artifact ids in [run, field, id]; filenames never determine ownership. */
+export function artifactAuthor(id: string): AgentPresetId | undefined {
+  return /(?:^|")(assistant|planner|builder)~/.exec(id.replace(/^artifact:/, ""))?.[1] as AgentPresetId | undefined;
 }

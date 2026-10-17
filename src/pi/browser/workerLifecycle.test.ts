@@ -24,6 +24,12 @@ test("browser worker lifecycle through real Chromium and IPC", { skip: !executab
     res.writeHead(200, { "content-type": "text/html" });
     if (url.pathname === "/popup") {
       res.end('<title>Popup</title><input autofocus aria-label="Popup field"><button onclick="window.close()">Close popup</button>');
+    } else if (url.pathname === "/keys") {
+      res.end(`<input autofocus><button style="position:absolute;left:10px;top:80px;width:100px;height:30px" onclick="document.querySelector('output').textContent='unexpected click'">Action</button><output></output><script>document.addEventListener("keydown",e=>document.querySelector("output").textContent=e.key+":"+e.shiftKey)</script>`);
+    } else if (url.pathname === "/frame") {
+      res.end(`<title>Frame boundary</title><div class="video-frame" id="iframe-wrapper"><input aria-label="Parent field"></div><button onclick="setTimeout(()=>{const f=document.querySelector('iframe');f.onload=()=>fetch('/changed?kind=frame');f.src+='?reload=1'},600)">Refresh embedded frame</button><iframe title="Embedded child" src="${origin.replace('127.0.0.1', 'localhost')}/child-frame"></iframe>`);
+    } else if (url.pathname === "/child-frame") {
+      res.end('<label>Child secret<input type="password" value="frame-secret"></label><button>Child action</button>');
     } else if (url.pathname === "/render") {
       res.end(`<title>Deferred render</title><button id="update">Update content</button><p id="result">Original content</p><script>new EventSource('/events');document.querySelector('#update').onclick=()=>setTimeout(()=>{document.querySelector('#result').textContent='First update';setTimeout(()=>document.querySelector('#result').textContent='Render complete',75)},75)</script>`);
     } else if (url.pathname === "/render-busy") {
@@ -119,6 +125,72 @@ test("browser worker lifecycle through real Chromium and IPC", { skip: !executab
         if (index) assert.ok(frames[index].seq > frames[index - 1].seq);
       }
       await request({ op: "screencast", on: false });
+    });
+
+    await t.test("cross-origin iframe boundaries are explicit and never retarget parent refs", async () => {
+      const shot = await request({ op: "open", url: `${origin}/frame` });
+      assert.ok(shot.notes.some(note => note.includes("Embedded frames")));
+      assert.doesNotMatch(shot.snapshot, /frame-secret/);
+      assert.equal(Object.values(shot.elements).some(e => e.name === "Child action"), false);
+      await assert.rejects(request({ op: "snapshot", scope: "iframe" }), /Frame-scoped snapshots are not supported/);
+      await assert.rejects(request({ op: "snapshot", scope: "iframe >> internal:control=enter-frame >> button" }), /Frame-scoped snapshots are not supported/);
+      const fresh = await request({ op: "snapshot" });
+      const typed = await request({ op: "type", snapshotId: fresh.snapshotId, ref: ref(fresh, "Parent field"), text: "parent only" });
+      assert.match(typed.snapshot, /parent only/);
+    });
+
+    await t.test("embedded navigation preserves main-frame refs and ordinary frame-named selectors work", async () => {
+      const shot = await request({ op: "open", url: `${origin}/frame` });
+      const navigated = new Promise<void>(resolve => changed.set("frame", resolve));
+      const armed = await click(shot, "Refresh embedded frame");
+      await navigated;
+      const typed = await request({ op: "type", snapshotId: armed.snapshotId, ref: ref(armed, "Parent field"), text: "still valid" });
+      assert.match(typed.snapshot, /still valid/);
+      for (const scope of [".video-frame", "#iframe-wrapper"]) {
+        const scoped = await request({ op: "snapshot", scope });
+        assert.match(scoped.snapshot, /Parent field/);
+        assert.doesNotMatch(scoped.snapshot, /Child action/);
+      }
+    });
+
+    await t.test("replaced and cleared page owners release their completed task callbacks", async () => {
+      await request({ op: "open", url: origin, downloadOwner: "finished-task-1" });
+      await request({ op: "open", url: origin, downloadOwner: "finished-task-2" });
+      const released = (owner: string) => events.some(e => "event" in e && e.event === "download-owner-released" && e.owner === owner);
+      assert.ok(released("finished-task-1"));
+      assert.equal(released("finished-task-2"), false, "a live page can still initiate delayed downloads");
+      await request({ op: "clear-download-owners" });
+      assert.ok(released("finished-task-2"));
+      await assert.rejects(request({ op: "open", url: "file:///forbidden", downloadOwner: "rejected-task" }), /Only http/);
+      assert.ok(released("rejected-task"), "a failed action that never owned a page must not retain its callback");
+    });
+
+    await t.test("input receipts carry a frame captured after dispatch and survive screencast reconnect", async () => {
+      const shot = await request({ op: "open", url: origin });
+      await click(shot, "Main field");
+      await request({ op: "screencast", on: true });
+      await request({ op: "input", pageId: shot.pageId, input: { kind: "text", text: "ordered123" }, inputId: "batch-1" });
+      const frame = events.find(e => "event" in e && e.event === "frame" && e.inputId === "batch-1");
+      assert.ok(frame);
+      await request({ op: "screencast", on: false });
+      await request({ op: "screencast", on: true });
+      await request({ op: "input", pageId: shot.pageId, input: { kind: "text", text: "456" }, inputId: "batch-2" });
+      assert.ok(events.some(e => "event" in e && e.event === "frame" && e.inputId === "batch-2"));
+      const updated = await request({ op: "snapshot" });
+      assert.match(updated.snapshot, /ordered123456/);
+      await request({ op: "screencast", on: false });
+    });
+
+    await t.test("disconnect and handoff cleanup release held modifiers instead of leaking them into the next driver", async () => {
+      await request({ op: "open", url: `${origin}/keys` });
+      await request({ op: "input", input: { kind: "key", type: "down", key: "Shift" } });
+      await request({ op: "reset-input" });
+      await request({ op: "input", input: { kind: "key", type: "down", key: "x" } });
+      await request({ op: "input", input: { kind: "key", type: "up", key: "x" } });
+      assert.match((await request({ op: "snapshot" })).snapshot, /x:false/);
+      await request({ op: "input", input: { kind: "mouse", type: "down", x: 30, y: 90, button: "left" } });
+      await request({ op: "reset-input" });
+      assert.doesNotMatch((await request({ op: "snapshot" })).snapshot, /unexpected click/);
     });
 
     await t.test("repeated popup initialization does not leave a five-second unrelated-page wait", async () => {

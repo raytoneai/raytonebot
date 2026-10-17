@@ -9,6 +9,7 @@ const builtinJsonl = "{\"protocol\":\"agent-ux\",\"version\":\"0.1\",\"id\":\"ev
 export type EventStream = {
   id: string;
   label: string;
+  enabledSlots?: readonly string[];
   load: () => AgentUXEvent[];
 };
 
@@ -32,6 +33,7 @@ export const eventStreams: EventStream[] = [
   ...previewFixtures.map((fixture) => ({
     id: "fixture:" + fixture.id,
     label: fixture.label,
+    enabledSlots: fixture.enabledSlots,
     load: () => parsePreviewFixture(fixture),
   })),
   ...SCENARIOS.map((scenario) => ({

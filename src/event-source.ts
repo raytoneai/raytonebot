@@ -19,7 +19,7 @@ import { project } from "./exported-project";
  */
 export const isFixtureMode = project.runtime.transport !== "sse";
 
-type LoadedStream = { id: string; label: string; load: () => AgentUXEvent[] };
+type LoadedStream = { id: string; label: string; enabledSlots?: readonly string[]; load: () => AgentUXEvent[] };
 
 /**
  * `?stream=<id>` picks a stream with no UI involved, so screenshots and automation do not
@@ -46,6 +46,8 @@ export type EventSourceState = {
   /** Empty unless a fixture mode is active. */
   streams: EventStreamOption[];
   streamId: string;
+  /** Optional layout settings supplied by the selected preview, never by live events. */
+  enabledSlots?: readonly string[];
   setStreamId: (id: string) => void;
 };
 
@@ -97,5 +99,5 @@ export function useEventSource(): EventSourceState {
     [loaded],
   );
 
-  return { events, streams, streamId, setStreamId };
+  return { events, streams, streamId, setStreamId, enabledSlots: isFixtureMode ? loaded.find(item => item.id === streamId)?.enabledSlots : undefined };
 }

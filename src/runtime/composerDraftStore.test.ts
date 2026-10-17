@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptedComposerDraft, hasComposerDraft, hasComposerState, savedComposerDraft, savedRunOptions } from "./composerDraftStore.ts";
+import { acceptedComposerDraft, hasComposerDraft, hasComposerState, hasSavedState, savedComposerDraft, savedRunOptions } from "./composerDraftStore.ts";
 
 test("explicit conversation options survive saving and message acceptance without capturing defaults or secrets", () => {
   const conversation = { id: "a", title: "A", createdAt: 1, events: [] };
@@ -43,4 +43,14 @@ test("accepted submissions clear only their own draft content and files; stored 
   assert.equal(record.draft.attachments[0].imageSrc, undefined);
   assert.deepEqual(new Uint8Array(await record.draft.attachments[0].file!.arrayBuffer()), new Uint8Array([0, 1, 255]));
   assert.equal(record.submission?.requestId, "request-a");
+});
+
+test("a new group's member-only draft survives, while empty accepted groups and single chats do not", () => {
+  const conversation = { id: "group_new", title: "我、Bob", createdAt: 1, events: [], groupMembers: ["builder"] };
+  const record = savedComposerDraft(conversation, { prompt: "", attachments: [] });
+  assert.deepEqual(record.conversation.groupMembers, ["builder"]);
+  assert.equal(hasSavedState(record), true);
+  assert.equal(hasSavedState({ ...record, hasHistory: true }), false);
+  assert.equal(hasSavedState(savedComposerDraft({ ...conversation, id: "solo" }, record.draft)), false);
+  assert.deepEqual(savedComposerDraft({ ...conversation, groupMembers: ["builder", "admin", "builder"] }, record.draft).conversation.groupMembers, ["builder"]);
 });

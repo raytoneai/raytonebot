@@ -6,6 +6,69 @@ import { test } from "node:test";
 
 import { createPiRuntimeController, type PiBridgeFactory } from "./piHost.ts";
 import { createBrowserService } from "./browser/browserService.ts";
+import { createMemoryService } from "./memories.ts";
+
+test("memory delivery survives attachment and engine setup failures but is acknowledged on acceptance", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-delivery-"));
+  const memory = createMemoryService();
+  memory.add("Always include measurement units.");
+  const prompts: string[] = [];
+  let failSetup = true;
+  let failAfterAcceptance = false;
+  const runtime = createPiRuntimeController({ cwd: dataDir, dataDir, memory, bridgeFactory: async () => {
+    if (failSetup) throw new Error("Engine setup failed");
+    let emit: (event: any) => void = () => {};
+    return { subscribe: listener => { emit = listener; return () => {}; },
+      prompt: async text => {
+        prompts.push(text);
+        emit({ type: "message_start", message: { role: "assistant" } });
+        if (failAfterAcceptance) throw new Error("Failed after receiving context");
+      }, abort: async () => {}, dispose() {}, configure: async () => {}, state: async () => ({ models: [], tools: [] }), newSession: async () => {} };
+  } });
+  try {
+    await runtime.runPrompt({ conversationId: "memory", prompt: "Read", attachments: [{ scope: "assistant", path: "missing.txt" }] }, () => {});
+    await runtime.runPrompt({ conversationId: "memory", prompt: "Setup" }, () => {});
+    assert.equal(prompts.length, 0);
+    failSetup = false;
+    await runtime.runPrompt({ conversationId: "memory", prompt: "Valid retry" }, () => {});
+    assert.match(prompts[0], /Always include measurement units/);
+    await runtime.runPrompt({ conversationId: "memory", prompt: "Continue" }, () => {});
+    assert.doesNotMatch(prompts[1], /Memory from RaytoneBot/);
+    memory.add("Use metric units.");
+    failAfterAcceptance = true;
+    await runtime.runPrompt({ conversationId: "memory", prompt: "Receive then fail" }, () => {});
+    assert.match(prompts[2], /Use metric units/);
+    failAfterAcceptance = false;
+    await runtime.runPrompt({ conversationId: "memory", prompt: "Continue after model failure" }, () => {});
+    assert.doesNotMatch(prompts[3], /Memory from RaytoneBot/);
+  } finally { runtime.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("stopping during engine preflight does not acknowledge undelivered memories", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-stop-"));
+  const memory = createMemoryService();
+  memory.add("Use metric units.");
+  let release!: () => void;
+  let entered!: () => void;
+  const starting = new Promise<void>(resolve => { entered = resolve; });
+  const received: string[] = [];
+  let first = true;
+  const runtime = createPiRuntimeController({ cwd: dataDir, dataDir, memory, bridgeFactory: async () => ({
+    subscribe: () => () => {},
+    async prompt(text) {
+      if (first) { first = false; entered(); await new Promise<void>(resolve => { release = resolve; }); }
+      else received.push(text);
+    }, abort: async () => { release(); }, dispose() {}, configure: async () => {},
+    state: async () => ({ models: [], tools: [] }), newSession: async () => {},
+  }) });
+  try {
+    const pending = runtime.runPrompt({ conversationId: "memory-stop", requestId: "stopped", prompt: "First" }, () => {});
+    await starting;
+    await runtime.abort("memory-stop", "stopped"); await pending;
+    await runtime.runPrompt({ conversationId: "memory-stop", prompt: "Retry" }, () => {});
+    assert.match(received[0], /Use metric units/);
+  } finally { runtime.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
 
 test("each model turn receives fresh account context without persisting it as the user's message", async () => {
   const dataDir = mkdtempSync(join(tmpdir(), "rtb-account-context-"));

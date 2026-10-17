@@ -33,6 +33,7 @@ export type BrowserInput =
   | { kind: "text"; text: string };
 
 export type BrowserRequest =
+  (
   | { op: "launch"; options: BrowserLaunch }
   | { op: "open"; url: string }
   | { op: "snapshot"; scope?: string; mode?: "full" | "interactive" | "content" }
@@ -44,8 +45,10 @@ export type BrowserRequest =
   | { op: "scroll"; direction: "up" | "down" }
   | { op: "back" }
   | { op: "screencast"; on: boolean }
-  | { op: "input"; input: BrowserInput; pageId?: string }
-  | { op: "close" };
+  | { op: "input"; input: BrowserInput; pageId?: string; inputId?: string }
+  | { op: "reset-input" }
+  | { op: "clear-download-owners" }
+  | { op: "close" }) & { downloadOwner?: string };
 
 export type BrowserTab = { id: string; title: string; url: string };
 export type BrowserPageSummary = { url: string; title: string; pageId: string; snapshotId: string; snapshot: string; content?: string; elements: Record<string, BrowserElement>; notes: string[] };
@@ -53,9 +56,10 @@ export type BrowserPageSummary = { url: string; title: string; pageId: string; s
 export type BrowserWorkerMessage =
   | { id: number; ok: true; result: unknown }
   | { id: number; ok: false; error: string }
-  | { event: "frame"; data: string; width: number; height: number; seq: number; capturedAt: number; pageId: string }
+  | { event: "frame"; data: string; width: number; height: number; seq: number; capturedAt: number; pageId: string; inputId?: string }
   | { event: "state"; url: string; title: string; pageId: string; revision: number; tabs: BrowserTab[] }
-  | { event: "download"; guid: string; url: string; name: string; size: number; state: "completed" | "canceled" | "too-large" }
+  | { event: "download"; guid: string; url: string; name: string; size: number; owner?: string; state: "started" | "completed" | "canceled" | "too-large" }
+  | { event: "download-owner-released"; owner: string }
   | { event: "exit"; code: number | null };
 
 /** The live view's state, as the Output panel reads it. */

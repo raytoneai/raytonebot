@@ -4,7 +4,7 @@ import type { QueuedMessage } from "./followUpQueue";
 
 export type SavedComposerDraft = {
   id: string;
-  conversation: Pick<EphemeralPiConversation, "id" | "title" | "createdAt" | "agentPreset">;
+  conversation: Pick<EphemeralPiConversation, "id" | "title" | "createdAt" | "agentPreset" | "groupMembers">;
   draft: ComposerDraft;
   updatedAt: number;
   version: string;
@@ -16,7 +16,8 @@ export type SavedComposerDraft = {
 
 export const hasComposerDraft = (draft?: ComposerDraft) => Boolean(draft && (draft.prompt.length || draft.attachments.length));
 export const hasComposerState = (draft?: ComposerDraft) => hasComposerDraft(draft) || Boolean(draft?.runOptions?.permissionMode || draft?.runOptions?.budgetMode);
-export const hasSavedState = (record: Pick<SavedComposerDraft, "draft" | "queue">) => hasComposerState(record.draft) || Boolean(record.queue?.length);
+export const hasSavedState = (record: Pick<SavedComposerDraft, "draft" | "queue"> & Partial<Pick<SavedComposerDraft, "conversation" | "hasHistory">>) => hasComposerState(record.draft) || Boolean(record.queue?.length)
+  || Boolean(!record.hasHistory && record.conversation?.id.startsWith("group_") && record.conversation.groupMembers?.length);
 
 /** Persist only explicit choices; malformed permissions must not broaden access. */
 export function savedRunOptions(value: unknown): ComposerDraft["runOptions"] {
@@ -41,7 +42,8 @@ const savedDraft = (draft: ComposerDraft): ComposerDraft => ({
 /** Only draft data crosses this boundary: never transcripts, provider settings or session keys. */
 export function savedComposerDraft(conversation: EphemeralPiConversation, draft: ComposerDraft, submission?: SavedComposerDraft["submission"], queue?: readonly QueuedMessage[]): SavedComposerDraft {
   const { id, title, createdAt, agentPreset } = conversation;
-  return { id, conversation: { id, title, createdAt, agentPreset }, draft: savedDraft(draft),
+  const groupMembers = id.startsWith("group_") ? savedGroupMembers(conversation.groupMembers) : undefined;
+  return { id, conversation: { id, title, createdAt, agentPreset, ...(groupMembers ? { groupMembers } : {}) }, draft: savedDraft(draft),
     updatedAt: Date.now(), version: crypto.randomUUID(), hasHistory: Boolean(conversation.stored || conversation.events.length), submission,
     ...(queue?.length ? { queue: queue.map((item) => ({ id: item.id, createdAt: item.createdAt, ...savedDraft(item) })) } : {}) };
 }
@@ -71,6 +73,12 @@ export function openComposerDraftStore(): Promise<IDBDatabase> {
   });
 }
 
+function savedGroupMembers(value: unknown): string[] | undefined {
+  if (!Array.isArray(value)) return undefined;
+  const members = [...new Set(value.filter((m): m is string => ["assistant", "planner", "builder"].includes(m)))];
+  return members.length ? members : undefined;
+}
+
 const validDraft = (draft: ComposerDraft | undefined) => typeof draft?.prompt === "string" && Array.isArray(draft.attachments)
   && draft.attachments.every((attachment) => attachment.file instanceof File || (attachment.reference
     && ["assistant", "planner", "builder", "shared"].includes(attachment.reference.scope) && typeof attachment.reference.path === "string"));
@@ -85,7 +93,7 @@ export function readComposerDrafts(db: IDBDatabase): Promise<SavedComposerDraft[
         const queue = Array.isArray(record.queue) ? record.queue.filter((item) => typeof item?.id === "string" && validDraft(item))
           .map((item) => ({ ...item, createdAt: Number.isFinite(item.createdAt) ? item.createdAt : record.updatedAt, runOptions: savedRunOptions(item.runOptions) })) : [];
         const { queue: _stored, ...rest } = record;
-        return { ...rest, draft: { ...record.draft, runOptions: savedRunOptions(record.draft.runOptions) }, ...(queue.length ? { queue } : {}) };
+        return { ...rest, conversation: { ...record.conversation, groupMembers: record.id.startsWith("group_") ? savedGroupMembers(record.conversation.groupMembers) : undefined }, draft: { ...record.draft, runOptions: savedRunOptions(record.draft.runOptions) }, ...(queue.length ? { queue } : {}) };
       }));
     request.onerror = () => reject(request.error);
   });

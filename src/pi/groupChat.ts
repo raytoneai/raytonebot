@@ -397,6 +397,7 @@ export const untag = (value: string): { member?: AgentPresetId; id: string } => 
 type Deps = {
   store: ConversationStore;
   userInputGate: UserInputGate;
+  validateAttachments?(attachments: PiPromptInput["attachments"], member: AgentPresetId): Promise<void>;
   credentials(providerId?: string): { definition: PiProviderDefinition; apiKey?: string } | undefined;
   providerDefinition(providerId?: string): PiProviderDefinition | undefined;
   providerKey(providerId?: string): string | undefined;
@@ -497,7 +498,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         let text = "";
         let failure: string | undefined;
         let cancelled = false;
-        await controller.runPrompt({ ...input, permissionMode, conversationId: childId, requestId: childRunId, agentPreset: member, prompt: memberPromptText }, (event) => {
+        await controller.runPrompt({ ...input, attachments: record ? input.attachments : undefined, permissionMode, conversationId: childId, requestId: childRunId, agentPreset: member, prompt: memberPromptText }, (event) => {
           if (event.type === "run.finished") {
             if (event.payload.status === "error") failure ??= "Member run failed.";
             if (event.payload.status === "cancelled") cancelled = true;
@@ -528,12 +529,14 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       } finally { slot.children.delete(member); }
     };
 
-    try {
+    const openGroup = () => {
       deps.store.begin(groupId, "assistant", prompt);
       deps.store.setExtra(groupId, { group: meta, ...named() });
       opened = true;
       emit(adapter.startUserMessage(prompt));
-
+    };
+    try {
+      if (input.attachments === undefined) openGroup();
       // 1. route (rules, then one JSON call)
       const started = Date.now();
       const credentials = deps.credentials(input.provider);
@@ -541,6 +544,24 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         credentials.apiKey, input.model ?? credentials.definition.models[0], system, user) : undefined);
       let plan = routed.plan;
       const routerRaw = routed.raw;
+      const introduced = meta.introduced ?? (meta.lines.length ? [...meta.members] : []);
+      const newcomers = meta.members.filter((m) => !introduced.includes(m));
+      const firstTurn = meta.lines.length === 0;
+      if (newcomers.length && firstTurn && isGreeting(prompt) && plan.source !== "mention") {
+        plan = { mode: "intro", members: [...meta.members], source: "rule", note: "新群的第一句问候" };
+      }
+      // Validate every possible task reader before accepting the prompt. Newcomer side
+      // introductions and the PM announcement receive no files. First-turn intro speakers
+      // are the turn's readers; a discussion/sequence summary also receives the files.
+      if (input.attachments !== undefined) {
+        if (!deps.validateAttachments) throw new Error("Group attachments are unavailable.");
+        const readers = new Set(plan.members);
+        if (plan.mode === "sequential" || plan.mode === "discussion") readers.add("assistant");
+        for (const member of readers) await deps.validateAttachments(input.attachments, member);
+      }
+      abort.signal.throwIfAborted();
+      if (!opened) openGroup();
+      deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt, attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
       const mentioned = plan.source === "mention" ? plan.members : [];
       const order = plan.members.map((m) => MEMBER_NAMES[m]);
       const routeText = `${plan.mode} ${order.join(" → ")} · ${plan.source}${plan.route ? `(${plan.route})` : ""}${plan.note ? ` · ${plan.note}` : ""}${plan.rounds ? ` · ${plan.rounds} 轮` : ""} · ${Date.now() - started} ms${routerRaw !== undefined ? ` · raw=${routerRaw.slice(0, 200)}` : ""}`;
@@ -551,10 +572,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
 
       // 1b. Introductions follow membership, not greetings: once per member, when they join.
       // Groups from before this field existed have already met; only genuinely new members introduce themselves.
-      const introduced = meta.introduced ?? (meta.lines.length ? [...meta.members] : []);
-      const newcomers = meta.members.filter((m) => !introduced.includes(m));
-      const firstTurn = meta.lines.length === 0;
-      if (newcomers.length && firstTurn && isGreeting(prompt) && !mentioned.length) {
+      if (plan.mode === "intro") {
         plan = { mode: "intro", members: [...meta.members], source: "rule", note: "新群的第一句问候" };
         deps.log?.("group.intro", { conversationId: groupId, members: plan.members });
       } else if (newcomers.length && !firstTurn) {

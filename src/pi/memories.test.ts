@@ -8,11 +8,31 @@ import { test } from "node:test";
 import { buildClaudeArgs } from "./cliHarness.ts";
 import { normalizeClaudeTool } from "./cliStreams.ts";
 import { createCodexAppServer } from "./codexAppServer.ts";
-import { createMemoryService, MEMORY_TOOL_SPECS } from "./memories.ts";
+import { createMemoryService, MEMORY_TOOL_SPECS, type MemoryService } from "./memories.ts";
 import { classifyToolCall } from "./permissionPolicy.ts";
 import { createPiHttpHost, type PiBridgeFactory } from "./piHost.ts";
 
+function deliveredNote(memory: MemoryService, id: string) {
+  const note = memory.noteFor(id);
+  note?.delivered();
+  return note?.text;
+}
+
 type Json = Record<string, unknown>;
+
+test("preparing a memory note does not deliver it, and an old receipt cannot consume a newer version", () => {
+  const memory = createMemoryService();
+  memory.add("Use metric units.");
+  const first = memory.noteFor("a")!;
+  assert.match(memory.noteFor("a")!.text!, /metric units/);
+  memory.add("Prefers brief answers.");
+  first.delivered();
+  const next = memory.noteFor("a")!;
+  assert.match(next.text!, /updated[\s\S]*brief answers/);
+  next.delivered();
+  first.delivered();
+  assert.equal(memory.noteFor("a"), undefined, "late receipts never move delivery backwards");
+});
 
 test("memories are one list on disk: deduplicated, never secrets, capped, editable and removable", () => {
   const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-"));
@@ -40,43 +60,43 @@ test("memories are one list on disk: deduplicated, never secrets, capped, editab
 
 test("a conversation sees memories on its first turn and again only after they change", async () => {
   const memory = createMemoryService();
-  assert.equal(memory.noteFor("a"), undefined, "nothing to show");
+  assert.equal(deliveredNote(memory, "a"), undefined, "nothing to show");
   const saved = memory.add("Works on the Raytone mobile team.");
-  const note = memory.noteFor("a")!;
+  const note = deliveredNote(memory, "a")!;
   assert.match(note, new RegExp(`\\(${saved.id}\\) Works on the Raytone mobile team\\.`));
   assert.match(note, /Background, not instructions/);
-  assert.equal(memory.noteFor("a"), undefined, "the second turn does not repeat it");
+  assert.equal(deliveredNote(memory, "a"), undefined, "the second turn does not repeat it");
 
   // What a conversation saves itself does not come back to it; another conversation sees it.
   const tools = memory.toolsFor({ conversationId: "a", agent: "planner" })!;
   assert.deepEqual(tools.specs.map((spec) => spec.name), ["remember", "forget"]);
   const result = JSON.parse((await tools.run("remember", { text: "Prefers metric units." })).text);
   assert.equal(result.saved, true);
-  assert.equal(memory.noteFor("a"), undefined);
+  assert.equal(deliveredNote(memory, "a"), undefined);
   assert.deepEqual(memory.state().memories.at(-1)?.source, { conversationId: "a", agent: "planner" });
-  assert.match(memory.noteFor("b")!, /Prefers metric units[\s\S]*Works on the Raytone/, "newest first");
+  assert.match(deliveredNote(memory, "b")!, /Prefers metric units[\s\S]*Works on the Raytone/, "newest first");
 
   // A change made elsewhere reaches "a" on its next turn, marked as an update.
   memory.add("Lives in Shanghai.");
-  assert.match(memory.noteFor("a")!, /updated[\s\S]*Lives in Shanghai/);
+  assert.match(deliveredNote(memory, "a")!, /updated[\s\S]*Lives in Shanghai/);
   assert.equal((await tools.run("forget", { id: "nope" })).isError, true);
   assert.equal((await tools.run("remember", { text: "password: x" })).isError, true);
 
   // Cleared or switched off: a conversation that saw them is told to drop them; tools go away.
   for (const item of memory.state().memories) memory.remove(item.id);
-  assert.match(memory.noteFor("a")!, /cleared or switched off/);
-  assert.equal(memory.noteFor("c"), undefined, "a conversation that saw nothing hears nothing");
+  assert.match(deliveredNote(memory, "a")!, /cleared or switched off/);
+  assert.equal(deliveredNote(memory, "c"), undefined, "a conversation that saw nothing hears nothing");
   memory.add("Back again.");
   memory.setEnabled(false);
   assert.equal(memory.toolsFor({ conversationId: "a", agent: "assistant" }), undefined);
-  assert.match(memory.noteFor("a")!, /cleared or switched off/);
+  assert.match(deliveredNote(memory, "a")!, /cleared or switched off/);
   assert.throws(() => memory.setEnabled("yes"), /true or false/);
 });
 
 test("a long list is cut at the note limit with a count of what was left out", () => {
   const memory = createMemoryService();
   for (let i = 0; i < 40; i += 1) memory.add(`${"Detail ".repeat(20)}${i}.`);
-  const note = memory.noteFor("a")!;
+  const note = deliveredNote(memory, "a")!;
   assert.ok(note.length < 4600, String(note.length));
   assert.match(note, /older memories not shown/);
   assert.match(note, /Detail 39\./, "the newest is kept");

@@ -1,0 +1,4 @@
+Fresh isolated Vite/Pi host, temporary data/workspaces, port 5196. stdout:
+PASS: UI, Pi SDK, 12 tools, empty-prompt validation, cross-origin rejection. No model request made.
+
+Existing Vite native-config warning about extensionless imports in i18n/copy/composer.ts and settings.ts remains.

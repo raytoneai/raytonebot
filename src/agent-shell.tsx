@@ -126,7 +126,7 @@ import {
 } from "./pi/piConversationState";
 import { piErrorTurnEvents, PROMPT_REJECTED } from "./pi/piErrorTurn";
 import { workspaceFileUrl } from "./runtime/filePreview";
-import { artifactEventForReplay, refreshArtifactItems } from "./runtime/artifactContent";
+import { artifactAuthor, artifactEventForReplay, refreshArtifactItems } from "./runtime/artifactContent";
 import { displayTaskPlans } from "./runtime/taskPlan";
 import { historyFeedbackEvents, type HistoryNotice } from "./runtime/historyFeedback";
 import { hasComposerDraft, hasComposerState } from "./runtime/composerDraftStore";
@@ -263,7 +263,7 @@ export function AgentApp() {
 
   // Single entry for both modes: fixture replay (dev/preview) or the live backend
   // stream. Components never learn which one they got.
-  const { events: sourceEvents, streams, streamId, setStreamId } = useEventSource();
+  const { events: sourceEvents, streams, streamId, setStreamId, enabledSlots } = useEventSource();
   const events = streamId ? sourceEvents : piEvents ?? sourceEvents;
   const activePiConversation = useMemo(
     () => piConversations.find((conversation) => conversation.id === activePiConversationId) ?? piConversations[0],
@@ -334,12 +334,14 @@ export function AgentApp() {
   const isWelcome = displayViewModel.timeline.length === 0;
 
   const activeProject = useMemo(
-    () => ({ ...configuredProject, output: { ...configuredProject.output, source: outputSource },
+    () => ({ ...configuredProject,
+      layout: { ...configuredProject.layout, slots: configuredProject.layout.slots.map((slot) => enabledSlots?.includes(slot.id) ? { ...slot, enabled: true } : slot) },
+      output: { ...configuredProject.output, source: outputSource },
       conversation: streamId && !activityPreview ? configuredProject.conversation : {
         ...configuredProject.conversation, agentAvatar: false, userAvatar: false, speakerLabels: false,
       },
     }),
-    [configuredProject, outputSource, streamId, activityPreview],
+    [configuredProject, outputSource, streamId, activityPreview, enabledSlots],
   );
   /** IM chats run on the default model service; its definition (never a key) is saved with them. */
   const channelModel = useMemo(() => {
@@ -605,10 +607,11 @@ export function AgentApp() {
     const item = normalizeOutputPanelRequest(request);
     const path = typeof request === "string" ? request : request.workspacePath;
     if (item.kind === "file" && path && !item.downloadUrl) {
-      item.downloadUrl = workspaceFileUrl(path, agentSettings.presetId, piRuntimeState?.workspace);
+      const author = artifactAuthor(item.id);
+      item.downloadUrl = workspaceFileUrl(path, isAgentPresetId(author) ? author : agentSettings.presetId, piRuntimeState?.workspace);
     }
     setOutputPanelItems((current) => {
-      const index = current.findIndex((entry) => entry.id === item.id);
+      const index = current.findIndex((entry) => entry.id === item.id || Boolean(item.workspacePath && entry.workspacePath === item.workspacePath));
       if (index >= 0) {
         const next = [...current];
         next[index] = item;
@@ -813,14 +816,15 @@ export function AgentApp() {
       // on the configured model service need it registered (and its key handed over) first.
       if (isGroup || settingsUseProvider({ ...agentSettings, presetId })) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal);
       const attachments: PiPromptAttachment[] = [];
-      for (const attachment of isGroup ? [] : context?.attachments ?? []) {
+      const attachmentScope = isGroup ? "shared" : presetId;
+      for (const attachment of context?.attachments ?? []) {
         if (attachment.reference) {
           await checkPiAttachment(attachment.reference, controller.signal);
           attachments.push(attachment.reference); continue;
         }
         let uploaded = uploadedFilesRef.current.get(attachment.file);
-        if (uploaded?.scope !== presetId) {
-          uploaded = await uploadPiFile(attachment.file, presetId, controller.signal);
+        if (uploaded?.scope !== attachmentScope) {
+          uploaded = await uploadPiFile(attachment.file, attachmentScope, controller.signal);
           uploadedFilesRef.current.set(attachment.file, uploaded);
         }
         attachments.push(uploaded);
@@ -1172,7 +1176,15 @@ export function AgentApp() {
   }
   function setGroupMembers(conversationId: string, members: AgentPresetId[]) {
     const names = ["我", ...members.map((m) => copy.composer.agentSettings.presets[m].name)].join("、");
-    setPiConversations((current) => current.map((entry) => entry.id === conversationId ? { ...entry, groupMembers: members, title: names } : entry));
+    const previous = piConversations.find((entry) => entry.id === conversationId);
+    if (!previous) return;
+    // Merge into the current state so an intervening transcript update is preserved.
+    setPiConversations((current) => {
+      const latest = current.find((entry) => entry.id === conversationId);
+      return latest ? replacePiConversation(current, { ...latest, groupMembers: members, title: names }) : current;
+    });
+    // Draft storage only takes identity/metadata here; it keeps accepted-history state sticky.
+    composer.update({ ...previous, groupMembers: members, title: names }, (draft) => draft);
   }
 
   async function startNewSession(group = false, members: AgentPresetId[] = ["assistant", "planner", "builder"]) {
@@ -1183,6 +1195,7 @@ export function AgentApp() {
         title: ["我", ...members.map((m) => copy.composer.agentSettings.presets[m].name)].join("、"), groupMembers: members }
       : createEphemeralPiConversation();
     setStreamId("");
+    if (group) composer.update(conversation, (draft) => draft);
     setPiConversations((current) => replacePiConversation(current, conversation));
     // Set at once, not on the next render: a background run's frame must not draw over this view.
     activeConversationIdRef.current = conversation.id;
@@ -1490,6 +1503,7 @@ export function AgentApp() {
       {inlineApprovalOverlay}
       {userInputOverlay}
       {externalApprovalOverlay}
+      {renderSlots(visibleLayoutSlots, "bottom-dock", slotContext)}
       {renderSlots(visibleLayoutSlots, "composer", slotContext)}
     </section>
   );
@@ -1549,6 +1563,7 @@ export function AgentApp() {
                     {inlineApprovalOverlay}
                     {userInputOverlay}
                     {externalApprovalOverlay}
+                    {renderSlots(visibleLayoutSlots, "bottom-dock", slotContext)}
                     {renderSlots(visibleLayoutSlots, "composer", slotContext)}
                   </section>
                 )}
