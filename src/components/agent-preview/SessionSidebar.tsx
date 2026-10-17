@@ -1,4 +1,4 @@
-import { PanelLeft, Pencil, Search, Trash2 } from "lucide-react";
+import { ChevronDown, PanelLeft, Pencil, Search, Trash2 } from "lucide-react";
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { GroupFace } from "../../avatars/GroupFace";
 import { useShellExtras } from "../shell/ShellExtras";
@@ -48,6 +48,7 @@ export function SessionSidebar({
   const sidebarRef = useRef<HTMLElement | null>(null);
   const searchTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [searchOverlayRoot, setSearchOverlayRoot] = useState<HTMLElement | null>(null);
   const [query, setQuery] = useState("");
   const deletion = useSessionDeletion(sidebarRef);
@@ -208,8 +209,8 @@ export function SessionSidebar({
     <aside ref={sidebarRef} className="session-sidebar" data-preview-anchor="sidebar" aria-label={c.ariaLabel}>
       <header className="session-brand">
         <span className="session-brand-name">
-          <img className="session-brand-logo" data-variant="light" src="/brand/raytone-bot.svg" alt={c.brandName} />
-          <img className="session-brand-logo" data-variant="dark" src="/brand/raytone-bot-dark.svg" alt={c.brandName} />
+          <img className="session-brand-logo" data-variant="light" src="/brand/raytone-bot.svg?v=round-rays-v5" alt={c.brandName} />
+          <img className="session-brand-logo" data-variant="dark" src="/brand/raytone-bot-dark.svg?v=round-rays-v5" alt={c.brandName} />
         </span>
         <span className="session-brand-actions">
           {search ? (
@@ -264,7 +265,11 @@ export function SessionSidebar({
 
       {extras.agentSwitcher}
 
-      {hasSessions ? (
+      {hasSessions ? <button type="button" className="session-history-toggle" aria-expanded={!historyCollapsed}
+        onClick={() => setHistoryCollapsed(value => !value)}>
+        <span>{c.history}</span><ChevronDown size={14} aria-hidden="true" />
+      </button> : null}
+      {hasSessions && !historyCollapsed ? (
         <nav className="session-list" ref={historyWindow.ref} onScroll={historyWindow.onScroll}
           onFocusCapture={event => historyWindow.onFocus(event.target.dataset.sessionKey)}
           onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) historyWindow.onFocus(); }}

@@ -291,3 +291,13 @@
 - 主机每轮注入单聊/群聊场景，只有 groupChat 内部调用设置 groupConversation；用户文本中的名字或 `[群聊]` 不决定模式。场景说明仅进入模型副本，原始用户消息不变；保留旧会话，无自动重发。
 - 参考 OpenClaw 的角色/工作区/动态场景分层：[system prompt](https://docs.openclaw.ai/concepts/system-prompt)、[inbound context 源码](https://github.com/openclaw/openclaw/blob/main/src/auto-reply/reply/inbound-context.ts)。本项目仅保留简短的单聊参与者事实和群聊成员/分工提示，并非照抄开源策略。
 - 提示词回归只证明输入契约正确，不能保证真实模型必然遵循；需云端部署后验证原生 Claude 续接与群聊。
+
+
+### 2026-10-17 Bot 头像的配色与示例隔离
+
+- 用户否定了高饱和亮蓝头发配深蓝脸蛋：有对比不等于协调。当前 Bot 定制采用低饱和灰蓝默认发色，灰紫、暖棕、米白、灰绿作为搭配；脸蛋和眼睛仍默认墨蓝与金黄。
+- `isFixtureMode` 表示 transport 支持示例，并不表示用户正在看示例。产品要求 transport 保持 replay，实际示例隔离应依据非空 `streamId`；否则定制头像在编辑器里正常，却无法应用到真实侧栏与欢迎页。新增设置入口使用可选 prop，独立静态 fixtures 不显示入口。
+
+- 2026-10-17 展开工作区不滚动：`.artifact-frame[data-expanded="true"] .artifact-content` 的 `overflow:hidden` 优先级高于 `.workspace-files`，仅添加低优先级 overflow:auto 无效。工作区通过 `.artifact-frame .artifact-content.workspace-files` 显式接管滚动，保留 min-height:0；避免改动其他产物预览的 overflow 策略。
+
+- 2026-10-17 用户纠正：侧栏功能栏移到 Logo 下方时，Logo 保持已确认的大尺寸 44px；不要因底部设置图标的对齐要求而缩小整个 Logo。

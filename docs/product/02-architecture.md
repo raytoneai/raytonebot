@@ -228,3 +228,10 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 - **IM 审批**：同一轮的多个 `tool.call.awaiting_approval` 全部按提问顺序保存，聊天一次只回答最早的一个，回答或结束后自动问下一个；每个工具最多提示一次（重复到达的事件不排队，回答期间到达的下一项不会在回复发送完成后再提示一次）。此前只留一个 pending，第二个覆盖第一个，被覆盖的那个工具在引擎侧一直等，IM 里再回复只会得到「上一个任务还在运行」。
 - **浏览器审批与取消**：提交方法按页面实际会用的值判定 —— 按钮自身的 `formmethod`、字段按 Enter 时表单的默认提交按钮（用 `form.elements`，因此 `form="…"` 关联在表单之外的按钮也算），只有 `get` 是普通修改，`post`/`dialog` 都算对外；取数失败的元素、以及超出每次快照 200 个交互元素上限而没取数的元素都带 `unresolved` 标记，同样算对外（`enrichmentPlan` 决定读哪些、标哪些）。浏览器动作队列随所属轮次的 signal 取消，尚未派发的动作在停止后不再执行，已在执行中的一个不中断。IM 侧同一工具最多提示一次：记录最后提示的 `toolCallId`，并用有界的 `settled` 集合忽略「已经答完才到达」的重复 hold。见 ADR-040 的两条「审查修复」。
 - **欢迎页认领**：`Store.claim` 一次同步 check-and-create，两个标签页同时认领只会建一个沙箱（ADR-041）。
+
+
+### Bot 头像定制（2026-10-17）
+
+现有 `SettingsDialog` 的「Bot 头像」分区为三个固定角色分别保存外观；不新增助手或 HTTP 接口。`src/runtime/botAppearance.ts` 校验枚举选项与六位十六进制颜色，`useBotAppearances.ts` 通过 `useSyncExternalStore` 订阅本页更新及跨标签页 storage 事件，存于 `raytone.bot-appearances.v1`。保存失败不应用草稿；删除某一角色配置恢复旧头像。配置只属于当前 origin / 浏览器，不随沙箱备份或跨设备同步。
+
+`AgentAvatar` 优先使用已保存配置并调用 `botAvatarSVG`，其他入口与动画层保持共用；编辑器显式传入草稿。Shell 使用当前 `streamId` 隔离示例回放，不能使用 `isFixtureMode`：产品 `runtime.transport` 按规定保持 replay，真实对话仍通过 Pi client。

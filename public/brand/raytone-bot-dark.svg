@@ -1,13 +1,22 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="267" height="64" viewBox="0 0 267 64" color="#F8F6F0" role="img" aria-labelledby="raytone-bot-title">
-<title id="raytone-bot-title">Raytone Bot</title>
-<desc>Raytone's navy and gold striped circle with two capsule eyes and a rounded path-based wordmark.</desc>
-<g transform="translate(-6 -1) scale(.66)"><g fill="none" stroke="currentColor" stroke-width="6" stroke-linecap="round">
-  <path d="M40 12H60M25 24H50M17 36H29M12 50H27M17 64H29M25 76H51M40 88H60"/>
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="76" viewBox="0 0 280 76" color="#F8F6F0" role="img" aria-labelledby="title">
+<title id="title">Raytone Bot</title>
+<defs>
+<linearGradient id="ray-fade" x1="47" y1="0" x2="267" y2="0" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#E7AC26" stop-opacity=".65"/>
+<stop offset=".18" stop-color="#E7AC26" stop-opacity=".24"/>
+<stop offset=".4" stop-color="#E7AC26" stop-opacity=".08"/>
+<stop offset="1" stop-color="#E7AC26" stop-opacity=".015"/>
+</linearGradient>
+</defs>
+<g fill="none" stroke="url(#ray-fade)" stroke-width="2" stroke-linecap="round">
+<path d="M47.62 13H258.32"/>
+<path d="M57.95 29H266.20"/>
+<path d="M57.95 45H266.20"/>
+<path d="M47.62 61H258.32"/>
 </g>
-<g fill="none" stroke="#E7AC26" stroke-width="6" stroke-linecap="round">
-  <path d="M62 24H75M73 36H83M76 50H88M73 64H83M63 76H75"/>
-</g>
-<g fill="currentColor"><rect x="39" y="39" width="8" height="22" rx="4"/><rect x="57" y="39" width="8" height="22" rx="4"/></g></g>
+<circle cx="28" cy="37" r="24" fill="#0C2458"/>
+<g fill="#E7AC26"><rect x="18" y="29" width="5.5" height="15" rx="2.75"/><rect x="32.5" y="29" width="5.5" height="15" rx="2.75"/></g>
+<g transform="translate(12 5) scale(.92)">
 <g fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(65 21.8) scale(.72)">
   <path d="M0 32V1H11C27 1 27 18 11 18H0M12 18L25 32"/>
   <g transform="translate(33)"><path d="M20 12V32"/><ellipse cx="10" cy="22" rx="10" ry="10.5"/></g>
@@ -22,5 +31,4 @@
   <ellipse transform="translate(29)" cx="10.5" cy="22" rx="10.5" ry="10.5"/>
   <path transform="translate(59)" d="M8 4V26Q8 34 17 31M0 12H17"/>
 </g>
-</svg>
-
+</g></svg>

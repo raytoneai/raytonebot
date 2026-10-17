@@ -54,8 +54,8 @@
   transform-origin: 200px 235px;
 }
 /* Eyes jump, the head catches up: the head's transition is the slower one. */
-.raytone-avatar .gaze { transition: transform 140ms cubic-bezier(.2, .8, .2, 1); }
-.raytone-avatar .follow-group { transition: transform 520ms cubic-bezier(.45, 0, .25, 1); }
+.raytone-avatar .gaze { transition: transform 180ms cubic-bezier(.2, .8, .2, 1); }
+.raytone-avatar .follow-group { transition: transform 700ms cubic-bezier(.2, .8, .2, 1); }
 /* .action-group and .thinking-gaze change pose only with the state; avatarMotion.ts eases
    those changes (from mid-loop too), so they carry no CSS transition of their own. */
 .raytone-avatar .blink,

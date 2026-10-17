@@ -161,7 +161,7 @@ export function AgentSwitcher({
             onClick={() => onSelect(preset.id)}
           >
             <span className="shell-agent-face" data-status={rowStatus}>
-              <AgentAvatar size={26} kind={avatars[preset.id]} />
+              <AgentAvatar size={42} kind={avatars[preset.id]} />
               <span className="shell-agent-dot" data-status={rowStatus} aria-hidden="true" />
             </span>
             <span className="shell-agent-text">
@@ -181,9 +181,9 @@ export function AgentSwitcher({
       {onNewGroup ? (
         <button type="button" className="shell-agent" data-active={groupActive} aria-current={groupActive ? "true" : undefined}
           disabled={disabled} title="新建 Group：我、Raer、Tonny、Bob" onClick={onNewGroup}>
-          {/* The 30px face overhangs a 26px slot so "Group" starts where the agent names do. */}
-          <span className="shell-agent-face" data-status={groupStatus ?? "idle"} style={{ width: 26, justifyContent: "center" }}>
-            <GroupFace size={30} kinds={[avatars.assistant, avatars.planner, avatars.builder]} />
+          {/* Align the group face with the larger agent portraits. */}
+          <span className="shell-agent-face" data-status={groupStatus ?? "idle"} style={{ width: 42, justifyContent: "center" }}>
+            <GroupFace size={42} kinds={[avatars.assistant, avatars.planner, avatars.builder]} />
             {groupStatus ? <span className="shell-agent-dot" data-status={groupStatus} aria-hidden="true" /> : null}
           </span>
           <span className="shell-agent-text">

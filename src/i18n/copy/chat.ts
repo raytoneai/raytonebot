@@ -110,7 +110,7 @@ const en = {
     noOutput: "No output.",
   },
   artifactLaunch: {
-    openWith: "Open with",
+    open: "Open",
     kindImage: "Image",
     kindAudio: "Audio",
     kindVideo: "Video",
@@ -262,7 +262,7 @@ const zh: typeof en = {
     noOutput: "没有输出。",
   },
   artifactLaunch: {
-    openWith: "打开方式",
+    open: "打开",
     kindImage: "图片",
     kindAudio: "音频",
     kindVideo: "视频",
@@ -411,7 +411,7 @@ const ja: typeof en = {
     noOutput: "出力はありません。",
   },
   artifactLaunch: {
-    openWith: "開き方",
+    open: "開く",
     kindImage: "画像",
     kindAudio: "音声",
     kindVideo: "動画",

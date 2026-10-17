@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="76" viewBox="0 0 280 76" color="#0C2458" role="img" aria-labelledby="title">
+<title id="title">Raytone Bot — sparse golden raster study</title>
+<g fill="none" stroke="#E7AC26" stroke-width="2" stroke-linecap="round">
+<path d="M64 13H237" opacity=".28"/>
+<path d="M64 29H258" opacity=".22"/>
+<path d="M64 45H265" opacity=".22"/>
+<path d="M64 61H244" opacity=".28"/>
+</g>
+<circle cx="28" cy="37" r="24" fill="#0C2458"/>
+<g fill="#E7AC26"><rect x="18" y="29" width="5.5" height="15" rx="2.75"/><rect x="32.5" y="29" width="5.5" height="15" rx="2.75"/></g>
+<g transform="translate(12 5) scale(.92)">
+<g fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(65 21.8) scale(.72)">
+  <path d="M0 32V1H11C27 1 27 18 11 18H0M12 18L25 32"/>
+  <g transform="translate(33)"><path d="M20 12V32"/><ellipse cx="10" cy="22" rx="10" ry="10.5"/></g>
+  <path transform="translate(61)" d="M0 12L9 31M20 12L9 36Q6 43 0 41"/>
+  <path transform="translate(89)" d="M8 4V26Q8 34 17 31M0 12H17"/>
+  <ellipse transform="translate(112)" cx="10.5" cy="22" rx="10.5" ry="10.5"/>
+  <path transform="translate(141)" d="M0 32V12M0 22Q0 11 10 11Q20 11 20 22V32"/>
+  <path transform="translate(170)" d="M0 22H21C21 8 0 7 0 22C0 35 14 35 20 30"/>
+</g>
+<g fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(213 23.8) scale(.656)">
+  <path d="M0 32V1H10C24 1 24 15 10 15H0M10 15C26 15 27 32 10 32H0"/>
+  <ellipse transform="translate(29)" cx="10.5" cy="22" rx="10.5" ry="10.5"/>
+  <path transform="translate(59)" d="M8 4V26Q8 34 17 31M0 12H17"/>
+</g>
+</g></svg>

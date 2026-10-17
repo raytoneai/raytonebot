@@ -59,7 +59,7 @@ import {
 } from "./pi/piClient";
 import { piRuntimeConfigurationForProvider } from "./pi/piProviderSync";
 import { isAgentPresetId, loadAgentSettings, saveAgentSettings, settingsUseProvider, type AgentPresetId, type AgentSettings } from "./pi/harnessCatalog";
-import { AgentPersonaProvider, type AgentPersona, type AvatarKind } from "./avatars/AgentPersona";
+import { CustomAvatarsProvider, AgentPersonaProvider, type AgentPersona, type AvatarKind } from "./avatars/AgentPersona";
 import type { TranscriptScroll } from "./runtime/useTranscriptScroll";
 import { InlineApprovalPrompt } from "./components/agent-preview/chatframe/approval";
 import { pendingUserInput, userInputEventsForReplay } from "./runtime/userInput";
@@ -1470,6 +1470,7 @@ export function AgentApp() {
     // No inline layout: `.exported-shell` shares `.builder-surface`'s rule in app.css,
     // which is the sizing context `.preview-frame` and `.preview-overlay-surface` were
     // designed against. Re-implementing it here is what made the export "not fit".
+    <CustomAvatarsProvider value={!streamId}>
     <AgentPersonaProvider persona={persona}>
     <ShellExtrasProvider value={shellExtras}>
     <div className="exported-shell" style={{ height: "100dvh" }}>
@@ -1619,6 +1620,7 @@ export function AgentApp() {
               open={settingsOpen}
               onOpenChange={setSettingsOpen}
               initialSection={settingsSection}
+              botAvatars={!streamId}
             project={activeProject}
             providerSettingsStatus={providerSettingsStatus}
             runtime={piRuntimeState}
@@ -1648,5 +1650,6 @@ export function AgentApp() {
         ) : null}
     </ShellExtrasProvider>
     </AgentPersonaProvider>
+    </CustomAvatarsProvider>
   );
 }

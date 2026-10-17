@@ -79,7 +79,7 @@ const parts: Record<AvatarKind, { body: string; over: string; height: number }> 
 
 export function avatarSVG(kind: AvatarKind, compact = false, withHalo = true, id: string = kind): string {
   const { body, over, height } = parts[kind];
-  const eyeHeight = height * .24;
+  const eyeHeight = height * .26;
   const eyes = [38.5, 61.5].map(x => `<g transform="translate(${x} ${kind === 'boy' ? 60.5 : 59.5})"><g class="blink"><g class="expression">
     <rect class="open-eye" x="-3.3" y="${-eyeHeight / 2}" width="6.6" height="${eyeHeight}" rx="3.3" fill="${navy}"/>
     <path class="happy-eye" d="M-5.2 1Q0-6.4 5.2 1" stroke="${navy}" stroke-width="3.4" stroke-linecap="round"/>

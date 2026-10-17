@@ -3,6 +3,11 @@ import { createContext, useContext, useEffect, useId, useMemo, useRef, type Reac
 import { mountAvatarMotion, type AvatarMotion, type AvatarState } from "./avatarMotion";
 import { avatarSVG, type AvatarKind } from "./raytoneAvatars";
 import "./raytoneAvatar.css";
+import { botAvatarSVG } from "./botAvatar";
+import type { BotAppearance } from "../runtime/botAppearance";
+import { useBotAppearances } from "../runtime/useBotAppearances";
+const CustomAvatarsContext = createContext(false);
+export const CustomAvatarsProvider = CustomAvatarsContext.Provider;
 
 export { avatarBusy, type AvatarState } from "./avatarMotion";
 export type { AvatarKind } from "./raytoneAvatars";
@@ -38,8 +43,11 @@ export function AgentAvatar({
   calm = false,
   fallback,
   kind: kindOverride,
+  appearance,
 }: {
   size: number;
+  /** Explicit draft; null shows the original persona. */
+  appearance?: BotAppearance | null;
   /** Draw this character instead of the current persona's (settings, pickers). */
   kind?: AvatarKind;
   live?: boolean;
@@ -48,12 +56,16 @@ export function AgentAvatar({
   fallback?: ReactNode;
 }) {
   const persona = useAgentPersona();
+  const customEnabled = useContext(CustomAvatarsContext);
+  const appearances = useBotAppearances();
   const svgId = useId();
   const rootRef = useRef<HTMLSpanElement>(null);
   const motionRef = useRef<AvatarMotion | undefined>(undefined);
   const kind = kindOverride ?? persona?.kind;
+  const custom = appearance === undefined ? (customEnabled && kind ? appearances[kind] : undefined) : appearance;
+  const customKey = JSON.stringify(custom);
   // Faces of 20px and under come in lists (history, members, group faces): no halo there.
-  const markup = useMemo(() => (kind ? avatarSVG(kind, !interactive, size > 20, svgId) : ""), [kind, interactive, size, svgId]);
+  const markup = useMemo(() => (kind ? (custom ? botAvatarSVG(custom) : avatarSVG(kind, !interactive, size > 20, svgId)) : ""), [kind, interactive, size, svgId, customKey]);
   const animated = Boolean(persona && live);
 
   useEffect(() => {
@@ -82,7 +94,7 @@ export function AgentAvatar({
       data-interactive={interactive ? "true" : undefined}
       style={{ width: size, height: size }}
       aria-hidden="true"
-      // Static, generated markup from `avatarSVG`; no user content reaches it.
+      // Generated geometry; custom options and hex colours are validated before interpolation.
       dangerouslySetInnerHTML={{ __html: markup }}
     />
   );

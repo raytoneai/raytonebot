@@ -3636,8 +3636,9 @@ textarea:focus-visible {
 }
 .session-brand-logo {
   display: block;
-  height: 26px;
+  height: 44px;
   width: auto;
+  max-width: 100%;
 }
 .preview-frame[data-appearance="dark"] .session-brand-logo[data-variant="light"],
 .preview-frame:not([data-appearance="dark"]) .session-brand-logo[data-variant="dark"] {
@@ -8350,6 +8351,11 @@ pre {
 }
 
 .preview-frame .artifact-launch-card {
+  width: 100%;
+  text-align: left;
+  font: inherit;
+  color: inherit;
+  cursor: pointer;
   gap: 14px;
   min-height: 64px;
   padding: var(--space-3) var(--space-4);
@@ -12477,7 +12483,13 @@ pre {
 }
 
 /* Workspace browsing reuses the output panel and its header controls. */
-.workspace-files { overflow: auto; }
+/* Expanded output hides overflow by default; workspace files own their scrolling. */
+.artifact-frame .artifact-content.workspace-files {
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  align-content: start;
+}
 .workspace-files-path { display: flex; align-items: center; gap: 8px; margin: 12px 0; min-width: 0; }
 .workspace-files-path code { overflow-wrap: anywhere; }
 .workspace-file-list { list-style: none; margin: 0; padding: 0; }
@@ -12666,3 +12678,30 @@ pre {
   pointer-events: none;
   resize: none;
 }
+
+.preview-frame .artifact-launch-card:hover {
+  background: var(--surface-hover, var(--surface-inset));
+}
+.preview-frame .artifact-launch-card:hover .artifact-inline-body strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+.preview-frame .artifact-launch-card:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+.preview-frame .artifact-launch-hint {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 13px;
+  color: var(--text-muted);
+}
+
+/* Give the brand and assistants prominence; history remains a compact secondary list. */
+.session-brand { flex-wrap: wrap; row-gap: 8px; }
+.session-brand-name { order: 2; flex-basis: 100%; display: flex; justify-content: flex-start; padding: 8px 0; }
+.session-brand-actions { order: 0; margin-left: 0; }
+.session-history-toggle { display: flex; flex: none; align-items: center; justify-content: space-between; width: 100%; padding: 12px 8px 8px; border: 0; background: transparent; color: var(--text-muted); font: inherit; font-size: 12px; cursor: pointer; }
+.session-history-toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }
+.session-history-toggle:hover { color: var(--text-primary); }
+.session-history-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }

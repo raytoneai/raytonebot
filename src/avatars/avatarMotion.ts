@@ -38,7 +38,7 @@ export const avatarBusy = (state: AvatarState) => BUSY.has(state);
 
 const clamp = (n: number, limit: number) => Math.max(-limit, Math.min(limit, n));
 const between = (min: number, max: number) => min + Math.random() * (max - min);
-const spring = { type: "spring", duration: 0.5, bounce: 0.2 } as const;
+const spring = { type: "spring", duration: 0.65, bounce: 0.12 } as const;
 const settle = "cubic-bezier(.2,.8,.2,1)";
 /** Pose changes between states: slow in and out, the same 420ms the CSS loops wait for. */
 const poseEase = "cubic-bezier(.45,0,.25,1)";
@@ -162,9 +162,11 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     clearTimeout(longTimer);
     clearTimeout(dozeTimer);
   };
-  const look = (x: number, y: number, turn = x / 2.6) => {
+  const look = (x: number, y: number, turn = x / 2.4) => {
     if (gaze) gaze.style.transform = `translate(${x}px, ${y}px)`;
-    if (follow) follow.style.transform = `translate(${x / 2.4}px, ${y / 3}px) rotate(${turn}deg)`;
+    // A lowered gaze subtly foreshortens the head, making it read as a downward turn.
+    const pitchScale = 1 - Math.min(Math.max(y, 0) * .002, .04);
+    if (follow) follow.style.transform = `translate(${x / 2.1}px, ${y / 2.6}px) rotate(${turn}deg) scaleY(${pitchScale})`;
   };
   const centerGaze = () => look(0, 0, 0);
   /** `cover` is the blink on a state change: it hides the eyes swapping shape (as bloub does). */
@@ -199,12 +201,13 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
     glanceTimer = setTimeout(() => {
       const pointerDriven = options.interactive && performance.now() - pointerAt < 1400;
       if (!drag && !pointerDriven && (state === "idle" || state === "listening")) {
-        if (listening) look(between(-17, 17), between(6, 11), between(-4.5, 4.5));
+        if (listening) look(between(-20, 20), between(7, 13), between(-5.5, 5.5));
+        else if (Math.random() < 0.25) look(between(-12, 12), 20, between(-2, 2));
         else if (Math.random() < 0.3) centerGaze();
         else {
-          const x = between(-22, 22), y = between(-9, 8);
+          const x = between(-27, 27), y = between(-11, 10);
           // Occasionally a curious head tilt that the eyes do not explain.
-          look(x, y, Math.random() < 0.12 ? (x < 0 ? -11 : 11) : x / 2.6);
+          look(x, y, Math.random() < 0.12 ? (x < 0 ? -13 : 13) : x / 2.4);
         }
         if (Math.random() < 0.22) setTimeout(() => { if (!still()) blink(); }, 40);
       }
@@ -350,7 +353,7 @@ export function mountAvatarMotion(root: HTMLElement, options: { interactive: boo
       const reach = Math.max(bounds.width * 6, 480);
       const dx = event.clientX - bounds.left - bounds.width / 2;
       const dy = event.clientY - bounds.top - bounds.height / 2;
-      look(clamp(dx / reach, 1) * 22, clamp(dy / reach, 1) * 10);
+      look(clamp(dx / reach, 1) * 27, clamp(dy / reach, 1) * 12);
     };
     root.addEventListener("pointerdown", (event) => {
       if (event.button !== 0 || !event.isPrimary || reduced) return;

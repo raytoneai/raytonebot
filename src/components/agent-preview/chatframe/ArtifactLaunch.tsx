@@ -1,5 +1,5 @@
 import type { AgentUXArtifactTimelineItem } from "@agent-ux/render-core";
-import { ChevronDown, FileAudio2, FileVideo2, Globe2, ImageIcon } from "lucide-react";
+import { FileAudio2, FileVideo2, Globe2, ImageIcon } from "lucide-react";
 
 import type { UiCopy } from "../../../i18n/uiCopy";
 import type { AgentFrontendProject } from "../../../schema/agentuxConfig";
@@ -24,7 +24,9 @@ export function ArtifactLaunchCard({
   const launchTitle = artifactLaunchTitle(item);
   const Icon = mediaKind === "image" ? ImageIcon : mediaKind === "audio" ? FileAudio2 : mediaKind === "video" ? FileVideo2 : Globe2;
   return (
-    <article
+    <button
+      type="button"
+      onClick={() => onOpenArtifact?.(artifactLaunchOpenRequest(item, copy, project))}
       className={`artifact-inline artifact-launch-card${mediaKind ? " media-generation-inline" : ""}`}
       data-status={item.status}
       data-media-kind={mediaKind ?? "website"}
@@ -35,17 +37,8 @@ export function ArtifactLaunchCard({
         <strong>{launchTitle}</strong>
         <span className="artifact-launch-kind">{artifactLaunchKind(item, copy)}</span>
       </span>
-      <span className="artifact-launch-actions">
-        <button
-          type="button"
-          className="artifact-action-open"
-          onClick={() => onOpenArtifact?.(artifactLaunchOpenRequest(item, copy, project))}
-        >
-          <span>{copy.chat.artifactLaunch.openWith}</span>
-          <ChevronDown size={20} aria-hidden="true" />
-        </button>
-      </span>
-    </article>
+      <span className="artifact-launch-hint" aria-hidden="true">{copy.chat.artifactLaunch.open}</span>
+    </button>
   );
 }
 
