@@ -28,3 +28,44 @@ export function keyInput(type: "down" | "up", event: { key: string; isComposing?
 export function mouseButton(button: number): "left" | "middle" | "right" {
   return button === 1 ? "middle" : button === 2 ? "right" : "left";
 }
+
+/** One in-flight request; collapse unsent motion/text so network RTT cannot build an input backlog. */
+export function createBrowserInputQueue(send: (inputs: BrowserInput[], signal: AbortSignal) => Promise<void>, onError: (error: unknown) => void) {
+  let pending: BrowserInput[] = [];
+  let active: AbortController | undefined;
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  const schedule = () => {
+    if (active || timer || !pending.length) return;
+    timer = setTimeout(() => { timer = undefined; void flush(); }, 16);
+  };
+  const flush = async () => {
+    const controller = new AbortController();
+    active = controller;
+    const batch = pending;
+    pending = [];
+    try { await send(batch, controller.signal); }
+    catch (error) {
+      if (!controller.signal.aborted) { pending = []; onError(error); }
+    } finally {
+      if (active === controller) { active = undefined; schedule(); }
+    }
+  };
+  const reset = () => {
+    clearTimeout(timer); timer = undefined;
+    pending = [];
+    active?.abort(); active = undefined;
+  };
+  return {
+    input(value: BrowserInput) {
+      const last = pending.at(-1);
+      if (value.kind === "mouse" && value.type === "move" && last?.kind === "mouse" && last.type === "move") pending[pending.length - 1] = value;
+      else if (value.kind === "text" && last?.kind === "text" && last.text.length + value.text.length <= 2000) last.text += value.text;
+      else if (value.kind === "mouse" && value.type === "wheel" && last?.kind === "mouse" && last.type === "wheel") {
+        pending[pending.length - 1] = { ...value, deltaX: Math.max(-5000, Math.min(5000, (last.deltaX ?? 0) + (value.deltaX ?? 0))), deltaY: Math.max(-5000, Math.min(5000, (last.deltaY ?? 0) + (value.deltaY ?? 0))) };
+      } else if (pending.length < 64) pending.push({ ...value });
+      else { reset(); onError(new Error("Browser input is falling behind. Try again when the connection recovers.")); return; }
+      schedule();
+    },
+    reset,
+  };
+}

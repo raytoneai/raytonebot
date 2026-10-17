@@ -241,3 +241,5 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 浏览器全局清理（2026-10-17）：`POST /browser/control` 的 `clear-logins` 操作在清理期间拒绝新的浏览器动作，等待启动/排队动作结束，关闭 Chromium 后删除当前 profile（sandbox 使用浏览器 UID）并重置 `browser.json` 的登录站点记录、快照与页面标题。现有 BrowserView 底部提供二次确认；普通关闭保留 profile。旧备份与网站端会话不受影响。
 
 浏览器关联审批与 headed 试验（2026-10-17）：`browser.json` 保留原 origin，无需迁移；`browserPolicy.ts` 通过 PSL/private suffix 与显式账号域组识别关联登录风险，具体授权仍按 origin。测试部署的 `--headed-browser` 设置 `RAYTONEBOT_BROWSER_HEADED=1`、完整 Chromium 路径；服务端启动前缀加入私有 `xvfb-run`，worker/CDP/SSE/输出面板不换接口。普通部署仍用 headless shell，Linux 浏览器停止时原有 UID 清理同时覆盖 Xvfb。
+
+远端输入（2026-10-17）：`/browser/input` 同时接受旧 `{input}` 与新 `{inputs:[...]}`，每批最多 64 项，整批先校验再依序执行，仍要求用户接管。前端单批在途、16ms 聚合；合并未发送的连续鼠标移动/文字/滚轮，保留按下/松开/键事件顺序，失败不自动重放；交还/关闭/离开视图清空未发送队列。截图绝对定位于画面容器，坐标使用图片实际矩形与留白换算，指针捕获避免松开事件丢失。

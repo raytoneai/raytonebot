@@ -1000,3 +1000,22 @@ test("steering is scoped to an active run, idempotent and saved as a distinct us
 
   } finally { await controller.abort(); controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
 });
+
+test("browser input batches validate every event before dispatch and retain single-event compatibility", async () => {
+  const { createServer } = await import("node:http");
+  const { createPiHttpHost } = await import("./piHost.ts");
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-browser-input-"));
+  const host = createPiHttpHost({ cwd: dataDir, dataDir });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/browser/input`;
+  const post = (body: unknown) => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  try {
+    const valid = { kind: "text", text: "test" };
+    for (const inputs of [[], Array(65).fill(valid), [valid, { kind: "text", text: "x".repeat(2001) }]]) {
+      assert.equal((await post({ inputs })).status, 400);
+    }
+    assert.equal((await post({ inputs: [valid] })).status, 409, "validated input still requires user takeover");
+    assert.equal((await post({ input: valid })).status, 409, "old clients use the same takeover check");
+  } finally { host.dispose(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(dataDir, { recursive: true, force: true }); }
+});

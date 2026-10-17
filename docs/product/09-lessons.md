@@ -303,3 +303,5 @@
 - 2026-10-17 用户纠正：侧栏功能栏移到 Logo 下方时，Logo 保持已确认的大尺寸 44px；不要因底部设置图标的对齐要求而缩小整个 Logo。
 
 - **CDP 附加的 browser.close() 不等于 Chrome 正常退出**（2026-10-17）→ Playwright connectOverCDP 的 close 路径仅关闭 transport；再终止 xvfb-run 可能先切断显示，近期 cookie 写入丢失。用空测试 profile 稳定复现后，改为先向 browser CDP session 发 Browser.close、等待退出，再按超时 TERM/KILL；Linux 完整 Chromium＋Xvfb 重启后的 cookie/localStorage 均保持。避免以 headless shell 的 SIGTERM 测试结果代替有界面浏览器验收。
+
+- **远端画面能看不等于能点**（2026-10-17）→ 必须同时实测图片矩形与鼠标事件链。grid里的img height:100%曾被内在比例撑大并裁切，framePoint却按容器contain换算，导致点击偏移；绝对定位截图并以图片矩形换算解决。每事件串行HTTP还会让hover积压阻挡键盘；用单批在途、保序聚合并合并未发移动，避免RTT乘事件数量。真实无账号表单的输入/按钮端到端验收不可被“收到帧、按Tab”代替。

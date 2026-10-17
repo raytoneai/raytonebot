@@ -221,8 +221,8 @@ export async function browserLogin(site: string, url?: string): Promise<BrowserV
   return requestJson<BrowserViewState>(fetch, `${PI_API_PREFIX}/browser/control`, { action: "login", site, url }, AbortSignal.timeout(60_000));
 }
 
-export async function sendBrowserInput(input: BrowserInput, fetcher: typeof fetch = fetch): Promise<void> {
-  await requestJson(fetcher, `${PI_API_PREFIX}/browser/input`, { input }, AbortSignal.timeout(10_000));
+export async function sendBrowserInputs(inputs: BrowserInput[], signal: AbortSignal): Promise<void> {
+  await requestJson(fetch, `${PI_API_PREFIX}/browser/input`, { inputs }, AbortSignal.any([signal, AbortSignal.timeout(10_000)]));
 }
 
 /** Server-sent `state` and `frame` events; frames flow only while it is open. */

@@ -891,3 +891,12 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - `headed_browser_check.mjs` 在空测试 profile 上真实通过 8 类检查：正常 UA、webdriver=false；Chromium Namespace/PID/Network namespaces 与 Seccomp-BPF 均启用；Chrome/Xvfb 同属浏览器 UID，无 --no-sandbox/headless/UA 覆盖；接管时 Agent 动作被拒、用户按键、交还；cookie/localStorage 关闭重开保留；清理后消失；私网 URL 经代理拒绝；40 帧实时画面；停止后无 Chrome/Xvfb 残留。
 - 该试验先稳定复现完整 Chromium 在 xvfb-run 停止后丢 cookie；查 Playwright CDP 实现确认 close 仅断连接。worker 改为先发 CDP Browser.close 并等待退出，再限时终止进程；修复后同一远端检查通过。不得在用户登录后重跑此清空 profile 的检查。
 - GitHub、Reddit、X、Google 登录页均可打开、无已识别网络错误；**尚未验证真实账号登录**。测试入口使用 `?stream=basic-text` 预览对话以显示 Output，右侧连接的是真实远端浏览器；不写入虚构产品会话。已准备 Google 登录页、controller=user 等待用户；本机测试访问凭据仅在忽略目录 `.agentsphere/login-headed-state/access.json`。自动浏览器未通过 Basic Auth，远端 UI 最终人工验收仍待用户完成。
+
+## 2026-10-17 远端输入延迟与坐标修复
+
+- 修复前从实际用户页面测得：frame 高624.26px，截图高757.45px并被裁切，原坐标换算假设不成立。修复后 img 高622.26px，完整位于624.26px容器内，留白正常。
+- 原队列每个鼠标移动/按下/松开/文字均等待一个 HTTP 往返；新队列的慢链路回归覆盖100个移动合并、文字合并、鼠标/键事件保序、单批在途、取消与失败不重放；服务端批大小/每项内容整体校验及旧单事件兼容测试通过。
+- build、331项Node测试、check:local、cloud-preview --check通过；Chrome逐项检查18内置场景，Capability tray维持原空白，其余对应文本/审批/错误/重试/中断/产物正常显示。
+- 测试实例 `ibcqzra87czygjo4qxr1n` 已更新；部署最后公网检查遇临时TLS EOF，随后独立9项鉴权/健康/工作区/批输入校验全过，源码和构建文件与本机SHA-256核对一致。
+- 通过用户已认证Chrome页驱动真实远端无账号输入页：点击输入框、键入remote-input-ok、点击按钮，远端DOM断言文字准确与按钮响应成功；7个输入事件合为2个请求，响应约388/400ms。截图 `output/browser-login/input-fixed.png`。profile未清理，测试完成恢复Google登录页与user控制。
+- 预览stream会跳过真实browser/state，不能作为稳定的登录接管入口。本轮在测试实例写入一条明确标注“主机诊断记录（未调用模型）”的会话，只用于打开现有Output，未调用模型、未导入src fixture作为产品数据。

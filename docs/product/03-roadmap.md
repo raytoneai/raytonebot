@@ -452,3 +452,5 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 - 2026-10-17 浏览器清除登录状态：底部文字入口、二次确认/取消、关闭按钮明确保留登录；确认后停止浏览器、删除当前 profile 并清空登录站点记录，清理期间拒绝新动作。真实 Chromium 临时配置测试覆盖普通关闭保留 cookie、清除后重开退出；327 项测试与 check:local 通过，最终修改后 9 项浏览器测试通过；Chrome 检查确认界面/取消与按钮可见，截图 `output/browser-login/clear-confirm.png`。未清理实际用户 profile，未验证 Linux sandbox 真实清理，未部署云端。
 
 - 2026-10-17 关联站点审批与完整浏览器试验：PSL/private suffix＋显式账号域组扩大 connector 判断，始终允许保持完整 origin，回归先失败后通过；部署新增 opt-in --headed-browser（完整 Chromium＋私有 Xvfb）。独立测试实例 `ibcqzra87czygjo4qxr1n` 部署 9 项检查、8 类真实浏览器检查通过；修复 CDP close 仅断开后终止 Xvfb 导致 cookie 丢失，cookie/localStorage 重启保留与清理 Linux 实测通过。最终 build、328 项 Node 测试、13 项 Python（3 Linux-only 跳过）及本地/云入口检查通过。四站点登录页可达，真实账号登录等待用户接管；现有生产未改，未推送。详见 08 末尾完整浏览器试验。
+
+- 2026-10-17 修复用户报告远端输入迟缓与点击偏移：原每事件串行 HTTP 队列会被鼠标移动积压；改成单批在途、16ms 聚合与连续事件合并，批次最多64项、先整体校验并兼容旧输入；截图曾在624px容器内撑到757px并裁切，改绝对定位和按图片矩形映射，补指针捕获。build、331项测试、本地/云入口检查与18内置场景走查通过（Capability tray 原有空白未改）。已部署独立测试实例，远端实际点击输入框、输入 remote-input-ok 与按钮点击成功；截图高度622px适配624px容器，两次输入批请求各约0.4s，未清理用户profile。恢复Google登录等待用户；未改生产，未推送。

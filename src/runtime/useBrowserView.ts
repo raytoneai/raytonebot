@@ -1,6 +1,7 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { createBrowserInputQueue } from "./browserView";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
-import { BROWSER_STREAM_URL, browserLogin, browserControl, getBrowserState, sendBrowserInput } from "../pi/piClient";
+import { BROWSER_STREAM_URL, browserLogin, browserControl, getBrowserState, sendBrowserInputs } from "../pi/piClient";
 import type { BrowserInput, BrowserViewState } from "../pi/browser/browserProtocol";
 
 export type BrowserViewModel = {
@@ -53,13 +54,18 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
   // The state alone (available or not) is enough for the switch before the view opens.
   useEffect(() => { if (visible && !state) void getBrowserState().then(setState, () => undefined); }, [visible, state]);
 
+  const inputs = useMemo(() => createBrowserInputQueue(sendBrowserInputs, (failure) => setError(failure instanceof Error ? failure.message : String(failure))), []);
+  useEffect(() => () => inputs.reset(), [inputs]);
+  useEffect(() => { if (state?.controller !== "user" || !visible || !foreground) inputs.reset(); }, [state?.controller, visible, foreground, inputs]);
+
   const control = useCallback(async (action: "takeover" | "release" | "stop" | "clear-logins") => {
+    inputs.reset();
     setBusy(true);
     setError(undefined);
     try { setState(await browserControl(action)); }
     catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
     finally { setBusy(false); }
-  }, []);
+  }, [inputs]);
 
   const login = useCallback(async (site: string, url?: string) => {
     setBusy(true);
@@ -69,12 +75,6 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
     finally { setBusy(false); }
   }, []);
 
-  // One queue: a click's down, moves and up must reach the page in order.
-  const chain = useRef<Promise<void>>(Promise.resolve());
-  const input = useCallback((value: BrowserInput) => {
-    chain.current = chain.current.then(() => sendBrowserInput(value))
-      .catch((failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure)));
-  }, []);
 
-  return { state, frame, connected, error, busy, control, login, input };
+  return { state, frame, connected, error, busy, control, login, input: inputs.input };
 }

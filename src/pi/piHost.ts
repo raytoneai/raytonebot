@@ -1163,9 +1163,11 @@ export function createPiHttpHost(options: {
             return true;
           }
           if (req.method === "POST" && action === "input") {
-            const input = browserInput((await readJson(req)).input);
-            if (!input) { sendJson(res, 400, { error: "Invalid browser input." }); return true; }
-            try { await browser.input(input); sendJson(res, 200, { ok: true }); }
+            const body = await readJson(req);
+            const values = Array.isArray(body.inputs) ? body.inputs : [body.input];
+            const inputs = values.map(browserInput);
+            if (!inputs.length || inputs.length > 64 || inputs.some((input) => !input)) { sendJson(res, 400, { error: "Invalid browser input." }); return true; }
+            try { for (const input of inputs) await browser.input(input!); sendJson(res, 200, { ok: true }); }
             catch (error) { sendJson(res, 409, { error: errorMessage(error) }); }
             return true;
           }

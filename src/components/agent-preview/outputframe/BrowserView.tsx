@@ -28,22 +28,25 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
   const [address, setAddress] = useState("");
   const view = useBrowserView(true);
   const frameRef = useRef<HTMLDivElement>(null);
+  const imageRef = useRef<HTMLImageElement>(null);
+  const lastPoint = useRef<{ x: number; y: number } | undefined>(undefined);
   const textRef = useRef<HTMLTextAreaElement>(null);
   const lastMove = useRef(0);
   const state = view.state;
   const controlling = state?.controller === "user";
 
   const point = (event: ReactPointerEvent | WheelEvent) => {
-    const box = frameRef.current?.getBoundingClientRect();
+    const box = imageRef.current?.getBoundingClientRect();
     return box && view.frame ? framePoint(event.clientX, event.clientY, box, view.frame) : undefined;
   };
   const pointer = (type: "down" | "up" | "move") => (event: ReactPointerEvent) => {
     if (!controlling) return;
     if (type === "move" && Date.now() - lastMove.current < MOVE_INTERVAL_MS) return;
-    const at = point(event);
+    const at = point(event) ?? (type === "up" ? lastPoint.current : undefined);
     if (!at) return;
+    lastPoint.current = at;
     if (type === "move") lastMove.current = Date.now();
-    if (type === "down") { event.preventDefault(); textRef.current?.focus(); }
+    if (type === "down") { event.preventDefault(); event.currentTarget.setPointerCapture(event.pointerId); textRef.current?.focus({ preventScroll: true }); }
     view.input({ kind: "mouse", type, ...at, button: mouseButton(event.button) });
   };
 
@@ -101,6 +104,7 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
         role="img"
         onPointerDown={pointer("down")}
         onPointerUp={pointer("up")}
+        onPointerCancel={pointer("up")}
         onPointerMove={pointer("move")}
         onWheel={(event) => {
           if (!controlling) return;
@@ -109,7 +113,7 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
         }}
         onContextMenu={(event) => { if (controlling) event.preventDefault(); }}
       >
-        {view.frame ? <img src={view.frame.src} alt="" draggable={false} /> : (
+        {view.frame ? <img ref={imageRef} src={view.frame.src} alt="" draggable={false} /> : (
           <p className="browser-view-empty">{!state ? c.connecting : !state.available ? c.unavailable : c.idle}</p>
         )}
         {controlling ? (
