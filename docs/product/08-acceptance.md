@@ -882,3 +882,12 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 同一次运行里 `saveWorkspaceDownload` 的 setgid 断言也通过了，于是对比了两种沙箱：`chmod 2770` 在解除文件沙箱后读回 `2770`，在工作区沙箱下读回 `0770`。此前把它记成「macOS 不保留 setgid」是错的（[09](09-lessons.md) 已更正）。
 - 完整套件在无沙箱限制下的本机结果：**`npm test` 313 项 / 313 通过 / 0 失败 / 0 跳过**；`npm run build` exit 0；`check:local` 与 `cloud-preview --check` 通过。
 - 仍未验证：真实模型下三种引擎的路径（浏览器真实提交、IM 并行审批、插话、短任务备份）与浏览器视觉验收，都没有跑。
+
+## 2026-10-17 关联站点审批与完整浏览器登录试验
+
+- 审批回归先在旧实现上失败（mail.google.com 被判 mutating），修复后通过。`tldts@7.4.18` 含 private suffix；Google/Gmail/YouTube、X/Twitter、Apple/iCloud 显式关联，reddit 子域和 example.co.uk 正确合并，github.io 不同租户/相似恶意域/IP 不同端口不合并；旧通用授权不能覆盖账号操作，站点授权不跨 origin；read/outward/secret 分类保持。
+- 本机最终 build、328 项 Node 测试、13 项 Python 运维测试（10 通过，3 个 Linux-only 跳过）、check:local、cloud-preview --check 通过。
+- 新建独立自动暂停测试实例 `ibcqzra87czygjo4qxr1n`（2026-10-17），未改现有生产实例。`deploy.py --headed-browser` 安装完整 Chromium 1248（Chrome/156）、Xvfb/xauth；9 项部署鉴权/工作区检查通过。
+- `headed_browser_check.mjs` 在空测试 profile 上真实通过 8 类检查：正常 UA、webdriver=false；Chromium Namespace/PID/Network namespaces 与 Seccomp-BPF 均启用；Chrome/Xvfb 同属浏览器 UID，无 --no-sandbox/headless/UA 覆盖；接管时 Agent 动作被拒、用户按键、交还；cookie/localStorage 关闭重开保留；清理后消失；私网 URL 经代理拒绝；40 帧实时画面；停止后无 Chrome/Xvfb 残留。
+- 该试验先稳定复现完整 Chromium 在 xvfb-run 停止后丢 cookie；查 Playwright CDP 实现确认 close 仅断连接。worker 改为先发 CDP Browser.close 并等待退出，再限时终止进程；修复后同一远端检查通过。不得在用户登录后重跑此清空 profile 的检查。
+- GitHub、Reddit、X、Google 登录页均可打开、无已识别网络错误；**尚未验证真实账号登录**。测试入口使用 `?stream=basic-text` 预览对话以显示 Output，右侧连接的是真实远端浏览器；不写入虚构产品会话。已准备 Google 登录页、controller=user 等待用户；本机测试访问凭据仅在忽略目录 `.agentsphere/login-headed-state/access.json`。自动浏览器未通过 Basic Auth，远端 UI 最终人工验收仍待用户完成。

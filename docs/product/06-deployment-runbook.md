@@ -172,3 +172,9 @@ sb.set_timeout(3600)          # 从现在起约 1 小时
 外部定时器自行注入环境变量并收集 JSON 结果。命令不唤醒暂停实例、不续期、不删除旧包；忙碌时等待下次调度，health 不可达或备份损坏时非零退出供外部告警。若需要跨文件强一致快照，再增加维护锁。备份归档可能包含用户敏感文件，应限制外部存储访问；E2B key 始终不进入沙箱。
 
 外部 web server 完成用户认证后调用 `sandbox.py wake`，再自行等待 `/health` 恢复后转入 bot。外部任务调度入口（`external_jobs.py`，提交 `96cc8cd`）已于 2026-10-04 移出主线：在外部服务实际接入前不保留无调用方的调度代码，接入时从该提交取回并按其持久任务存储重做（ADR-016）。
+
+## 完整浏览器登录试验（2026-10-17）
+
+只在独立测试实例及独立状态目录运行 `deploy.py --sandbox <测试实例> --state-dir <独立目录> --headed-browser`。安装完整 Chromium、Xvfb/xauth；浏览器仍使用 `raytone-browser`、5191 代理、5192 CDP，仅 X Unix socket，不开放桌面端口。默认部署不切换。每次重部署测试实例都须带 `--headed-browser`。
+
+首次人工登录前，可在测试实例运行 `set -a; . ~/.raytonebot/env; set +a; cd /home/user/raytonebot; RAYTONEBOT_BROWSER_TRIAL_EMPTY=1 node scripts/agentsphere/headed_browser_check.mjs`：检查 UA/webdriver、Chrome 沙箱、真实接管/流、cookie/localStorage 跨重启保存与清除、私网代理拒绝、公开登录页与停止后进程清理。**该检查会清理测试 profile，不得对已有用户登录的实例运行**。人工登录不进入脚本；密码与验证码由用户接管输入。

@@ -98,6 +98,7 @@ def main() -> None:
     parser.add_argument("--sandbox", help="sandbox id (default: .agentsphere/deployment.json)")
     parser.add_argument("--timeout", type=int, default=0, help="also extend the sandbox lifetime (seconds)")
     parser.add_argument("--skip-build", action="store_true")
+    parser.add_argument("--headed-browser", action="store_true", help="use full Chromium with a private Xvfb display (login trial)")
     parser.add_argument("--state-dir", type=Path, default=STATE_DIR, help="separate access/deployment state for an isolated instance")
     args = parser.parse_args()
     STATE_DIR = args.state_dir.resolve()
@@ -171,17 +172,21 @@ def main() -> None:
         if "--no-require-git" not in run(sandbox, "fd --help").stdout:
             fail("fd version does not support the Pi find tool")
 
-    # The browser (ADR-040): the headless shell build the pinned playwright-core expects, read-only for
-    # every UID under /opt. Installed once with its system libraries; later deploys find it.
+    # Both builds match the pinned Playwright. Headed mode is opt-in for the isolated login trial.
+    browser_name = "chromium" if args.headed_browser else "chromium-headless-shell"
     revision = run(sandbox, f"node -p \"require('{APP_DIR}/node_modules/playwright-core/browsers.json').browsers"
-                            ".find(b => b.name === 'chromium-headless-shell').revision\"").stdout.strip()
-    shell = f"{BROWSERS_DIR}/chromium_headless_shell-{revision}/chrome-headless-shell-linux64/chrome-headless-shell"
+                            f".find(b => b.name === '{browser_name}').revision\"").stdout.strip()
+    shell = (f"{BROWSERS_DIR}/chromium-{revision}/chrome-linux64/chrome" if args.headed_browser else
+             f"{BROWSERS_DIR}/chromium_headless_shell-{revision}/chrome-headless-shell-linux64/chrome-headless-shell")
     if run(sandbox, f"test -x {shell}", check=False).exit_code:
-        print(f"browser: installing headless shell {revision}")
-        run(sandbox, f"cd {APP_DIR} && sudo -n env PLAYWRIGHT_BROWSERS_PATH={BROWSERS_DIR} npx playwright-core install --with-deps chromium-headless-shell"
+        print(f"browser: installing {browser_name} {revision}")
+        no_shell = " --no-shell" if args.headed_browser else ""
+        run(sandbox, f"cd {APP_DIR} && sudo -n env PLAYWRIGHT_BROWSERS_PATH={BROWSERS_DIR} npx playwright-core install --with-deps{no_shell} {browser_name}"
                      f" && sudo -n chmod -R a+rX {BROWSERS_DIR}", timeout=900)
+    if args.headed_browser:
+        run(sandbox, "command -v Xvfb && command -v xauth || (sudo -n apt-get update -qq && sudo -n apt-get install -y xvfb xauth)", timeout=300)
     run(sandbox, f"test -x {shell}")
-    print(f"browser: headless shell {revision}")
+    print(f"browser: {browser_name} {revision}" + (" with Xvfb" if args.headed_browser else ""))
 
     binaries = {name: run(sandbox, f"command -v {name}").stdout.strip() for name in ("node", "claude", "codex")}
     setup = ["sudo", "-n", "python3", f"{APP_DIR}/scripts/agentsphere/setup_isolation.py",
@@ -204,6 +209,7 @@ def main() -> None:
         "RAYTONEBOT_GATEWAY_PORT": "5190",
         "RAYTONEBOT_ISOLATION_READY": "1",
         "RAYTONEBOT_BROWSER_PATH": shell,
+        "RAYTONEBOT_BROWSER_HEADED": "1" if args.headed_browser else "0",
     }
     # Entering from the welcome page (ADR-041): the control service keeps this bot's handoff secret
     # in the same state directory; without it the bot keeps Basic Auth only.

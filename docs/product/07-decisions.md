@@ -308,6 +308,9 @@
 - **停止后排队的动作（审查修复，2026-10-16）**：动作队列原先不接收运行的取消信号，已批准但排在别的动作之后的点击会在停止后照常执行。`act` 现在接收该轮的 signal，入队后与真正派发前各检查一次；已经在执行中的那一个动作不中断（Playwright 调用没有取消点），见 [08](08-acceptance.md) 的边界说明。
 - **未做**：浏览器内上传文件、接受网页确认框、手机端的浏览器画面（仅桌面右侧面板）、多标签页、`?devtools=1` 浏览器 fixture（状态由主机测试与运行时测试覆盖）。
 
+- **登录验证与审批修正（2026-10-17）**：原 headless shell 验证只覆盖工具与接管，不能视为 Google/X 登录成功。测试部署可显式传 `deploy.py --headed-browser`，安装与 Playwright 匹配的完整 Chromium（不替换驱动），在浏览器 UID 内通过 `xvfb-run` 启动私有显示、禁止 X TCP；Chrome 自带沙箱、出站代理与既有 UID 防火墙保持。未加 `--no-sandbox`、UA 覆盖或指纹隐藏参数；默认部署仍用原 shell。用户在独立测试实例亲手登录后再判定可用性。
+- **关联站点只扩大询问范围**：用固定版本 `tldts` 的 Public Suffix List（包含 private suffix）确定可注册域，避免把不同 `github.io` 租户合并；Google/YouTube/Gmail、X/Twitter、Apple/iCloud 用显式账号域组补充跨主域关系。记录仍是用户接管过的原始 origin，代表“可能有登录态”，不声称登录成功；`connector` 判断可跨关联域，`always allow` 键仍为工具名＋当前完整 origin。只读、secret/outward 分类与 allow-all 模式保持原语义。
+
 ## ADR-039：没有被任何引擎收到的请求，作为上下文交给下一轮新会话（2026-10-13）
 
 - **问题**：live 测试中，Codex 冷启动约 10 秒，期间停止的那一轮从未进入 Codex；下一轮新开线程，模型说「你上一条消息是第一条」，与界面上用户看到的历史不一致。Pi 在 preflight 前停止也一样。

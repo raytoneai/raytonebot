@@ -301,3 +301,5 @@
 - 2026-10-17 展开工作区不滚动：`.artifact-frame[data-expanded="true"] .artifact-content` 的 `overflow:hidden` 优先级高于 `.workspace-files`，仅添加低优先级 overflow:auto 无效。工作区通过 `.artifact-frame .artifact-content.workspace-files` 显式接管滚动，保留 min-height:0；避免改动其他产物预览的 overflow 策略。
 
 - 2026-10-17 用户纠正：侧栏功能栏移到 Logo 下方时，Logo 保持已确认的大尺寸 44px；不要因底部设置图标的对齐要求而缩小整个 Logo。
+
+- **CDP 附加的 browser.close() 不等于 Chrome 正常退出**（2026-10-17）→ Playwright connectOverCDP 的 close 路径仅关闭 transport；再终止 xvfb-run 可能先切断显示，近期 cookie 写入丢失。用空测试 profile 稳定复现后，改为先向 browser CDP session 发 Browser.close、等待退出，再按超时 TERM/KILL；Linux 完整 Chromium＋Xvfb 重启后的 cookie/localStorage 均保持。避免以 headless shell 的 SIGTERM 测试结果代替有界面浏览器验收。

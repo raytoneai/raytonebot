@@ -9,6 +9,8 @@ import { test } from "node:test";
 
 import { browserLoginUrl, ENRICH_LIMIT, classifyBrowserCall, elementSubmitFacts, enrichmentPlan } from "./browserPolicy.ts";
 import { createBrowserService, findHeadlessShell } from "./browserService.ts";
+import { PiApprovalGate } from "../approvalGate.ts";
+import { ApprovalMemory } from "../approvalMemory.ts";
 import { startEgressProxy } from "./egressProxy.ts";
 import { saveWorkspaceDownload } from "../workspaceFiles.ts";
 import { resolveWorkspaceLayout } from "../workspaceLayout.ts";
@@ -379,4 +381,43 @@ test("login shortcuts accept Apple and custom web URLs, reject invalid destinati
     assert.throws(() => browserLoginUrl("other", url));
   }
   assert.throws(() => browserLoginUrl("__proto__"));
+});
+
+test("related login domains ask in auto mode, but always-allow stays on the exact origin", () => {
+  let origin = "https://mail.google.com";
+  const loggedIn = new Set(["https://accounts.google.com"]);
+  const elements = { e1: { role: "link", name: "Inbox" }, e2: { role: "button", name: "Send message" }, e3: { role: "textbox", name: "Password", inputType: "password" } };
+  const classify = (name: string, args: unknown) => classifyBrowserCall(name, args, context(elements, { origin, loggedIn }));
+  const memory = new ApprovalMemory();
+  const gate = new PiApprovalGate({ cwd: "/workspace", protectedPaths: [], hostCall: classify }, memory);
+  gate.setAgent("assistant"); gate.setMode("auto");
+  const call = { ref: "e1" };
+  for (const site of ["https://mail.google.com", "https://www.google.com", "https://www.youtube.com"]) {
+    origin = site;
+    assert.deepEqual(classify("browser_click", call), { kind: "connector", key: `browser_click@${site}` });
+    assert.equal(gate.requiresApproval("browser_click", call), true);
+  }
+  memory.add("assistant", "browser_click");
+  assert.equal(gate.requiresApproval("browser_click", call), true, "an old generic grant cannot cover an account-scoped call");
+  memory.add("assistant", "browser_click@https://www.google.com");
+  origin = "https://www.google.com"; assert.equal(gate.requiresApproval("browser_click", call), false);
+  origin = "https://mail.google.com"; assert.equal(gate.requiresApproval("browser_click", call), true);
+  assert.equal(classify("browser_open", {})?.kind, "read");
+  assert.equal(classify("browser_snapshot", {})?.kind, "read");
+  assert.equal(classify("browser_click", { ref: "e2" })?.kind, "outward");
+  assert.equal(classify("browser_type", { ref: "e3", text: "secret" })?.kind, "secret");
+
+  for (const [login, target, expected] of [
+    ["https://reddit.com", "https://www.reddit.com", "connector"],
+    ["https://x.com", "https://twitter.com", "connector"],
+    ["https://account.apple.com", "https://www.icloud.com", "connector"],
+    ["https://login.example.co.uk", "https://app.example.co.uk", "connector"],
+    ["https://a.github.io", "https://b.github.io", "mutating"],
+    ["https://accounts.google.com", "https://google.com.attacker.example", "mutating"],
+    ["https://accounts.google.com", "https://notgoogle.com", "mutating"],
+    ["https://accounts.google.com", "https://github.com", "mutating"],
+    ["http://127.0.0.1:1234", "http://127.0.0.1:5678", "mutating"],
+  ]) {
+    assert.equal(classifyBrowserCall("browser_click", call, context(elements, { origin: target, loggedIn: new Set([login]) }))?.kind, expected, `${login} → ${target}`);
+  }
 });

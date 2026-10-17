@@ -35,7 +35,7 @@ export type BrowserToolContext = {
   ask(questions: UserQuestion[], signal?: AbortSignal): Promise<Record<string, string[]> | null>;
 };
 
-/** Chromium headless shell: RAYTONEBOT_BROWSER_PATH, else the newest one Playwright installed. */
+/** Explicit Chrome/Chromium path, else the newest installed headless shell (local default). */
 export function findHeadlessShell(env: NodeJS.ProcessEnv = process.env): string | undefined {
   const explicit = env.RAYTONEBOT_BROWSER_PATH?.trim();
   if (explicit) return existsSync(explicit) ? explicit : undefined;
@@ -149,7 +149,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     clearTimeout(idleTimer);
     const current = worker;
     // Close through the worker first (it ends Chrome and waits for it), and only then let go of it.
-    if (current?.connected) await Promise.race([requestTo(current, { op: "close" }).catch(() => {}), new Promise((resolve) => setTimeout(resolve, 4000))]);
+    if (current?.connected) await Promise.race([requestTo(current, { op: "close" }).catch(() => {}), new Promise((resolve) => setTimeout(resolve, 6000))]);
     worker = undefined;
     if (current && !await exited(current, 2000)) {
       current.kill("SIGTERM");
@@ -205,8 +205,10 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     if (sandboxed) requireBrowserIsolation();
     proxy = await startEgressProxy({ port: sandboxed ? SANDBOX.proxyPort : 0, proxyFakeIp: !sandboxed, allowAddress: options.allowAddress, allowPort: options.allowPort, log: options.log });
     const staging = sandboxed ? join(SANDBOX.home, "downloads") : join(localDir, "downloads");
+    const headed = process.env.RAYTONEBOT_BROWSER_HEADED === "1";
     const launch: BrowserLaunch = sandboxed
-      ? { executable, launcher: ["/usr/bin/sudo", "-n", "-u", SANDBOX.user, "--", "/usr/bin/setpriv", "--no-new-privs"],
+      ? { executable, launcher: ["/usr/bin/sudo", "-n", "-u", SANDBOX.user, "--", "/usr/bin/setpriv", "--no-new-privs",
+          ...(headed ? ["/usr/bin/xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x800x24 -nolisten tcp"] : [])],
         profileDir: join(SANDBOX.home, "profile"), downloadDir: staging, proxyPort: proxy.port, cdpPort: SANDBOX.cdpPort }
       : { executable, profileDir: join(localDir, "profile"), downloadDir: staging, proxyPort: proxy.port,
         env: { PATH: process.env.PATH ?? "", HOME: homedir() } };

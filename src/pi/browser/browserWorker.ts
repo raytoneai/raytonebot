@@ -1,7 +1,7 @@
 /**
  * The browser worker (ADR-040), a child process of the bot that exists only while the browser is
- * in use, so Playwright's memory is not held the rest of the time. It launches Chromium headless
- * shell (as the `raytone-browser` UID in the sandbox, behind the bot's egress proxy), connects
+ * in use, so Playwright's memory is not held the rest of the time. It launches Chromium, optionally
+ * inside Xvfb, as the `raytone-browser` UID behind the sandbox egress proxy, connects
  * over CDP and answers the host's requests on the IPC channel. It holds no credentials and never
  * runs page JavaScript chosen by a model.
  */
@@ -53,7 +53,7 @@ async function start(): Promise<Page> {
     // Loopback is otherwise bypassed; through the proxy it is refused like any private address.
     "--proxy-bypass-list=<-loopback>",
     "--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
-    // Cookies encrypted with a fixed key, so a profile restored on a new instance still opens.
+    // Avoid a host keyring; device-bound sessions may still require login after migration.
     "--password-store=basic", "--no-first-run", "--no-default-browser-check",
     "--disable-background-networking", "--disable-component-update", "--disable-sync", "--disable-features=Translate,OptimizationHints,MediaRouter",
     `--window-size=${VIEWPORT.width},${VIEWPORT.height}`, "about:blank",
@@ -232,7 +232,6 @@ async function handle(request: BrowserRequest): Promise<unknown> {
       return {};
     }
     case "close": {
-      await browser?.close().catch(() => {});
       await endChrome();
       setTimeout(() => process.exit(0), 50);
       return {};
@@ -251,6 +250,15 @@ async function endChrome() {
   const current = chrome;
   if (!current || current.exitCode !== null || current.signalCode !== null) return;
   const gone = new Promise<void>((resolve) => current.once("exit", () => resolve()));
+  // Playwright's close() only disconnects a CDP-attached browser. Ask Chrome itself to exit
+  // before terminating xvfb-run, or losing the display can discard recent profile writes.
+  if (browser?.isConnected()) {
+    await Promise.race([
+      browser.newBrowserCDPSession().then((cdp) => cdp.send("Browser.close")).catch(() => {}),
+      new Promise((resolve) => setTimeout(resolve, 1000)),
+    ]);
+    if (await Promise.race([gone.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 1000))])) return;
+  }
   current.kill("SIGTERM");
   if (await Promise.race([gone.then(() => true), new Promise<boolean>((resolve) => setTimeout(() => resolve(false), 2000))])) return;
   current.kill("SIGKILL");

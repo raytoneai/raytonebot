@@ -1,3 +1,4 @@
+import { getDomain } from "tldts";
 import type { ToolCallClass } from "../permissionPolicy.ts";
 import type { BrowserElement } from "./browserProtocol.ts";
 
@@ -129,10 +130,30 @@ export function classifyBrowserCall(name: string, args: unknown, context: Browse
     else kind = activation(focused);
   } else kind = "outward";
   // Writes on a site the user signed into act as them there: ask, and remember per site.
-  if (kind === "mutating" && context.origin && context.loggedIn.has(context.origin)) {
+  if (kind === "mutating" && context.origin && hasRelatedLogin(context.origin, context.loggedIn)) {
     return { kind: "connector", key: `${name}@${context.origin}` };
   }
   return { kind, key: name };
+}
+
+// Related domains affect whether to ask, never the origin-scoped "always allow" key.
+const ACCOUNT_FAMILIES = [
+  ["google.com", "gmail.com", "googlemail.com", "youtube.com", "youtu.be"],
+  ["x.com", "twitter.com"],
+  ["apple.com", "icloud.com"],
+];
+function loginScope(origin: string): string | undefined {
+  try {
+    const url = new URL(origin);
+    if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
+    const domain = getDomain(url.hostname, { allowPrivateDomains: true });
+    if (!domain) return url.origin;
+    return ACCOUNT_FAMILIES.find((sites) => sites.includes(domain))?.[0] ?? domain;
+  } catch { return undefined; }
+}
+function hasRelatedLogin(origin: string, loggedIn: ReadonlySet<string>): boolean {
+  const scope = loginScope(origin);
+  return scope !== undefined && [...loggedIn].some((site) => loginScope(site) === scope);
 }
 
 /** User-selected login destinations still pass through the browser's network proxy. */
