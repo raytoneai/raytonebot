@@ -10,6 +10,18 @@ const ACCOUNT_USES: Record<string, { service: string; examples: string }> = {
   "apple.com": { service: "Apple", examples: "Read the Apple/iCloud web content specifically requested by the user, if the current session permits it." },
 };
 
+/** Fresh each turn, including an empty list so historical account records cannot stay current. */
+export function browserAccountHint(origins: ReadonlySet<string>, state: { controller: "user" | "agent"; clearing: boolean }): string {
+  const scopes = [...new Set([...origins].map(browserAccountScope).filter((scope): scope is string => Boolean(scope)))].sort();
+  const shown: string[] = [];
+  for (const scope of scopes) {
+    if (JSON.stringify([...shown, scope]).length > 300) break;
+    shown.push(scope);
+  }
+  const omitted = scopes.length - shown.length;
+  return `[Browser accounts now] ${JSON.stringify({ controller: state.controller, clearing: state.clearing, unverified: shown, ...(omitted ? { omitted } : {}) })}; supersedes older records; browser_accounts for full list.`;
+}
+
 export function browserAccountNote(origins: ReadonlySet<string>, state: { controller: "user" | "agent"; clearing: boolean }): string {
   const grouped = new Map<string, Set<string>>();
   for (const origin of origins) {
@@ -33,18 +45,22 @@ Account availability does not authorize tasks. Only access private content the u
 /** The browser tools every engine gets (ADR-040). Results are text: URL, title, notes and the
  *  page's accessibility snapshot, whose `[ref=eN]` marks the elements an action may target. */
 export const BROWSER_TOOL_SPECS: HostToolSpec[] = [
-  { name: "browser_accounts", description: "List sites whose sessions may have been saved during user takeover, suggested uses and browser control status. Does not start the browser, inspect cookies or verify login. Refresh before relying on account availability, especially after takeover, sign-out or clearing. Verify only the relevant site's current page before claiming a usable login.",
+  { name: "browser_tabs", description: "List browser tabs, or select one by pageId. Popups become active automatically; closing them returns to their opener. Selecting a tab invalidates old refs: use the returned snapshot. Selecting a tab does not approve login or OAuth grants.",
+    inputSchema: { type: "object", properties: { pageId: { type: "string" } } } },
+  { name: "browser_wait_for", description: "Wait up to 10 seconds for visible text to appear or disappear, then read a fresh snapshot. Use for asynchronous content instead of repeating a click or submission. A timeout does not mean a prior action failed; observe before deciding what to do next.",
+    inputSchema: { type: "object", properties: { text: { type: "string", minLength: 1, maxLength: 500 }, hidden: { type: "boolean" }, timeoutMs: { type: "integer", minimum: 1, maximum: 10000 } }, required: ["text"] } },
+  { name: "browser_accounts", description: "List sites whose sessions may have been saved during user takeover, suggested uses and browser control status. Does not start the browser, inspect cookies or verify login. Refresh before relying on account availability, especially after takeover, sign-out or clearing. Verify only the relevant site's current page before claiming a usable login. Browser tools share the saved profile; web_search/web_fetch do not. Sites are unverified, with no known identity or permission grant; an empty list does not prove there are no cookies. Access only user-requested private content; existing approvals still apply. Never enter passwords, one-time codes or payment details; request takeover for login or blocks. Wait while controller=user or clearing=true.",
     inputSchema: { type: "object", properties: {} } },
   { name: "browser_open", description: "Open a web page in the shared browser the user can watch live. Returns the page's accessibility snapshot; elements carry [ref=…] for the other browser tools. Prefer web_fetch for plain reading; use the browser for sites that need interaction, scripts or a login.",
     inputSchema: { type: "object", properties: { url: { type: "string", description: "http(s) URL." } }, required: ["url"] } },
-  { name: "browser_snapshot", description: "Read the current page again as an accessibility snapshot. Long snapshots come in parts: pass the offset it reports.",
-    inputSchema: { type: "object", properties: { offset: { type: "integer", minimum: 0 } } } },
+  { name: "browser_snapshot", description: "Read a fresh snapshot. Use scope (a CSS selector matching one region) to narrow a long page; mode=content for article/post text and links, interactive for controls, full for the accessibility tree. Long output reports an offset to continue the same snapshot. Refs belong to this conversation and snapshot; use the latest returned refs after actions, navigation or takeover. Never repeat an uncertain submission.",
+    inputSchema: { type: "object", properties: { offset: { type: "integer", minimum: 0 }, scope: { type: "string", maxLength: 512 }, mode: { type: "string", enum: ["full", "interactive", "content"] } } } },
   { name: "browser_click", description: "Click an element by its ref from the latest snapshot. Sending, paying, buying, deleting, agreeing or accepting cookies asks the user every time.",
     inputSchema: { type: "object", properties: { ref: { type: "string", description: "e.g. e12" }, element: { type: "string", description: "What the element is, for the user." } }, required: ["ref"] } },
   { name: "browser_type", description: "Fill a text field by its ref, optionally pressing Enter to submit. Never use it for passwords, one-time codes or card numbers: ask the user to take over instead.",
     inputSchema: { type: "object", properties: { ref: { type: "string" }, text: { type: "string" }, submit: { type: "boolean" } }, required: ["ref", "text"] } },
-  { name: "browser_press", description: "Press one key on the page: Enter, Escape, Tab, Backspace, Delete, arrows, PageUp, PageDown, Home, End or Space.",
-    inputSchema: { type: "object", properties: { key: { type: "string" } }, required: ["key"] } },
+  { name: "browser_press", description: "Press one key: Enter, Escape, Tab, Backspace, Delete, arrows, PageUp, PageDown, Home, End or Space. Pass snapshotId from the latest tool result so an approval cannot apply to a different page or snapshot.",
+    inputSchema: { type: "object", properties: { key: { type: "string" }, snapshotId: { type: "string" } }, required: ["key", "snapshotId"] } },
   { name: "browser_scroll", description: "Scroll the page up or down by about one screen.",
     inputSchema: { type: "object", properties: { direction: { type: "string", enum: ["up", "down"] } }, required: ["direction"] } },
   { name: "browser_back", description: "Go back to the previous page.", inputSchema: { type: "object", properties: {} } },

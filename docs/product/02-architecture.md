@@ -245,3 +245,9 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 远端输入（2026-10-17）：`/browser/input` 同时接受旧 `{input}` 与新 `{inputs:[...]}`，每批最多 64 项，整批先校验再依序执行，仍要求用户接管。前端单批在途、16ms 聚合；合并未发送的连续鼠标移动/文字/滚轮，保留按下/松开/键事件顺序，失败不自动重放；交还/关闭/离开视图清空未发送队列。截图绝对定位于画面容器，坐标使用图片实际矩形与留白换算，指针捕获避免松开事件丢失。
 
 浏览器账号发现（2026-10-17）：Pi / Claude Code / Codex 每轮共用的模型上下文追加主机生成的浏览器说明，新增只读 `browser_accounts` 工具可在轮内刷新。数据来自既有 `browser.json.loggedIn`，使用与审批相同的 PSL/private suffix 和账号域组去重，输出站点、用途示例与 `unverified` 状态；不读取 cookie、账号身份或私有页面，不启动浏览器。记录只说明曾在用户接管期间访问，不能证明登录成功或仍有效；用户可能退出、切换账号或会话过期。Agent 使用相关会话前检查当前页面，需要登录时走原接管工具；清除后新上下文/工具结果为空，普通关闭保留候选。此说明不授予权限，也不改变服务端审批；私有内容仅在用户明确请求的任务内读取。没有新 HTTP 接口、设置页或静态 skill 文件。
+
+浏览器工作流加固（2026-10-17）：每轮只注入有长度上限的 `browserAccountHint` 动态摘要（空清单也明确覆盖旧记录），静态规则放工具说明，完整清单仍由 `browser_accounts` 按需返回。Google 国家域名使用官方 supported_domains 的187项明确白名单，不按名称前缀推测归属；审批授权 key 仍为完整 origin。
+
+worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭回 opener；现有 BrowserView 在多页时增加标签页选择，只有用户接管时能操作。`browser_tabs` 读取/选择，`browser_wait_for` 有界等文本（至多10秒）；`browser_snapshot` 增加 `scope` CSS区域及 full/interactive/content 模式、按行分页，正文模式保留链接，未知/秘密字段不暴露值。每次快照给模型不同的 refs 前缀，内部快照ID绑定页面/版本/对话；press 显式携带结果中的 snapshotId，防旧按键审批采用新快照。动作派发前重新核对目标名称/提交事实；不自动重放不确定动作。
+
+接管输入批次在服务端冻结 pageId/controlEpoch，逐项检查，worker 再核 pageId。切页/交还先封住新输入和Agent动作、等待已派发输入结束；`release()` 因此为异步，所有调用必须 await。原 `/browser/control` 增加 `{action:"select-tab",pageId}`，`/browser/input` 兼容旧格式并可携带目标；新前端换目标清空队列，busy或画面页不匹配时不发输入。帧附加 pageId/seq/capturedAt，前端丢旧页/旧seq并记录 receivedAt；有界 runtime 日志仅记每批输入数量与处理时间，不记内容。关闭采用单次清理、Chrome优雅退出5秒，TERM/KILL后备总预算约8秒，服务层等待12秒；代理、UID、持久profile和审批分级保持。

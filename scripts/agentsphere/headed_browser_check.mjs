@@ -50,7 +50,7 @@ try {
   assert.match((await tools.run('browser_snapshot', {})).text, /user is controlling/);
   await browser.input({ kind: 'key', type: 'down', key: 'Tab' });
   await browser.input({ kind: 'key', type: 'up', key: 'Tab' });
-  browser.release();
+  await browser.release();
   await browser.stop();
   await open('https://example.com');
   const again = await chromium.connectOverCDP('http://127.0.0.1:5192');

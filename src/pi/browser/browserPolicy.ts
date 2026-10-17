@@ -15,9 +15,9 @@ import type { BrowserElement } from "./browserProtocol.ts";
  * - secret: typing into a password, one-time-code or card field. Refused; the user types it.
  */
 
-export const BROWSER_TOOL_NAMES = ["browser_accounts", "browser_open", "browser_snapshot", "browser_click", "browser_type", "browser_press", "browser_scroll", "browser_back", "browser_request_takeover"] as const;
+export const BROWSER_TOOL_NAMES = ["browser_accounts", "browser_tabs", "browser_wait_for", "browser_open", "browser_snapshot", "browser_click", "browser_type", "browser_press", "browser_scroll", "browser_back", "browser_request_takeover"] as const;
 
-const READ = new Set(["browser_accounts", "browser_open", "browser_snapshot", "browser_scroll", "browser_back", "browser_request_takeover"]);
+const READ = new Set(["browser_accounts", "browser_tabs", "browser_wait_for", "browser_open", "browser_snapshot", "browser_scroll", "browser_back", "browser_request_takeover"]);
 const LASTING = /\b(send|pay|buy|purchase|order|checkout|delete|remove|agree|accept|confirm|subscribe|unsubscribe|publish|post|transfer|donate|sign ?up|register|book|reserve)\b|发送|支付|付款|购买|下单|结算|删除|移除|同意|接受|确认|订阅|发布|转账|注册|预订|预约|提交订单/i;
 const COOKIES = /cookie|cookies|全部接受|接受全部|接受所有/i;
 
@@ -137,6 +137,33 @@ export function classifyBrowserCall(name: string, args: unknown, context: Browse
 }
 
 // Related domains affect whether to ask, never the origin-scoped "always allow" key.
+// Google's published search domains, checked 2026-10-17: https://www.google.com/supported_domains
+const GOOGLE_DOMAINS = new Set(`
+google.com google.ad google.ae google.com.af google.com.ag google.al google.am google.co.ao
+google.com.ar google.as google.at google.com.au google.az google.ba google.com.bd google.be
+google.bf google.bg google.com.bh google.bi google.bj google.com.bn google.com.bo google.com.br
+google.bs google.bt google.co.bw google.by google.com.bz google.ca google.cd google.cf google.cg
+google.ch google.ci google.co.ck google.cl google.cm google.cn google.com.co google.co.cr
+google.com.cu google.cv google.com.cy google.cz google.de google.dj google.dk google.dm
+google.com.do google.dz google.com.ec google.ee google.com.eg google.es google.com.et google.fi
+google.com.fj google.fm google.fr google.ga google.ge google.gg google.com.gh google.com.gi
+google.gl google.gm google.gr google.com.gt google.gy google.com.hk google.hn google.hr google.ht
+google.hu google.co.id google.ie google.co.il google.im google.co.in google.iq google.is google.it
+google.je google.com.jm google.jo google.co.jp google.co.ke google.com.kh google.ki google.kg
+google.co.kr google.com.kw google.kz google.la google.com.lb google.li google.lk google.co.ls
+google.lt google.lu google.lv google.com.ly google.co.ma google.md google.me google.mg google.mk
+google.ml google.com.mm google.mn google.com.mt google.mu google.mv google.mw google.com.mx
+google.com.my google.co.mz google.com.na google.com.ng google.com.ni google.ne google.nl google.no
+google.com.np google.nr google.nu google.co.nz google.com.om google.com.pa google.com.pe
+google.com.pg google.com.ph google.com.pk google.pl google.pn google.com.pr google.ps google.pt
+google.com.py google.com.qa google.ro google.ru google.rw google.com.sa google.com.sb google.sc
+google.se google.com.sg google.sh google.si google.sk google.com.sl google.sn google.so google.sm
+google.sr google.st google.com.sv google.td google.tg google.co.th google.com.tj google.tl
+google.tm google.tn google.to google.com.tr google.tt google.com.tw google.co.tz google.com.ua
+google.co.ug google.co.uk google.com.uy google.co.uz google.com.vc google.co.ve google.co.vi
+google.com.vn google.vu google.ws google.rs google.co.za google.co.zm google.co.zw google.cat
+`.trim().split(/\s+/));
+
 const ACCOUNT_FAMILIES = [
   ["google.com", "gmail.com", "googlemail.com", "youtube.com", "youtu.be"],
   ["x.com", "twitter.com"],
@@ -148,6 +175,7 @@ export function browserAccountScope(origin: string): string | undefined {
     if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
     const domain = getDomain(url.hostname, { allowPrivateDomains: true });
     if (!domain) return url.origin;
+    if (GOOGLE_DOMAINS.has(domain)) return "google.com";
     return ACCOUNT_FAMILIES.find((sites) => sites.includes(domain))?.[0] ?? domain;
   } catch { return undefined; }
 }

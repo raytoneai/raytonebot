@@ -304,5 +304,7 @@
 
 - **CDP 附加的 browser.close() 不等于 Chrome 正常退出**（2026-10-17）→ Playwright connectOverCDP 的 close 路径仅关闭 transport；再终止 xvfb-run 可能先切断显示，近期 cookie 写入丢失。用空测试 profile 稳定复现后，改为先向 browser CDP session 发 Browser.close、等待退出，再按超时 TERM/KILL；Linux 完整 Chromium＋Xvfb 重启后的 cookie/localStorage 均保持。避免以 headless shell 的 SIGTERM 测试结果代替有界面浏览器验收。
 - **接管记录不是有效登录证明**（2026-10-17）→ 用户实测 Google 搜索成功后又主动退出，`browser.json.loggedIn` 仍留有接管期间访问的 origin。账号发现只能把它作为 `unverified` 候选；使用前检查相关当前页面，不能因有记录或一次搜索成功就宣称仍已登录。保留原记录供保守审批使用，不把会话失效当作解除审批的依据。
+- **不要用子元素 ariaSnapshot 复核旧 ref**（2026-10-17）→ 本机真实 Chromium 回归发现 locator.ariaSnapshot（含 default）会改变当前AI refs映射，导致同快照的兄弟元素找不到；执行前改读全页AI快照，只将当前目标名称/表单事实与已批准事实比较，不把新事实当旧批准。另须给无ref的 press 显式 snapshotId；只在执行时取当前焦点会把旧Enter批准用到新页面。
+- **取消客户端输入不等于撤回已收到的批次**（2026-10-17）→ 输入与Agent有独立worker队列时，切页或交还可能夹在批次中间。整批冻结 pageId/controlEpoch并逐项校验；交还/切页先禁止新输入和Agent动作，等待已派发输入结束后再切控制权。仅worker校验pageId不足以处理“同一个Page导航后仍ID相同”，因此 release 必须异步并由所有调用 await。
 
 - **远端画面能看不等于能点**（2026-10-17）→ 必须同时实测图片矩形与鼠标事件链。grid里的img height:100%曾被内在比例撑大并裁切，framePoint却按容器contain换算，导致点击偏移；绝对定位截图并以图片矩形换算解决。每事件串行HTTP还会让hover积压阻挡键盘；用单批在途、保序聚合并合并未发移动，避免RTT乘事件数量。真实无账号表单的输入/按钮端到端验收不可被“收到帧、按Tab”代替。

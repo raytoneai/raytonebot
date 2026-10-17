@@ -22,14 +22,14 @@ test("each model turn receives fresh account context without persisting it as th
   } });
   try {
     await controller.runPrompt({ conversationId: "accounts", requestId: "first", prompt: "What accounts can you use?" }, () => {});
-    assert.match(prompts[0], /Browser account context from RaytoneBot/);
-    assert.match(prompts[0], /"service":"Google"/);
-    assert.match(prompts[0], /"status":"unverified"/);
-    assert.ok(!JSON.stringify(controller.getConversation("accounts")?.events).includes("Browser account context from RaytoneBot"));
+    assert.match(prompts[0], /Browser accounts now/);
+    assert.match(prompts[0], /"unverified":\["google.com"\]/);
+    assert.ok(Buffer.byteLength(prompts[0]) < 650);
+    assert.ok(!JSON.stringify(controller.getConversation("accounts")?.events).includes("Browser accounts now"));
     await browser.clearLogins();
     await controller.runPrompt({ conversationId: "accounts", requestId: "second", prompt: "Check again" }, () => {});
-    assert.match(prompts[1], /"accounts":\[\]/);
-    assert.ok(!prompts[1].includes('"service":"Google"'));
+    assert.match(prompts[1], /"unverified":\[\]/);
+    assert.ok(!prompts[1].includes('"google.com"'));
     assert.equal(browser.view().running, false, "prompt context never launches Chrome");
   } finally {
     controller.dispose();

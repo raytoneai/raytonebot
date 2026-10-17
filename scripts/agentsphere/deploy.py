@@ -55,6 +55,59 @@ def load_json(name: str) -> dict:
     return json.loads(path.read_text()) if path.exists() else {}
 
 
+def resolve_browser_mode(explicit: str | None, deployment: dict, sandbox_id: str, previous: dict) -> str:
+    if explicit is not None:
+        if explicit not in ("headed", "headless"):
+            raise ValueError("invalid explicit browser mode; use headed or headless")
+        return explicit
+    if deployment.get("sandboxId") == sandbox_id and "browserMode" in deployment:
+        mode = deployment["browserMode"]
+        if mode not in ("headed", "headless"):
+            raise ValueError("invalid browserMode in deployment.json; use --headed-browser or --headless-browser to replace it")
+        return mode
+    if "RAYTONEBOT_BROWSER_HEADED" in previous:
+        value = previous["RAYTONEBOT_BROWSER_HEADED"]
+        if value not in ("0", "1"):
+            raise ValueError("invalid RAYTONEBOT_BROWSER_HEADED in sandbox env; use an explicit browser mode")
+        return "headed" if value == "1" else "headless"
+    return "headless"
+
+
+def read_previous_env(sandbox) -> dict:
+    # Read before stopping the service or replacing env; stdout can contain credentials.
+    existing = run(sandbox, f"if [ -e {CONFIG_DIR}/env ]; then cat {CONFIG_DIR}/env; fi", check=False)
+    if existing.exit_code:
+        fail("cannot read existing sandbox env; refusing to guess browser mode or overwrite credentials")
+    previous = {}
+    for line in existing.stdout.splitlines():
+        name, sep, value = line.partition("=")
+        if sep:
+            try:
+                parsed = shlex.split(value)
+            except ValueError:
+                fail("cannot parse existing sandbox env (contents withheld)")
+            if len(parsed) > 1:
+                fail("cannot parse existing sandbox env (contents withheld)")
+            previous[name] = parsed[0] if parsed else ""
+    return previous
+
+
+def save_deployment(deployment: dict) -> None:
+    path = STATE_DIR / "deployment.json"
+    temporary = path.with_suffix(".json.tmp")
+    temporary.write_text(json.dumps(deployment, indent=2))
+    temporary.replace(path)
+
+
+def remember_browser_mode(deployment: dict, sandbox_id: str, mode: str) -> dict:
+    mode = resolve_browser_mode(mode, {}, sandbox_id, {})
+    remembered = dict(deployment) if deployment.get("sandboxId") == sandbox_id else {}
+    remembered.update({"sandboxId": sandbox_id, "browserMode": mode})
+    # Only browser configuration is applied here. Success metadata stays at its last verified value.
+    save_deployment(remembered)
+    return remembered
+
+
 def package() -> bytes:
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
@@ -92,15 +145,23 @@ def http(url: str, password: str | None, extra: dict | None = None) -> tuple[int
             return error.code, error.read()
 
 
-def main() -> None:
-    global STATE_DIR
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--sandbox", help="sandbox id (default: .agentsphere/deployment.json)")
     parser.add_argument("--timeout", type=int, default=0, help="also extend the sandbox lifetime (seconds)")
     parser.add_argument("--skip-build", action="store_true")
-    parser.add_argument("--headed-browser", action="store_true", help="use full Chromium with a private Xvfb display (login trial)")
+    browser = parser.add_mutually_exclusive_group()
+    browser.add_argument("--headed-browser", dest="browser_mode", action="store_const", const="headed",
+                         help="use full Chromium with a private Xvfb display; remembered for this sandbox")
+    browser.add_argument("--headless-browser", dest="browser_mode", action="store_const", const="headless",
+                         help="use Chromium headless shell; override this sandbox's remembered mode")
     parser.add_argument("--state-dir", type=Path, default=STATE_DIR, help="separate access/deployment state for an isolated instance")
-    args = parser.parse_args()
+    return parser.parse_args(argv)
+
+
+def main() -> None:
+    global STATE_DIR
+    args = parse_args()
     STATE_DIR = args.state_dir.resolve()
     STATE_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -125,6 +186,12 @@ def main() -> None:
         subprocess.run(["npm", "run", "build"], cwd=ROOT, check=True, stdout=subprocess.DEVNULL)
 
     sandbox = Sandbox.connect(sandbox_id)
+    previous = read_previous_env(sandbox)
+    try:
+        browser_mode = resolve_browser_mode(args.browser_mode, deployment, sandbox_id, previous)
+    except ValueError as error:
+        fail(str(error))
+    headed_browser = browser_mode == "headed"
     if args.timeout:
         sandbox.set_timeout(args.timeout)
     bundle = package()
@@ -172,21 +239,21 @@ def main() -> None:
         if "--no-require-git" not in run(sandbox, "fd --help").stdout:
             fail("fd version does not support the Pi find tool")
 
-    # Both builds match the pinned Playwright. Headed mode is opt-in for the isolated login trial.
-    browser_name = "chromium" if args.headed_browser else "chromium-headless-shell"
+    # Both builds match the pinned Playwright; mode is remembered per sandbox, never globally.
+    browser_name = "chromium" if headed_browser else "chromium-headless-shell"
     revision = run(sandbox, f"node -p \"require('{APP_DIR}/node_modules/playwright-core/browsers.json').browsers"
                             f".find(b => b.name === '{browser_name}').revision\"").stdout.strip()
-    shell = (f"{BROWSERS_DIR}/chromium-{revision}/chrome-linux64/chrome" if args.headed_browser else
+    shell = (f"{BROWSERS_DIR}/chromium-{revision}/chrome-linux64/chrome" if headed_browser else
              f"{BROWSERS_DIR}/chromium_headless_shell-{revision}/chrome-headless-shell-linux64/chrome-headless-shell")
     if run(sandbox, f"test -x {shell}", check=False).exit_code:
         print(f"browser: installing {browser_name} {revision}")
-        no_shell = " --no-shell" if args.headed_browser else ""
+        no_shell = " --no-shell" if headed_browser else ""
         run(sandbox, f"cd {APP_DIR} && sudo -n env PLAYWRIGHT_BROWSERS_PATH={BROWSERS_DIR} npx playwright-core install --with-deps{no_shell} {browser_name}"
                      f" && sudo -n chmod -R a+rX {BROWSERS_DIR}", timeout=900)
-    if args.headed_browser:
+    if headed_browser:
         run(sandbox, "command -v Xvfb && command -v xauth || (sudo -n apt-get update -qq && sudo -n apt-get install -y xvfb xauth)", timeout=300)
     run(sandbox, f"test -x {shell}")
-    print(f"browser: {browser_name} {revision}" + (" with Xvfb" if args.headed_browser else ""))
+    print(f"browser: {browser_name} {revision}" + (" with Xvfb" if headed_browser else ""))
 
     binaries = {name: run(sandbox, f"command -v {name}").stdout.strip() for name in ("node", "claude", "codex")}
     setup = ["sudo", "-n", "python3", f"{APP_DIR}/scripts/agentsphere/setup_isolation.py",
@@ -209,7 +276,7 @@ def main() -> None:
         "RAYTONEBOT_GATEWAY_PORT": "5190",
         "RAYTONEBOT_ISOLATION_READY": "1",
         "RAYTONEBOT_BROWSER_PATH": shell,
-        "RAYTONEBOT_BROWSER_HEADED": "1" if args.headed_browser else "0",
+        "RAYTONEBOT_BROWSER_HEADED": "1" if headed_browser else "0",
     }
     # Entering from the welcome page (ADR-041): the control service keeps this bot's handoff secret
     # in the same state directory; without it the bot keeps Basic Auth only.
@@ -220,13 +287,6 @@ def main() -> None:
             env["RAYTONEBOT_CONTROL_ORIGIN"] = access["controlOrigin"]
     # Model keys: a value in this machine's environment wins; otherwise keep the sandbox's current
     # one, so a redeploy from a shell without the key does not silently disable the models.
-    previous = {}
-    existing = run(sandbox, f"cat {CONFIG_DIR}/env 2>/dev/null || true", check=False)
-    for line in existing.stdout.splitlines():
-        name, sep, value = line.partition("=")
-        if sep:
-            parsed = shlex.split(value)
-            previous[name] = parsed[0] if parsed else ""
     # TAVILY_API_KEY backs web_search; the bot uses it, agents never see it (ADR-034).
     for key in ("DEEPSEEK_API_KEY", "TAVILY_API_KEY"):
         if os.environ.get(key):
@@ -243,6 +303,7 @@ def main() -> None:
         "rm -f /home/user/.raytonebot.env",
         f"mkdir -p {WORKSPACE_ROOT}",
     ]))
+    deployment = remember_browser_mode(deployment, sandbox_id, browser_mode)
     print(f"env: written ({', '.join(sorted(env))})")
 
     # Fully detached: the SDK must not clean up the supervisor with its command session.
@@ -294,7 +355,7 @@ def main() -> None:
         "expiresAt": info.end_at.isoformat() if hasattr(info.end_at, "isoformat") else str(info.end_at),
         "deployedAt": datetime.now(timezone.utc).isoformat(),
     })
-    (STATE_DIR / "deployment.json").write_text(json.dumps(deployment, indent=2))
+    save_deployment(deployment)
     (STATE_DIR / "verification.json").write_text(json.dumps({
         "checks": checks,
         "harnesses": {key: {"available": value.get("available"), "version": value.get("version")} for key, value in harnesses.items()},

@@ -35,23 +35,26 @@ export type BrowserInput =
 export type BrowserRequest =
   | { op: "launch"; options: BrowserLaunch }
   | { op: "open"; url: string }
-  | { op: "snapshot" }
-  | { op: "click"; ref: string }
-  | { op: "type"; ref: string; text: string; submit?: boolean }
-  | { op: "press"; key: string; /** Enter/Space: the ref approved as focused; refused if focus moved. */ expectRef?: string }
+  | { op: "snapshot"; scope?: string; mode?: "full" | "interactive" | "content" }
+  | { op: "tabs"; pageId?: string }
+  | { op: "wait"; text: string; hidden: boolean; timeout: number }
+  | { op: "click"; ref: string; snapshotId?: string }
+  | { op: "type"; ref: string; text: string; submit?: boolean; snapshotId?: string }
+  | { op: "press"; key: string; snapshotId?: string; /** Enter/Space: the ref approved as focused; refused if focus moved. */ expectRef?: string }
   | { op: "scroll"; direction: "up" | "down" }
   | { op: "back" }
   | { op: "screencast"; on: boolean }
-  | { op: "input"; input: BrowserInput }
+  | { op: "input"; input: BrowserInput; pageId?: string }
   | { op: "close" };
 
-export type BrowserPageSummary = { url: string; title: string; snapshot: string; elements: Record<string, BrowserElement>; notes: string[] };
+export type BrowserTab = { id: string; title: string; url: string };
+export type BrowserPageSummary = { url: string; title: string; pageId: string; snapshotId: string; snapshot: string; elements: Record<string, BrowserElement>; notes: string[] };
 
 export type BrowserWorkerMessage =
   | { id: number; ok: true; result: unknown }
   | { id: number; ok: false; error: string }
-  | { event: "frame"; data: string; width: number; height: number }
-  | { event: "state"; url: string; title: string }
+  | { event: "frame"; data: string; width: number; height: number; seq: number; capturedAt: number; pageId: string }
+  | { event: "state"; url: string; title: string; pageId: string; revision: number; tabs: BrowserTab[] }
   | { event: "download"; guid: string; url: string; name: string; size: number; state: "completed" | "canceled" | "too-large" }
   | { event: "exit"; code: number | null };
 
@@ -63,6 +66,9 @@ export type BrowserViewState = {
   running: boolean;
   url?: string;
   title?: string;
+  pageId?: string;
+  tabs?: BrowserTab[];
+  controlEpoch?: number;
   /** Who is driving: an agent, or the user after taking over. */
   controller: "agent" | "user";
   /** An agent asked the user to take over (e.g. to log in). */

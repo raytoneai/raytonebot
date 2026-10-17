@@ -278,12 +278,13 @@ test("account discovery reads current host records without starting Chrome, and 
     assert.match(found.text, /"service":"Google"/);
     assert.match(found.text, /"status":"unverified"/);
     assert.equal(service.view().running, false);
-    assert.equal(found.text, service.contextNote());
+    assert.ok(Buffer.byteLength(service.contextNote()) < 512);
+    assert.match(service.contextNote(), /"unverified":\["google.com"\]/);
     await service.stop();
-    assert.match(service.contextNote(), /"service":"Google"/, "normal close retains the candidate");
+    assert.match(service.contextNote(), /google.com/, "normal close retains the candidate");
     await service.clearLogins();
     assert.match((await tools.run("browser_accounts", {})).text, /"accounts":\[\]/);
-    assert.match(service.contextNote(), /"accounts":\[\]/);
+    assert.match(service.contextNote(), /"unverified":\[\]/);
     assert.equal(service.view().running, false);
     const absent = createBrowserService({ dataDir, executable: "" });
     assert.equal(absent.contextNote(), "", "no misleading browser capability when unavailable");
@@ -355,23 +356,27 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
     assert.match(typed.text, /never type/);
 
     // The reported bypass: type into a field, Tab to a sending button, Enter. Judged on the focused button.
-    await tools.run("browser_type", { ref: note, text: "hello" });
-    const tabbed = await tools.run("browser_press", { key: "Tab" });
+    const wroteNote = await tools.run("browser_type", { ref: note, text: "hello" });
+    assert.equal(wroteNote.isError, false, wroteNote.text);
+    const shotId = (text: string) => /^Snapshot: (.+)$/m.exec(text)![1];
+    const tabbed = await tools.run("browser_press", { key: "Tab", snapshotId: shotId(wroteNote.text) });
     assert.match(tabbed.text, /textbox "Password" \[active\]/, "Tab moved focus to the password field");
-    await tools.run("browser_press", { key: "Tab" });
+    await tools.run("browser_press", { key: "Tab", snapshotId: shotId(tabbed.text) });
     assert.equal(service.classify("browser_press", { key: "Enter" })?.kind, "outward", "Enter on the focused Place order button");
     // Approved against the focused element in the snapshot; the page moves focus afterwards: refused.
     const later = ref((await tools.run("browser_snapshot", {})).text, /button "Later" \[ref=([a-z0-9]+)\]/)!;
     const clicked = await tools.run("browser_click", { ref: later });
     assert.match(clicked.text, /button "Later" \[active\]/);
     await new Promise((resolve) => setTimeout(resolve, 1200));
-    const pressed = await tools.run("browser_press", { key: "Enter" });
+    const pressed = await tools.run("browser_press", { key: "Enter", snapshotId: shotId(clicked.text) });
     assert.equal(pressed.isError, true);
     assert.match(pressed.text, /Focus moved/);
 
     // Downloads: a text file lands in the workspace, a program does not.
-    const seen = [(await tools.run("browser_click", { ref: ref(opened.text, /link "Report" \[ref=([a-z0-9]+)\]/) })).text,
-      (await tools.run("browser_click", { ref: ref(opened.text, /link "Tool" \[ref=([a-z0-9]+)\]/) })).text];
+    const beforeDownload = await tools.run("browser_snapshot", {});
+    const reportResult = await tools.run("browser_click", { ref: ref(beforeDownload.text, /link "Report" \[ref=([a-z0-9]+)\]/) });
+    const seen = [reportResult.text,
+      (await tools.run("browser_click", { ref: ref(reportResult.text, /link "Tool" \[ref=([a-z0-9]+)\]/) })).text];
     for (let i = 0; i < 50 && !existsSync(join(workspace, "downloads", "report.txt")); i += 1) await new Promise((resolve) => setTimeout(resolve, 100));
     await new Promise((resolve) => setTimeout(resolve, 500));
     assert.equal(readFileSync(join(workspace, "downloads", "report.txt"), "utf8"), "quarterly numbers\n");
@@ -395,7 +400,7 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
     await service.input({ kind: "text", text: "用户输入" });
     await service.input({ kind: "key", type: "down", key: "Backspace" });
     await service.input({ kind: "key", type: "up", key: "Backspace" });
-    service.release();
+    await service.release();
     assert.ok((await tools.run("browser_accounts", {})).text.includes(`http://127.0.0.1:${port}`), "release refreshes account candidates for tools already held by an engine");
     assert.equal(service.view().controller, "agent");
     const again = await tools.run("browser_snapshot", {});

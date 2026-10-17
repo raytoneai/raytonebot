@@ -34,13 +34,14 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
   const lastMove = useRef(0);
   const state = view.state;
   const controlling = state?.controller === "user";
+  const canInput = controlling && !view.busy && view.frame?.pageId === state?.pageId;
 
   const point = (event: ReactPointerEvent | WheelEvent) => {
     const box = imageRef.current?.getBoundingClientRect();
     return box && view.frame ? framePoint(event.clientX, event.clientY, box, view.frame) : undefined;
   };
   const pointer = (type: "down" | "up" | "move") => (event: ReactPointerEvent) => {
-    if (!controlling) return;
+    if (!canInput) return;
     if (type === "move" && Date.now() - lastMove.current < MOVE_INTERVAL_MS) return;
     const at = point(event) ?? (type === "up" ? lastPoint.current : undefined);
     if (!at) return;
@@ -55,6 +56,11 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
       <div className="browser-view-bar">
         <Globe size={14} aria-hidden="true" />
         <span className="browser-view-url" title={state?.url}>{state?.running ? state.title || state.url || c.view : c.view}</span>
+        {state?.running && (state.tabs?.length ?? 0) > 1 ? (
+          <select className="browser-view-tabs" aria-label={c.tabs} value={state.pageId} disabled={!controlling || view.busy} onChange={event => void view.selectTab(event.target.value)}>
+            {state.tabs?.map(tab => <option key={tab.id} value={tab.id}>{tab.title || tab.url || tab.id}</option>)}
+          </select>
+        ) : null}
         {state?.running ? (
           controlling ? (
             <button type="button" className="browser-view-action" data-primary="true" disabled={view.busy} onClick={() => void view.control("release")}><Hand size={14} aria-hidden="true" />{c.handBack}</button>
@@ -107,7 +113,7 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
         onPointerCancel={pointer("up")}
         onPointerMove={pointer("move")}
         onWheel={(event) => {
-          if (!controlling) return;
+          if (!canInput) return;
           const at = point(event.nativeEvent);
           if (at) view.input({ kind: "mouse", type: "wheel", ...at, deltaX: event.deltaX, deltaY: event.deltaY });
         }}

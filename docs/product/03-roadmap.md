@@ -456,3 +456,8 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 - 2026-10-17 修复用户报告远端输入迟缓与点击偏移：原每事件串行 HTTP 队列会被鼠标移动积压；改成单批在途、16ms 聚合与连续事件合并，批次最多64项、先整体校验并兼容旧输入；截图曾在624px容器内撑到757px并裁切，改绝对定位和按图片矩形映射，补指针捕获。build、331项测试、本地/云入口检查与18内置场景走查通过（Capability tray 原有空白未改）。已部署独立测试实例，远端实际点击输入框、输入 remote-input-ok 与按钮点击成功；截图高度622px适配624px容器，两次输入批请求各约0.4s，未清理用户profile。恢复Google登录等待用户；未改生产，未推送。
 
 - 2026-10-17 浏览器账号发现：每轮动态上下文＋只读 `browser_accounts` 向三个引擎提供候选站点、用途与未验证状态，沿用审批域组；不读取 cookie/账号身份，不把历史接管当有效登录或任务授权，清除后即时刷新。build、334项测试、check:local、云入口检查通过，已部署独立测试实例。三引擎真实 DeepSeek 均调用清单工具并正确解释当前为空；Raer 仅打开 Google 首页确认已登出。此前用户亲手登录后，Raer 已成功搜索 Python pathlib 官方文档并核验当时仍登录；用户随后退出。未改生产、未推送，未验证其他四站点真实登录或长期会话有效性。详见 08 末尾账号发现验收。
+
+- 2026-10-17 Browser use 开源方案调研：核查 browser-use、agent-browser、Playwright MCP、Stagehand 当前官方文档/源码与许可，对照现有 worker；建议保留 Playwright/CDP 与审批，先做 popup/页面归属与旧 refs 失效，再做定向快照/正文读取及有界等待，测量接管延迟后再考虑传输替换。Stagehand v4 无现有 Playwright Page 互操作；agent-browser delta 在 main 命令解析器可见但未实测，首轮只推荐 compact/scope。只新增调研文档，未安装候选、修改产品代码、部署或运行横向基准。详见 [调研笔记](../browser-use-options-research-2026-10-17.md)。
+
+
+- 2026-10-17 浏览器 review 修正与最佳实践落地：部署按实例记住 headed/headless，未带参数重新部署仍保留完整 Chromium＋Xvfb；账号静态说明移入工具，动态提示压到空清单约137B/五站点约195B（仍每轮刷新空清单，避免旧登录记录残留）；Google 使用官方国家域名白名单，关闭 Chrome 宽限5秒。现有 worker 增加 popup/page 生命周期、标签切换、scope/正文快照、有界文字等待、conversation/snapshot refs 和动作前事实复核；远端输入绑定 page/control epoch，交还/切页排空在途批次。新增帧序号与时间、输入批次处理时长记录。未引入新 Agent/服务/面板；部署和实测仅限独立测试实例。完整自动化、三引擎与远端 UI 结果见08末尾。

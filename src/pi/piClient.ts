@@ -217,12 +217,16 @@ export async function browserControl(action: "takeover" | "release" | "stop" | "
   return requestJson<BrowserViewState>(fetcher, `${PI_API_PREFIX}/browser/control`, { action }, AbortSignal.timeout(30_000));
 }
 
-export async function browserLogin(site: string, url?: string): Promise<BrowserViewState> {
-  return requestJson<BrowserViewState>(fetch, `${PI_API_PREFIX}/browser/control`, { action: "login", site, url }, AbortSignal.timeout(60_000));
+export async function browserSelectTab(pageId: string, fetcher: typeof fetch = fetch): Promise<BrowserViewState> {
+  return requestJson<BrowserViewState>(fetcher, `${PI_API_PREFIX}/browser/control`, { action: "select-tab", pageId }, AbortSignal.timeout(15_000));
 }
 
-export async function sendBrowserInputs(inputs: BrowserInput[], signal: AbortSignal): Promise<void> {
-  await requestJson(fetch, `${PI_API_PREFIX}/browser/input`, { inputs }, AbortSignal.any([signal, AbortSignal.timeout(10_000)]));
+export async function browserLogin(site: string, url?: string, fetcher: typeof fetch = fetch): Promise<BrowserViewState> {
+  return requestJson<BrowserViewState>(fetcher, `${PI_API_PREFIX}/browser/control`, { action: "login", site, url }, AbortSignal.timeout(60_000));
+}
+
+export async function sendBrowserInputs(inputs: BrowserInput[], signal: AbortSignal, fetcher: typeof fetch = fetch, target?: { pageId?: string; controlEpoch?: number }): Promise<void> {
+  await requestJson(fetcher, `${PI_API_PREFIX}/browser/input`, { inputs, ...target }, AbortSignal.any([signal, AbortSignal.timeout(10_000)]));
 }
 
 /** Server-sent `state` and `frame` events; frames flow only while it is open. */

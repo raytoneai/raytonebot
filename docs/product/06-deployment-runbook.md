@@ -175,6 +175,8 @@ sb.set_timeout(3600)          # 从现在起约 1 小时
 
 ## 完整浏览器登录试验（2026-10-17）
 
-只在独立测试实例及独立状态目录运行 `deploy.py --sandbox <测试实例> --state-dir <独立目录> --headed-browser`。安装完整 Chromium、Xvfb/xauth；浏览器仍使用 `raytone-browser`、5191 代理、5192 CDP，仅 X Unix socket，不开放桌面端口。默认部署不切换。每次重部署测试实例都须带 `--headed-browser`。
+首次在独立测试实例及独立状态目录运行 `deploy.py --sandbox <测试实例> --state-dir <独立目录> --headed-browser`。安装完整 Chromium、Xvfb/xauth；浏览器仍使用 `raytone-browser`、5191 代理、5192 CDP，仅 X Unix socket，不开放桌面端口。
+
+每实例模式保存在该状态目录 `deployment.json.browserMode`（`headed`/`headless`），后续省略参数会沿用。优先级：显式 `--headed-browser` / `--headless-browser` → 同实例状态 → 旧实例现有 env 的 `RAYTONEBOT_BROWSER_HEADED` → 无信息时默认 headless；另一个实例的状态不继承。模式在 env 应用后立即原子保存，最后公网检查失败也不会下次悄悄退回；`deployedAt` 等成功 metadata 仍只在全部验收通过后更新。无效模式或无法读取旧 env 会明确失败。生产实例不因本变更自动切换。
 
 首次人工登录前，可在测试实例运行 `set -a; . ~/.raytonebot/env; set +a; cd /home/user/raytonebot; RAYTONEBOT_BROWSER_TRIAL_EMPTY=1 node scripts/agentsphere/headed_browser_check.mjs`：检查 UA/webdriver、Chrome 沙箱、真实接管/流、cookie/localStorage 跨重启保存与清除、私网代理拒绝、公开登录页与停止后进程清理。**该检查会清理测试 profile，不得对已有用户登录的实例运行**。人工登录不进入脚本；密码与验证码由用户接管输入。

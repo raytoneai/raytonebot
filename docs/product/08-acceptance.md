@@ -909,3 +909,20 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 独立测试实例 `ibcqzra87czygjo4qxr1n`：三引擎真实 DeepSeek 均调用 `browser_accounts`，读取到用户退出/清理后的空清单，并明确历史记录不证明有效登录；Raer 另调用 `browser_open` 只读 Google 首页，通过 `Sign in` 入口确认已登出，未进入私人服务、登录或请求接管。云部署最终公网检查遇到 TLS EOF，随后独立复核9项公网鉴权/健康/输入校验和已部署文件哈希；模型任务成功。
 - 前置实测：用户亲手登录 Google 后，Raer 真实调用 `browser_open` / `browser_snapshot` 搜索“Python pathlib 官方文档”，结果含 docs.python.org，开发验收只读确认搜索页有已登录账号入口并截图；用户之后主动退出。该证据仅证明当时搜索链路可用，不证明长期会话或其他服务。
 - 本轮不改 UI、备份格式或审批强度；账号指导是模型使用说明，不是新增的服务端权限控制。未改生产、未推送；未验证 GitHub/Reddit/X/Apple 真实账号登录，未验证长期/跨实例登录有效性。
+
+
+## 2026-10-17 浏览器 review 与工作流最佳实践
+
+- 部署选择按实例保存 `browserMode`，优先显式参数、同实例部署状态、旧实例可信 env，最后才用新实例默认值；支持显式 `--headless-browser`。配置坏掉报错，读旧 env 在停止服务前完成；写入 env 后立即原子保存模式，公网检查失败也不丢选择。测试实例不带 headed 参数重新部署，继续使用完整 Chromium＋私有 Xvfb；生产实例未改。
+- 账号静态使用规则移入 `browser_accounts` 工具描述，动态每轮只带短 JSON（空清单约137B、五个站点约195B、有界512B）。空清单仍刷新，以明确覆盖历史已登录记录；不把候选清单当身份验证。Google 国家域名使用官方 supported_domains 白名单，涵盖 `google.com.hk` / `google.co.jp`，不采用任意 `google.*` 前缀匹配；站点“总是允许”仍只限完整 origin。
+- worker 维护 page ID，自动选择新 popup，关闭后回 opener/剩余页；现有 BrowserView 增加标签选择。帧带 page/seq/捕获时间，前端记录接收时间并拒绝错页/旧序号帧。手动输入绑定 page/control epoch；切页和交还先排空已发送输入，未发送旧输入丢弃。没有新浏览器服务、面板或自主 Agent 框架。
+- 模型 refs 绑定会话与快照；导航、手动输入和切页失效，旧动作不重定位相似按钮。`browser_press` 必须带 Snapshot ID；worker 重新确认目标名称、表单提交事实、focus 与 secret 类型。scope/full/interactive/content 快照和按行分页保留审批事实；仍保守处理取不到/超过200项的控件。
+- 动作继续用 Playwright auto-wait，去掉固定300/400ms延时；新增最长10秒的可见文本出现/消失等待，不以 networkidle 猜就绪，不重放提交。隐藏重复文字在前时，visible 等任一可见匹配，hidden 等全部不可见；真正超时与关闭页面等错误分开。3项真实IPC回归先失败后通过。
+- Chrome 收到 CDP `Browser.close` 后等5秒，再TERM最多2秒/KILL最多1秒；host watchdog改为12秒，避免先结束虚拟显示丢最近写入。关闭 single-flight，计时器清理。
+- 最终本机：`npm test` **352/352通过，0跳过**；`npm run build`（tsc＋Vite）通过，只有原有chunk大小提示；Python运维22项（19通过、3 Linux-only跳过）；`check:local`、`cloud-preview --check`、变更文件diff检查通过。覆盖真实 Chromium worker IPC与service、popup/切页/关闭、慢SPA＋持续SSE、等待超时/重复文字、scope正文与secret遮蔽、旧快照/跨会话/旧Enter拒绝、审批后提交事实变更、交还前输入排空、旧目标输入丢弃、模式迁移和失败恢复。
+- 本地真实Chrome走查18内置fixture：对应文本、工具、审批、错误/重试、中断与产物正常；Capability tray保持已有空白，未在本轮修复。
+- 独立测试实例 `ibcqzra87czygjo4qxr1n`：三引擎真实DeepSeek调用新tabs/定向content快照，Raer携带快照ID执行一次Escape并走原有审批；重新打开公开页面后等待可见“Learn more”成功。最初等待Example Domain超时因为它只在tab title、不在当前正文；另一次只等待未重新打开时已过10分钟空闲关闭，随后在空白页超时，不算成功样本，模型没有重放动作。
+- 云端现有Output实际接管：无账号合成页面点击 `target=_blank` 自动显示popup；用户从标签菜单切回原页，输入 `remote-workflow-ok`、点击按钮，截图与远端DOM均确认精确收到；交还后controller恢复agent。截图 `output/browser-login/browser-workflow.png`。3个输入批次处理耗时97/65/42ms（各3/4/3事件，仅服务端处理时间，不是端到端RTT或p95）；日志只存数量和耗时，无输入内容。
+- 限制：没有重复四站点真实账号登录，没有清理用户profile；不验证长期/跨实例会话。未做同模型横向token/成功率基准、慢链路p50/p95、完整跨域iframe或CPU/流量测量；仅补帧时间与输入计时基础，继续使用SSE/POST，不宣称性能比例。
+
+- 最终部署复核：未传headed参数仍选chromium 1248＋Xvfb，部署9项鉴权/健康/工作区检查通过，三引擎available；独立9项公网检查通过，203个源码/构建文件SHA-256一致。最终版Raer再次真实调用tabs/open/wait_for，0工具错误、run.finished；临时远端CDP诊断脚本已移除，浏览器留在公开页面与agent控制。未推送、未改生产或删除测试实例。

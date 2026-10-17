@@ -1,4 +1,3 @@
-import { browserLoginUrl } from "./browser/browserPolicy.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
 
@@ -46,6 +45,7 @@ import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
 import { createMcpService, McpError, type McpToolkit } from "./mcpServers.ts";
 import { createMemoryService, MemoryError, mergeHostTools, type HostTools, type MemoryService } from "./memories.ts";
 import { createBrowserService, type BrowserService } from "./browser/browserService.ts";
+import { browserLoginUrl } from "./browser/browserPolicy.ts";
 import type { BrowserInput } from "./browser/browserProtocol.ts";
 import { createWebTools, type WebTools } from "./webAccess.ts";
 import { createHostResources } from "./piResources.ts";
@@ -1140,14 +1140,14 @@ export function createPiHttpHost(options: {
               if (res.destroyed) return;
               // A slow viewer drops frames rather than queueing them.
               if (event.type === "frame" && res.writableLength > 1_000_000) return;
-              res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.type === "frame" ? { data: event.data, width: event.width, height: event.height } : event.state)}\n\n`);
+              res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.type === "frame" ? { data: event.data, width: event.width, height: event.height, seq: event.seq, capturedAt: event.capturedAt, pageId: event.pageId } : event.state)}\n\n`);
             });
             const heartbeat = setInterval(() => { if (!res.destroyed) res.write(": keep-alive\n\n"); }, 15_000);
             res.once("close", () => { clearInterval(heartbeat); stop(); });
             return true;
           }
           if (req.method === "POST" && action === "control") {
-            const { action: command, site, url: loginAddress } = await readJson(req);
+            const { action: command, site, url: loginAddress, pageId } = await readJson(req);
             try {
               if (command === "login") {
                 let destination: string;
@@ -1156,10 +1156,11 @@ export function createPiHttpHost(options: {
                 await browser.takeover(destination);
               }
               else if (command === "takeover") await browser.takeover();
-              else if (command === "release") browser.release();
+              else if (command === "release") await browser.release();
               else if (command === "stop") await browser.stop();
               else if (command === "clear-logins") await browser.clearLogins();
-              else { sendJson(res, 400, { error: "action must be login, takeover, release, stop or clear-logins." }); return true; }
+              else if (command === "select-tab" && typeof pageId === "string" && /^[a-zA-Z0-9-]{1,64}$/.test(pageId)) await browser.selectTab(pageId);
+              else { sendJson(res, 400, { error: "action must be login, takeover, release, stop, clear-logins or select-tab (pageId required)." }); return true; }
               sendJson(res, 200, browser.view());
             } catch (error) { sendJson(res, 409, { error: errorMessage(error) }); }
             return true;
@@ -1169,7 +1170,17 @@ export function createPiHttpHost(options: {
             const values = Array.isArray(body.inputs) ? body.inputs : [body.input];
             const inputs = values.map(browserInput);
             if (!inputs.length || inputs.length > 64 || inputs.some((input) => !input)) { sendJson(res, 400, { error: "Invalid browser input." }); return true; }
-            try { for (const input of inputs) await browser.input(input!); sendJson(res, 200, { ok: true }); }
+            if ((body.pageId !== undefined && (typeof body.pageId !== "string" || !/^[a-zA-Z0-9-]{1,64}$/.test(body.pageId))) ||
+              (body.controlEpoch !== undefined && (!Number.isSafeInteger(body.controlEpoch) || Number(body.controlEpoch) < 0))) { sendJson(res, 400, { error: "Invalid browser input target." }); return true; }
+            // Freeze even legacy requests once per batch: a tab/control change rejects its remainder.
+            const view = browser.view();
+            const target = { pageId: typeof body.pageId === "string" ? body.pageId : view.pageId, controlEpoch: typeof body.controlEpoch === "number" ? body.controlEpoch : view.controlEpoch };
+            const began = Date.now();
+            try {
+              for (const input of inputs) await browser.input(input!, target);
+              runtimeLogger(dataDir)("browser.input_batch", { count: inputs.length, durationMs: Date.now() - began });
+              sendJson(res, 200, { ok: true });
+            }
             catch (error) { sendJson(res, 409, { error: errorMessage(error) }); }
             return true;
           }

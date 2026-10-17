@@ -12596,6 +12596,17 @@ pre {
   white-space: nowrap;
 }
 
+.browser-view-tabs {
+  min-width: 0;
+  max-width: 180px;
+  height: 28px;
+  border: 1px solid var(--border-strong);
+  border-radius: 6px;
+  background: var(--surface-panel);
+  color: inherit;
+  font: inherit;
+}
+
 .browser-view-action {
   display: inline-flex;
   align-items: center;
