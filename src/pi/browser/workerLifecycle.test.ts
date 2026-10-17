@@ -24,6 +24,10 @@ test("browser worker lifecycle through real Chromium and IPC", { skip: !executab
     res.writeHead(200, { "content-type": "text/html" });
     if (url.pathname === "/popup") {
       res.end('<title>Popup</title><input autofocus aria-label="Popup field"><button onclick="window.close()">Close popup</button>');
+    } else if (url.pathname === "/render") {
+      res.end(`<title>Deferred render</title><button id="update">Update content</button><p id="result">Original content</p><script>new EventSource('/events');document.querySelector('#update').onclick=()=>setTimeout(()=>{document.querySelector('#result').textContent='First update';setTimeout(()=>document.querySelector('#result').textContent='Render complete',75)},75)</script>`);
+    } else if (url.pathname === "/render-busy") {
+      res.end(`<title>Busy DOM</title><button id="submit">Submit once</button><p id="result">Not submitted</p><aside></aside><script>let clicks=0;document.querySelector('#submit').onclick=()=>{document.querySelector('#result').textContent='Action count '+(++clicks);setInterval(()=>document.querySelector('aside').textContent=Date.now(),30)}</script>`);
     } else if (url.pathname === "/slow") {
       res.end('<title>Slow SPA</title><p id="busy">Busy</p><p id="later"></p><script>new EventSource("/events"); setTimeout(() => { document.querySelector("#later").textContent="Content ready"; document.querySelector("#busy").hidden=true }, 1000)</script>');
     } else if (url.pathname === "/duplicates") {
@@ -117,6 +121,18 @@ test("browser worker lifecycle through real Chromium and IPC", { skip: !executab
       await request({ op: "screencast", on: false });
     });
 
+    await t.test("repeated popup initialization does not leave a five-second unrelated-page wait", async () => {
+      let main = await request({ op: "open", url: origin });
+      const began = Date.now();
+      for (let index = 0; index < 3; index++) {
+        const popup = await click(main, "Open popup");
+        assert.equal(popup.title, "Popup");
+        main = await click(popup, "Close popup");
+        assert.equal(main.title, "Main");
+      }
+      assert.ok(Date.now() - began < 4500, "each popup barrier must resolve its own initialized target");
+    });
+
     await t.test("snapshot IDs bind actions to the exact snapshot and user input invalidates them", async () => {
       const first = await request({ op: "open", url: origin });
       const second = await request({ op: "snapshot" });
@@ -141,6 +157,23 @@ test("browser worker lifecycle through real Chromium and IPC", { skip: !executab
         await assert.rejects(click(armed, "Continue"), /changed since approval/);
       }
       assert.equal(posts, 0, "neither a changed submit nor a renamed button was executed");
+    });
+
+    await t.test("click result includes a deferred SPA render without waiting for network idle", async () => {
+      const opened = await request({ op: "open", url: `${origin}/render` });
+      const began = Date.now();
+      const updated = await click(opened, "Update content");
+      assert.match(updated.snapshot, /Render complete/);
+      assert.ok(Date.now() - began < 2000, "persistent SSE must not hold up an otherwise quiet DOM");
+    });
+
+    await t.test("a continuously changing DOM returns within its budget without repeating the action", async () => {
+      const opened = await request({ op: "open", url: `${origin}/render-busy` });
+      const began = Date.now();
+      const updated = await click(opened, "Submit once");
+      assert.match(updated.snapshot, /Action count 1/);
+      assert.ok(updated.notes.some(note => note.includes("DOM did not settle")));
+      assert.ok(Date.now() - began < 2500, "DOM settling is bounded even if the page keeps changing");
     });
 
     await t.test("slow SPA text waits and explicit timeouts work with a persistent SSE connection", async () => {
@@ -200,10 +233,10 @@ test("browser worker lifecycle through real Chromium and IPC", { skip: !executab
       assert.doesNotMatch(interactive.snapshot, /heading|Scoped details|secret-token/);
       assert.ok(ref(interactive, "Continue reading"));
       const content = await request({ op: "snapshot", scope: "#article", mode: "content" });
-      assert.match(content.snapshot, /Article heading/);
-      assert.match(content.snapshot, /Scoped details/);
+      assert.match(content.content!, /Article heading/);
+      assert.match(content.content!, /Scoped details/);
       assert.match(content.snapshot, /\/url: \/next/);
-      assert.doesNotMatch(content.snapshot, /Outside private text|secret-token/);
+      assert.doesNotMatch(content.content!, /Outside private text|secret-token/);
       assert.deepEqual(Object.values(content.elements).map((element) => element.role), ["link"]);
       const followed = await click(content, "Continue reading");
       assert.equal(followed.title, "Main");

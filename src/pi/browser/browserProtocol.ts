@@ -48,7 +48,7 @@ export type BrowserRequest =
   | { op: "close" };
 
 export type BrowserTab = { id: string; title: string; url: string };
-export type BrowserPageSummary = { url: string; title: string; pageId: string; snapshotId: string; snapshot: string; elements: Record<string, BrowserElement>; notes: string[] };
+export type BrowserPageSummary = { url: string; title: string; pageId: string; snapshotId: string; snapshot: string; content?: string; elements: Record<string, BrowserElement>; notes: string[] };
 
 export type BrowserWorkerMessage =
   | { id: number; ok: true; result: unknown }

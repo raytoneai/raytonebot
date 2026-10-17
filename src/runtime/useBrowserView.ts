@@ -32,6 +32,13 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
   const controlEpoch = useRef(0);
   const inputTarget = useRef<{ pageId?: string; controlEpoch?: number }>({});
   const [foreground, setForeground] = useState(() => typeof document === "undefined" || document.visibilityState === "visible");
+  const acceptState = useCallback((next: BrowserViewState) => {
+    if (next.controlEpoch !== undefined && next.controlEpoch < controlEpoch.current) return;
+    controlEpoch.current = next.controlEpoch ?? 0;
+    setState(next);
+    if (!next.running || next.pageId !== activePage.current) { setFrame(undefined); lastFrameSeq.current = 0; }
+    activePage.current = next.pageId;
+  }, []);
 
   useEffect(() => {
     const update = () => setForeground(document.visibilityState === "visible");
@@ -45,12 +52,7 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
     source.addEventListener("open", () => setConnected(true));
     source.addEventListener("error", () => setConnected(false));
     source.addEventListener("state", (event) => {
-      const next = JSON.parse((event as MessageEvent<string>).data) as BrowserViewState;
-      if (next.controlEpoch !== undefined && next.controlEpoch < controlEpoch.current) return;
-      controlEpoch.current = next.controlEpoch ?? 0;
-      setState(next);
-      if (!next.running || next.pageId !== activePage.current) { setFrame(undefined); lastFrameSeq.current = 0; }
-      activePage.current = next.pageId;
+      acceptState(JSON.parse((event as MessageEvent<string>).data) as BrowserViewState);
     });
     source.addEventListener("frame", (event) => {
       const next = JSON.parse((event as MessageEvent<string>).data) as { data: string; width: number; height: number; pageId?: string; seq?: number; capturedAt?: number };
@@ -60,10 +62,10 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
       setFrame({ src: `data:image/jpeg;base64,${next.data}`, width: next.width, height: next.height, pageId: next.pageId, seq: next.seq, capturedAt: next.capturedAt, receivedAt: Date.now() });
     });
     return () => { source.close(); setConnected(false); };
-  }, [visible, foreground]);
+  }, [visible, foreground, acceptState]);
 
   // The state alone (available or not) is enough for the switch before the view opens.
-  useEffect(() => { if (visible && !state) void getBrowserState().then(setState, () => undefined); }, [visible, state]);
+  useEffect(() => { if (visible && !state) void getBrowserState().then(acceptState, () => undefined); }, [visible, state, acceptState]);
 
   const inputs = useMemo(() => createBrowserInputQueue((batch, signal) => sendBrowserInputs(batch, signal, fetch, inputTarget.current), (failure) => setError(failure instanceof Error ? failure.message : String(failure))), []);
   useEffect(() => () => inputs.reset(), [inputs]);
@@ -73,18 +75,18 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
     inputs.reset();
     setBusy(true);
     setError(undefined);
-    try { setState(await browserControl(action)); }
+    try { acceptState(await browserControl(action)); }
     catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
     finally { setBusy(false); }
-  }, [inputs]);
+  }, [inputs, acceptState]);
 
   const login = useCallback(async (site: string, url?: string) => {
     setBusy(true);
     setError(undefined);
-    try { setState(await browserLogin(site, url)); }
+    try { acceptState(await browserLogin(site, url)); }
     catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
     finally { setBusy(false); }
-  }, []);
+  }, [acceptState]);
 
 
   const selectTab = useCallback(async (pageId: string) => {
@@ -92,10 +94,10 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
     setFrame(undefined);
     activePage.current = undefined;
     setBusy(true); setError(undefined);
-    try { const next = await browserSelectTab(pageId); controlEpoch.current = next.controlEpoch ?? 0; activePage.current = next.pageId; setState(next); }
+    try { acceptState(await browserSelectTab(pageId)); }
     catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
     finally { setBusy(false); }
-  }, [inputs]);
+  }, [inputs, acceptState]);
 
   const input = (event: BrowserInput) => {
     if (busy || state?.controller !== "user" || !frame || frame.pageId !== state.pageId) return;

@@ -39,6 +39,7 @@ const frameTimers = new Set<ReturnType<typeof setTimeout>>();
 const pages = new Map<Page, string>();
 const pendingPopups = new Set<Promise<unknown>>();
 const dialogs: string[] = [];
+let settleNote: string | undefined;
 type Shot = { id: string; page: Page; revision: number; elements: Record<string, BrowserElement> };
 let lastSnapshot: Shot | undefined;
 
@@ -140,6 +141,34 @@ function register(current: Page) {
   });
 }
 
+function waitForPopup(targetId: string) {
+  const owner = context!;
+  const discovery = browserCdp!;
+  const ready = new Promise<void>((resolve) => {
+    const finish = () => {
+      clearTimeout(timer);
+      owner.off("page", inspect);
+      discovery.off("Target.targetDestroyed", destroyed);
+      resolve();
+    };
+    const inspect = async (current: Page) => {
+      const session = await owner.newCDPSession(current).catch(() => undefined);
+      if (!session) return;
+      try { if ((await session.send("Target.getTargetInfo")).targetInfo.targetId === targetId) finish(); }
+      catch { /* A closing unrelated page cannot satisfy this popup. */ }
+      finally { await session.detach().catch(() => {}); }
+    };
+    const destroyed = (event: { targetId: string }) => { if (event.targetId === targetId) finish(); };
+    const timer = setTimeout(finish, 5000);
+    owner.on("page", inspect);
+    discovery.on("Target.targetDestroyed", destroyed);
+    // Playwright's page event can precede target discovery; include pages already initialized.
+    for (const current of owner.pages()) void inspect(current);
+  });
+  pendingPopups.add(ready);
+  void ready.finally(() => pendingPopups.delete(ready));
+}
+
 async function launch(): Promise<Page> {
   const port = launchOptions.cdpPort ?? await freePort();
   const args = [
@@ -175,9 +204,7 @@ async function launch(): Promise<Page> {
   browserCdp.on("Target.targetCreated", ({ targetInfo }) => {
     if (knownTargets.has(targetInfo.targetId) || targetInfo.type !== "page" || !targetInfo.openerId || !context) return;
     knownTargets.add(targetInfo.targetId);
-    const ready = context.waitForEvent("page", { timeout: 5000 }).catch(() => {});
-    pendingPopups.add(ready);
-    void ready.finally(() => pendingPopups.delete(ready));
+    waitForPopup(targetInfo.targetId);
   });
   await browserCdp.send("Target.setDiscoverTargets", { discover: true });
   await browserCdp.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: launchOptions.downloadDir, eventsEnabled: true });
@@ -253,8 +280,9 @@ async function summary(options: { scope?: string; mode?: "full" | "interactive" 
     const redact = secretElement(element) || (element?.unresolved && ["textbox", "searchbox", "combobox", "spinbutton"].includes(element.role));
     return redact ? line.replace(/(\[ref=[a-z0-9]+\][^:]*)[:].*$/, "$1: [redacted]") : line;
   }).join("\n");
+  let content: string | undefined;
   if (options.mode === "content") {
-    const content = await region.evaluate((root) => {
+    content = await region.evaluate((root) => {
       const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
       const parts: string[] = [];
       while (walker.nextNode()) {
@@ -265,7 +293,6 @@ async function summary(options: { scope?: string; mode?: "full" | "interactive" 
       }
       return parts.join("\n");
     });
-    text = `${content}\n\nLinks:\n${text}`;
   }
   const title = await current.title().catch(() => "");
   // Publish the current revision before the result so a later unchanged state event cannot
@@ -275,17 +302,30 @@ async function summary(options: { scope?: string; mode?: "full" | "interactive" 
   const id = randomUUID();
   lastSnapshot = { id, page: current, revision, elements };
   const notes = dialogs.splice(0).map((dialog) => dialog.startsWith("page answered") ? `The ${dialog}.` : `A ${dialog} (dismissed)`);
+  if (settleNote) { notes.push(settleNote); settleNote = undefined; }
   notes.push("Asynchronous content may arrive later; use browser_wait_for for specific text.");
-  return { url: current.url(), title, pageId: pages.get(current)!, snapshotId: id, snapshot: text, elements, notes };
+  return { url: current.url(), title, pageId: pages.get(current)!, snapshotId: id, snapshot: text, ...(content !== undefined ? { content } : {}), elements, notes };
 }
 
 async function settle() {
+  settleNote = undefined;
   // Browser target discovery precedes Playwright's initialized page event. Drain that event
   // before selecting the page for the result, without adding a delay to ordinary clicks.
   await browserCdp?.send("Target.getTargets").catch(() => {});
   await Promise.all([...pendingPopups]);
   const current = await start();
   await current.waitForLoadState("domcontentloaded", { timeout: 5_000 }).catch(() => {});
+  // Observe rendering rather than network idleness: SSE and polling can stay open forever.
+  const quiet = await current.evaluate(() => new Promise<boolean>((resolve) => {
+    let idle: ReturnType<typeof setTimeout>;
+    const finish = (quiet: boolean) => { observer.disconnect(); clearTimeout(idle); clearTimeout(limit); resolve(quiet); };
+    const changed = () => { clearTimeout(idle); idle = setTimeout(() => finish(true), 200); };
+    const observer = new MutationObserver(changed);
+    const limit = setTimeout(() => finish(false), 1000);
+    observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+    changed();
+  })).catch(() => false);
+  if (!quiet) settleNote = "The DOM did not settle within 1 second. This is a current snapshot, not confirmation the action finished; use browser_wait_for for its expected result. Do not repeat the action.";
 }
 
 function approvedSnapshot(current: Page, id: string | undefined): Shot {
@@ -297,11 +337,9 @@ function approvedSnapshot(current: Page, id: string | undefined): Shot {
 async function verifyTarget(current: Page, ref: string, approved: BrowserElement | undefined) {
   if (!approved || approved.unresolved) throw new Error(STALE);
   const locator = current.getByRef(ref);
-  // Locator snapshots replace Playwright's ref map for their siblings (even default mode).
-  // A full AI read preserves all current node refs; approval still uses the saved facts below.
-  const live = parseElements(await current.ariaSnapshot({ mode: "ai" }).catch(() => ""));
-  const actual = live[ref];
-  if (!actual || actual.role !== approved.role || actual.name !== approved.name) throw new Error(STALE);
+  // Role/name matching uses Playwright's accessible-name algorithm without rebuilding its ref map.
+  const sameTarget = locator.and(current.getByRole(approved.role as Parameters<Page["getByRole"]>[0], { name: approved.name, exact: true }));
+  if (await sameTarget.count().catch(() => 0) !== 1) throw new Error(STALE);
   const facts = await locator.evaluate(elementSubmitFacts, undefined, { timeout: 2000 }).catch(() => undefined);
   if (!facts) throw new Error(STALE);
   if (secretElement(facts as BrowserElement)) throw new Error("This field takes a password, code or card number. Agents never type into it; ask the user to take over the browser.");
@@ -370,8 +408,8 @@ async function handle(request: BrowserRequest): Promise<unknown> {
         await verifyTarget(current, request.ref, shot.elements[request.ref]);
         if (page !== current || revision !== actionRevision) throw new Error(STALE);
         await current.getByRef(request.ref).press("Enter");
-        await settle();
       }
+      await settle();
       return summary();
     }
     case "press": {
@@ -398,6 +436,7 @@ async function handle(request: BrowserRequest): Promise<unknown> {
       const current = await start();
       invalidate();
       await current.mouse.wheel(0, request.direction === "up" ? -600 : 600);
+      await settle();
       return summary();
     }
     case "back": {

@@ -926,3 +926,15 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 限制：没有重复四站点真实账号登录，没有清理用户profile；不验证长期/跨实例会话。未做同模型横向token/成功率基准、慢链路p50/p95、完整跨域iframe或CPU/流量测量；仅补帧时间与输入计时基础，继续使用SSE/POST，不宣称性能比例。
 
 - 最终部署复核：未传headed参数仍选chromium 1248＋Xvfb，部署9项鉴权/健康/工作区检查通过，三引擎available；独立9项公网检查通过，203个源码/构建文件SHA-256一致。最终版Raer再次真实调用tabs/open/wait_for，0工具错误、run.finished；临时远端CDP诊断脚本已移除，浏览器留在公开页面与agent控制。未推送、未改生产或删除测试实例。
+
+
+## 2026-10-17 第二轮浏览器 review
+
+- 已处理第1/2/3/4/6/7项。`stopping` 同时拦截新启动、队列前/后动作、手动接管与推流，停止等待先前启动完成；真实service测试覆盖停止开始时的调用和`browser.stopped`回调中worker已释放但停止promise尚未结束的调用，都不能重新启动，完全停止后可正常重开。
+- 延迟SPA回归在旧实现返回`Original content`而失败；新实现点击/填入/按键/滚动后观察DOM安静200ms，最多1秒（另外保留有界导航等待）。连续75ms＋75ms更新在结果里读到`Render complete`；持久SSE不阻塞；持续变化的DOM按预算返回“尚未收敛”，只执行一次。这个窗口不能证明所有更晚的业务请求完成，模型仍需按预期文字等待，不恢复无条件400ms或networkidle。
+- `verifyTarget` 使用`getByRef().and(getByRole({name,exact:true})).count()`验证旧元素角色和可访问名称，随后读取秘密字段/表单事实；不调用元素或整页ariaSnapshot。既有名称变更、formmethod变更、秘密字段拒绝后兄弟ref可用等回归通过。本机Chromium合成长页（3000节，快照560735字符，4次预热＋12次测量）整页AI读取中位数102ms/最大108ms，目标匹配中位数5.3ms/最大6.8ms。仅此复核步骤的微基准，不是云端或完整动作的加速比。
+- Popup等待绑定对应CDP targetId，先监听再检查已经初始化的context.pages；销毁解除等待，不会由任意下一个page满足。真实IPC重复3轮打开/关闭共约1.8秒，无5秒空等；未合成所有CDP事件乱序。
+- content正文与真实链接树使用独立IPC字段，正文中的`Links:`和`button "Fake submit" [ref=e7]`保持原文，不获得快照前缀。对应回归在旧实现被改写后失败，新实现通过；真实链接仍能点击。
+- 首次getBrowserState、SSE和控制/登录/选页响应共用同一个acceptState回调，统一controlEpoch过滤与页/帧更新。未在真实前端专门注入迟到HTTP响应；无UI结构变更。
+- 第5项保留：所有browser_press仍要求Snapshot ID。Tab/Escape也可能改变焦点、触发页面事件或关闭页面状态；保持统一跨快照/会话规则，三引擎已有实测，不因减少一次参数而另开旧快照通道。
+- 验证：真实service＋worker IPC相关15项通过；`npm test` **355/355通过、0跳过**；`npm run build`（tsc＋Vite）、`check:local`、`cloud-preview --check`与变更文件diff检查通过。未重跑真实账号登录、三引擎外部模型、云端Chrome＋Xvfb或端到端延迟基准；本轮未部署、推送或清理用户profile。

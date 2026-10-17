@@ -21,6 +21,7 @@ import { startEgressProxy, type EgressProxy } from "./egressProxy.ts";
  */
 
 const IDLE_MS = 10 * 60_000;
+const CLOSING = "The browser is closing. Wait for it to finish before opening it again.";
 /** The snapshot an action returns; browser_snapshot pages through the rest. */
 const SNAPSHOT_CHARS = 8000;
 const PAGE_CHARS = 15_000;
@@ -161,6 +162,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     state.controlEpoch!++;
     invalidate();
     await inputQueue;
+    await starting?.catch(() => {});
     const current = worker;
     // Close through the worker first (it ends Chrome and waits for it), and only then let go of it.
     if (current?.connected) await Promise.race([requestTo(current, { op: "close" }).catch(() => {}), new Promise((resolve) => { const timer = setTimeout(resolve, 12_000); timer.unref(); })]);
@@ -219,54 +221,59 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     }
   };
 
-  const start = () => starting ??= (async () => {
-    if (!executable) throw new Error(state.reason);
-    if (sandboxed) requireBrowserIsolation();
-    proxy = await startEgressProxy({ port: sandboxed ? SANDBOX.proxyPort : 0, proxyFakeIp: !sandboxed, allowAddress: options.allowAddress, allowPort: options.allowPort, log: options.log });
-    const staging = sandboxed ? join(SANDBOX.home, "downloads") : join(localDir, "downloads");
-    const headed = process.env.RAYTONEBOT_BROWSER_HEADED === "1";
-    const launch: BrowserLaunch = sandboxed
-      ? { executable, launcher: ["/usr/bin/sudo", "-n", "-u", SANDBOX.user, "--", "/usr/bin/setpriv", "--no-new-privs",
-          ...(headed ? ["/usr/bin/xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x800x24 -nolisten tcp"] : [])],
-        profileDir: join(SANDBOX.home, "profile"), downloadDir: staging, proxyPort: proxy.port, cdpPort: SANDBOX.cdpPort }
-      : { executable, profileDir: join(localDir, "profile"), downloadDir: staging, proxyPort: proxy.port,
-        env: { PATH: process.env.PATH ?? "", HOME: homedir() } };
-    if (!sandboxed) { mkdirSync(launch.profileDir, { recursive: true, mode: 0o700 }); mkdirSync(staging, { recursive: true, mode: 0o700 }); }
-    const child = fork(fileURLToPath(new URL("./browserWorker.ts", import.meta.url)), [], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: { PATH: process.env.PATH ?? "", HOME: homedir() } });
-    worker = child;
-    child.on("message", (message: BrowserWorkerMessage) => {
-      if ("id" in message) {
-        const waiter = pending.get(message.id);
-        pending.delete(message.id);
-        if (message.ok) waiter?.resolve(message.result); else waiter?.reject(new Error(message.error));
-      } else if (message.event === "frame") {
-        for (const watch of watchers) watch({ type: "frame", data: message.data, width: message.width, height: message.height, seq: message.seq, capturedAt: message.capturedAt, pageId: message.pageId });
-      } else if (message.event === "state") {
-        if (state.pageId !== message.pageId || pageRevision !== message.revision) invalidate();
-        state.url = message.url; state.title = message.title;
-        state.pageId = message.pageId; state.tabs = message.tabs; pageRevision = message.revision;
-        if (state.controller === "user") { const now = origin(); if (now?.startsWith("http")) takeoverOrigins.add(now); }
-        publish();
-      } else if (message.event === "download") void fileDownload(message, staging);
-      else if (message.event === "exit") { options.log?.("browser.exited", { code: message.code }); void stop(); }
-    });
-    child.once("exit", () => {
-      for (const waiter of pending.values()) waiter.reject(new Error("The browser worker stopped."));
-      pending.clear();
-      if (worker === child) void stop();
-    });
-    await request({ op: "launch", options: launch });
-    state.running = true;
-    publish();
-    options.log?.("browser.started", { sandboxed });
-  })().finally(() => { starting = undefined; });
+  const start = () => {
+    if (stopping) return Promise.reject(new Error(CLOSING));
+    return starting ??= (async () => {
+      if (!executable) throw new Error(state.reason);
+      if (sandboxed) requireBrowserIsolation();
+      proxy = await startEgressProxy({ port: sandboxed ? SANDBOX.proxyPort : 0, proxyFakeIp: !sandboxed, allowAddress: options.allowAddress, allowPort: options.allowPort, log: options.log });
+      const staging = sandboxed ? join(SANDBOX.home, "downloads") : join(localDir, "downloads");
+      const headed = process.env.RAYTONEBOT_BROWSER_HEADED === "1";
+      const launch: BrowserLaunch = sandboxed
+        ? { executable, launcher: ["/usr/bin/sudo", "-n", "-u", SANDBOX.user, "--", "/usr/bin/setpriv", "--no-new-privs",
+            ...(headed ? ["/usr/bin/xvfb-run", "--auto-servernum", "--server-args=-screen 0 1280x800x24 -nolisten tcp"] : [])],
+          profileDir: join(SANDBOX.home, "profile"), downloadDir: staging, proxyPort: proxy.port, cdpPort: SANDBOX.cdpPort }
+        : { executable, profileDir: join(localDir, "profile"), downloadDir: staging, proxyPort: proxy.port,
+          env: { PATH: process.env.PATH ?? "", HOME: homedir() } };
+      if (!sandboxed) { mkdirSync(launch.profileDir, { recursive: true, mode: 0o700 }); mkdirSync(staging, { recursive: true, mode: 0o700 }); }
+      const child = fork(fileURLToPath(new URL("./browserWorker.ts", import.meta.url)), [], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: { PATH: process.env.PATH ?? "", HOME: homedir() } });
+      worker = child;
+      child.on("message", (message: BrowserWorkerMessage) => {
+        if ("id" in message) {
+          const waiter = pending.get(message.id);
+          pending.delete(message.id);
+          if (message.ok) waiter?.resolve(message.result); else waiter?.reject(new Error(message.error));
+        } else if (message.event === "frame") {
+          for (const watch of watchers) watch({ type: "frame", data: message.data, width: message.width, height: message.height, seq: message.seq, capturedAt: message.capturedAt, pageId: message.pageId });
+        } else if (message.event === "state") {
+          if (state.pageId !== message.pageId || pageRevision !== message.revision) invalidate();
+          state.url = message.url; state.title = message.title;
+          state.pageId = message.pageId; state.tabs = message.tabs; pageRevision = message.revision;
+          if (state.controller === "user") { const now = origin(); if (now?.startsWith("http")) takeoverOrigins.add(now); }
+          publish();
+        } else if (message.event === "download") void fileDownload(message, staging);
+        else if (message.event === "exit") { options.log?.("browser.exited", { code: message.code }); void stop(); }
+      });
+      child.once("exit", () => {
+        for (const waiter of pending.values()) waiter.reject(new Error("The browser worker stopped."));
+        pending.clear();
+        if (worker === child) void stop();
+      });
+      await request({ op: "launch", options: launch });
+      state.running = true;
+      publish();
+      options.log?.("browser.started", { sandboxed });
+    })().finally(() => { starting = undefined; });
+  };
 
   /** One agent action at a time, never while the user holds the browser. A run that was stopped
    *  while its action waited in the queue never starts it: approval is not a licence to act after
    *  the turn it belonged to has ended. */
   const act = (body: BrowserRequest, signal?: AbortSignal, conversationId?: string) => {
+    if (stopping) return Promise.reject(new Error(CLOSING));
     if (clearing || changingControl) return Promise.reject(new Error("Browser login state or control is changing."));
     const run = queue.then(async () => {
+      if (stopping) throw new Error(CLOSING);
       if (clearing) throw new Error("Browser login state is being cleared.");
       if (changingControl) throw new Error("Browser control is changing.");
       if (signal?.aborted) signal.throwIfAborted();
@@ -278,6 +285,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       // Starting the browser awaited: check again before the action leaves the host.
       if (signal?.aborted) signal.throwIfAborted();
       if (clearing) throw new Error("Browser login state is being cleared.");
+      if (stopping) throw new Error(CLOSING);
       touch();
       const result = await request(body);
       await stream();
@@ -289,6 +297,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
 
   /** Frames flow while someone watches and the browser runs; the first action starts it. */
   const stream = async () => {
+    if (stopping) return;
     const want = watchers.size > 0;
     if (!worker?.connected || want === streaming) return;
     streaming = want;
@@ -322,6 +331,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       refPrefix = `s${refSession}${(++refVersion).toString(36)}x`;
       elements = Object.fromEntries(Object.entries(summary.elements).map(([ref, el]) => [refPrefix + ref, el]));
       snapshotText = summary.snapshot.replace(/\[ref=([a-z0-9]+)\]/g, (_, ref: string) => `[ref=${refPrefix}${ref}]`);
+      if (summary.content !== undefined) snapshotText = `${summary.content}\n\nLinks:\n${snapshotText}`;
     }
     state.url = summary.url; state.title = summary.title;
     const end = Math.min(snapshotText.length, offset + limit);
@@ -355,6 +365,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
             return { snapshotId, ...(ref ? { ref: ref.slice(refPrefix.length) } : {}) };
           };
           try {
+            if (stopping && name !== "browser_accounts") throw new Error(CLOSING);
             switch (name) {
               case "browser_accounts": {
                 signal?.throwIfAborted();
@@ -422,6 +433,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
 
     /** The user takes the browser: agent actions wait until it is handed back. */
     async takeover(loginUrl?: string) {
+      if (stopping) throw new Error(CLOSING);
       if (clearing) throw new Error("Browser login state is being cleared.");
       if (changingControl) throw new Error("Browser control is changing.");
       if (!state.available) throw new Error(state.reason);
@@ -431,6 +443,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       try {
         await inputQueue;
         await queue;
+        if (stopping) throw new Error(CLOSING);
         if (clearing) throw new Error("Browser login state is being cleared.");
         if (!worker?.connected) await start();
         state.controller = "user";
@@ -448,14 +461,14 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     },
     release,
     async selectTab(pageId: string) {
-      if (clearing || changingControl || state.controller !== "user") throw new Error("Take over the browser before selecting a tab.");
+      if (clearing || changingControl || stopping || state.controller !== "user") throw new Error("Take over the browser before selecting a tab.");
       changingControl = true;
       state.controlEpoch!++;
       invalidate();
       try {
         await inputQueue;
         await queue;
-        if (clearing || state.controller !== "user") throw new Error("Browser control changed.");
+        if (clearing || stopping || state.controller !== "user") throw new Error("Browser control changed.");
         await request({ op: "tabs", pageId });
         state.controlEpoch!++;
         touch();
