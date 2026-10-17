@@ -170,7 +170,7 @@ export function OutputFrame({
             ) : null}
           </div>
         </header>
-        {browserPanel?.selected && !showFiles ? <BrowserView copy={c} /> : showFiles && workspaceScope ? (
+        {browserPanel?.selected && !showFiles ? <BrowserView copy={c} onLoginOpen={() => setExpanded(true)} /> : showFiles && workspaceScope ? (
           <div className="artifact-content workspace-files" aria-busy={loading}>
             <div className="artifact-title">
               <FolderOpen size={16} />

@@ -217,6 +217,10 @@ export async function browserControl(action: "takeover" | "release" | "stop", fe
   return requestJson<BrowserViewState>(fetcher, `${PI_API_PREFIX}/browser/control`, { action }, AbortSignal.timeout(30_000));
 }
 
+export async function browserLogin(site: string, url?: string): Promise<BrowserViewState> {
+  return requestJson<BrowserViewState>(fetch, `${PI_API_PREFIX}/browser/control`, { action: "login", site, url }, AbortSignal.timeout(60_000));
+}
+
 export async function sendBrowserInput(input: BrowserInput, fetcher: typeof fetch = fetch): Promise<void> {
   await requestJson(fetcher, `${PI_API_PREFIX}/browser/input`, { input }, AbortSignal.timeout(10_000));
 }

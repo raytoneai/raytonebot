@@ -1,3 +1,4 @@
+import { browserLoginUrl } from "./browser/browserPolicy.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
 
@@ -1144,9 +1145,15 @@ export function createPiHttpHost(options: {
             return true;
           }
           if (req.method === "POST" && action === "control") {
-            const command = (await readJson(req)).action;
+            const { action: command, site, url: loginAddress } = await readJson(req);
             try {
-              if (command === "takeover") await browser.takeover();
+              if (command === "login") {
+                let destination: string;
+                try { destination = browserLoginUrl(site, loginAddress); }
+                catch (error) { sendJson(res, 400, { error: errorMessage(error) }); return true; }
+                await browser.takeover(destination);
+              }
+              else if (command === "takeover") await browser.takeover();
               else if (command === "release") browser.release();
               else if (command === "stop") await browser.stop();
               else { sendJson(res, 400, { error: "action must be takeover, release or stop." }); return true; }

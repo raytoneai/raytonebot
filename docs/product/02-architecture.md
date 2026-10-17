@@ -235,3 +235,5 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 现有 `SettingsDialog` 的「Bot 头像」分区为三个固定角色分别保存外观；不新增助手或 HTTP 接口。`src/runtime/botAppearance.ts` 校验枚举选项与六位十六进制颜色，`useBotAppearances.ts` 通过 `useSyncExternalStore` 订阅本页更新及跨标签页 storage 事件，存于 `raytone.bot-appearances.v1`。保存失败不应用草稿；删除某一角色配置恢复旧头像。配置只属于当前 origin / 浏览器，不随沙箱备份或跨设备同步。
 
 `AgentAvatar` 优先使用已保存配置并调用 `botAvatarSVG`，其他入口与动画层保持共用；编辑器显式传入草稿。Shell 使用当前 `streamId` 隔离示例回放，不能使用 `isFixtureMode`：产品 `runtime.transport` 按规定保持 replay，真实对话仍通过 Pi client。
+
+浏览器登录快捷入口（2026-10-17）：Output 内现有 `BrowserView` 在空闲/用户接管时提供 Google / GitHub / Reddit / Apple / X 及「其他」入口。`POST /browser/control` 增加 `{action:"login",site:"google"|"github"|"reddit"|"apple"|"x"|"other",url?:string}`，服务端白名单映射登录 URL；other 校验 HTTP(S) URL 并拒绝内嵌凭据，出站仍经原代理，复用 takeover 与 worker open；用户直接导航无需模型审批，成员工具仍受原审批与接管互斥约束。profile 与备份路径不变。

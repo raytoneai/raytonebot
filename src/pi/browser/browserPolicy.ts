@@ -134,3 +134,19 @@ export function classifyBrowserCall(name: string, args: unknown, context: Browse
   }
   return { kind, key: name };
 }
+
+/** User-selected login destinations still pass through the browser's network proxy. */
+export function browserLoginUrl(site: unknown, address?: unknown): string {
+  const sites: Record<string, string> = {
+    google: "https://accounts.google.com/", github: "https://github.com/login",
+    reddit: "https://www.reddit.com/login/", x: "https://x.com/i/flow/login",
+    apple: "https://account.apple.com/sign-in",
+  };
+  if (typeof site !== "string") throw new Error("Unknown login site.");
+  if (Object.hasOwn(sites, site)) return sites[site];
+  if (site !== "other") throw new Error("Unknown login site.");
+  if (typeof address !== "string" || address.length > 4096) throw new Error("Enter an http(s) URL.");
+  const url = new URL(address);
+  if (!["http:", "https:"].includes(url.protocol) || url.username || url.password) throw new Error("Enter an http(s) URL without embedded credentials.");
+  return url.href;
+}

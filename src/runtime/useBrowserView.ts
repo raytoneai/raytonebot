@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import { BROWSER_STREAM_URL, browserControl, getBrowserState, sendBrowserInput } from "../pi/piClient";
+import { BROWSER_STREAM_URL, browserLogin, browserControl, getBrowserState, sendBrowserInput } from "../pi/piClient";
 import type { BrowserInput, BrowserViewState } from "../pi/browser/browserProtocol";
 
 export type BrowserViewModel = {
@@ -11,6 +11,7 @@ export type BrowserViewModel = {
   error?: string;
   busy: boolean;
   control(action: "takeover" | "release" | "stop"): Promise<void>;
+  login(site: string, url?: string): Promise<void>;
   input(input: BrowserInput): void;
 };
 
@@ -60,6 +61,14 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
     finally { setBusy(false); }
   }, []);
 
+  const login = useCallback(async (site: string, url?: string) => {
+    setBusy(true);
+    setError(undefined);
+    try { setState(await browserLogin(site, url)); }
+    catch (failure) { setError(failure instanceof Error ? failure.message : String(failure)); }
+    finally { setBusy(false); }
+  }, []);
+
   // One queue: a click's down, moves and up must reach the page in order.
   const chain = useRef<Promise<void>>(Promise.resolve());
   const input = useCallback((value: BrowserInput) => {
@@ -67,5 +76,5 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
       .catch((failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure)));
   }, []);
 
-  return { state, frame, connected, error, busy, control, input };
+  return { state, frame, connected, error, busy, control, login, input };
 }

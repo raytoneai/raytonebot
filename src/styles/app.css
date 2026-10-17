@@ -12705,3 +12705,52 @@ pre {
 .session-history-toggle[aria-expanded="false"] svg { transform: rotate(-90deg); }
 .session-history-toggle:hover { color: var(--text-primary); }
 .session-history-toggle:focus-visible { outline: 2px solid var(--accent); outline-offset: -2px; border-radius: 6px; }
+
+.browser-auth {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: safe center;
+  width: 100%;
+  max-width: 400px;
+  align-self: center;
+  padding: 40px 20px;
+  gap: 28px;
+  overflow-y: auto;
+}
+.browser-auth-heading { text-align: center; }
+.browser-auth-heading h2 { margin: 0 0 12px; font-size: 24px; font-weight: 650; letter-spacing: -0.6px; line-height: 1.2; color: var(--text-primary); }
+.browser-auth-heading p { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.7; }
+.browser-auth-providers { display: grid; gap: 12px; }
+.browser-auth-provider {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 16px 20px;
+  border: 1px solid var(--border-strong);
+  border-radius: 18px;
+  background: var(--surface-panel);
+  color: var(--text-primary);
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+.browser-auth-provider > svg { flex-shrink: 0; }
+.browser-auth-provider > svg:last-child { margin-left: auto; color: var(--text-muted); }
+.browser-auth-provider span { display: grid; gap: 4px; }
+.browser-auth-provider strong { font-size: var(--text-sm); font-weight: 600; }
+.browser-auth-provider small { color: var(--text-muted); font-size: var(--text-xs); }
+.browser-auth-provider[data-site="google"] > svg:first-child { color: #4285f4; }
+.browser-auth-provider[data-site="reddit"] > svg:first-child { color: #f54b00; }
+.browser-auth-provider:hover:not(:disabled) { border-color: var(--accent); background: var(--surface-inset); }
+.browser-auth-provider:focus-visible { outline: 2px solid var(--accent); outline-offset: 3px; }
+.browser-auth-provider:disabled { cursor: wait; opacity: .6; }
+.browser-auth-footnote { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--text-muted); font-size: var(--text-xs); line-height: 1.65; }
+.browser-auth-footnote svg { flex-shrink: 0; margin-top: 3px; }
+
+.browser-auth-address { display: grid; gap: 10px; padding: 4px; font-size: var(--text-xs); color: var(--text-secondary); }
+.browser-auth-address input { width: 100%; min-width: 0; padding: 12px; border: 1px solid var(--border-strong); border-radius: 10px; background: var(--surface-panel); color: var(--text-primary); font: inherit; }
+.browser-auth-address input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.browser-auth-address button { justify-content: center; min-height: 36px; cursor: pointer; }

@@ -7,7 +7,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { ENRICH_LIMIT, classifyBrowserCall, elementSubmitFacts, enrichmentPlan } from "./browserPolicy.ts";
+import { browserLoginUrl, ENRICH_LIMIT, classifyBrowserCall, elementSubmitFacts, enrichmentPlan } from "./browserPolicy.ts";
 import { createBrowserService, findHeadlessShell } from "./browserService.ts";
 import { startEgressProxy } from "./egressProxy.ts";
 import { saveWorkspaceDownload } from "../workspaceFiles.ts";
@@ -329,7 +329,8 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
     assert.match(seen.join("\n"), /tool\.bin looks like a program/);
 
     // Takeover: agent actions wait for the user; afterwards the site counts as signed in.
-    await service.takeover();
+    await service.takeover(`http://127.0.0.1:${port}/login`);
+    assert.equal(service.view().url, `http://127.0.0.1:${port}/login`, "login shortcut navigates the remote browser");
     assert.equal(service.view().controller, "user");
     assert.match((await tools.run("browser_snapshot", {})).text, /user is controlling/);
     // The user's own clicks and text from the live view reach the page.
@@ -359,4 +360,13 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
     site.close();
     rmSync(dataDir, { recursive: true, force: true });
   }
+});
+
+test("login shortcuts accept Apple and custom web URLs, reject invalid destinations", () => {
+  assert.equal(browserLoginUrl("apple"), "https://account.apple.com/sign-in");
+  assert.equal(browserLoginUrl("other", "https://example.com/login"), "https://example.com/login");
+  for (const url of ["file:///etc/passwd", "javascript:alert(1)", "https://user:secret@example.com", "invalid", undefined]) {
+    assert.throws(() => browserLoginUrl("other", url));
+  }
+  assert.throws(() => browserLoginUrl("__proto__"));
 });

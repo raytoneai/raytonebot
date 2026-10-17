@@ -342,7 +342,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     },
 
     /** The user takes the browser: agent actions wait until it is handed back. */
-    async takeover() {
+    async takeover(loginUrl?: string) {
       if (!state.available) throw new Error(state.reason);
       if (!worker?.connected) await start();
       await queue;
@@ -351,6 +351,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       touch();
       publish();
       await stream();
+      if (loginUrl) await request({ op: "open", url: loginUrl });
     },
     release,
     /** Input from the live view, only while the user holds the browser. */
