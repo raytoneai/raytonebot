@@ -200,6 +200,7 @@ export function AgentApp() {
   const [activeOutputPanelItemId, setActiveOutputPanelItemId] = useState<string | undefined>(undefined);
   const [outputModalOpen, setOutputModalOpen] = useState(false);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
+  const [toolLogTarget, setToolLogTarget] = useState<{ id: string; nonce: number }>();
   const [outputSource, setOutputSource] = useState(project.output.source);
   /** The browser's live view, a third panel source held here (ADR-040); the project's stays. */
   const [browserSelected, setBrowserSelected] = useState(false);
@@ -1339,6 +1340,15 @@ export function AgentApp() {
     budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
   } satisfies ComposerRunOptions;
   const shellExtras: ShellExtras = {
+    runActive: streamId ? undefined : new Set(piRunning ? displayViewModel.timeline.slice(
+      displayViewModel.timeline.map((item) => item.kind === "message" && item.role === "user").lastIndexOf(true) + 1,
+    ).map((item) => item.id) : []),
+    toolLog: streamId ? undefined : { targetId: toolLogTarget?.id, revision: toolLogTarget?.nonce, open: (id) => {
+      setToolLogTarget((previous) => ({ id, nonce: (previous?.nonce ?? 0) + 1 })); setBrowserSelected(false); setOutputSource("console");
+      setOutputModalOpen(false);
+      if (rightPanelAvailable) setRightCollapsed(false);
+      else setWorkspaceModalOpen(true);
+    } },
     messageBranch,
     composerFocus: activePiConversationId === composerFocus ? composerFocus : undefined,
     transcriptScroll,
@@ -1552,7 +1562,7 @@ export function AgentApp() {
           ) : null}
           {workspaceModalOpen ? (
             <Suspense fallback={null}>
-              <OutputFrame project={activeProject} viewModel={displayViewModel} fullscreen onCollapse={() => setWorkspaceModalOpen(false)} />
+              <OutputFrame project={activeProject} viewModel={displayViewModel} fullscreen openItems={liveOutputPanelItems} activeOpenItemId={activeOutputPanelItemId} onSelectOpenItem={setActiveOutputPanelItemId} onCloseOpenItem={closeOutputPanelItem} onSourceChange={(source) => { setBrowserSelected(false); setOutputSource(source); }} onCollapse={() => setWorkspaceModalOpen(false)} />
             </Suspense>
           ) : null}
           {outputModalOpen ? (

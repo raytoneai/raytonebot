@@ -12781,3 +12781,8 @@ pre {
 .artifact-frame:has(> .browser-view) { display: flex; flex-direction: column; flex: 1; min-height: 0; }
 .artifact-frame > .browser-view { flex: 1; height: auto; overflow: hidden; }
 .browser-view-bar { flex-shrink: 0; }
+
+/* Execution details scroll inside the console, keeping its source switch visible. */
+.artifact-frame[data-output-source="console"] { display: flex; flex-direction: column; min-height: 0; height: 100%; }
+.artifact-frame > .terminal-output { display: block; flex: 1; min-height: 0; overflow: auto; }
+.terminal-output > [data-log-tool] { margin-top: 10px; }

@@ -20,6 +20,7 @@ import { ArtifactLaunchCard } from "./chatframe/ArtifactLaunch";
 import { ExternalApprovalSurface, isPendingApprovalTool } from "./chatframe/approval";
 import { MessageActions } from "./chatframe/MessageActions";
 import { ToolRunSummary } from "./chatframe/ToolRunSummary";
+import { workArtifacts } from "../../runtime/workArtifacts";
 import { foldQuietTools } from "../../runtime/toolSummary";
 import type { OutputPanelOpenRequest } from "./OutputFrame";
 import { ReasoningBlock } from "./ReasoningBlock";
@@ -317,11 +318,14 @@ function AssistantTurnBody({
     && !orderedItems[0].text?.includes("\n");
   // While the agent works every step shows, so it reads as busy, not stuck; once the turn is done
   // its quiet steps fold into one line.
-  const working = live && persona !== undefined && avatarBusy(persona.state);
+  const { toolLog, runActive } = useShellExtras();
+  const working = runActive ? items.some((item) => runActive.has(item.id)) : live && persona !== undefined && avatarBusy(persona.state);
   const hiddenThought = (item: AgentUXTimelineItem) => item.kind === "reasoning" && item.status === "done"
     && project.reasoning.whenDone === "hide" && !(project.reasoning.show !== "status" && item.summary);
-  const segments = project.toolCalls.foldWhenDone && !working ? foldQuietTools(orderedItems, hiddenThought)
-    : orderedItems.map((item) => ({ kind: "item" as const, item }));
+  const deliverables = new Set(workArtifacts(orderedItems).map((item) => item.id));
+  const visibleItems = toolLog && !working ? orderedItems.filter((item) => item.kind !== "artifact" || deliverables.has(item.id)) : orderedItems;
+  const segments = project.toolCalls.foldWhenDone && !working ? foldQuietTools(visibleItems, hiddenThought, Boolean(toolLog))
+    : visibleItems.map((item) => ({ kind: "item" as const, item }));
   const renderItem = (item: AgentUXTimelineItem) => (
     <TimelineItem
       key={`${item.kind}:${item.id}`}
@@ -350,7 +354,7 @@ function AssistantTurnBody({
           <div className="assistant-turn-label" aria-label={copy.chat.speakers.agentOutputLabel}>{persona?.name ?? copy.chat.speakers.agent}</div>
         ) : null}
         {segments.map((segment) => segment.kind === "tools" ? (
-          <ToolRunSummary key={segment.id} tools={segment.tools} forceOpen={forceToolsOpen}>
+          <ToolRunSummary key={segment.id} tools={segment.tools} forceOpen={forceToolsOpen} onViewDetails={toolLog ? () => toolLog.open(segment.tools[0].id) : undefined}>
             {segment.tools.map(renderItem)}
           </ToolRunSummary>
         ) : renderItem(segment.item))}

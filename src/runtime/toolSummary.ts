@@ -24,7 +24,14 @@ export const isQuietTool = (tool: AgentUXToolTimelineItem) => Boolean(quietKind(
 export type TurnSegment = { kind: "item"; item: AgentUXTimelineItem } | { kind: "tools"; id: string; tools: AgentUXToolTimelineItem[] };
 
 /** Runs of quiet tools become one segment; `invisible` items (rendered as nothing) do not break a run. */
-export function foldQuietTools(items: readonly AgentUXTimelineItem[], invisible: (item: AgentUXTimelineItem) => boolean): TurnSegment[] {
+export function foldQuietTools(items: readonly AgentUXTimelineItem[], invisible: (item: AgentUXTimelineItem) => boolean, allTools = false): TurnSegment[] {
+  if (allTools) {
+    const tools = items.filter((item): item is AgentUXToolTimelineItem => item.kind === "tool" && FINAL.has(item.status));
+    const ids = new Set(tools.map((tool) => tool.id));
+    return items.flatMap((item): TurnSegment[] => ids.has(item.id)
+      ? item.id === tools[0]?.id ? [{ kind: "tools", id: `tools:${item.id}`, tools }] : []
+      : [{ kind: "item", item }]);
+  }
   const out: TurnSegment[] = [];
   let run: AgentUXToolTimelineItem[] = [];
   let held: AgentUXTimelineItem[] = [];
@@ -63,6 +70,10 @@ export function toolRunSummary(tools: readonly AgentUXToolTimelineItem[], locale
   const parts = [...counts].map(([kind, n]) => label[kind](n));
   const failed = tools.filter((tool) => tool.status === "error").length;
   if (failed) parts.push(copy.failed(failed));
+  const other = tools.filter((tool) => !quietKind(tool)).length;
+  if (other) parts.unshift(locale === "zh" ? `执行了 ${other} 项操作` : locale === "ja" ? `${other} 件の操作` : `${other} operation${other === 1 ? "" : "s"}`);
+  const cancelled = tools.filter((tool) => tool.status === "cancelled").length;
+  if (cancelled) parts.push(locale === "zh" ? `${cancelled} 个已取消` : locale === "ja" ? `${cancelled} 件キャンセル` : `${cancelled} cancelled`);
   const text = parts.join(copy.separator);
   return text.charAt(0).toUpperCase() + text.slice(1);
 }

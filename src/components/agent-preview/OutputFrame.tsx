@@ -7,7 +7,8 @@ import { useCopy } from "../../i18n/LocaleContext";
 import { listPiFiles, piFileDownloadUrl, type PiWorkspaceFile, type PiFileScope } from "../../pi/piClient";
 import { useShellExtras } from "../shell/ShellExtras";
 import { SelectMenu } from "../ui";
-import { consoleLogEntries } from "../../runtime/toolDisplaySpec";
+import { workArtifacts } from "../../runtime/workArtifacts";
+import { outputPanelItemFromRenderedArtifact } from "./outputframe/artifactPreview";
 import { OutputContent } from "./outputframe/OutputContent";
 import { ExpandOutputIcon, OutputSourceSwitch, RightSidebarIcon } from "./outputframe/OutputSourceSwitch";
 import { outputTitle } from "./outputframe/labels";
@@ -48,11 +49,11 @@ export function OutputFrame({
 }) {
   const copy = useCopy();
   const c = copy.workspace.outputFrame;
-  const { workspaceScope, workspaceRevision, workspaceSharedAvailable, onOpenFile, browserPanel } = useShellExtras();
+  const { workspaceScope, workspaceRevision, workspaceSharedAvailable, onOpenFile, browserPanel, toolLog } = useShellExtras();
   const [expandedState, setExpanded] = useState(false);
   const expanded = fullscreen || expandedState;
   // The phone's workspace entry opens files; the desktop output keeps its artifact by default.
-  const [showFiles, setShowFiles] = useState(fullscreen);
+  const [showFiles, setShowFiles] = useState(fullscreen && project.output.source !== "console");
   const [shared, setShared] = useState(false);
   const [path, setPath] = useState("");
   const [files, setFiles] = useState<PiWorkspaceFile[]>([]);
@@ -63,6 +64,7 @@ export function OutputFrame({
   const panelRef = useRef<HTMLElement>(null);
   const closeExpanded = () => fullscreen ? onCollapse?.() : setExpanded(false);
   useEffect(() => { setPath(""); }, [scope]);
+  useEffect(() => { if (toolLog?.targetId && project.output.source === "console") setShowFiles(false); }, [toolLog?.targetId, toolLog?.revision, project.output.source]);
   useEffect(() => { if (activeOpenItemId) setShowFiles(false); }, [activeOpenItemId]);
   useEffect(() => {
     if (!showFiles || !workspaceScope) return;
@@ -93,7 +95,9 @@ export function OutputFrame({
     window.addEventListener("keydown", close);
     return () => { window.removeEventListener("keydown", close); previouslyFocused?.focus(); };
   }, [expanded, fullscreen]);
-  const artifact = [...viewModel.timeline].reverse().find((item): item is AgentUXArtifactTimelineItem => item.kind === "artifact");
+  const artifacts = toolLog ? workArtifacts(viewModel.timeline) : [];
+  const artifact: AgentUXArtifactTimelineItem | undefined = toolLog ? artifacts.at(-1)
+    : [...viewModel.timeline].reverse().find((item): item is AgentUXArtifactTimelineItem => item.kind === "artifact");
   const artifactRenderer = resolveArtifactRenderer(artifact, project.output.artifactRenderer);
   // A page being written shows here unless the user is looking at something else; once the
   // write succeeds, the file it watched opens as itself, scripts and all.
@@ -130,7 +134,7 @@ export function OutputFrame({
         aria-modal={fullscreen || undefined}
         aria-label={fullscreen ? c.files : undefined}
       >
-        <header className="utility-header output-header" aria-label={outputTitle(project.output.source, artifactRenderer, c)}>
+        <header className="utility-header output-header" aria-label={toolLog && project.output.source === "artifact" ? c.sourceArtifact : outputTitle(project.output.source, artifactRenderer, c)}>
           <div className="utility-header-leading">
             {onSourceChange ? (
               <OutputSourceSwitch source={project.output.source} copy={c} onChange={(source) => { setShowFiles(false); onSourceChange(source); }}
@@ -209,7 +213,9 @@ export function OutputFrame({
           activeOpenItemId={activeOpenItemId}
           onSelectOpenItem={onSelectOpenItem}
           onCloseOpenItem={onCloseOpenItem}
-          consoleEntries={consoleLogEntries(viewModel.timeline)}
+          tools={viewModel.timeline.filter((item) => item.kind === "tool")}
+          artifacts={artifacts}
+          onOpenArtifact={(item) => onOpenFile?.(outputPanelItemFromRenderedArtifact(item, project))}
           liveHtml={liveHtml}
         />}
       </section>

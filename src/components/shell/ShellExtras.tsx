@@ -87,6 +87,8 @@ export type ShellExtras = {
   messageBranch?: { canBranch: (messageId?: string) => boolean; run: (messageId: string, action: BranchAction) => Promise<void> };
   /** Layout switches may remount the transcript while the user is reading history. */
   transcriptScroll?: RefObject<TranscriptScroll | undefined>;
+  toolLog?: { targetId?: string; revision?: number; open(toolId: string): void };
+  runActive?: ReadonlySet<string>;
   workspaceScope?: AgentPresetId;
   /** The shared browser's live view in the Output panel (ADR-040); absent when the host has none. */
   browserPanel?: { selected: boolean; select(): void };

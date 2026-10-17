@@ -1,8 +1,11 @@
 import { Braces, Check, CircleAlert, Copy, FileCode2, FileText, PanelsTopLeft, TerminalSquare } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { ToolCallCard } from "../ToolCallCard";
+import { useShellExtras } from "../../shell/ShellExtras";
+import type { AgentUXToolTimelineItem } from "@agent-ux/render-core";
 import type { AgentUXArtifactTimelineItem } from "@agent-ux/render-core";
 
 import type { AgentFrontendProject, OutputSource } from "../../../schema/agentuxConfig";
-import type { ConsoleLogEntry } from "../../../runtime/toolDisplaySpec";
 import type { ConcreteArtifactRenderer, OutputFrameCopy } from "./types";
 import type { OutputPanelItem } from "./panelItem";
 import { outputItemRenderKind } from "./renderKind";
@@ -31,7 +34,7 @@ export function OutputContent({
   activeOpenItemId,
   onSelectOpenItem,
   onCloseOpenItem,
-  consoleEntries,
+  tools, artifacts, onOpenArtifact,
   liveHtml,
 }: {
   project: AgentFrontendProject;
@@ -39,7 +42,9 @@ export function OutputContent({
   artifact?: AgentUXArtifactTimelineItem;
   renderer: ConcreteArtifactRenderer;
   copy: OutputFrameCopy;
-  consoleEntries: readonly ConsoleLogEntry[];
+  tools: readonly AgentUXToolTimelineItem[];
+  artifacts: readonly AgentUXArtifactTimelineItem[];
+  onOpenArtifact: (item: AgentUXArtifactTimelineItem) => void;
   openItems: readonly OutputPanelItem[];
   activeOpenItemId?: string;
   onSelectOpenItem?: (id: string) => void;
@@ -52,7 +57,7 @@ export function OutputContent({
   const labels = useCopy().chat.message.actions;
   const feedback = clipboard.status === "copied" ? labels.copied : clipboard.status === "failed" ? labels.copyFailedText : undefined;
   if (source === "console") {
-    return <ConsoleOutput copy={copy} entries={consoleEntries} />;
+    return <ConsoleOutput copy={copy} tools={tools} project={project} />;
   }
 
   if (liveHtml) {
@@ -62,6 +67,10 @@ export function OutputContent({
       </div>
     );
   }
+
+  const artifactList = artifacts.length ? <ul className="workspace-file-list">{artifacts.map((item) => <li key={item.id}>
+    <button type="button" title={item.title} onClick={() => onOpenArtifact(item)}><FileText size={16} /><span>{(item.title ?? item.id).split("/").pop()}</span></button>
+  </li>)}</ul> : null;
 
   if (openItems.length > 0) {
     const active = openItems.find((item) => item.id === activeOpenItemId) ?? openItems[openItems.length - 1];
@@ -75,9 +84,15 @@ export function OutputContent({
             onCloseOpenItem={onCloseOpenItem}
           />
         ) : null}
+        {artifactList}
         <OpenedOutputItem item={active} copy={copy} />
       </div>
     );
+  }
+
+  if (artifacts.length) {
+    return <div className="artifact-content"><div className="artifact-title"><FileText size={16} /><span>{copy.sourceArtifact}</span></div>
+      {artifactList}</div>;
   }
 
   if (!artifact) {
@@ -178,29 +193,27 @@ export function OutputContent({
  * changed nothing recognisable and read as a dead control. A run with no shell commands now
  * says so instead of inventing a transcript.
  */
-function ConsoleOutput({
-  copy,
-  entries,
-}: {
+function ConsoleOutput({ copy, tools, project }: {
   copy: OutputFrameCopy;
-  entries: readonly ConsoleLogEntry[];
+  tools: readonly AgentUXToolTimelineItem[];
+  project: AgentFrontendProject;
 }) {
+  const { toolLog, onOpenFile } = useShellExtras();
+  const list = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const target = Array.from(list.current?.querySelectorAll<HTMLElement>("[data-log-tool]") ?? [])
+      .find((element) => element.dataset.logTool === toolLog?.targetId);
+    if (target && list.current) list.current.scrollTop += target.getBoundingClientRect().top - list.current.getBoundingClientRect().top;
+    target?.focus({ preventScroll: true });
+  }, [toolLog?.targetId, toolLog?.revision]);
   return (
-    <div className="artifact-content terminal-output">
-      <div className="artifact-title">
-        <TerminalSquare size={16} />
-        <span>{copy.consoleLogs}</span>
-        <code>{copy.consoleCode}</code>
-      </div>
-      {entries.length === 0 ? (
-        <p className="artifact-empty">{copy.emptyNoConsole}</p>
-      ) : (
-        <pre>
-          {entries
-            .map((entry) => `> ${entry.command}${entry.output ? `\n${entry.output}` : ""}`)
-            .join("\n")}
-        </pre>
-      )}
+    <div ref={list} className="artifact-content terminal-output">
+      <div className="artifact-title"><TerminalSquare size={16} /><span>{copy.consoleLogs}</span><code>{copy.consoleCode}</code></div>
+      {tools.length === 0 ? <p className="artifact-empty">{copy.emptyNoConsole}</p> : tools.map((tool) => (
+        <div key={tool.id} data-log-tool={tool.id} tabIndex={-1}>
+          <ToolCallCard key={tool.id === toolLog?.targetId ? toolLog.revision : undefined} project={{ ...project, toolCalls: { ...project.toolCalls, detail: "full" } }} tool={{ ...tool, open: tool.id === toolLog?.targetId || tool.open }} onOpenArtifact={onOpenFile} />
+        </div>
+      ))}
     </div>
   );
 }

@@ -938,3 +938,10 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 首次getBrowserState、SSE和控制/登录/选页响应共用同一个acceptState回调，统一controlEpoch过滤与页/帧更新。未在真实前端专门注入迟到HTTP响应；无UI结构变更。
 - 第5项保留：所有browser_press仍要求Snapshot ID。Tab/Escape也可能改变焦点、触发页面事件或关闭页面状态；保持统一跨快照/会话规则，三引擎已有实测，不因减少一次参数而另开旧快照通道。
 - 验证：真实service＋worker IPC相关15项通过；`npm test` **355/355通过、0跳过**；`npm run build`（tsc＋Vite）、`check:local`、`cloud-preview --check`与变更文件diff检查通过。未重跑真实账号登录、三引擎外部模型、云端Chrome＋Xvfb或端到端延迟基准；本轮未部署、推送或清理用户profile。
+
+## 2026-10-17 执行详情收拢与工作产物（ADR-043）
+
+- 自动化：toolSummary 覆盖浏览器/未知工具/文件修改终态收拢、保留审批、跨正文合成一条摘要、取消计数；workArtifacts 覆盖计划/源码/目录快照/未保存差异排除及同文件最新版本。最终 npm test 359/359、npm run build、check:local 通过；本轮 src/docs 的 git diff --check 通过。
+- UI：本机真实历史“查询 Playwright 仓库 star 数”的浏览器调用收成摘要，点击控制台可见原始输入与结果；“Agent组成图文详解”7次调用收成一条含失败计数的摘要，2条同路径 HTML artifact 只保留最新卡片与一个产物文件，点击按真实鉴权接口打开交互 HTML。控制台顶栏保留、内部内容滚动。390px 同一摘要可打开现有全屏 OutputFrame 控制台；未新增面板。
+- 内置18场景已通过 devtools 逐项切换；不是逐项交互/审批验收。真实新轮次尝试在模型调用前报 No API key for deepseek/deepseek-flash，因此没有完成真实流式稳定性、三引擎新任务或云端验收。未改凭据、模型、服务端或部署。
+- 产物发现限于已有 artifact 记录；Shell 命令写出的文件若没有 artifact 回执，仍由工作区文件入口打开。不递归扫描目录来伪造“生成”归属。
