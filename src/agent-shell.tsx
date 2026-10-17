@@ -130,7 +130,9 @@ import { artifactEventForReplay, refreshArtifactItems } from "./runtime/artifact
 import { displayTaskPlans } from "./runtime/taskPlan";
 import { historyFeedbackEvents, type HistoryNotice } from "./runtime/historyFeedback";
 import { hasComposerDraft, hasComposerState } from "./runtime/composerDraftStore";
-import { avatarActivity, runOutcomeFace, type RunOutcomeFace } from "./runtime/avatarActivity";
+import { avatarActivity, runOutcomeFace, workingGroupMember, type RunOutcomeFace } from "./runtime/avatarActivity";
+import type { AvatarState } from "./avatars/avatarMotion";
+import { composerActivityCopy } from "./i18n/copy/composerActivity";
 import { GroupFace } from "./avatars/GroupFace";
 import { lastRunOutcome, nextQueueStep, queuedPrompt, type QueuedMessage } from "./runtime/followUpQueue";
 import { useComposerDrafts } from "./runtime/useComposerDrafts";
@@ -189,6 +191,8 @@ export function AgentApp() {
   const copy = useCopy();
   const frameRef = useRef<HTMLDivElement>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
+  // Visual-only control beside the existing event fixtures; never drives a real run.
+  const [activityPreview, setActivityPreview] = useState<AvatarState | "">("");
   /** Phones: the sidebar (agents, history, settings) lives in a drawer opened from the top left. */
   const [drawerOpen, setDrawerOpen] = useState(false);
   // Closed until asked for, matching the configurator: a run with nothing to show should not
@@ -330,8 +334,12 @@ export function AgentApp() {
   const isWelcome = displayViewModel.timeline.length === 0;
 
   const activeProject = useMemo(
-    () => ({ ...configuredProject, output: { ...configuredProject.output, source: outputSource } }),
-    [configuredProject, outputSource],
+    () => ({ ...configuredProject, output: { ...configuredProject.output, source: outputSource },
+      conversation: streamId && !activityPreview ? configuredProject.conversation : {
+        ...configuredProject.conversation, agentAvatar: false, userAvatar: false, speakerLabels: false,
+      },
+    }),
+    [configuredProject, outputSource, streamId, activityPreview],
   );
   /** IM chats run on the default model service; its definition (never a key) is saved with them. */
   const channelModel = useMemo(() => {
@@ -1339,7 +1347,19 @@ export function AgentApp() {
     permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
     budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
   } satisfies ComposerRunOptions;
+  const workingMember = activePiConversationId.startsWith("group_") ? workingGroupMember(events) : undefined;
   const shellExtras: ShellExtras = {
+    composerActivity: activityPreview ? {
+      scope: `preview:${activePiConversationId}`,
+      persona: activityPreview === "idle" ? undefined : { ...persona, state: activityPreview },
+    } : streamId ? undefined : {
+      scope: activePiConversationId,
+      persona: piRunning ? {
+        ...persona,
+        ...(workingMember ? { kind: PRESET_AVATARS[workingMember], name: copy.composer.agentSettings.presets[workingMember].name } : {}),
+        state: groupTyping && persona.state !== "asking" ? "thinking" : persona.state,
+      } : undefined,
+    },
     runActive: streamId ? undefined : new Set(piRunning ? displayViewModel.timeline.slice(
       displayViewModel.timeline.map((item) => item.kind === "message" && item.role === "user").lastIndexOf(true) + 1,
     ).map((item) => item.id) : []),
@@ -1621,6 +1641,15 @@ export function AgentApp() {
               ...streams.map((item) => ({ value: item.id, label: item.label })),
             ]}
           />
+          <select aria-label="工作头像预览" value={activityPreview}
+            style={{ maxWidth: 112, fontSize: 12, color: "var(--text-secondary)", background: "var(--surface-panel)" }}
+            onChange={(event) => setActivityPreview(event.target.value as AvatarState | "")}>
+            <option value="">工作头像预览</option>
+            {(["thinking", "reading", "editing", "working", "writing", "asking"] as const).map((state) => (
+              <option key={state} value={state}>{composerActivityCopy[locale][state]}</option>
+            ))}
+            <option value="idle">结束 / 停止</option>
+          </select>
         </div>
       ) : null}
     </div>

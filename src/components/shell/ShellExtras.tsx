@@ -5,7 +5,7 @@ import type { TranscriptScroll } from "../../runtime/useTranscriptScroll";
 import type { BranchAction } from "../../runtime/useMessageBranch";
 import type { ConversationSearch, SearchSession } from "../../runtime/useConversationSearch";
 
-import { AgentAvatar, type AvatarKind } from "../../avatars/AgentPersona";
+import { AgentAvatar, type AgentPersona, type AvatarKind } from "../../avatars/AgentPersona";
 import { GroupFace } from "../../avatars/GroupFace";
 import { useCopy, useLocale } from "../../i18n/LocaleContext";
 import { settingsCopy } from "../../i18n/copy/settings";
@@ -63,6 +63,8 @@ export type ShellExtras = {
   transcriptTarget?: { textId: string; nonce: string };
   /** Composer placeholder naming the current agent. */
   composerPlaceholder?: string;
+  /** Live work above the input; an empty persona leaves a stable, quiet gap after completion. */
+  composerActivity?: { scope: string; persona?: AgentPersona };
   /** Group chat: members the composer offers after "@", in group order. */
   composerMentions?: readonly { id: AgentPresetId; name: string; kind: AvatarKind }[];
   /** The shell keeps each conversation's files and draft across layout remounts. */

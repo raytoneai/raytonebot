@@ -1,5 +1,7 @@
 import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, ListPlus, MessageSquareText, Mic, Paperclip, Pencil, Plus, Rocket, Search, Send, ShieldCheck, ShieldHalf, ShieldOff, Sparkles, Square, X } from "lucide-react";
-import { AgentAvatar } from "../../avatars/AgentPersona";
+import { AgentAvatar, AgentPersonaProvider } from "../../avatars/AgentPersona";
+import { AnimatePresence, motion, useReducedMotion } from "motion/react";
+import { composerActivityCopy } from "../../i18n/copy/composerActivity";
 import { useShellExtras } from "../shell/ShellExtras";
 import { applyMention, mentionMatches, mentionQuery } from "../../runtime/mentionCompletion";
 import { createQueueEntrance, queueRowEnters, queueSeen, type QueueEntrance } from "../../runtime/queueEntrance";
@@ -136,7 +138,12 @@ export function ComposerFrame({
   const copy = useCopy();
   const { locale } = useLocale();
   const steerLabel = locale === "zh" ? "调整当前任务" : locale === "ja" ? "現在のタスクを調整" : "Adjust current task";
-  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions } = useShellExtras();
+  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity } = useShellExtras();
+  const reduceMotion = useReducedMotion();
+  const workingPersona = composerActivity?.persona;
+  const activityCopy = composerActivityCopy[locale];
+  const activityState = stopStatus === "pending" ? "stopping" : workingPersona?.state ?? "thinking";
+  const activityLabel = activityState in activityCopy ? activityCopy[activityState as keyof typeof activityCopy] : activityCopy.thinking;
   const promptShortcuts = [
     { label: copy.composer.frame.shortcuts.inspectFiles, Icon: Search },
     { label: copy.composer.frame.shortcuts.fixTest, Icon: Bug },
@@ -400,12 +407,36 @@ export function ComposerFrame({
       data-has-tools-after-upload={hasToolsAfterUpload ? "true" : "false"}
       onSubmit={submit}
     >
-      {isWelcome && welcomeGroup ? welcomeGroup : isWelcome && welcomeGreeting ? (
+      {isWelcome && !workingPersona && welcomeGroup ? welcomeGroup : isWelcome && !workingPersona && welcomeGreeting ? (
         <div className="composer-greeting">
           <span className="composer-greeting-avatar" aria-hidden="true">
             <AgentAvatar size={76} live interactive fallback={<StateIcon slot="author.agent" size={40} />} />
           </span>
           <h2 className="composer-greeting-text">{welcomeGreeting}</h2>
+        </div>
+      ) : null}
+      {composerActivity && (!isWelcome || workingPersona) ? (
+        <div className="composer-activity-slot" key={composerActivity.scope}>
+          <AnimatePresence>
+            {workingPersona ? (
+              <motion.div className="composer-activity" key="working" data-state={activityState}
+                initial={{ opacity: 0, transform: reduceMotion ? "none" : "translateY(6px)" }}
+                animate={{ opacity: 1, transform: reduceMotion ? "none" : "translateY(0px)" }}
+                exit={{ opacity: 0, transform: reduceMotion ? "none" : "translateY(6px)" }}
+                transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}>
+                <AgentPersonaProvider persona={workingPersona}>
+                  <span className="composer-activity-face" aria-hidden="true">
+                    <AgentAvatar size={42} live />
+                    <span className="composer-activity-bubbles"><i /><i /><i /></span>
+                  </span>
+                </AgentPersonaProvider>
+                <span className="composer-activity-caption" role="status">
+                  <span className="composer-activity-name">{workingPersona.name}</span>
+                  <span>{activityLabel}</span>
+                </span>
+              </motion.div>
+            ) : null}
+          </AnimatePresence>
         </div>
       ) : null}
       {project.composer.promptShortcuts ? (

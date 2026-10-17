@@ -15,10 +15,13 @@ export function ReasoningBlock({
   project,
   reasoning,
   showDebugBadges = false,
+  statusElsewhere = false,
 }: {
   project: AgentFrontendProject;
   reasoning: AgentUXReasoningTimelineItem;
   showDebugBadges?: boolean;
+  /** The composer owns live activity; keep this block only when it has readable content. */
+  statusElsewhere?: boolean;
 }) {
   const copy = useCopy();
   const running = reasoning.status !== "done";
@@ -57,8 +60,8 @@ export function ReasoningBlock({
     );
   }, [reasoning.id, desiredOpen]);
 
-  // Like Grok Bot: thinking shows while it happens; once done, a label with nothing behind it goes.
-  const hidden = !running && !canShowSummary && project.reasoning.whenDone === "hide";
+  // A status-only block duplicates the composer's work indicator. Actual summaries remain.
+  const hidden = !canShowSummary && (statusElsewhere || (!running && project.reasoning.whenDone === "hide"));
 
   function toggleOpen() {
     if (!canToggleSummary) {

@@ -6270,6 +6270,62 @@ pre {
   box-shadow: none;
 }
 
+/* The work indicator has a stable home: streaming and finishing never move the input.
+   Its 42px face matches the agent switcher; only the small bubbles travel upwards. */
+.composer-activity-slot {
+  height: 50px;
+  display: flex;
+  align-items: center;
+}
+.composer-activity {
+  display: inline-flex;
+  align-items: center;
+  gap: 15px;
+  pointer-events: none;
+}
+.composer-activity-face {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 42px;
+}
+.composer-activity-bubbles {
+  position: absolute;
+  top: 2px;
+  right: -5px;
+  width: 15px;
+  height: 24px;
+  color: var(--text-muted);
+}
+.composer-activity-bubbles i {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  /* Continuous state indication, deliberately slower than the 180ms entrance/exit. */
+  animation: composer-work-bubble 1.8s linear infinite;
+}
+.composer-activity-bubbles i:nth-child(2) { left: 6px; animation-delay: -0.6s; }
+.composer-activity-bubbles i:nth-child(3) { left: 2px; animation-delay: -1.2s; }
+.composer-activity-caption { display: flex; align-items: baseline; gap: 8px; font-size: 12px; color: var(--text-muted); }
+.composer-activity-name { color: var(--text-secondary); font-weight: 500; }
+.composer-activity:is([data-state="asking"], [data-state="stopping"]) .composer-activity-bubbles { visibility: hidden; }
+.composer-activity:is([data-state="asking"], [data-state="stopping"]) .composer-activity-bubbles i { animation: none; }
+@keyframes composer-work-bubble {
+  0% { opacity: 0; transform: translateY(0); }
+  20% { opacity: 0.6; }
+  80% { opacity: 0.3; }
+  100% { opacity: 0; transform: translateY(-20px); }
+}
+@media (prefers-reduced-motion: reduce) {
+  .composer-activity-bubbles i { animation: none; opacity: 0.4; }
+  .composer-activity-bubbles i:nth-child(2) { transform: translateY(-6px); }
+  .composer-activity-bubbles i:nth-child(3) { transform: translateY(-12px); }
+}
+
 /* One unified input field: attachments + textarea + toolbar share a shell. */
 .composer-shell {
   display: grid;

@@ -2,11 +2,24 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AgentUXTimelineItem } from "@agent-ux/render-core";
 import type { AgentUXEvent } from "@agent-ux/protocol";
-import { avatarActivity, runOutcomeFace } from "./avatarActivity.ts";
+import { avatarActivity, runOutcomeFace, workingGroupMember } from "./avatarActivity.ts";
 
 const base = { running: false, awaitingUser: false, drafting: false, timeline: [] as AgentUXTimelineItem[] };
 const tool = (status: string, name = "bash"): AgentUXTimelineItem => ({ kind: "tool", id: "t", name, status });
 const answer = (text: string): AgentUXTimelineItem => ({ kind: "message", id: "m", role: "assistant", text });
+
+test("the work indicator keeps the current group member through output and clears at turn boundaries", () => {
+  const event = (type: string, payload: object = {}) => ({ type, runId: "r", payload }) as unknown as AgentUXEvent;
+  const events = [event("run.started"), event("group.member.started", { member: "planner" }), event("text.delta", { delta: "Hello" })];
+  assert.equal(workingGroupMember(events), "planner");
+  assert.equal(workingGroupMember([...events, event("group.member.started", { member: "builder" }), event("tool.call.started")]), "builder");
+  for (const terminal of ["run.finished", "run.error", "run.started"]) {
+    assert.equal(workingGroupMember([...events, event(terminal)]), undefined);
+  }
+  assert.equal(workingGroupMember([event("group.member.started", { member: "unknown" })]), undefined);
+  assert.equal(workingGroupMember([{ type: "group.member.started" } as unknown as AgentUXEvent]), undefined);
+  assert.equal(workingGroupMember([]), undefined);
+});
 
 test("a run shows what it is busy with", () => {
   assert.equal(avatarActivity({ ...base, running: true }), "thinking");

@@ -66,7 +66,7 @@ export function ChatFrame({
   const copy = useCopy();
   const promptHistory = previewPrompts?.filter((prompt) => prompt.trim().length > 0);
 
-  const { headerAgent, transcriptScroll, transcriptTarget, groupTyping } = useShellExtras();
+  const { headerAgent, transcriptScroll, transcriptTarget, groupTyping, composerActivity } = useShellExtras();
   const listRef = useTranscriptScroll(viewModel.timeline, transcriptScroll, transcriptTarget);
   return (
     <section
@@ -100,7 +100,7 @@ export function ChatFrame({
             onApprovalDecision,
           )
         )}
-        {groupTyping ? <GroupTypingRow member={groupTyping} /> : null}
+        {groupTyping && !composerActivity ? <GroupTypingRow member={groupTyping} /> : null}
       </div>
     </section>
   );
@@ -421,6 +421,7 @@ function TimelineItem({
   const copy = useCopy();
   const { iconSet } = useIconSet();
   const persona = useAgentPersona();
+  const { composerActivity } = useShellExtras();
   switch (item.kind) {
     case "message": {
       const isAssistant = item.role === "assistant";
@@ -442,7 +443,7 @@ function TimelineItem({
       );
     }
     case "reasoning":
-      return <ReasoningBlock project={project} reasoning={item} showDebugBadges={showDebugBadges} />;
+      return <ReasoningBlock project={project} reasoning={item} showDebugBadges={showDebugBadges} statusElsewhere={Boolean(composerActivity)} />;
     case "tool":
       if (isMediaGenerationTool(item)) {
         return null;
