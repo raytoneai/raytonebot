@@ -176,8 +176,9 @@ export function createPiRuntimeController(options: {
   const store = options.store ?? createConversationStore(dataDir);
   const limits = options.limits ?? runLimits();
   const log = runtimeLogger(dataDir);
-  /** `runPrompt` has its own `options`; the memory service is read through this name. */
+  /** `runPrompt` has its own `options`; services are read through these names. */
   const memory = options.memory;
+  const browser = options.browser;
   const startedAt = Date.now();
   // A turn still open on disk was cut off when the last process ended (restart, crash, redeploy).
   // It is closed as interrupted and never replayed: replaying could repeat writes or outward calls.
@@ -858,7 +859,8 @@ export function createPiRuntimeController(options: {
         opened = true;
         if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
         const memoryNote = memory?.noteFor(conversationId);
-        const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), options?.groupConversation), unseenPrompts(conversationId, harness))}${memoryNote ? `\n\n${memoryNote}` : ""}`, input.locale);
+        const browserNote = browser?.contextNote();
+        const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]), options?.groupConversation), unseenPrompts(conversationId, harness))}${memoryNote ? `\n\n${memoryNote}` : ""}${browserNote ? `\n\n${browserNote}` : ""}`, input.locale);
         store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt,
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, modelPrompt);

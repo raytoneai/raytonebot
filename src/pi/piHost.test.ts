@@ -5,6 +5,38 @@ import { join } from "node:path";
 import { test } from "node:test";
 
 import { createPiRuntimeController, type PiBridgeFactory } from "./piHost.ts";
+import { createBrowserService } from "./browser/browserService.ts";
+
+test("each model turn receives fresh account context without persisting it as the user's message", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-account-context-"));
+  writeFileSync(join(dataDir, "browser.json"), JSON.stringify({ loggedIn: ["https://accounts.google.com"] }));
+  const browser = createBrowserService({ dataDir, executable: "/unused-test-chrome" });
+  const prompts: string[] = [];
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, browser, bridgeFactory: async () => {
+    return {
+      subscribe: () => () => undefined,
+      prompt: async text => { prompts.push(text); },
+      abort: async () => undefined, dispose() {}, configure: async () => undefined,
+      state: async () => ({ models: [], tools: [] }) as never, newSession: async () => undefined,
+    };
+  } });
+  try {
+    await controller.runPrompt({ conversationId: "accounts", requestId: "first", prompt: "What accounts can you use?" }, () => {});
+    assert.match(prompts[0], /Browser account context from RaytoneBot/);
+    assert.match(prompts[0], /"service":"Google"/);
+    assert.match(prompts[0], /"status":"unverified"/);
+    assert.ok(!JSON.stringify(controller.getConversation("accounts")?.events).includes("Browser account context from RaytoneBot"));
+    await browser.clearLogins();
+    await controller.runPrompt({ conversationId: "accounts", requestId: "second", prompt: "Check again" }, () => {});
+    assert.match(prompts[1], /"accounts":\[\]/);
+    assert.ok(!prompts[1].includes('"service":"Google"'));
+    assert.equal(browser.view().running, false, "prompt context never launches Chrome");
+  } finally {
+    controller.dispose();
+    await browser.stop();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
 
 /** A Pi session that runs until released, aborted, or (optionally) answered on a write approval. */
 function fakeBridges() {

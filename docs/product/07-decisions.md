@@ -294,6 +294,7 @@
 
 - **用户决定（2026-10-13）**：只接管浏览器画面，不做整台电脑；运行环境是沙箱；登录状态与其他数据一样进备份并随恢复迁移；只读操作不审批；允许下载，危险操作弹窗审批；点掉 cookie 横幅需要确认；下载上限每个文件 100 MiB、每个会话 500 MiB；驱动用 Playwright 独立进程（不用 agent-browser）。依据见 `docs/headless-browser-research.md`。
 - **决定**：Chromium headless shell 跑在单独的 `raytone-browser` UID，出站只能经 bot 内一个检查公网地址、仅 80/443 的回环代理（复用 `webAccess.ts` 的地址检查；关闭 QUIC 与非代理 WebRTC）。bot 只在浏览器使用期间启动一个 Playwright worker 进程，经 `connectOverCDP` 连接；页面快照用 `ariaSnapshot`，实时画面用 CDP screencast，经现有已鉴权的 HTTP 路由以 SSE 推给 Output 面板，面板不可见时停止推流。人工接管与交还复用 `chatframe/approval.tsx`。浏览器工具按 ADR-034 的主机工具通道交给三个引擎。
+- **账号发现补充（2026-10-17）**：采用每轮动态主机上下文＋只读 `browser_accounts`，不维护会过时的账号 skill。沿用接管记录和审批域组，只列候选站点与建议用途，统一标记未验证；登录有效性由当前相关页面判断，登出不自动删除审批风险记录。清除后立即反映新清单；历史记录不授予任务权限，说明不是新的服务端安全闸门，不改变原只读/写入审批语义。
 - **审批**：沿用现有分类，由服务端快照判断，不信模型给的标签。`read`：打开网址、快照、截图、滚动、读文字。`mutating`：普通点击/输入、GET 搜索表单、普通下载（存工作区 `downloads/`，去掉可执行位）。`connector`：在用户接管登录过的站点上的写操作，可按站点「总是允许」。`outward`（每次询问、不能总是允许）：POST 提交；发送/支付/购买/删除/同意类按钮；cookie 横幅；上传工作区文件；确认网页弹窗；可执行文件或超限下载。`secret`（拒绝）：向密码、验证码、卡号字段输入；读取或导出 cookie 与配置；执行任意 JavaScript。
 - **备份**：浏览器配置加入 `backup_data.py` 的 `DATA_PATHS`（排除缓存），以 `--password-store=basic` 启动以便新实例能解密；备份前停止浏览器。备份因此包含网站登录凭据，记入 `issue.md`。
 - **待验证（`scripts/agentsphere/browser_poc.py`，临时沙箱）**：安装体积、Chrome 自带沙箱能否在该内核启动（否则 `--no-sandbox`，隔离只靠 UID 与防火墙）、空闲与真实页面的 RSS/PSS、screencast 帧率与 CPU、下载落盘、配置体积、磁盘配额（以平台 `cpuCount`/`memoryMB`/`diskSizeMB` 为准，`free`/`df` 只作参考）。它不登录、不备份恢复（配置体积只是访问两个公开页面后的值），也不配置出站代理与防火墙，因此不验证隔离方案；隔离在实现阶段另做验收。

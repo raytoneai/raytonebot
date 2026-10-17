@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync } from "node:fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { execFileSync } from "node:child_process";
 import { createServer, request, type Server } from "node:http";
 import { connect } from "node:net";
@@ -9,6 +9,7 @@ import { test } from "node:test";
 
 import { browserLoginUrl, ENRICH_LIMIT, classifyBrowserCall, elementSubmitFacts, enrichmentPlan } from "./browserPolicy.ts";
 import { createBrowserService, findHeadlessShell } from "./browserService.ts";
+import { BROWSER_TOOL_SPECS, browserAccountNote } from "./browserTools.ts";
 import { PiApprovalGate } from "../approvalGate.ts";
 import { ApprovalMemory } from "../approvalMemory.ts";
 import { startEgressProxy } from "./egressProxy.ts";
@@ -31,7 +32,7 @@ test("browser actions are judged from the host's snapshot, never the model's lab
     e10: { role: "button", name: "立即支付" },
   };
   const kind = (name: string, args: object, extra?: object) => classifyBrowserCall(name, args, context(elements, extra))?.kind;
-  for (const name of ["browser_open", "browser_snapshot", "browser_scroll", "browser_back", "browser_request_takeover"]) assert.equal(kind(name, {}), "read", name);
+  for (const name of ["browser_accounts", "browser_open", "browser_snapshot", "browser_scroll", "browser_back", "browser_request_takeover"]) assert.equal(kind(name, {}), "read", name);
   assert.equal(kind("browser_click", { ref: "e1", element: "Delete account" }), "mutating", "the model's description does not count");
   assert.equal(kind("browser_click", { ref: "e2" }), "outward");
   assert.equal(kind("browser_click", { ref: "e3" }), "outward", "cookie banners ask");
@@ -242,6 +243,56 @@ test("a download never follows a link out of the workspace, and only a folder th
 
 const shell = findHeadlessShell();
 
+test("account discovery groups related sites without claiming an active login or revealing URL data", () => {
+  const note = browserAccountNote(new Set([
+    "https://accounts.google.com/", "https://www.youtube.com/", "https://www.reddit.com/",
+    "https://x.com/", "https://twitter.com/", "https://github.com/", "https://icloud.com/",
+    "https://user:secret@tenant.example.co.uk/private?token=private-token", "file:///private", "invalid",
+    "https://one.github.io/", "https://two.github.io/",
+  ]), { controller: "user", clearing: false });
+  const data = JSON.parse(note.split("\n")[1]);
+  assert.equal(data.controller, "user");
+  assert.equal(data.accounts.length, 8);
+  const google = data.accounts.find((a: { scope: string }) => a.scope === "google.com");
+  assert.equal(google.service, "Google");
+  assert.equal(google.status, "unverified", "takeover records survive sign-out; never report them as logged in");
+  assert.deepEqual(google.origins, ["https://accounts.google.com", "https://www.youtube.com"]);
+  assert.equal(data.accounts.filter((a: { scope: string }) => a.scope === "x.com").length, 1);
+  assert.ok(!/secret|private-token|\/private\?/.test(note));
+  assert.match(note, /may have signed out/);
+  assert.match(note, /Only access private content the user requested/);
+  assert.match(note, /browser_request_takeover/);
+  assert.match(note, /Existing approval rules still apply/);
+});
+
+test("account discovery reads current host records without starting Chrome, and clears immediately", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-browser-accounts-"));
+  writeFileSync(join(dataDir, "browser.json"), JSON.stringify({ loggedIn: ["https://accounts.google.com"] }));
+  const service = createBrowserService({ dataDir, executable: "/unused-test-chrome" });
+  const tools = service.toolsFor({ conversationId: "c", agent: "assistant", saveDownload: async () => "", ask: async () => null })!;
+  try {
+    assert.ok(BROWSER_TOOL_SPECS.some(spec => spec.name === "browser_accounts"));
+    const found = await tools.run("browser_accounts", {});
+    assert.equal(found.isError, false);
+    assert.equal(service.classify("browser_accounts", {})?.kind, "read");
+    assert.match(found.text, /"service":"Google"/);
+    assert.match(found.text, /"status":"unverified"/);
+    assert.equal(service.view().running, false);
+    assert.equal(found.text, service.contextNote());
+    await service.stop();
+    assert.match(service.contextNote(), /"service":"Google"/, "normal close retains the candidate");
+    await service.clearLogins();
+    assert.match((await tools.run("browser_accounts", {})).text, /"accounts":\[\]/);
+    assert.match(service.contextNote(), /"accounts":\[\]/);
+    assert.equal(service.view().running, false);
+    const absent = createBrowserService({ dataDir, executable: "" });
+    assert.equal(absent.contextNote(), "", "no misleading browser capability when unavailable");
+  } finally {
+    await service.stop();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("a stopped turn never runs the browser action it queued", async () => {
   const dataDir = mkdtempSync(join(tmpdir(), "rtb-browser-cancel-"));
   // The install is irrelevant: the action must be refused before the browser is even started.
@@ -336,6 +387,7 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
     await service.takeover(`http://127.0.0.1:${port}/login`);
     assert.equal(service.view().url, `http://127.0.0.1:${port}/login`, "login shortcut navigates the remote browser");
     assert.equal(service.view().controller, "user");
+    assert.match((await tools.run("browser_accounts", {})).text, /"controller":"user"/, "discovery is available during takeover");
     assert.match((await tools.run("browser_snapshot", {})).text, /user is controlling/);
     // The user's own clicks and text from the live view reach the page.
     await service.input({ kind: "mouse", type: "down", x: 50, y: 20, button: "left" });
@@ -344,6 +396,7 @@ test("a real browser: snapshot refs, secret fields refused, takeover, per-site s
     await service.input({ kind: "key", type: "down", key: "Backspace" });
     await service.input({ kind: "key", type: "up", key: "Backspace" });
     service.release();
+    assert.ok((await tools.run("browser_accounts", {})).text.includes(`http://127.0.0.1:${port}`), "release refreshes account candidates for tools already held by an engine");
     assert.equal(service.view().controller, "agent");
     const again = await tools.run("browser_snapshot", {});
     assert.match(again.text, /textbox "Pinned"[^\n]*: 用户输/, again.text.slice(0, 400));

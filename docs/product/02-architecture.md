@@ -243,3 +243,5 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 浏览器关联审批与 headed 试验（2026-10-17）：`browser.json` 保留原 origin，无需迁移；`browserPolicy.ts` 通过 PSL/private suffix 与显式账号域组识别关联登录风险，具体授权仍按 origin。测试部署的 `--headed-browser` 设置 `RAYTONEBOT_BROWSER_HEADED=1`、完整 Chromium 路径；服务端启动前缀加入私有 `xvfb-run`，worker/CDP/SSE/输出面板不换接口。普通部署仍用 headless shell，Linux 浏览器停止时原有 UID 清理同时覆盖 Xvfb。
 
 远端输入（2026-10-17）：`/browser/input` 同时接受旧 `{input}` 与新 `{inputs:[...]}`，每批最多 64 项，整批先校验再依序执行，仍要求用户接管。前端单批在途、16ms 聚合；合并未发送的连续鼠标移动/文字/滚轮，保留按下/松开/键事件顺序，失败不自动重放；交还/关闭/离开视图清空未发送队列。截图绝对定位于画面容器，坐标使用图片实际矩形与留白换算，指针捕获避免松开事件丢失。
+
+浏览器账号发现（2026-10-17）：Pi / Claude Code / Codex 每轮共用的模型上下文追加主机生成的浏览器说明，新增只读 `browser_accounts` 工具可在轮内刷新。数据来自既有 `browser.json.loggedIn`，使用与审批相同的 PSL/private suffix 和账号域组去重，输出站点、用途示例与 `unverified` 状态；不读取 cookie、账号身份或私有页面，不启动浏览器。记录只说明曾在用户接管期间访问，不能证明登录成功或仍有效；用户可能退出、切换账号或会话过期。Agent 使用相关会话前检查当前页面，需要登录时走原接管工具；清除后新上下文/工具结果为空，普通关闭保留候选。此说明不授予权限，也不改变服务端审批；私有内容仅在用户明确请求的任务内读取。没有新 HTTP 接口、设置页或静态 skill 文件。

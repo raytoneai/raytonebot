@@ -900,3 +900,12 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 测试实例 `ibcqzra87czygjo4qxr1n` 已更新；部署最后公网检查遇临时TLS EOF，随后独立9项鉴权/健康/工作区/批输入校验全过，源码和构建文件与本机SHA-256核对一致。
 - 通过用户已认证Chrome页驱动真实远端无账号输入页：点击输入框、键入remote-input-ok、点击按钮，远端DOM断言文字准确与按钮响应成功；7个输入事件合为2个请求，响应约388/400ms。截图 `output/browser-login/input-fixed.png`。profile未清理，测试完成恢复Google登录页与user控制。
 - 预览stream会跳过真实browser/state，不能作为稳定的登录接管入口。本轮在测试实例写入一条明确标注“主机诊断记录（未调用模型）”的会话，只用于打开现有Output，未调用模型、未导入src fixture作为产品数据。
+
+
+### 2026-10-17 浏览器账号发现验收
+
+- 每轮公共模型上下文注入动态候选站点及用途，`browser_accounts` 可轮内刷新；Pi、Claude Code、Codex 共用原主机工具通道。清单按审批的账号域组/PSL 去重，不读取 cookie、身份或私有页面，不启动浏览器；全部候选标记 `unverified`。
+- 本机：334项 Node 测试、build（含 tsc）、check:local、cloud-preview --check 全部通过。新增覆盖域组/私有后缀分离、URL 凭据及查询不入模型上下文、保留/清除、接管中查询、未安装浏览器不注入能力、每轮刷新且不污染用户消息；既有浏览器审批回归通过。
+- 独立测试实例 `ibcqzra87czygjo4qxr1n`：三引擎真实 DeepSeek 均调用 `browser_accounts`，读取到用户退出/清理后的空清单，并明确历史记录不证明有效登录；Raer 另调用 `browser_open` 只读 Google 首页，通过 `Sign in` 入口确认已登出，未进入私人服务、登录或请求接管。云部署最终公网检查遇到 TLS EOF，随后独立复核9项公网鉴权/健康/输入校验和已部署文件哈希；模型任务成功。
+- 前置实测：用户亲手登录 Google 后，Raer 真实调用 `browser_open` / `browser_snapshot` 搜索“Python pathlib 官方文档”，结果含 docs.python.org，开发验收只读确认搜索页有已登录账号入口并截图；用户之后主动退出。该证据仅证明当时搜索链路可用，不证明长期会话或其他服务。
+- 本轮不改 UI、备份格式或审批强度；账号指导是模型使用说明，不是新增的服务端权限控制。未改生产、未推送；未验证 GitHub/Reddit/X/Apple 真实账号登录，未验证长期/跨实例登录有效性。

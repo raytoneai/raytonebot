@@ -8,7 +8,7 @@ import type { HostTools } from "../memories.ts";
 import { agentIsolationEnabled, requireAgentIsolation } from "../runtime/agentProcess.ts";
 import type { UserQuestion } from "../../runtime/userInput.ts";
 import type { AgentPresetId } from "../harnessCatalog.ts";
-import { BROWSER_TOOL_SPECS } from "./browserTools.ts";
+import { BROWSER_TOOL_SPECS, browserAccountNote } from "./browserTools.ts";
 import { classifyBrowserCall } from "./browserPolicy.ts";
 import type { BrowserElement, BrowserInput, BrowserLaunch, BrowserPageSummary, BrowserRequest, BrowserViewState, BrowserWorkerMessage } from "./browserProtocol.ts";
 import { startEgressProxy, type EgressProxy } from "./egressProxy.ts";
@@ -291,8 +291,12 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     return [`URL: ${summary.url}`, `Title: ${summary.title}`, ...summary.notes, ...notes.splice(0), "", part + more].join("\n");
   };
 
+  const accountNote = () => browserAccountNote(loggedIn, { controller: state.controller, clearing });
+
   return {
     view: (): BrowserViewState => ({ ...state }),
+    /** Fresh host context for every engine/turn; never includes cookie values or account identities. */
+    contextNote: () => executable ? accountNote() : "",
 
     /** The approval class of a browser call from the host's own snapshot (policy hook). */
     classify: (name: string, args: unknown) => classifyBrowserCall(name, args, { elements, origin: origin(), loggedIn, focused: elements[focusedRef() ?? ""] }),
@@ -306,6 +310,10 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
           currentSave = context.saveDownload;
           try {
             switch (name) {
+              case "browser_accounts": {
+                signal?.throwIfAborted();
+                return { text: accountNote(), isError: false };
+              }
               case "browser_open": return { text: describe(await act({ op: "open", url: String(input.url ?? "") }, signal) as BrowserPageSummary, SNAPSHOT_CHARS), isError: false };
               case "browser_snapshot": {
                 const offset = Number.isInteger(input.offset) && (input.offset as number) > 0 ? input.offset as number : 0;

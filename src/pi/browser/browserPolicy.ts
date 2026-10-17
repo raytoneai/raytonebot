@@ -15,9 +15,9 @@ import type { BrowserElement } from "./browserProtocol.ts";
  * - secret: typing into a password, one-time-code or card field. Refused; the user types it.
  */
 
-export const BROWSER_TOOL_NAMES = ["browser_open", "browser_snapshot", "browser_click", "browser_type", "browser_press", "browser_scroll", "browser_back", "browser_request_takeover"] as const;
+export const BROWSER_TOOL_NAMES = ["browser_accounts", "browser_open", "browser_snapshot", "browser_click", "browser_type", "browser_press", "browser_scroll", "browser_back", "browser_request_takeover"] as const;
 
-const READ = new Set(["browser_open", "browser_snapshot", "browser_scroll", "browser_back", "browser_request_takeover"]);
+const READ = new Set(["browser_accounts", "browser_open", "browser_snapshot", "browser_scroll", "browser_back", "browser_request_takeover"]);
 const LASTING = /\b(send|pay|buy|purchase|order|checkout|delete|remove|agree|accept|confirm|subscribe|unsubscribe|publish|post|transfer|donate|sign ?up|register|book|reserve)\b|发送|支付|付款|购买|下单|结算|删除|移除|同意|接受|确认|订阅|发布|转账|注册|预订|预约|提交订单/i;
 const COOKIES = /cookie|cookies|全部接受|接受全部|接受所有/i;
 
@@ -142,7 +142,7 @@ const ACCOUNT_FAMILIES = [
   ["x.com", "twitter.com"],
   ["apple.com", "icloud.com"],
 ];
-function loginScope(origin: string): string | undefined {
+export function browserAccountScope(origin: string): string | undefined {
   try {
     const url = new URL(origin);
     if (url.protocol !== "https:" && url.protocol !== "http:") return undefined;
@@ -152,8 +152,8 @@ function loginScope(origin: string): string | undefined {
   } catch { return undefined; }
 }
 function hasRelatedLogin(origin: string, loggedIn: ReadonlySet<string>): boolean {
-  const scope = loginScope(origin);
-  return scope !== undefined && [...loggedIn].some((site) => loginScope(site) === scope);
+  const scope = browserAccountScope(origin);
+  return scope !== undefined && [...loggedIn].some((site) => browserAccountScope(site) === scope);
 }
 
 /** User-selected login destinations still pass through the browser's network proxy. */
