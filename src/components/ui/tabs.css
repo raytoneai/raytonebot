@@ -48,12 +48,12 @@
 
 .ui-tabs__trigger[data-state="active"] {
   background: var(--surface-panel);
-  color: var(--accent);
+  color: var(--accent-text);
   box-shadow: var(--shadow-sm);
 }
 
 .ui-tabs__trigger[data-state="active"]:hover {
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .ui-tabs__trigger:disabled {

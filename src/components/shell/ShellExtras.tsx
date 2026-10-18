@@ -4,6 +4,7 @@ import { createContext, useContext, useState, type ReactNode, type RefObject } f
 import type { TranscriptScroll } from "../../runtime/useTranscriptScroll";
 import type { BranchAction } from "../../runtime/useMessageBranch";
 import type { ConversationSearch, SearchSession } from "../../runtime/useConversationSearch";
+import type { useSessionHistoryGroups } from "../../runtime/useSessionHistoryGroups";
 
 import { AgentAvatar, type AgentPersona, type AvatarKind } from "../../avatars/AgentPersona";
 import { GroupFace } from "../../avatars/GroupFace";
@@ -23,6 +24,7 @@ import {
   type CliModelSource,
 } from "../../pi/harnessCatalog";
 import { HarnessMark } from "./HarnessMark";
+import { Button } from "../ui/button";
 import "./shell.css";
 
 /**
@@ -50,6 +52,8 @@ export type ShellExtras = {
   headerAgent?: ReactNode;
   /** Conversation id → the face of the role that answered it. */
   sessionAvatars?: Record<string, AvatarKind>;
+  /** Optional Bot grouping; standalone previews keep their existing date groups. */
+  historyGroups?: ReturnType<typeof useSessionHistoryGroups>;
   searchConversations?: ConversationSearch;
   onSelectSearchResult?: (session: SearchSession) => void;
   /** Deletes a saved conversation after the row's inline confirmation; omitted, rows have no delete. */
@@ -243,6 +247,7 @@ export function HeaderAgent({
   const t = settingsCopy[locale];
   const roleCopy = useCopy().composer.agentSettings;
   const preset = agentPreset(settings.presetId);
+  const name = preset.id === "assistant" ? "Rae" : roleCopy.presets[preset.id].name;
   const sourceKey = preset.harness === "claude-code" ? "claudeCodeModelSource" : preset.harness === "codex" ? "codexModelSource" : undefined;
   const source: CliModelSource | undefined = sourceKey ? settings[sourceKey] : undefined;
   const model = !sourceKey || source === "provider" ? providerLabel : sourceKey === "claudeCodeModelSource" ? t.agents.sourceLocal : t.agents.sourceLocalCodex;
@@ -250,18 +255,18 @@ export function HeaderAgent({
   return (
     <RadixPopover.Root>
       <RadixPopover.Trigger asChild>
-        <button type="button" className="shell-header-agent">
-          <AgentAvatar size={28} kind={avatars[preset.id]} />
-          <span className="shell-header-text">
-            <strong>{roleCopy.presets[preset.id].name}</strong>
-            <span><HarnessMark harness={preset.harness} />{HARNESS_LABELS[preset.harness]} · {model}</span>
+        <button type="button" className="shell-header-agent shell-header-compact" aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}>
+          <AgentAvatar size={28} kind={avatars[preset.id]} live={false} />
+          <strong className="shell-header-name">{name}</strong>
+          <span className="shell-header-engine" title={HARNESS_LABELS[preset.harness]}>
+            <HarnessMark harness={preset.harness} size={14} />
           </span>
-          <ChevronDown size={14} aria-hidden="true" />
+          <ChevronDown className="shell-header-chevron" size={12} aria-hidden="true" />
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
-        <RadixPopover.Content className="shell-popover" align="start" sideOffset={8} collisionPadding={12}>
-          <p className="shell-popover-lead">{roleCopy.presets[preset.id].description}</p>
+        <RadixPopover.Content className={`shell-popover${sourceKey ? "" : " shell-model-popover"}`} align="center" sideOffset={8} collisionPadding={12}>
+          <p className="shell-header-model">{model}</p>
           {sourceKey ? (
             <div className="shell-popover-field">
               <span>{t.shell.modelSource}</span>
@@ -284,7 +289,7 @@ export function HeaderAgent({
             </div>
           ) : null}
           {preset.harness === "codex" ? <p className="shell-popover-note">{roleCopy.codexModelNote}</p> : null}
-          <button type="button" className="shell-popover-link" onClick={onManageProviders}>{t.shell.manageProviders}</button>
+          {sourceKey ? <button type="button" className="shell-popover-link" onClick={onManageProviders}>{t.shell.manageProviders}</button> : null}
         </RadixPopover.Content>
       </RadixPopover.Portal>
     </RadixPopover.Root>
@@ -294,8 +299,6 @@ export function HeaderAgent({
 // ---------- Group chat: "+" menu, To: picker, group header with member panel ----------
 const GROUP_ROLE: Record<AgentPresetId, string> = { assistant: "助手", planner: "规划", builder: "实施" };
 const GROUP_NAME: Record<AgentPresetId, string> = { assistant: "Raer", planner: "Tonny", builder: "Bob" };
-const menuItem = { display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "8px 10px", border: 0, borderRadius: 8,
-  background: "transparent", cursor: "pointer", fontSize: 14, textAlign: "left" } as const;
 
 /** Grok-style "+": pick who to talk to — one agent opens a chat with it, two or more make a group. */
 export function NewChatMenu({ avatars, onNewGroup, onSelectAgent }: {
@@ -321,41 +324,34 @@ export function NewChatMenu({ avatars, onNewGroup, onSelectAgent }: {
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
-        <RadixPopover.Content align="start" sideOffset={6} style={{ zIndex: 50, width: 260, padding: 6, borderRadius: 12,
-          background: "var(--surface, #fff)", boxShadow: "0 8px 30px rgba(15,23,42,.14)", border: "1px solid rgba(15,23,42,.08)" }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 6, flexWrap: "wrap", minHeight: 34, padding: "4px 10px 8px",
-            borderBottom: "1px solid rgba(15,23,42,.08)", marginBottom: 4, fontSize: 14 }}>
-            <span style={{ opacity: 0.55 }}>To:</span>
+        <RadixPopover.Content className="shell-popover shell-member-popover" align="start" sideOffset={6} collisionPadding={12}>
+          <div className="shell-member-to">
+            <span className="shell-member-meta">成员</span>
             {ordered.length ? ordered.map((id) => (
-              <span key={id} style={{ ...chip(true), padding: "2px 8px 2px 2px", cursor: "default" }}><AgentAvatar size={18} kind={avatars[id]} />{GROUP_NAME[id]}</span>
-            )) : <span style={{ opacity: 0.4 }}>选择一位或多位成员</span>}
+              <span key={id} className="shell-member-chip" data-selected="true"><AgentAvatar size={18} kind={avatars[id]} />{GROUP_NAME[id]}</span>
+            )) : <span className="shell-member-meta">选择一位或多位</span>}
           </div>
           {AGENT_PRESETS.map((preset) => {
             const on = picked.includes(preset.id);
             return (
-              <button type="button" key={preset.id} style={{ ...menuItem, background: on ? "rgba(59,91,219,.08)" : "transparent" }}
+              <button type="button" key={preset.id} className="shell-member-row"
                 aria-pressed={on} onClick={() => toggle(preset.id)}>
                 <AgentAvatar size={24} kind={avatars[preset.id]} />
                 <span>{GROUP_NAME[preset.id]}</span>
-                <span style={{ marginLeft: "auto", fontSize: 12, opacity: 0.55 }}>{GROUP_ROLE[preset.id]}</span>
-                <span aria-hidden="true" style={{ width: 16, textAlign: "center", color: "#3b5bdb", fontWeight: 700 }}>{on ? "✓" : ""}</span>
+                <span className="shell-member-meta shell-member-role">{GROUP_ROLE[preset.id]}</span>
+                <span aria-hidden="true" className="shell-member-check">{on ? "✓" : ""}</span>
               </button>
             );
           })}
-          <button type="button" disabled={!ordered.length} onClick={start}
-            style={{ ...menuItem, justifyContent: "center", marginTop: 6, fontWeight: 600, color: ordered.length ? "#fff" : "inherit",
-              background: ordered.length ? "#3b5bdb" : "rgba(15,23,42,.06)", opacity: ordered.length ? 1 : 0.5, cursor: ordered.length ? "pointer" : "default" }}>
-            {ordered.length === 0 ? "选择成员" : ordered.length === 1 ? `和 ${GROUP_NAME[ordered[0]]} 聊` : `创建 Group（${ordered.map((id) => GROUP_NAME[id]).join("、")}）`}
-          </button>
+          <Button type="button" variant="primary" className="shell-member-start" disabled={!ordered.length} onClick={start}>
+            {ordered.length === 0 ? "选择成员" : ordered.length === 1 ? `和 ${GROUP_NAME[ordered[0]]} 聊` : `创建群聊（${ordered.length} 位助手）`}
+          </Button>
         </RadixPopover.Content>
       </RadixPopover.Portal>
     </RadixPopover.Root>
   );
 }
 
-const chip = (on: boolean) => ({ display: "inline-flex", alignItems: "center", gap: 6, padding: "4px 10px 4px 4px", borderRadius: 999,
-  border: `1px solid ${on ? "rgba(59,91,219,.35)" : "rgba(15,23,42,.12)"}`, background: on ? "rgba(59,91,219,.08)" : "transparent",
-  opacity: on ? 1 : 0.55, cursor: "pointer", fontSize: 13 }) as const;
 
 /**
  * The group's top bar. Before the first message it is a "To:" picker; afterwards the group's face and
@@ -374,10 +370,10 @@ export function GroupHeader({ avatars, members, draft, onChange }: {
   const names = ["我", ...members.map((m) => GROUP_NAME[m])].join("、");
   if (draft) {
     return (
-      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
-        <span style={{ fontSize: 14, opacity: 0.6 }}>To:</span>
+      <div className="shell-member-picker">
+        <span className="shell-member-meta">成员</span>
         {AGENT_PRESETS.map((preset) => (
-          <button key={preset.id} type="button" style={chip(members.includes(preset.id))} aria-pressed={members.includes(preset.id)} onClick={() => toggle(preset.id)}>
+          <button key={preset.id} type="button" className="shell-member-chip" aria-pressed={members.includes(preset.id)} onClick={() => toggle(preset.id)}>
             <AgentAvatar size={20} kind={avatars[preset.id]} />{GROUP_NAME[preset.id]}
           </button>
         ))}
@@ -387,29 +383,28 @@ export function GroupHeader({ avatars, members, draft, onChange }: {
   return (
     <RadixPopover.Root>
       <RadixPopover.Trigger asChild>
-        <button type="button" style={{ display: "flex", alignItems: "center", gap: 10, border: 0, background: "transparent", cursor: "pointer", padding: 0 }}>
+        <button type="button" className="shell-header-agent">
           <GroupFace size={34} kinds={members.map((m) => avatars[m])} />
-          <span style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", lineHeight: 1.25 }}>
-            <strong style={{ fontSize: 16 }}>{names}</strong>
-            <span style={{ fontSize: 12, opacity: 0.6 }}>Group · {members.length + 1} 位成员</span>
+          <span className="shell-header-text">
+            <strong>{names}</strong>
+            <span>{members.length + 1} 位成员</span>
           </span>
           <ChevronDown size={14} aria-hidden="true" />
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
-        <RadixPopover.Content align="start" sideOffset={8} style={{ zIndex: 50, width: 280, padding: 10, borderRadius: 12,
-          background: "var(--surface, #fff)", boxShadow: "0 8px 30px rgba(15,23,42,.14)", border: "1px solid rgba(15,23,42,.08)" }}>
-          <div style={{ fontSize: 12, opacity: 0.6, padding: "2px 4px 8px" }}>成员（改动从下一条消息生效）</div>
-          <div style={{ ...menuItem, cursor: "default" }}>
-            <GroupFace size={24} kinds={[]} /><span>我</span><span style={{ marginLeft: "auto", fontSize: 12, opacity: 0.55 }}>你</span>
+        <RadixPopover.Content className="shell-popover shell-member-popover" align="start" sideOffset={8} collisionPadding={12}>
+          <div className="shell-member-note">成员（改动从下一条消息生效）</div>
+          <div className="shell-member-row">
+            <GroupFace size={24} kinds={[]} /><span>我</span><span className="shell-member-meta shell-member-role">你</span>
           </div>
           {AGENT_PRESETS.map((preset) => {
             const on = members.includes(preset.id);
             return (
-              <button key={preset.id} type="button" style={{ ...menuItem, opacity: on ? 1 : 0.5 }} onClick={() => toggle(preset.id)}>
+              <button key={preset.id} type="button" className="shell-member-row" aria-pressed={on} onClick={() => toggle(preset.id)}>
                 <AgentAvatar size={24} kind={avatars[preset.id]} />
                 <span>{GROUP_NAME[preset.id]} · {GROUP_ROLE[preset.id]}</span>
-                <span style={{ marginLeft: "auto", display: "inline-flex", alignItems: "center", gap: 6, fontSize: 12, opacity: 0.7 }}>
+                <span className="shell-member-meta shell-member-role">
                   <HarnessMark harness={preset.harness} />{on ? "在群里" : "已移出"}
                 </span>
               </button>
@@ -431,7 +426,7 @@ export function GroupWelcome({ avatars, members, onChange }: {
     <div className="composer-greeting" style={{ flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
       <span aria-hidden="true"><GroupFace size={76} kinds={members.map((m) => avatars[m])} /></span>
       <h2 className="composer-greeting-text" style={{ margin: 0 }}>{["我", ...members.map((m) => GROUP_NAME[m])].join("、")}</h2>
-      <p style={{ margin: 0, opacity: 0.6, fontSize: 14 }}>新的 Group：选好成员，发第一条消息就开始。说声 hello，大家会各自打个招呼。</p>
+      <p style={{ margin: 0, opacity: 0.6, fontSize: 14 }}>选择成员，开始对话。</p>
       <GroupHeader avatars={avatars} members={members} draft onChange={onChange} />
     </div>
   );

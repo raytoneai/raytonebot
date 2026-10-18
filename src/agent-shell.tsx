@@ -76,6 +76,7 @@ import { useImChannels } from "./runtime/useImChannels";
 import { useRoutines } from "./runtime/useRoutines";
 import { useMcpServers } from "./runtime/useMcpServers";
 import { useMemories } from "./runtime/useMemories";
+import { conversationHistoryGroup, useSessionHistoryGroups } from "./runtime/useSessionHistoryGroups";
 
 const THEME_KEY = "raytonebot.theme";
 /** Events after which a tool call is no longer waiting on the user. */
@@ -276,6 +277,10 @@ export function AgentApp() {
         || composer.drafts[conversation.id]?.attachments.map((file) => file.name).join(", ") || ""))),
     [piConversations, composer.drafts],
   );
+  const historyGroups = useSessionHistoryGroups(activePiConversationId, conversationHistoryGroup(
+    piSessionItems.find(session => session.id === activePiConversationId)
+      ?? { id: activePiConversationId, agentPreset: agentSettings.presetId },
+  ));
 
   // Mirrors the configurator's policy derivation so reasoning / tool / error states
   // render exactly as previewed.
@@ -1442,6 +1447,7 @@ export function AgentApp() {
         isAgentPresetId(conversation.agentPreset) ? [[conversation.id, PRESET_AVATARS[conversation.agentPreset]]] : []
       )),
     ),
+    historyGroups,
     composerMentions: activePiConversationId.startsWith("group_")
       ? groupMembersOf(activePiConversation).map((id) => ({ id, name: copy.composer.agentSettings.presets[id].name, kind: PRESET_AVATARS[id] }))
       : undefined,

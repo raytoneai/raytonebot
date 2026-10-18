@@ -89,7 +89,7 @@ svg.lucide { stroke-width: 1.5; }
 .am-chip, .am-chip-muted, .am-chip-warn, .am-chip-danger {
   font-size: 11px; padding: 3px 8px; border-radius: 999px; border: 1px solid var(--border-subtle);
 }
-.am-chip { text-transform: capitalize; background: var(--accent-soft); color: var(--accent); border-color: transparent; }
+.am-chip { text-transform: capitalize; background: var(--accent-soft); color: var(--accent-text); border-color: transparent; }
 .am-chip-muted { color: var(--text-muted); background: var(--surface-inset); border-color: transparent; }
 .am-chip-warn { color: var(--warning); background: var(--surface-inset); border-color: transparent; }
 .am-chip-danger { color: var(--danger); background: var(--surface-inset); border-color: transparent; }
@@ -108,7 +108,7 @@ svg.lucide { stroke-width: 1.5; }
 .am-states-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-bottom: 2px; }
 .am-play-scenario {
   font-family: inherit; font-size: 11px; padding: 3px 9px; border-radius: 6px;
-  border: 1px solid var(--border-subtle); background: var(--surface-raised); color: var(--accent); cursor: pointer;
+  border: 1px solid var(--border-subtle); background: var(--surface-raised); color: var(--accent-text); cursor: pointer;
 }
 .am-play-scenario[data-active="true"] { background: var(--accent-soft); border-color: var(--accent); }
 /* Same spec as the legacy .preset-option cards: [text | thumbnail] grid,
@@ -167,7 +167,7 @@ svg.lucide { stroke-width: 1.5; }
 }
 .am-state-toggle input { accent-color: var(--accent); cursor: pointer; }
 .am-state-live {
-  font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent);
+  font-size: 9px; text-transform: uppercase; letter-spacing: .05em; color: var(--accent-text);
   border: 1px solid var(--accent); border-radius: 999px; padding: 0 6px; margin-left: auto;
 }
 .am-state-preview {
@@ -587,7 +587,7 @@ svg.lucide { stroke-width: 1.5; }
   width: 28px; height: 28px; border-radius: 8px; flex-shrink: 0; display: grid; place-items: center;
   background: var(--surface-inset); color: var(--text-secondary);
 }
-.am-avatar[data-author="agent"] { background: var(--accent-soft); color: var(--accent); }
+.am-avatar[data-author="agent"] { background: var(--accent-soft); color: var(--accent-text); }
 .am-message-body { flex: 1; min-width: 0; }
 .am-message-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
 .am-message-author { font-size: 12px; font-weight: 600; color: var(--text-secondary); }
@@ -619,7 +619,7 @@ svg.lucide { stroke-width: 1.5; }
 /* Thinking */
 .am-thinking { border: 1px dashed var(--border-strong); border-radius: 9px; background: var(--surface-raised); }
 .am-thinking-head { width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 11px; background: none; border: 0; cursor: pointer; font-family: inherit; color: var(--text-secondary); }
-.am-thinking-icon { color: var(--accent); }
+.am-thinking-icon { color: var(--accent-text); }
 .am-thinking-label { font-size: 12px; font-weight: 600; }
 .am-thinking-summary { font-size: 12px; color: var(--text-muted); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex: 0 1 auto; min-width: 0; text-align: left; }
 .am-thinking-body { padding: 0 11px 10px 32px; }
@@ -636,7 +636,7 @@ svg.lucide { stroke-width: 1.5; }
 .am-tool-status[data-lifecycle="pending_approval"] { color: var(--warning); }
 .am-tool-status[data-lifecycle="in_progress"] { color: var(--info); }
 .am-tool-title { font-size: 13px; font-weight: 600; color: var(--text-primary); }
-.am-tool-mcp { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--accent); background: var(--accent-soft); padding: 2px 6px; border-radius: 999px; }
+.am-tool-mcp { display: inline-flex; align-items: center; gap: 4px; font-size: 10px; color: var(--accent-text); background: var(--accent-soft); padding: 2px 6px; border-radius: 999px; }
 .am-tool-badge { font-size: 10px; padding: 2px 7px; border-radius: 999px; background: var(--surface-inset); color: var(--text-muted); margin-left: auto; }
 .am-tool-badge[data-lifecycle="completed"] { color: var(--success); }
 .am-tool-badge[data-lifecycle="failed"] { color: var(--danger); }
@@ -647,7 +647,7 @@ svg.lucide { stroke-width: 1.5; }
 .am-deny-reason { font-size: 12px; color: var(--danger); }
 .am-tool-locations { display: flex; flex-wrap: wrap; gap: 6px; }
 .am-location { font-family: var(--font-mono); font-size: 11px; color: var(--text-secondary); background: var(--surface-inset); padding: 2px 6px; border-radius: 4px; }
-.am-diag-toggle { align-self: flex-start; font-size: 11px; color: var(--accent); background: none; border: 0; cursor: pointer; padding: 0; font-family: inherit; }
+.am-diag-toggle { align-self: flex-start; font-size: 11px; color: var(--accent-text); background: none; border: 0; cursor: pointer; padding: 0; font-family: inherit; }
 .am-diag { background: var(--surface-inset); border-radius: 6px; padding: 8px; }
 .am-diag pre, .am-diag-raw { font-family: var(--font-mono); font-size: 11px; margin: 0; white-space: pre-wrap; word-break: break-word; color: var(--text-secondary); }
 
@@ -734,7 +734,7 @@ svg.lucide { stroke-width: 1.5; }
 .am-incident-message { margin: 0 0 6px; font-size: 12px; color: var(--text-secondary); }
 .am-incident-facts { display: flex; gap: 10px; font-family: var(--font-mono); font-size: 11px; color: var(--text-muted); }
 .am-countdown { font-size: 12px; color: var(--warning); font-weight: 500; }
-.am-incident-cta { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--accent); text-decoration: none; border: 1px solid var(--accent); border-radius: 7px; padding: 5px 11px; }
+.am-incident-cta { display: inline-block; margin-top: 8px; font-size: 12px; color: var(--accent-text); text-decoration: none; border: 1px solid var(--accent); border-radius: 7px; padding: 5px 11px; }
 .am-incident-resolved { display: inline-block; margin-top: 6px; font-size: 10px; color: var(--success); text-transform: uppercase; letter-spacing: .05em; }
 
 /* Diagnostics */
@@ -782,7 +782,7 @@ svg.lucide { stroke-width: 1.5; }
 .am-iconswap-slot { font-size: 11px; color: var(--text-muted); text-transform: capitalize; }
 .am-iconswap-options { display: flex; gap: 4px; }
 .am-iconswap-option { width: 28px; height: 28px; display: grid; place-items: center; border-radius: 6px; border: 1px solid var(--border-subtle); background: var(--surface-raised); color: var(--text-secondary); cursor: pointer; }
-.am-iconswap-option[data-active="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent); }
+.am-iconswap-option[data-active="true"] { border-color: var(--accent); background: var(--accent-soft); color: var(--accent-text); }
 
 @media (max-width: 900px) {
   .am-workspace { grid-template-columns: 1fr; grid-template-areas: "transcript" "side" "footer"; }

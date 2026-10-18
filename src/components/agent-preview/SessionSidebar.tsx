@@ -1,11 +1,12 @@
-import { ChevronDown, PanelLeft, Pencil, Search, Trash2 } from "lucide-react";
+import { ChevronDown, MessagesSquare, PanelLeft, Pencil, Search, Trash2 } from "lucide-react";
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { GroupFace } from "../../avatars/GroupFace";
 import { useShellExtras } from "../shell/ShellExtras";
 import { createPortal } from "react-dom";
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { searchResultKey, useConversationSearch, type SearchSession } from "../../runtime/useConversationSearch";
 import { useSearchWindow } from "../../runtime/useSearchWindow";
+import { conversationHistoryGroup, groupSessionHistory } from "../../runtime/useSessionHistoryGroups";
 import { conversationSearchPattern } from "../../pi/conversationSearch";
 
 import { appVersionLabel } from "../../appVersion";
@@ -42,7 +43,8 @@ export function SessionSidebar({
   onSelectSession?: (id: string) => void;
   onNewSession?: () => void;
 }) {
-  const c = useCopy().workspace.sessionSidebar;
+  const copy = useCopy();
+  const c = copy.workspace.sessionSidebar;
   const extras = useShellExtras();
   const { newButton, search, grouping, footer } = project.sidebar;
   const sidebarRef = useRef<HTMLElement | null>(null);
@@ -85,8 +87,12 @@ export function SessionSidebar({
   const todayIds = new Set(searchToday.map(searchResultKey));
   const searchEarlier = filteredSessions.filter((session) => !todayIds.has(searchResultKey(session)));
   const searchWindow = useSearchWindow([searchToday, searchEarlier], query);
-  const historyWindow = useSearchWindow(grouping ? [today, earlier] : [sessions], String(grouping),
-    { heading: grouping ? 20 : 0, rowGap: 3, groupGap: 16, rowHeight: 34 });
+  const botGroups = extras.historyGroups ? groupSessionHistory(sessions) : undefined;
+  const historyWindow = useSearchWindow(botGroups
+    ? botGroups.map(group => extras.historyGroups!.expanded[group.id] ? group.items : [])
+    : grouping ? [today, earlier] : [sessions], botGroups ? "bots" : String(grouping), botGroups
+    ? { heading: 36, rowGap: 3, groupGap: 4, rowHeight: 34, keepEmptyHeadings: true }
+    : { heading: grouping ? 20 : 0, rowGap: 3, groupGap: 16, rowHeight: 34 });
   // A modal covers the whole frame, including sidebar controls and the compact drawer.
   const resolveSearchOverlayRoot = () => sidebarRef.current?.closest<HTMLElement>(".preview-frame") ?? null;
   const closeSearch = (selected = false) => {
@@ -209,8 +215,8 @@ export function SessionSidebar({
     <aside ref={sidebarRef} className="session-sidebar" data-preview-anchor="sidebar" aria-label={c.ariaLabel}>
       <header className="session-brand">
         <span className="session-brand-name">
-          <img className="session-brand-logo" data-variant="light" src="/brand/raytone-bot.svg?v=round-rays-v5" alt={c.brandName} />
-          <img className="session-brand-logo" data-variant="dark" src="/brand/raytone-bot-dark.svg?v=round-rays-v5" alt={c.brandName} />
+          <img className="session-brand-logo" data-variant="light" src="/brand/raytone-bot.svg?v=tapered-rays-v6" alt={c.brandName} />
+          <img className="session-brand-logo" data-variant="dark" src="/brand/raytone-bot-dark.svg?v=tapered-rays-v6" alt={c.brandName} />
         </span>
         <span className="session-brand-actions">
           {search ? (
@@ -270,7 +276,7 @@ export function SessionSidebar({
         <span>{c.history}</span><ChevronDown size={14} aria-hidden="true" />
       </button> : null}
       {hasSessions && !historyCollapsed ? (
-        <nav className="session-list" ref={historyWindow.ref} onScroll={historyWindow.onScroll}
+        <nav className="session-list" data-grouped-by={botGroups ? "bot" : undefined} ref={historyWindow.ref} onScroll={historyWindow.onScroll}
           onFocusCapture={event => historyWindow.onFocus(event.target.dataset.sessionKey)}
           onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) historyWindow.onFocus(); }}
           onKeyDown={event => {
@@ -291,9 +297,22 @@ export function SessionSidebar({
             const next = event.key === "Home" ? 0 : event.key === "End" ? last
               : event.key === "ArrowDown" ? Math.min(index + 1, last) : event.key === "ArrowUp" ? Math.max(index - 1, 0)
               : event.key === "Tab" ? index + (event.shiftKey ? -1 : 1) : -1;
+            // Tab crosses group headers naturally; within a group, keep virtual rows reachable.
+            if (botGroups && event.key === "Tab" && historyWindow.items[next]
+              && conversationHistoryGroup(historyWindow.items[index]) !== conversationHistoryGroup(historyWindow.items[next])) return;
             if (next >= 0 && next <= last) { event.preventDefault(); historyWindow.focus(next); }
           }}>
-          {grouping ? (
+          {botGroups ? botGroups.map((group, index) => (
+            <SessionGroup key={group.id}
+              label={group.id === "group" ? c.groupChats : group.id === "other" ? c.groupOther : copy.composer.agentSettings.presets[group.id].name}
+              items={group.items} window={historyWindow.groups[index]} activeId={effectiveActive}
+              onSelect={onSelectSession} deletion={deletion} renaming={renaming}
+              disclosure={{ expanded: Boolean(extras.historyGroups!.expanded[group.id]),
+                onToggle: () => extras.historyGroups!.toggle(group.id),
+                icon: group.id === "group" ? <GroupFace size={20} kinds={["woman", "man", "boy"]} />
+                  : group.id === "other" ? <MessagesSquare size={18} />
+                  : <AgentAvatar size={20} kind={extras.sessionAvatars?.[group.items[0].id] ?? ({ assistant: "woman", planner: "man", builder: "boy" } as const)[group.id]} /> }} />
+          )) : grouping ? (
             <>
               {today.length > 0 ? (
                 <SessionGroup label={c.groupToday} items={today} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} renaming={renaming} />
@@ -453,6 +472,7 @@ function SessionGroup({
   window,
   deletion,
   renaming,
+  disclosure,
 }: {
   label?: string;
   items: readonly SessionSidebarItem[];
@@ -464,15 +484,26 @@ function SessionGroup({
   /** History rows only; search results do not delete. */
   deletion?: ReturnType<typeof useSessionDeletion>;
   renaming?: ReturnType<typeof useSessionRename>;
+  disclosure?: { expanded: boolean; onToggle: () => void; icon: ReactNode };
 }) {
+  const rowsId = useId();
   const avatars = useShellExtras().sessionAvatars;
   const groupFaces = useShellExtras().groupFaces;
   const groupPreviews = useShellExtras().groupPreviews;
   const c = useCopy().workspace.sessionSidebar;
   const pattern = conversationSearchPattern(query ?? "");
   return (
-    <section className="session-group" data-windowed={window ? "true" : undefined} style={window ? { height: window.height } : undefined}>
-      {label ? <h4>{label}</h4> : null}
+    <section className="session-group" data-bot-group={disclosure ? "true" : undefined} data-windowed={window ? "true" : undefined} style={window ? { height: window.height } : undefined}>
+      {disclosure ? (
+        <button type="button" className="session-bot-toggle" aria-expanded={disclosure.expanded} aria-controls={rowsId}
+          data-active={items.some(item => item.id === activeId)} onClick={disclosure.onToggle}>
+          <span className="session-bot-face" aria-hidden="true">{disclosure.icon}</span>
+          <span className="session-bot-name">{label}</span>
+          <span className="session-bot-count">{items.length}</span>
+          <ChevronDown size={13} className="session-bot-chevron" aria-hidden="true" />
+        </button>
+      ) : label ? <h4>{label}</h4> : null}
+      <div id={rowsId} className="session-group-rows" hidden={disclosure && !disclosure.expanded}>
       {(window ? window.rows.map(row => row.item) : items).map((session, position) => {
         const row = window?.rows[position];
         const { id, title, snippet, role } = session;
@@ -530,7 +561,7 @@ function SessionGroup({
               title={preview ? `${title}\n${preview}` : undefined}
               onClick={() => onSelectResult ? onSelectResult(session) : onSelect?.(id)}
             >
-              {id.startsWith("group_") ? (
+              {disclosure ? null : id.startsWith("group_") ? (
                 <span className="session-item-avatar" data-group="true" aria-hidden="true"><GroupFace size={20} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
               ) : avatars?.[id] ? (
                 <span className="session-item-avatar" aria-hidden="true"><AgentAvatar size={18} kind={avatars[id]} /></span>
@@ -556,6 +587,7 @@ function SessionGroup({
           </div>
         );
       })}
+      </div>
     </section>
   );
 }

@@ -16,7 +16,7 @@ export type EphemeralPiConversation = {
   groupPreview?: { author: string; text: string };
 };
 
-export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt">;
+export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt" | "agentPreset">;
 
 export function createEphemeralPiConversation(
   id = createConversationId(),
@@ -74,7 +74,7 @@ export function replacePiConversation(
 export function piConversationSidebarItems(
   conversations: readonly EphemeralPiConversation[],
 ): readonly PiConversationSidebarItem[] {
-  return conversations.map(({ id, title, createdAt }) => ({ id, title, createdAt }));
+  return conversations.map(({ id, title, createdAt, agentPreset }) => ({ id, title, createdAt, agentPreset }));
 }
 
 function createConversationId(): string {

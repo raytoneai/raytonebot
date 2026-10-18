@@ -1,13 +1,14 @@
 import { useLayoutEffect, useRef, useState } from "react";
 import { searchResultKey, type SearchSession } from "./useConversationSearch.ts";
 
-const searchMetrics = { heading: 26, rowGap: 2, groupGap: 8, rowHeight: 36 };
+type WindowMetrics = { heading: number; rowGap: number; groupGap: number; rowHeight: number; keepEmptyHeadings?: boolean };
+const searchMetrics: WindowMetrics = { heading: 26, rowGap: 2, groupGap: 8, rowHeight: 36 };
 // ponytail: measured rows, no index tree; a linear pass is sufficient for thousands of sessions/hits.
 export function searchLayout(groups: readonly (readonly SearchSession[])[], heights: ReadonlyMap<string, number>, metrics = searchMetrics) {
   let top = 0, index = 0;
   return groups.map(items => {
     const start = top;
-    if (items.length) top += metrics.heading;
+    if (items.length || metrics.keepEmptyHeadings) top += metrics.heading;
     const rows = items.map(item => {
       const key = searchResultKey(item), height = heights.get(key) ?? (item.snippet ? 72 : metrics.rowHeight);
       const row = { item, key, index: index++, top, offset: top - start, height };
@@ -15,7 +16,7 @@ export function searchLayout(groups: readonly (readonly SearchSession[])[], heig
       return row;
     });
     const height = top - start;
-    if (items.length) top += metrics.groupGap;
+    if (items.length || metrics.keepEmptyHeadings) top += metrics.groupGap;
     return { rows, height };
   });
 }

@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { compareSearchPosition, conversationSearchPattern, type ConversationTextMatch } from "../pi/conversationSearch.ts";
 
-export type SearchSession = { id: string; title: string; createdAt?: number; matches?: ConversationTextMatch[] } & Partial<ConversationTextMatch>;
+export type SearchSession = { id: string; title: string; createdAt?: number; agentPreset?: string; matches?: ConversationTextMatch[] } & Partial<ConversationTextMatch>;
 export type SearchPage = { conversations: SearchSession[]; unreadable: string[]; nextCursor?: string };
 export type ConversationSearch = (query: string, signal: AbortSignal, cursor?: string) => Promise<SearchPage>;
 export const searchResultKey = (session: SearchSession) => JSON.stringify([session.id, session.textId ?? ""]);

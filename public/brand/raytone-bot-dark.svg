@@ -1,18 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" width="280" height="76" viewBox="0 0 280 76" color="#F8F6F0" role="img" aria-labelledby="title">
 <title id="title">Raytone Bot</title>
 <defs>
-<linearGradient id="ray-fade" x1="47" y1="0" x2="267" y2="0" gradientUnits="userSpaceOnUse">
-<stop offset="0" stop-color="#E7AC26" stop-opacity=".65"/>
-<stop offset=".18" stop-color="#E7AC26" stop-opacity=".24"/>
-<stop offset=".4" stop-color="#E7AC26" stop-opacity=".08"/>
-<stop offset="1" stop-color="#E7AC26" stop-opacity=".015"/>
+<linearGradient id="ray-outer-fade" x1="47" y1="0" x2="267" y2="0" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#E7AC26" stop-opacity=".82"/>
+<stop offset=".18" stop-color="#E7AC26" stop-opacity=".62"/>
+<stop offset=".48" stop-color="#E7AC26" stop-opacity=".25"/>
+<stop offset=".76" stop-color="#E7AC26" stop-opacity=".07"/>
+<stop offset="1" stop-color="#E7AC26" stop-opacity="0"/>
+</linearGradient>
+<linearGradient id="ray-inner-fade" x1="58" y1="0" x2="267" y2="0" gradientUnits="userSpaceOnUse">
+<stop offset="0" stop-color="#E7AC26" stop-opacity=".74"/>
+<stop offset=".1" stop-color="#E7AC26" stop-opacity=".32"/>
+<stop offset=".22" stop-color="#E7AC26" stop-opacity=".09"/>
+<stop offset=".44" stop-color="#E7AC26" stop-opacity=".02"/>
+<stop offset="1" stop-color="#E7AC26" stop-opacity="0"/>
 </linearGradient>
 </defs>
-<g fill="none" stroke="url(#ray-fade)" stroke-width="2" stroke-linecap="round">
-<path d="M47.62 13H258.32"/>
-<path d="M57.95 29H266.20"/>
-<path d="M57.95 45H266.20"/>
-<path d="M47.62 61H258.32"/>
+<!-- Filled contours taper in width as well as opacity; outer rays retain a longer trail. -->
+<g fill="url(#ray-outer-fade)">
+<path d="M49.42 11.2C90 11.2 160 12.35 258.32 12.92Q258.4 13 258.32 13.08C160 13.65 90 14.8 49.42 14.8A1.8 1.8 0 0 1 49.42 11.2Z"/>
+<path d="M49.42 59.2C90 59.2 160 60.35 258.32 60.92Q258.4 61 258.32 61.08C160 61.65 90 62.8 49.42 62.8A1.8 1.8 0 0 1 49.42 59.2Z"/>
+</g>
+<g fill="url(#ray-inner-fade)">
+<path d="M59.55 27.4C91 27.4 148 28.65 266.2 28.96Q266.24 29 266.2 29.04C148 29.35 91 30.6 59.55 30.6A1.6 1.6 0 0 1 59.55 27.4Z"/>
+<path d="M59.55 43.4C91 43.4 148 44.65 266.2 44.96Q266.24 45 266.2 45.04C148 45.35 91 46.6 59.55 46.6A1.6 1.6 0 0 1 59.55 43.4Z"/>
 </g>
 <circle cx="28" cy="37" r="24" fill="#0C2458"/>
 <g fill="#E7AC26"><rect x="18" y="29" width="5.5" height="15" rx="2.75"/><rect x="32.5" y="29" width="5.5" height="15" rx="2.75"/></g>

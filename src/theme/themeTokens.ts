@@ -30,6 +30,8 @@ export type ThemeTokens = {
     action: string;
     hover: string;
     soft: string;
+    /** Readable accent text on panel and soft backgrounds; separate from solid fills. */
+    text?: string;
   };
   status: {
     success: string;
@@ -128,6 +130,7 @@ function darkScheme(id: ThemePresetId, name: string, font: ThemeTokens["font"], 
       action: A,
       hover: mix(A, 82, "#fff"),
       soft: mix(A, 18, P),
+      text: A,
     },
     status: { ...DARK_STATUS },
   };
@@ -162,6 +165,7 @@ function lightScheme(id: ThemePresetId, name: string, font: ThemeTokens["font"],
       action: A,
       hover: mix(A, 85, "#000"),
       soft: mix(A, 14, P),
+      text: mix(A, 80, "#000"),
     },
     status: { ...LIGHT_STATUS },
   };
@@ -205,6 +209,7 @@ export const themeTokens: Record<ThemeTokens["id"], ThemeTokens> = {
       action: "#111E36",
       hover: mix("#111E36", 86, "#000"),
       soft: mix("#111E36", 10, "#FFFFFF"),
+      text: "#111E36",
     },
     status: { ...LIGHT_STATUS },
   },
@@ -235,6 +240,7 @@ export const themeTokens: Record<ThemeTokens["id"], ThemeTokens> = {
       action: "#C87330",
       hover: mix("#C87330", 86, "#000"),
       soft: "#FFECD6",
+      text: "#8F481B",
     },
     status: { ...LIGHT_STATUS },
   },
@@ -265,6 +271,7 @@ export const themeTokens: Record<ThemeTokens["id"], ThemeTokens> = {
       action: "#F97316",
       hover: mix("#F97316", 86, "#000"),
       soft: "#FFEDD5",
+      text: "#9C3F10",
     },
     status: { ...LIGHT_STATUS },
   },

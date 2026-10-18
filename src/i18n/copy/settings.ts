@@ -36,7 +36,7 @@ const en = {
   providers: {
     intro: "The default service powers Raer, and Tonny and Bob when they use a model service.",
     persistence: {
-      saved: "Settings saved in this browser. Session keys stay in memory only.",
+      saved: "Settings saved locally. Session keys are cleared on reload.",
       "load-failed": "Saved model settings could not be restored. Project defaults are in use.",
       "save-failed": "Changes apply to this page but were not saved. Check browser storage and use an address without credentials, query parameters or a fragment.",
     },
@@ -269,7 +269,7 @@ const zh: typeof en = {
   providers: {
     intro: "默认服务供 Raer 使用；Tonny、Bob 选择模型服务时也用它。",
     persistence: {
-      saved: "设置已保存在此浏览器；会话密钥仍只保留在内存中。",
+      saved: "设置已保存；临时密钥刷新后需重新填写。",
       "load-failed": "无法恢复已保存的模型服务设置，当前使用项目默认值。",
       "save-failed": "更改仅在本页生效，尚未保存。请检查浏览器存储权限；服务地址不能包含账号密码、查询参数或片段。",
     },
@@ -502,7 +502,7 @@ const ja: typeof en = {
   providers: {
     intro: "既定のサービスは Raer と、モデルサービスを選んだ Tonny・Bob が使います。",
     persistence: {
-      saved: "設定はこのブラウザーに保存済みです。セッションキーはメモリ内だけに保持します。",
+      saved: "設定を保存しました。一時キーは再読み込み後に再入力してください。",
       "load-failed": "保存済みのモデル設定を復元できませんでした。プロジェクトの既定値を使用しています。",
       "save-failed": "変更はこのページでのみ有効で、未保存です。ブラウザーの保存権限を確認し、認証情報・クエリー・フラグメントを含まないアドレスを指定してください。",
     },

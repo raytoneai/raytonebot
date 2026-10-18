@@ -8,11 +8,22 @@ export const BOT_OPTIONS = {
 export type BotAppearance = { [K in keyof typeof BOT_OPTIONS]: (typeof BOT_OPTIONS)[K][number] } & {
   faceColor: string; eyeColor: string; hairColor: string; accessoryColor: string;
 };
-export const DEFAULT_BOT: BotAppearance = {
-  face: 'round', eyes: 'capsule', hair: 'quiff', accessory: 'none',
-  faceColor: '#172B46', eyeColor: '#E7AC26', hairColor: '#71869B', accessoryColor: '#E7AC26',
-};
 export type BotKind = 'woman' | 'man' | 'boy';
+/** Shared face sampled from Rae's saved appearance; role colours belong to accessories. */
+export const BOT_PALETTE = {
+  face: '#FDE7B4', ink: '#0C2458', raytoneGold: '#E7AC26', claudeOrange: '#D97757', codexBlue: '#4779E6',
+} as const;
+const sharedFace = { faceColor: BOT_PALETTE.face, eyeColor: BOT_PALETTE.ink, eyes: 'capsule' } as const;
+export const DEFAULT_BOTS: Readonly<Record<BotKind, BotAppearance>> = {
+  woman: { ...sharedFace, face: 'round', hair: 'long', accessory: 'headset',
+    hairColor: BOT_PALETTE.ink, accessoryColor: BOT_PALETTE.raytoneGold },
+  man: { ...sharedFace, face: 'soft-square', hair: 'quiff', accessory: 'glasses',
+    hairColor: BOT_PALETTE.claudeOrange, accessoryColor: BOT_PALETTE.claudeOrange },
+  boy: { ...sharedFace, face: 'round', hair: 'none', accessory: 'cap',
+    hairColor: BOT_PALETTE.ink, accessoryColor: BOT_PALETTE.codexBlue },
+};
+/** Safe fallback for invalid standalone custom SVG input. */
+export const DEFAULT_BOT = DEFAULT_BOTS.woman;
 export type BotAppearances = Partial<Record<BotKind, BotAppearance>>;
 export const BOT_STORAGE_KEY = 'raytone.bot-appearances.v1';
 export function parseBotAppearance(value: unknown): BotAppearance | undefined {

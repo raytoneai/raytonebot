@@ -11,7 +11,7 @@ export function themeVariables(theme: ThemeTokens): Record<string, string> {
     ...tokenGroup("surface", theme.surface),
     ...tokenGroup("text", theme.text),
     ...tokenGroup("border", theme.border),
-    ...tokenGroup("accent", theme.accent, { action: "accent" }),
+    ...tokenGroup("accent", { text: theme.text.primary, ...theme.accent }, { action: "accent" }),
     ...tokenGroup("", theme.status),
   };
 }

@@ -987,3 +987,54 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 实测发现并修复：全屏工作区被已有产物标签抢回；umask 077 下原子保存失去 Agent 组读权限（先复现后通过）；重试链不能用 slash 命令代替原任务。并发保存回归不预定两个异步调用的完成顺序，只要求一成功一冲突且字节对应成功结果。
 - 边界：UI后端是本轮中间工作树启动，前端HMR；最终后端以全量测试/本地检查/原生检查覆盖，未声称所有截图来自最终部署包。未新增本轮390px、真实模型、目标Linux隔离UID、线上部署及跨设备验收；未运行 `cloud-preview --check`。第一批浏览器上传视觉权限与最终延迟复采缺口仍保留，不能归为全部只剩sandbox外工作。
 - 范围限制：群写串行只协调群成员轮次；文档是有界文本工作区，不是知识库；文件与来源metadata不具备跨文件事务；浏览器草稿不跨设备；实例销毁恢复、外部Web/control/console、唤醒和平台保留权限不变。
+
+## 2026-10-18 UI 颜色语义与细节优化
+
+- `npm run build` 最终通过；`npm test` 395/395，通过后仅补静态颜色引用与 Button 样式，最终构建覆盖这些修改；`git diff --check -- src docs/product` 通过。构建仍有既有 Vite 原生配置加载与大包提示。
+- 本机 Chrome 桌面：Warm Graphite 群聊菜单背景跟随深色，成员选中、主按钮、Tab 焦点及 Escape 返回正常；Ice White 原主题恢复。没有创建或发送真实任务。
+- 12 主题的设置默认标签读取 computed color/background，按 sRGB 相对亮度计算对比度：Warm Graphite 5.21、Cocoa 4.61、Forest 5.59、Soft Glass 13.62、Sand 5.86、Tangerine 5.85、Cold Mono 9.16、Slate Blue 5.12、Cyan 6.59、Ice White 5.95、Mist Violet 6.38、Polar Navy 12.40。此结论限于该文字/背景组合，不代表全站所有状态均满足无障碍对比度。
+- 390×844 模型服务页：名称与默认标签、开关、展开按钮和下一行密钥状态无重叠，截图 `output/ui-polish/settings-mobile.png`。桌面浅深色群菜单截图为 `group-light.png` / `group-dark.png`。
+- `?devtools=1` 全部 19 个事件场景与欢迎页逐项切换并读渲染结果：思考、工具/审批、错误、重试、耗尽、终止、中断、产物、群作者与能力入口仍显示，浏览器 error 为 0；未把 fixture 当成真实引擎闭环。
+- 输入临时验收文字触发草稿保存，确认“草稿已保存”约 2.5 秒后隐藏，输入框 top 从 489.75px 到 489.75px；验收文字已清空。错误/冲突/停止的 data-saved 分支经源码交叉检查不会淡出；本次未人为制造磁盘/浏览器存储错误。
+- 未部署或推送，未改变默认模型、主机接口与审批语义。
+
+## 2026-10-18 聊天标题胶囊
+
+- 原 HeaderAgent 改为单行静态头像＋Rae＋当前引擎图标＋折叠箭头；相对聊天列居中。Pi 弹层只显示当前配置的模型；CLI 原有模型来源控件保留，未修改模型配置。
+- 本机 Chrome：左右面板分别展开/收起及 390×844 下，胶囊中心相对聊天列中心误差均小于 0.01px；窄屏模型弹层范围 94–295.68px，未溢出 390px 视口。读取头像所有后代的 computed animation-name 均为 none，保留头像但禁用待机呼吸等 CSS 动效。
+- Ice White / Warm Graphite 实看标题与模型弹层；Escape 关闭后焦点回到原按钮；Codex 历史会话显示正确图标，来源单选与管理入口仍可见（未切换来源）。19 个内置事件场景与欢迎页逐项切换，无浏览器 error；本轮不重复各场景审批/执行交互。
+- `npm run build` 通过；`npm test` 395/395、0 跳过；最终 `git diff --check -- src docs/product` 通过。静态头像 CSS 补充后重新构建，未重跑无关服务端测试。
+- 截图：`output/chat-header/desktop.png`、`detail.png`、`model-open.png`、`mobile.png`、`dark.png`；原 Ice White 主题与桌面视口已恢复。未调用真实模型，未部署或推送。
+
+## 2026-10-18 聊天气泡宽度与留白
+
+- CSS 沿用 ChatFrame 的 assistant-turn / assistant-lane：Bot 正文增加主题内嵌背景，短消息按内容收缩；同轮的工具/产物统一左侧宽度，用户仍靠右。超宽屏内容区最多 1120px，Bot 最多 768px / 80%；聊天列宽 ≤600px 时保留对侧 24px 留白，适配窄屏及分栏。
+- Chrome 实际历史长对话：桌面聊天列 1279px、Bot 768px，Bot 右边界与用户右边界相差 352px；输出面板展开后聊天列 866px、Bot 约 651px，横向溢出为 0。390×844 时 Bot 整轮 314px，工具 fixture 含头像时卡片约 266px，审批仍可见。
+- 19 个内置事件场景逐项切换并保存可访问性快照和尺寸；显示聊天的场景均 scrollWidth=clientWidth=390px，消息/卡片没有溢出其布局盒。Capability tray 为欢迎态，聊天不可见（尺寸为 0），未计作宽度验收。Tool approval / MCP success + interrupt 的展开代码块正常；未为本轮新增模型请求或模拟审批。
+- Ice White / Warm Graphite 浅深色、手机长段落/路径换行、短消息自适应宽度均实看；控制台 error 为 0，恢复原主题与桌面视口。截图在 `output/chat-bubbles/desktop.png`、`mobile.png`、`dark.png`，场景尺寸在 `fixture-widths.json`。
+- `npm test` 395/395、0 跳过；最终宽度调整后 `npm run build` 与 `git diff --check` 通过，保留既有大包提示。未做真实模型流式任务或云端验收，未部署/推送。
+
+## 2026-10-18 Logo 光栅 v6
+
+- `public/brand` 浅深色 SVG 的四条光栅改为填充轮廓：外侧起端厚度 3.6、内侧 3.2 SVG 单位，逐渐收尖；外侧慢淡出，内侧快速淡出，增强拖尾而保持字标清楚。仍是静态 Logo，没有新增动画。
+- `xmllint` 校验通过；圆脸、眼睛及字标源码与修改前逐字相同，浅深色几何一致。`npm run build`、395/395 测试与 diff 检查通过。
+- Chrome 560px 放大浅深色对比及 44px 高度缩略图实看；实际侧栏两张资源均加载成功，当前浅色 Logo 高度仍 44px，URL 为 `tapered-rays-v6`，避免旧缓存。没有布局/事件逻辑修改，本轮未重复事件 fixture 矩阵。
+- 预览与截图：`output/raytone-bot-logo/ray-motion-v6/index.html`、`comparison.png`、`after.png`、`sidebar.png`。未部署、未推送。
+
+## 2026-10-18 侧栏聊天记录按 Bot 折叠
+
+- 复用 SessionSidebar / SessionGroup 与现有虚拟列表：主机将会话的 agentPreset 带入摘要，群聊按 group_ 身份单列，未知角色进入「其他对话」；每组内部保留原有顺序。组头有头像、名称、数量与 aria-expanded / aria-controls，组内不再重复头像。
+- 折叠状态在主机中维护，初始仅展开当前 Bot；选择会话后自动展开其组，用户仍可手动收起当前组。状态保留于本页面板切换和抽屉重挂载，不承诺跨刷新保存。独立预览未提供 historyGroups 时仍沿用原日期分组。
+- 397/397 测试通过、0 跳过。新增测试覆盖角色元数据经摘要保留、未知角色与群聊不丢失、组内顺序，以及 10000 条记录下折叠标题占位、连续键盘索引和可见行数量。最终 build、`git diff --check -- src docs/product` 通过，构建保留既有配置加载/大包提示。
+- 本机内置浏览器实际查看 48 条历史：默认 Raer 28 条展开，其余 Tonny 5 / Bob 10 / Group 5 收起；手动折叠、多个组展开正常。搜索弹层选择 Bob 的既有对话后自动打开 Bob 组；Tab / Shift+Tab 可在组头和记录之间移动；F2 可进入原重命名行，Escape 取消；Delete 显示原确认行后取消，未修改或删除历史。
+- 展开右侧面板仍保留手动折叠状态；390×844 抽屉开关正常，页面 scrollWidth 与 clientWidth 均 390px，四个分组按钮宽 255px。19 个内置事件场景与欢迎页均切换查看，侧栏分组保留，无横向溢出或浏览器 error；本轮不重复各 fixture 的工具执行/审批行为。
+- 截图：`output/history-groups/desktop.png`、`sidebar.png`、`mobile.png`。未调用真实模型、未部署或推送。
+
+## 2026-10-18 简洁 Bot 默认头像与配色
+
+- 直接读取用户当前 Chrome 渲染的 SVG，确认 Rae 脸色为 `#FDE7B4`、长发与耳麦；Tonny 为圆角方脸、飞机头和圆眼镜；Bob 为圆脸与蓝帽。新默认保留这些造型，统一脸色和 `#0C2458` 眼睛，Pi 使用 Logo 的深蓝/`#E7AC26` 金黄，Claude 头发与眼镜对齐现有引擎图标的 `#D97757`，Codex 保留当前帽色 `#4779E6`。
+- AgentAvatar 的默认分支与定制分支都走现有 botAvatarSVG。默认不再使用旧 avatarSVG 的光环、嘴部、高光等装饰，深色背景不再加头像底盘/投影；原眨眼、目光与工作姿态层保留。设置里的角色切换、编辑初值、默认搭配和恢复入口读取同一 DEFAULT_BOTS 表。
+- 通过当前 Chrome 的设置入口逐个应用三位角色默认值。Bob 编辑器临时切到椭圆后点「默认搭配」，恢复圆脸、无头发、棒球帽及正确的四个色值；取消后无临时改动。刷新页面后，三位仍使用新默认。其他浏览器已有定制不会被代码强制覆盖。
+- 实看 Ice White / Warm Graphite；各处同一角色的 SVG 颜色集合一致，标题头像所有后代 computed animation-name 为 none。19 个内置场景及欢迎页逐一切换，旧 `.halo/.mouth/.glint` 节点为 0，无浏览器 error。已恢复原 Ice White 主题，未修改模型/权限或发送真实任务。
+- `npm run build` 通过；首次全量测试暴露原配饰用例隐含依赖通用默认发型为飞机头，改成显式 quiff 测试输入后，头像 4 项单测及最终 397/397 全量测试通过、0 跳过；`git diff --check -- src docs/product` 通过。
+- 截图与场景结果：`output/avatar-palette/sidebar-light.png`、`sidebar-dark.png`、`desktop.png`、`fixture-checks.json`。未验证云端或调用真实模型，未部署、未推送。

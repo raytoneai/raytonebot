@@ -32,7 +32,7 @@ import { MEMORY_COUNT_LIMIT, MEMORY_TEXT_LIMIT, type MemoryView } from "../../pi
 import { CHANNEL_FIELDS, type ChannelPatch, type ChannelView } from "../../pi/imChannels/types";
 import "./settings.css";
 import { AgentAvatar, AgentPersonaProvider, type AvatarKind } from "../../avatars/AgentPersona";
-import { BOT_OPTIONS, DEFAULT_BOT, type BotAppearance } from "../../runtime/botAppearance";
+import { BOT_OPTIONS, BOT_PALETTE, DEFAULT_BOTS, type BotAppearance } from "../../runtime/botAppearance";
 import { saveBotAppearances, useBotAppearances } from "../../runtime/useBotAppearances";
 
 /**
@@ -280,7 +280,7 @@ function ProviderRow({
 
   return (
     <div className="settings-provider" data-open={open}>
-      <div className="settings-row">
+      <div className="settings-row settings-model-row">
         <ProviderMark label={provider.label} />
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title">
@@ -1075,7 +1075,7 @@ function BotAvatarsSection() {
   const zh = locale === "zh";
   const saved = useBotAppearances();
   const [kind, setKind] = useState<AvatarKind>("woman");
-  const [draft, setDraft] = useState<BotAppearance>({ ...(saved.woman ?? DEFAULT_BOT) });
+  const [draft, setDraft] = useState<BotAppearance>({ ...(saved.woman ?? DEFAULT_BOTS.woman) });
   const [editing, setEditing] = useState(false);
   const [status, setStatus] = useState("");
   const names = { woman: "Raer", man: "Tonny", boy: "Bob" };
@@ -1089,9 +1089,9 @@ function BotAvatarsSection() {
     catch { setStatus(zh ? "保存失败，请检查浏览器存储后重试。" : "Could not save. Check browser storage and retry."); }
   };
   return <>
-    <p className="settings-intro">{zh ? "给你的助手创建一个 Bot 头像。脸蛋、眼睛、发型和配饰自由组合，保留原来的眨眼与状态动画。保存于当前浏览器。" : "Create a bot avatar for your assistant. Combine faces, eyes, hair and accessories with the existing animations. Saved in this browser."}</p>
+    <p className="settings-intro">{zh ? "自由组合脸型、眼睛、发型和配饰。仅保存在此浏览器。" : "Choose a face, eyes, hair and accessories. Saved only in this browser."}</p>
     <div className="bot-role-picker" aria-label={zh ? "选择助手" : "Choose assistant"}>
-      {(["woman", "man", "boy"] as const).map(k => <button type="button" key={k} aria-pressed={kind === k} onClick={() => { setKind(k); setDraft({ ...(saved[k] ?? DEFAULT_BOT) }); setEditing(false); setStatus(""); }}>
+      {(["woman", "man", "boy"] as const).map(k => <button type="button" key={k} aria-pressed={kind === k} onClick={() => { setKind(k); setDraft({ ...(saved[k] ?? DEFAULT_BOTS[k]) }); setEditing(false); setStatus(""); }}>
         <AgentAvatar size={36} kind={k} appearance={saved[k] ?? null} /><span>{names[k]}</span>
       </button>)}
     </div>
@@ -1102,16 +1102,16 @@ function BotAvatarsSection() {
         </AgentPersonaProvider>
         <strong>{names[kind]}</strong>
         <span className="settings-row-sub">{zh ? "移动鼠标，看它望向你" : "Move your pointer to catch its gaze"}</span>
-        {!editing ? <Button onClick={() => { setDraft({ ...(saved[kind] ?? DEFAULT_BOT) }); setStatus(""); setEditing(true); }}>{saved[kind] ? (zh ? "修改头像" : "Edit avatar") : (zh ? "创建 Bot 头像" : "Create bot avatar")}</Button> : null}
-        {saved[kind] && !editing ? <Button variant="ghost" onClick={() => { const next = { ...saved }; delete next[kind]; persist(next, zh ? "已恢复原头像" : "Original avatar restored"); }}>{zh ? "恢复原头像" : "Restore original"}</Button> : null}
+        {!editing ? <Button onClick={() => { setDraft({ ...(saved[kind] ?? DEFAULT_BOTS[kind]) }); setStatus(""); setEditing(true); }}>{zh ? "修改头像" : "Edit avatar"}</Button> : null}
+        {saved[kind] && !editing ? <Button variant="ghost" onClick={() => { const next = { ...saved }; delete next[kind]; persist(next, zh ? "已恢复默认头像" : "Default avatar restored"); }}>{zh ? "恢复默认头像" : "Restore default"}</Button> : null}
       </div>
       {editing ? <div className="bot-creator-controls">
         {(Object.keys(BOT_OPTIONS) as (keyof typeof BOT_OPTIONS)[]).map(key => <fieldset key={key} className="bot-options"><legend>{labels[key]}</legend><div>
           {BOT_OPTIONS[key].map(value => <button key={value} type="button" aria-pressed={draft[key] === value} onClick={() => setDraft(current => ({ ...current, [key]: value }))}>{zh ? (key === "eyes" && value === "round" ? "圆点" : optionNames[value]) : value}</button>)}
         </div></fieldset>)}
         <div className="bot-colours">{(["faceColor", "eyeColor", "hairColor", "accessoryColor"] as const).map(key => <label key={key}>{labels[key]}<input type="color" value={draft[key]} onChange={event => setDraft(current => ({ ...current, [key]: event.target.value }))} /></label>)}</div>
-        <fieldset className="bot-options"><legend>{zh ? "推荐发色" : "Hair palette"}</legend><div>{["#71869B", "#9B91A8", "#A9917E", "#D9D5C9", "#6F9690"].map((color, i) => <button type="button" className="bot-swatch" key={color} style={{ background: color }} aria-label={(zh ? ["灰蓝", "灰紫", "暖棕", "米白", "灰绿"] : ["Slate", "Lavender", "Taupe", "Ivory", "Teal"])[i]} aria-pressed={draft.hairColor.toLowerCase() === color.toLowerCase()} onClick={() => setDraft(current => ({ ...current, hairColor: color }))} />)}</div></fieldset>
-        <div className="bot-actions"><Button onClick={() => persist({ ...saved, [kind]: draft }, zh ? "已应用头像" : "Avatar applied")}>{zh ? "保存并应用" : "Save and apply"}</Button><Button variant="ghost" onClick={() => { setEditing(false); setStatus(""); }}>{zh ? "取消" : "Cancel"}</Button><Button variant="ghost" onClick={() => setDraft({ ...DEFAULT_BOT })}>{zh ? "默认搭配" : "Default combination"}</Button></div>
+        <fieldset className="bot-options"><legend>{zh ? "推荐发色" : "Hair palette"}</legend><div>{[BOT_PALETTE.ink, BOT_PALETTE.claudeOrange, "#71869B", "#A9917E", "#D9D5C9"].map((color, i) => <button type="button" className="bot-swatch" key={color} style={{ background: color }} aria-label={(zh ? ["Raytone 深蓝", "Claude 橙", "灰蓝", "暖棕", "米白"] : ["Raytone navy", "Claude orange", "Slate", "Taupe", "Ivory"])[i]} aria-pressed={draft.hairColor.toLowerCase() === color.toLowerCase()} onClick={() => setDraft(current => ({ ...current, hairColor: color }))} />)}</div></fieldset>
+        <div className="bot-actions"><Button onClick={() => persist({ ...saved, [kind]: draft }, zh ? "已应用头像" : "Avatar applied")}>{zh ? "保存并应用" : "Save and apply"}</Button><Button variant="ghost" onClick={() => { setEditing(false); setStatus(""); }}>{zh ? "取消" : "Cancel"}</Button><Button variant="ghost" onClick={() => setDraft({ ...DEFAULT_BOTS[kind] })}>{zh ? "默认搭配" : "Default combination"}</Button></div>
       </div> : null}
     </div>
     <p role="status" className="settings-row-sub">{status}</p>

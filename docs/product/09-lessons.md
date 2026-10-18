@@ -297,6 +297,9 @@
 
 - 用户否定了高饱和亮蓝头发配深蓝脸蛋：有对比不等于协调。当前 Bot 定制采用低饱和灰蓝默认发色，灰紫、暖棕、米白、灰绿作为搭配；脸蛋和眼睛仍默认墨蓝与金黄。
 - `isFixtureMode` 表示 transport 支持示例，并不表示用户正在看示例。产品要求 transport 保持 replay，实际示例隔离应依据非空 `streamId`；否则定制头像在编辑器里正常，却无法应用到真实侧栏与欢迎页。新增设置入口使用可选 prop，独立静态 fixtures 不显示入口。
+- 2026-10-18 用户明确聊天标题保留静态头像。`AgentAvatar live={false}` 只关闭 JS 动作，idle 状态仍会触发 CSS 呼吸/光线动画；本次在标题范围关闭这些动画，并读取后代 computed animation-name 验证均为 none，不扩大到欢迎页或侧栏。
+- 2026-10-18 头像默认值更新：用户选定的简洁定制造型取代旧版复杂头像，上述灰蓝发色/深蓝脸蛋不再是默认方向。三位统一 Rae 当前脸色 `#FDE7B4` 与 Raytone 深蓝眼睛；Pi 用深蓝/金黄、Claude 头发和眼镜用 `#D97757`、Codex 蓝帽保留 `#4779E6`。从当前 DOM 读取实际 SVG 色值，避免截图色彩配置导致采样值偏移；恢复默认应按角色恢复，不能让三个角色都套同一个通用模板。
+- 2026-10-18 用户纠正：Bot 回复与用户消息应左右错开并留白；不能让 assistant-lane 为了对齐用户右边界而铺满整行。约束整个 assistant-turn，让正文、工具和产物一起收窄，并按聊天列宽度适配右侧面板，不能只按窗口宽度判断。
 
 - 2026-10-17 展开工作区不滚动：`.artifact-frame[data-expanded="true"] .artifact-content` 的 `overflow:hidden` 优先级高于 `.workspace-files`，仅添加低优先级 overflow:auto 无效。工作区通过 `.artifact-frame .artifact-content.workspace-files` 显式接管滚动，保留 min-height:0；避免改动其他产物预览的 overflow 策略。
 

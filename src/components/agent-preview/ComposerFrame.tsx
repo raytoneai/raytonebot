@@ -832,7 +832,7 @@ export function ComposerFrame({
       </div>
       {steeringNotice ? <small className="composer-draft-status" role="status">{steeringNotice}</small> : null}
       {stopStatus === "pending" || stopStatus === "failed" || composerDraft?.status && (canSubmit || draft.runOptions || composerDraft.status !== "saved") ? (
-        <small className="composer-draft-status" role="status">
+        <small className="composer-draft-status" data-saved={composerDraft?.status === "saved" && !stopFeedback} role="status">
           {[stopFeedback, composerDraft?.status && (canSubmit || draft.runOptions || composerDraft.status !== "saved")
             ? copy.composer.frame.draftStatus[composerDraft.status] : undefined].filter(Boolean).join(" ")}
         </small>

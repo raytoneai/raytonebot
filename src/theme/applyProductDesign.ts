@@ -14,6 +14,7 @@ const managedVariables = [
   "border-strong",
   "accent",
   "accent-hover",
+  "accent-text",
   "success",
   "warning",
   "danger",
@@ -74,6 +75,9 @@ export function applyProductDesign(
   if (product.brand.accent.kind === "custom") {
     variables.accent = product.brand.accent.color;
     variables["accent-hover"] = product.brand.accent.color;
+  }
+  if (variables.accent) {
+    variables["accent-text"] = "color-mix(in srgb, var(--accent) 50%, var(--text-primary))";
   }
   if (product.brand.corners === "rounded") variables["agent-product-radius-scale"] = 1.35;
   if (product.brand.corners === "square") variables["agent-product-radius-scale"] = 0;

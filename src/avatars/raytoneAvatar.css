@@ -4,12 +4,7 @@
   flex: none;
   line-height: 0;
   border-radius: 999px;
-  /* No plate on light surfaces: the navy hair and the gold halo carry the edge themselves. */
-}
-/* On dark surfaces the navy hair would vanish, so the face sits on a plate. */
-.preview-frame[data-appearance="dark"] .raytone-avatar {
-  background: #23304b;
-  box-shadow: inset 0 0 0 1px rgb(255 255 255 / 0.08);
+  /* Simple Bot faces remain unframed on both light and dark surfaces. */
 }
 
 .raytone-avatar[data-interactive="true"] {
@@ -18,10 +13,6 @@
   overflow: visible;
   background: transparent;
   box-shadow: none;
-}
-/* The large face stands free on light surfaces; on dark ones a shadow lifts it off the page. */
-.preview-frame[data-appearance="dark"] .raytone-avatar[data-interactive="true"] svg {
-  filter: drop-shadow(0 6px 12px rgb(0 0 0 / 0.35));
 }
 
 .raytone-avatar[data-interactive="true"][data-dragging="true"] {

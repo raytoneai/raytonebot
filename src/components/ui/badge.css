@@ -23,7 +23,7 @@
 /* Tonal variants: soft tinted bg + tone-colored text */
 .ui-badge[data-tone="accent"] {
   background: color-mix(in srgb, var(--accent) 12%, var(--surface-panel));
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .ui-badge[data-tone="success"] {

@@ -3,6 +3,22 @@ import assert from "node:assert/strict";
 import { anchoredScrollTop, searchLayout, visibleSearchRows } from "./useSearchWindow.ts";
 import { searchResultKey } from "./useConversationSearch.ts";
 
+test("collapsed Bot groups retain header space without consuming row indices or mounting hidden history", () => {
+  const items = Array.from({ length: 10000 }, (_, i) => ({ id: `history-${i}`, title: `History ${i}` }));
+  const metrics = { heading: 36, rowGap: 3, groupGap: 4, rowHeight: 34, keepEmptyHeadings: true };
+  const groups = searchLayout([[], items, []], new Map(), metrics);
+  assert.equal(groups[0].height, 36);
+  assert.equal(groups[1].rows[0].top, 76);
+  assert.equal(groups[1].rows[0].index, 0);
+  assert.equal(groups[2].height, 36);
+  const rows = groups.flatMap(group => group.rows);
+  assert(visibleSearchRows(rows, rows[9999].top - 200, 300).some(row => row.index === 9999));
+  assert(visibleSearchRows(rows, 0, 300).length < 20);
+  const collapsed = searchLayout([[], [], []], new Map(), metrics);
+  assert.deepEqual(collapsed.map(group => group.height), [36, 36, 36]);
+  assert.equal(collapsed.flatMap(group => group.rows).length, 0);
+});
+
 test("search windows preserve variable-height group positions and a remote focused row without mounting intervening hits", () => {
   const items = Array.from({ length: 2500 }, (_, i) => ({ id: `conversation-${i}`, title: `Message ${i}`, textId: "shared", snippet: "match" }));
   const heights = new Map([[searchResultKey(items[0]), 120], [searchResultKey(items[1]), 36]]);

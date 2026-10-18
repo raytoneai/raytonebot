@@ -30,7 +30,7 @@ test('every combination retains existing motion layers and two eyes', () => {
 
 test('universal accessories persist, render their colour and keep eyes unobstructed by quiff', () => {
   for (const accessory of ['headphones', 'headset', 'cap', 'beanie'] as const) {
-    const appearance = { ...DEFAULT_BOT, accessory, accessoryColor: '#ABCDEF' };
+    const appearance = { ...DEFAULT_BOT, hair: 'quiff' as const, accessory, accessoryColor: '#ABCDEF' };
     assert.deepEqual(parseBotAppearances(JSON.stringify({ boy: appearance })).boy, appearance);
     const svg = botAvatarSVG(appearance);
     assert.ok(svg.includes('fill="#ABCDEF"'));
