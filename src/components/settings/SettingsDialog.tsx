@@ -31,9 +31,6 @@ import type { MemoriesState } from "../../runtime/useMemories";
 import { MEMORY_COUNT_LIMIT, MEMORY_TEXT_LIMIT, type MemoryView } from "../../pi/memoryTypes";
 import { CHANNEL_FIELDS, type ChannelPatch, type ChannelView } from "../../pi/imChannels/types";
 import "./settings.css";
-import { AgentAvatar, AgentPersonaProvider, type AvatarKind } from "../../avatars/AgentPersona";
-import { BOT_OPTIONS, BOT_PALETTE, DEFAULT_BOTS, type BotAppearance } from "../../runtime/botAppearance";
-import { saveBotAppearances, useBotAppearances } from "../../runtime/useBotAppearances";
 
 /**
  * Settings, as one dialog with a section rail. Layout and row patterns follow magpie
@@ -46,7 +43,7 @@ import { saveBotAppearances, useBotAppearances } from "../../runtime/useBotAppea
 export type PermissionMode = "request" | "auto" | "allow-all";
 export type { ProviderPatch } from "../../runtime/providerSettings";
 
-export type SettingsSectionId = "avatars" | "providers" | "permissions" | "channels" | "routines" | "mcp" | "memory" | "appearance" | "about";
+export type SettingsSectionId = "providers" | "permissions" | "channels" | "routines" | "mcp" | "memory" | "appearance" | "about";
 type SectionId = SettingsSectionId;
 
 const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI" };
@@ -63,8 +60,6 @@ export type SettingsDialogProps = {
   onOpenChange: (open: boolean) => void;
   /** Section shown when the dialog opens. */
   initialSection?: SettingsSectionId;
-  /** Product-only avatar creation; static fixtures keep their original navigation. */
-  botAvatars?: boolean;
   project: AgentFrontendProject;
   providerSettingsStatus?: ProviderSettingsStatus;
   runtime?: PiRuntimeState;
@@ -103,7 +98,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.routines ? [{ id: "routines" as const, label: t.nav.routines, Icon: CalendarClock }] : []),
     ...(props.mcpServers ? [{ id: "mcp" as const, label: t.nav.mcp, Icon: Plug }] : []),
     ...(props.memories ? [{ id: "memory" as const, label: t.nav.memory, Icon: Brain }] : []),
-    ...(props.botAvatars ? [{ id: "avatars" as const, label: locale === "zh" ? "Bot 头像" : "Bot avatars", Icon: Palette }] : []),
     { id: "appearance", label: t.nav.appearance, Icon: Palette },
     { id: "about", label: t.nav.about, Icon: Info },
   ];
@@ -143,7 +137,6 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {section === "routines" && props.routines ? <RoutinesSection t={t} state={props.routines} onOpenConversation={props.onOpenConversation} /> : null}
               {section === "mcp" && props.mcpServers ? <McpSection t={t} state={props.mcpServers} /> : null}
               {section === "memory" && props.memories ? <MemorySection t={t} state={props.memories} /> : null}
-              {section === "avatars" && props.botAvatars ? <BotAvatarsSection /> : null}
               {section === "appearance" ? <AppearanceSection {...props} t={t} /> : null}
               {section === "about" ? <AboutSection {...props} t={t} /> : null}
             </div>
@@ -168,7 +161,7 @@ function ProvidersSection({
   return (
     <>
       <p className="settings-intro">{t.providers.intro}</p>
-      {providerSettingsStatus !== "idle" ? <p className="settings-status" data-tone={providerSettingsStatus === "saved" ? "ok" : "error"} role="status">
+      {providerSettingsStatus === "load-failed" || providerSettingsStatus === "save-failed" ? <p className="settings-status" data-tone="error" role="status">
         {t.providers.persistence[providerSettingsStatus]}
       </p> : null}
       <div className="settings-list">
@@ -658,12 +651,11 @@ function AppearanceSection({ t, themePreset, onThemeChange }: SectionProps) {
             className="settings-theme"
             onClick={() => onThemeChange(theme.id)}
           >
-            <span className="settings-theme-swatch" style={{ background: theme.surface.canvas, borderColor: theme.border.strong }}>
+            <span className="settings-theme-swatch" aria-hidden="true" style={{ background: theme.surface.canvas, borderColor: theme.border.strong }}>
               <span style={{ background: theme.surface.panel }} />
               <span style={{ background: theme.accent.action }} />
             </span>
-            <span className="settings-theme-name">{theme.name}</span>
-            <span className="settings-row-sub">{theme.appearance === "dark" ? t.appearance.dark : t.appearance.light}</span>
+            <span className="settings-theme-name">{t.appearance[theme.appearance]}</span>
           </button>
         ))}
       </div>
@@ -1066,54 +1058,4 @@ function latencyTone(ms = 0): "ok" | "warn" | "error" {
   if (ms < 500) return "ok";
   if (ms < 800) return "warn";
   return "error";
-}
-
-
-/** Avatar creation belongs to the existing settings surface. Drafts apply only on save. */
-function BotAvatarsSection() {
-  const { locale } = useLocale();
-  const zh = locale === "zh";
-  const saved = useBotAppearances();
-  const [kind, setKind] = useState<AvatarKind>("woman");
-  const [draft, setDraft] = useState<BotAppearance>({ ...(saved.woman ?? DEFAULT_BOTS.woman) });
-  const [editing, setEditing] = useState(false);
-  const [status, setStatus] = useState("");
-  const names = { woman: "Raer", man: "Tonny", boy: "Bob" };
-  const labels = {
-    face: zh ? "脸蛋" : "Face", eyes: zh ? "眼睛" : "Eyes", hair: zh ? "头发" : "Hair", accessory: zh ? "配饰" : "Accessory",
-    faceColor: zh ? "脸蛋颜色" : "Face colour", eyeColor: zh ? "眼睛颜色" : "Eye colour", hairColor: zh ? "头发颜色" : "Hair colour", accessoryColor: zh ? "配饰颜色" : "Accessory colour",
-  };
-  const optionNames: Record<string, string> = { round: "圆形", oval: "椭圆", 'soft-square': "圆角方形", capsule: "胶囊", smile: "笑眼", none: "无", quiff: "飞机头", bob: "波波头", pixie: "侧分短发", buns: "双丸子", long: "侧分长发", clip: "发夹", bow: "蝴蝶结", star: "星星", glasses: "圆眼镜", headphones: "头戴耳机", headset: "耳麦", cap: "棒球帽", beanie: "针织帽" };
-  const persist = (next: typeof saved, message: string) => {
-    try { saveBotAppearances(next); setEditing(false); setStatus(message); }
-    catch { setStatus(zh ? "保存失败，请检查浏览器存储后重试。" : "Could not save. Check browser storage and retry."); }
-  };
-  return <>
-    <p className="settings-intro">{zh ? "自由组合脸型、眼睛、发型和配饰。仅保存在此浏览器。" : "Choose a face, eyes, hair and accessories. Saved only in this browser."}</p>
-    <div className="bot-role-picker" aria-label={zh ? "选择助手" : "Choose assistant"}>
-      {(["woman", "man", "boy"] as const).map(k => <button type="button" key={k} aria-pressed={kind === k} onClick={() => { setKind(k); setDraft({ ...(saved[k] ?? DEFAULT_BOTS[k]) }); setEditing(false); setStatus(""); }}>
-        <AgentAvatar size={36} kind={k} appearance={saved[k] ?? null} /><span>{names[k]}</span>
-      </button>)}
-    </div>
-    <div className="bot-creator">
-      <div className="bot-creator-preview">
-        <AgentPersonaProvider persona={{ kind, name: names[kind], state: "idle" }}>
-          <AgentAvatar size={176} kind={kind} appearance={editing ? draft : saved[kind] ?? null} live interactive />
-        </AgentPersonaProvider>
-        <strong>{names[kind]}</strong>
-        <span className="settings-row-sub">{zh ? "移动鼠标，看它望向你" : "Move your pointer to catch its gaze"}</span>
-        {!editing ? <Button onClick={() => { setDraft({ ...(saved[kind] ?? DEFAULT_BOTS[kind]) }); setStatus(""); setEditing(true); }}>{zh ? "修改头像" : "Edit avatar"}</Button> : null}
-        {saved[kind] && !editing ? <Button variant="ghost" onClick={() => { const next = { ...saved }; delete next[kind]; persist(next, zh ? "已恢复默认头像" : "Default avatar restored"); }}>{zh ? "恢复默认头像" : "Restore default"}</Button> : null}
-      </div>
-      {editing ? <div className="bot-creator-controls">
-        {(Object.keys(BOT_OPTIONS) as (keyof typeof BOT_OPTIONS)[]).map(key => <fieldset key={key} className="bot-options"><legend>{labels[key]}</legend><div>
-          {BOT_OPTIONS[key].map(value => <button key={value} type="button" aria-pressed={draft[key] === value} onClick={() => setDraft(current => ({ ...current, [key]: value }))}>{zh ? (key === "eyes" && value === "round" ? "圆点" : optionNames[value]) : value}</button>)}
-        </div></fieldset>)}
-        <div className="bot-colours">{(["faceColor", "eyeColor", "hairColor", "accessoryColor"] as const).map(key => <label key={key}>{labels[key]}<input type="color" value={draft[key]} onChange={event => setDraft(current => ({ ...current, [key]: event.target.value }))} /></label>)}</div>
-        <fieldset className="bot-options"><legend>{zh ? "推荐发色" : "Hair palette"}</legend><div>{[BOT_PALETTE.ink, BOT_PALETTE.claudeOrange, "#71869B", "#A9917E", "#D9D5C9"].map((color, i) => <button type="button" className="bot-swatch" key={color} style={{ background: color }} aria-label={(zh ? ["Raytone 深蓝", "Claude 橙", "灰蓝", "暖棕", "米白"] : ["Raytone navy", "Claude orange", "Slate", "Taupe", "Ivory"])[i]} aria-pressed={draft.hairColor.toLowerCase() === color.toLowerCase()} onClick={() => setDraft(current => ({ ...current, hairColor: color }))} />)}</div></fieldset>
-        <div className="bot-actions"><Button onClick={() => persist({ ...saved, [kind]: draft }, zh ? "已应用头像" : "Avatar applied")}>{zh ? "保存并应用" : "Save and apply"}</Button><Button variant="ghost" onClick={() => { setEditing(false); setStatus(""); }}>{zh ? "取消" : "Cancel"}</Button><Button variant="ghost" onClick={() => setDraft({ ...DEFAULT_BOTS[kind] })}>{zh ? "默认搭配" : "Default combination"}</Button></div>
-      </div> : null}
-    </div>
-    <p role="status" className="settings-row-sub">{status}</p>
-  </>;
 }

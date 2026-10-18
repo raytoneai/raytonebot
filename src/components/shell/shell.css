@@ -163,6 +163,9 @@
 .shell-header-engine .harness-mark { display: block; margin: 0; }
 .shell-header-chevron { flex: none; color: var(--text-muted); }
 .shell-header-compact[data-state="open"] .shell-header-chevron { transform: rotate(180deg); }
+.shell-chat-participants { display: flex; align-items: center; justify-content: center; gap: 6px; min-width: 0; max-width: 100%; }
+.shell-chat-participants > .shell-header-agent { min-width: 0; }
+.shell-invite-agent { flex: none; width: 32px; height: 32px; border-radius: var(--radius-full); }
 
 .shell-popover {
   z-index: 70;
@@ -220,3 +223,16 @@ button.shell-member-chip { cursor: pointer; }
   .shell-agent:active:not(:disabled),
   .session-item-shell:has(> .session-item:active:not(.session-item-confirm)) { transform: none; }
 }
+
+.session-brand-create { border: 0; background: transparent; cursor: pointer; text-align: left; border-radius: 8px; }
+.session-brand-create:focus-visible, .shell-agent-edit:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+.shell-agent-row { position: relative; min-width: 0; }
+.shell-agent-row > .shell-agent { width: 100%; padding-right: 34px; }
+.shell-agent[aria-disabled="true"] { cursor: not-allowed; opacity: 0.55; }
+.shell-agent-edit { position: absolute; right: 5px; top: 50%; transform: translateY(-50%); display: grid; place-items: center; width: 28px; height: 28px; padding: 0; border: 0; border-radius: 6px; color: var(--text-muted); background: transparent; cursor: pointer; opacity: 0; }
+.shell-agent-row:hover .shell-agent-edit, .shell-agent-row:focus-within .shell-agent-edit { opacity: 1; }
+.shell-agent-edit:hover { background: var(--surface-hover); color: var(--text-primary); }
+.shell-agent-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shell-bot-error { color: var(--danger); font-size: var(--text-sm); }
+@media (hover: none) { .shell-agent-edit { opacity: 1; } }
+.shell-agents[data-manage="true"] { flex: none; max-height: min(48dvh, 440px); overflow-y: auto; align-content: start; }

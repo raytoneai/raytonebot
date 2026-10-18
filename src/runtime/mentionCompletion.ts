@@ -5,7 +5,7 @@
  * The left boundary matches the host's mention parsing (`MENTION` in src/pi/groupChat.ts): an `@`
  * after a letter, digit or `._%+-` is part of an e-mail address, not a mention.
  */
-export type MentionCandidate = { id: string; name: string };
+export type MentionCandidate = { id: string; name: string; handle?: string };
 
 export type MentionQuery = { start: number; end: number; query: string };
 
@@ -23,8 +23,8 @@ export function mentionQuery(text: string, caret: number): MentionQuery | undefi
 /** Members whose name starts with the query, in group order; nothing once a name is typed in full. */
 export function mentionMatches<T extends MentionCandidate>(members: readonly T[], query: string): T[] {
   const lower = query.toLowerCase();
-  const matches = members.filter((member) => member.name.toLowerCase().startsWith(lower));
-  return matches.length === 1 && matches[0].name.toLowerCase() === lower ? [] : matches;
+  const matches = members.filter((member) => member.name.toLowerCase().startsWith(lower) || member.handle?.toLowerCase().startsWith(lower));
+  return matches.length === 1 && (matches[0].handle ?? matches[0].name).toLowerCase() === lower ? [] : matches;
 }
 
 /** Replaces the `@query` with `@Name ` and returns where the caret goes. */

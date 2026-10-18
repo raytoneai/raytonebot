@@ -33,10 +33,10 @@ test("real user and assistant messages expose copy, while empty streaming placeh
     const completed = render();
     assert.match(completed, /aria-label="复制回复" type="button"/);
     assert.doesNotMatch(completed, /aria-label="复制回复" type="button" disabled/);
-    assert.match(completed, /aria-label="在新分支中编辑提示词" type="button" disabled/);
+    assert.match(completed, /aria-label="重发消息" type="button" disabled/);
     assert.match(completed, /aria-label="在新分支中重新生成（保留已写文件）" type="button" disabled/);
     const connected = render(true);
-    assert.doesNotMatch(connected, /aria-label="在新分支中编辑提示词" type="button" disabled/);
+    assert.doesNotMatch(connected, /aria-label="重发消息" type="button" disabled/);
     assert.doesNotMatch(connected, /aria-label="在新分支中重新生成（保留已写文件）" type="button" disabled/);
   } finally { await server.close(); }
 });

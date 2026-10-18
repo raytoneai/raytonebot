@@ -213,7 +213,7 @@ export function ComposerFrame({
       }
       if ((event.key === "Enter" || event.key === "Tab") && !event.shiftKey) {
         event.preventDefault();
-        pickMention(mentionOptions[mentionActive].name);
+        pickMention(mentionOptions[mentionActive].handle ?? mentionOptions[mentionActive].name);
         return;
       }
       if (event.key === "Escape") {
@@ -226,6 +226,10 @@ export function ComposerFrame({
   }
   const restoringDrafts = composerDraft?.status === "loading";
   const stopFeedback = stopStatus === "pending" ? copy.composer.frame.stopping : stopStatus === "failed" ? copy.composer.frame.stopFailed : undefined;
+  const draftStatus = composerDraft?.status;
+  // Autosave is silent; restoration and failures still explain blocked or unsafe navigation.
+  const draftFeedback = draftStatus && draftStatus !== "saving" && draftStatus !== "saved"
+    ? copy.composer.frame.draftStatus[draftStatus] : undefined;
   const canSubmit = !restoringDrafts && (promptValue.trim().length > 0 || attachedFiles.length > 0);
   // While a turn runs, a new message joins the queue instead of turning Send into Stop.
   const canQueue = isRunning && canSubmit && Boolean(composerQueue?.canEnqueue);
@@ -559,10 +563,10 @@ export function ComposerFrame({
                   // Keep the textarea focused: picking must not blur it and close the list.
                   onMouseDown={(event) => event.preventDefault()}
                   onMouseEnter={() => setMentionIndex(index)}
-                  onClick={() => pickMention(member.name)}
+                  onClick={() => pickMention(member.handle ?? member.name)}
                 >
                   <AgentAvatar size={20} kind={member.kind} />
-                  <span className="composer-mention-name">{member.name}</span>
+                  <span className="composer-mention-name">{member.name}{member.handle && member.handle !== member.name ? ` · @${member.handle}` : ""}</span>
                   <span className="composer-mention-role">{copy.composer.frame.mentionRoles[member.id]}</span>
                 </li>
               ))}
@@ -831,10 +835,9 @@ export function ComposerFrame({
         </div>
       </div>
       {steeringNotice ? <small className="composer-draft-status" role="status">{steeringNotice}</small> : null}
-      {stopStatus === "pending" || stopStatus === "failed" || composerDraft?.status && (canSubmit || draft.runOptions || composerDraft.status !== "saved") ? (
-        <small className="composer-draft-status" data-saved={composerDraft?.status === "saved" && !stopFeedback} role="status">
-          {[stopFeedback, composerDraft?.status && (canSubmit || draft.runOptions || composerDraft.status !== "saved")
-            ? copy.composer.frame.draftStatus[composerDraft.status] : undefined].filter(Boolean).join(" ")}
+      {stopFeedback || draftFeedback ? (
+        <small className="composer-draft-status" role="status">
+          {[stopFeedback, draftFeedback].filter(Boolean).join(" ")}
         </small>
       ) : null}
     </form>

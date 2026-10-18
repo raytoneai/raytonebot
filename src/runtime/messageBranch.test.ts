@@ -5,7 +5,22 @@ import { createPiEventAdapter } from "../harness/adapters/piAdapter.ts";
 import { appendPiConversationEvents, createEphemeralPiConversation } from "../pi/piConversationState.ts";
 import { branchStoredConversation, checkPiAttachment, PiRequestError } from "../pi/piClient.ts";
 import { savedComposerDraft, acceptedComposerDraft } from "./composerDraftStore.ts";
-import { branchReplayEvents, branchMessageRuns, branchComposerDraft } from "./useMessageBranch.ts";
+import { branchReplayEvents, branchMessageRuns, branchComposerDraft, resendMessage } from "./useMessageBranch.ts";
+import { piErrorTurnEvents } from "../pi/piErrorTurn.ts";
+
+test("resend recovers a provider failure without requiring a saved branch or using another message", () => {
+  const failed = piErrorTurnEvents({ prompt: "Retry this exact request", message: "Provider not configured", runId: "no-provider" });
+  assert.deepEqual(resendMessage(failed, "no-provider_user_text"), { runId: "no-provider", prompt: "Retry this exact request" });
+  const adapter = createPiEventAdapter({ runId: "other" });
+  adapter.startUserMessage("Different request");
+  adapter.apply({ type: "message_start", message: { role: "assistant" } });
+  adapter.apply({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "Do not resend the reply" } });
+  const events = [...failed, ...adapter.events];
+  assert.equal(resendMessage(events, "no-provider_user_text")?.prompt, "Retry this exact request");
+  const reply = adapter.events.find(event => event.type === "text.started" && event.payload.role === "assistant");
+  assert.equal(resendMessage(events, String(reply?.payload.textId)), undefined);
+  assert.deepEqual(branchComposerDraft({ prompt: "Old text-only turn" }).attachments, []);
+});
 
 test("branch actions keep repeated assistant IDs tied to their own turns and preserve attachment references", () => {
   let conversation = createEphemeralPiConversation("source");

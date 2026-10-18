@@ -68,8 +68,8 @@ export function OutputContent({
     );
   }
 
-  const artifactList = artifacts.length ? <ul className="workspace-file-list">{artifacts.map((item) => <li key={item.id}>
-    <button type="button" title={item.title} onClick={() => onOpenArtifact(item)}><FileText size={16} /><span>{(item.title ?? item.id).split("/").pop()}</span></button>
+  const artifactList = artifacts.length ? <ul className="workspace-file-list output-artifact-list">{artifacts.map((item) => <li key={item.id}>
+    <button type="button" title={item.title ?? item.id} onClick={() => onOpenArtifact(item)}><FileText size={14} /><span>{(item.title ?? item.id).split("/").pop()}</span></button>
   </li>)}</ul> : null;
 
   if (openItems.length > 0) {

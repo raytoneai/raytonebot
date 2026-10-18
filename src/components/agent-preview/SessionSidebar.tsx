@@ -10,8 +10,10 @@ import { conversationHistoryGroup, groupSessionHistory } from "../../runtime/use
 import { conversationSearchPattern } from "../../pi/conversationSearch";
 
 import { appVersionLabel } from "../../appVersion";
-import { useCopy } from "../../i18n/LocaleContext";
+import { useCopy, useLocale } from "../../i18n/LocaleContext";
 import type { AgentFrontendProject } from "../../schema/agentuxConfig";
+import { BOT_KINDS } from "../../runtime/botProfiles";
+import { isAgentPresetId } from "../../pi/harnessCatalog";
 
 export type SessionSidebarItem = SearchSession;
 
@@ -44,6 +46,7 @@ export function SessionSidebar({
   onNewSession?: () => void;
 }) {
   const copy = useCopy();
+  const { locale } = useLocale();
   const c = copy.workspace.sessionSidebar;
   const extras = useShellExtras();
   const { newButton, search, grouping, footer } = project.sidebar;
@@ -87,7 +90,7 @@ export function SessionSidebar({
   const todayIds = new Set(searchToday.map(searchResultKey));
   const searchEarlier = filteredSessions.filter((session) => !todayIds.has(searchResultKey(session)));
   const searchWindow = useSearchWindow([searchToday, searchEarlier], query);
-  const botGroups = extras.historyGroups ? groupSessionHistory(sessions) : undefined;
+  const botGroups = extras.historyGroups ? groupSessionHistory(sessions, extras.sessionBotIds) : undefined;
   const historyWindow = useSearchWindow(botGroups
     ? botGroups.map(group => extras.historyGroups!.expanded[group.id] ? group.items : [])
     : grouping ? [today, earlier] : [sessions], botGroups ? "bots" : String(grouping), botGroups
@@ -214,10 +217,16 @@ export function SessionSidebar({
   return (
     <aside ref={sidebarRef} className="session-sidebar" data-preview-anchor="sidebar" aria-label={c.ariaLabel}>
       <header className="session-brand">
-        <span className="session-brand-name">
-          <img className="session-brand-logo" data-variant="light" src="/brand/raytone-bot.svg?v=tapered-rays-v6" alt={c.brandName} />
-          <img className="session-brand-logo" data-variant="dark" src="/brand/raytone-bot-dark.svg?v=tapered-rays-v6" alt={c.brandName} />
-        </span>
+        {extras.onCreateBot ? <button type="button" className="session-brand-name session-brand-create" onClick={extras.onCreateBot}
+          aria-label={locale === "zh" ? "创建 Bot" : "Create Bot"} title={locale === "zh" ? "创建 Bot" : "Create Bot"}>
+          <svg className="session-brand-logo" viewBox="0 0 280 76" role="img" aria-label={c.brandName}>
+            <use href="/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo" />
+          </svg>
+        </button> : <span className="session-brand-name">
+          <svg className="session-brand-logo" viewBox="0 0 280 76" role="img" aria-label={c.brandName}>
+            <use href="/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo" />
+          </svg>
+        </span>}
         <span className="session-brand-actions">
           {search ? (
             <div className="session-search-menu">
@@ -299,20 +308,23 @@ export function SessionSidebar({
               : event.key === "Tab" ? index + (event.shiftKey ? -1 : 1) : -1;
             // Tab crosses group headers naturally; within a group, keep virtual rows reachable.
             if (botGroups && event.key === "Tab" && historyWindow.items[next]
-              && conversationHistoryGroup(historyWindow.items[index]) !== conversationHistoryGroup(historyWindow.items[next])) return;
+              && conversationHistoryGroup(historyWindow.items[index], extras.sessionBotIds) !== conversationHistoryGroup(historyWindow.items[next], extras.sessionBotIds)) return;
             if (next >= 0 && next <= last) { event.preventDefault(); historyWindow.focus(next); }
           }}>
-          {botGroups ? botGroups.map((group, index) => (
+          {botGroups ? botGroups.map((group, index) => {
+            const bot = extras.bots?.find(entry => entry.id === group.id);
+            return (
             <SessionGroup key={group.id}
-              label={group.id === "group" ? c.groupChats : group.id === "other" ? c.groupOther : copy.composer.agentSettings.presets[group.id].name}
+              label={bot?.name ?? (group.id === "group" ? c.groupChats : isAgentPresetId(group.id) ? copy.composer.agentSettings.presets[group.id].name : c.groupOther)}
               items={group.items} window={historyWindow.groups[index]} activeId={effectiveActive}
               onSelect={onSelectSession} deletion={deletion} renaming={renaming}
               disclosure={{ expanded: Boolean(extras.historyGroups!.expanded[group.id]),
                 onToggle: () => extras.historyGroups!.toggle(group.id),
                 icon: group.id === "group" ? <GroupFace size={20} kinds={["woman", "man", "boy"]} />
                   : group.id === "other" ? <MessagesSquare size={18} />
-                  : <AgentAvatar size={20} kind={extras.sessionAvatars?.[group.items[0].id] ?? ({ assistant: "woman", planner: "man", builder: "boy" } as const)[group.id]} /> }} />
-          )) : grouping ? (
+                  : <span onContextMenu={event => { if (bot && extras.onEditBot) { event.preventDefault(); event.stopPropagation(); extras.onEditBot(bot); } }}><AgentAvatar size={20}
+                    appearance={bot?.appearance} kind={bot ? BOT_KINDS[bot.presetId] : extras.sessionAvatars?.[group.items[0].id] ?? "woman"} /></span> }} />
+          ); }) : grouping ? (
             <>
               {today.length > 0 ? (
                 <SessionGroup label={c.groupToday} items={today} window={historyWindow.groups[0]} activeId={effectiveActive} onSelect={onSelectSession} deletion={deletion} renaming={renaming} />
@@ -327,6 +339,7 @@ export function SessionSidebar({
         </nav>
       ) : null}
 
+      {extras.botError ? <p className="shell-bot-error" role="alert">{extras.botError}</p> : null}
       {extras.sidebarFooter ?? (footer ? <p className="session-footer">{footerLabel}</p> : null)}
     </aside>
   );
@@ -490,6 +503,7 @@ function SessionGroup({
   const avatars = useShellExtras().sessionAvatars;
   const groupFaces = useShellExtras().groupFaces;
   const groupPreviews = useShellExtras().groupPreviews;
+  const { bots, sessionBotIds, onEditBot } = useShellExtras();
   const c = useCopy().workspace.sessionSidebar;
   const pattern = conversationSearchPattern(query ?? "");
   return (
@@ -507,6 +521,7 @@ function SessionGroup({
       {(window ? window.rows.map(row => row.item) : items).map((session, position) => {
         const row = window?.rows[position];
         const { id, title, snippet, role } = session;
+        const bot = bots?.find(entry => entry.id === (sessionBotIds?.[id] ?? session.agentPreset));
         const active = id === activeId;
         const match = snippet && pattern?.exec(snippet);
         if (deletion?.asking === id) return (
@@ -564,7 +579,7 @@ function SessionGroup({
               {disclosure ? null : id.startsWith("group_") ? (
                 <span className="session-item-avatar" data-group="true" aria-hidden="true"><GroupFace size={20} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
               ) : avatars?.[id] ? (
-                <span className="session-item-avatar" aria-hidden="true"><AgentAvatar size={18} kind={avatars[id]} /></span>
+                <span className="session-item-avatar" aria-hidden="true" onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.stopPropagation(); onEditBot(bot); } }}><AgentAvatar size={18} kind={avatars[id]} appearance={bot?.appearance} /></span>
               ) : null}
               <span className="session-item-label">{preview || title}{role ? <span className="session-search-author"> · {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
                 match ? <>{snippet.slice(0, match.index)}<mark>{match[0]}</mark>{snippet.slice(match.index + match[0].length)}</> : snippet

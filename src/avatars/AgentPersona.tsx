@@ -5,7 +5,8 @@ import type { AvatarKind } from "./raytoneAvatars";
 import "./raytoneAvatar.css";
 import { botAvatarSVG } from "./botAvatar";
 import { DEFAULT_BOTS, type BotAppearance } from "../runtime/botAppearance";
-import { useBotAppearances } from "../runtime/useBotAppearances";
+import { useBotProfiles } from "../runtime/useBotProfiles";
+import { BOT_KINDS } from "../runtime/botProfiles";
 const CustomAvatarsContext = createContext(false);
 export const CustomAvatarsProvider = CustomAvatarsContext.Provider;
 
@@ -17,6 +18,7 @@ export type AgentPersona = {
   kind: AvatarKind;
   name: string;
   state: AvatarState;
+  appearance?: BotAppearance;
 };
 
 const AgentPersonaContext = createContext<AgentPersona | undefined>(undefined);
@@ -57,11 +59,13 @@ export function AgentAvatar({
 }) {
   const persona = useAgentPersona();
   const customEnabled = useContext(CustomAvatarsContext);
-  const appearances = useBotAppearances();
+  const { profiles } = useBotProfiles();
   const rootRef = useRef<HTMLSpanElement>(null);
   const motionRef = useRef<AvatarMotion | undefined>(undefined);
   const kind = kindOverride ?? persona?.kind;
-  const custom = appearance === undefined ? (customEnabled && kind ? appearances[kind] : undefined) : appearance;
+  const custom = appearance === undefined ? (customEnabled && kind
+    ? (!kindOverride ? persona?.appearance : undefined) ?? profiles.find(bot => bot.id === bot.presetId && BOT_KINDS[bot.presetId] === kind)?.appearance
+    : undefined) : appearance;
   const customKey = JSON.stringify(custom);
   // Defaults and saved customisations share the same simple geometry and motion layers.
   const markup = useMemo(() => kind ? botAvatarSVG(custom ?? DEFAULT_BOTS[kind]) : "", [kind, customKey]);

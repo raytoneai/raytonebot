@@ -227,7 +227,8 @@ function renderConversation(
 /** Group chat: the member who is working but has not said anything yet — face and "thinking", nothing else. */
 function GroupTypingRow({ member }: { member: string }) {
   const outer = useAgentPersona();
-  const face = GROUP_AUTHORS[member];
+  const bot = useShellExtras().bots?.find(entry => entry.id === member);
+  const face = bot ? { ...GROUP_AUTHORS[member], name: bot.name, appearance: bot.appearance } : GROUP_AUTHORS[member];
   if (!face) return null;
   const persona = { ...(outer ?? { state: "thinking" as const }), ...face, state: "thinking" as const };
   return (
@@ -274,9 +275,10 @@ function AssistantTurn({
   onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision) => void | Promise<void>;
 }) {
   const outer = useAgentPersona();
+  const bot = useShellExtras().bots?.find(entry => entry.id === groupAuthor);
   if (groupAuthor && outer) {
     const member = GROUP_AUTHORS[groupAuthor];
-    const persona = member ? { ...outer, ...member, state: live ? outer.state : "idle" as const }
+    const persona = member ? { ...outer, ...member, appearance: bot?.appearance, name: bot?.name ?? member.name, state: live ? outer.state : "idle" as const }
       : { ...outer, name: "群聊编排", kind: undefined as unknown as AvatarKind };
     return (
       <AgentPersonaProvider persona={persona}>

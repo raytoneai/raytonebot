@@ -1,0 +1,46 @@
+.bot-creator { display: flex; align-items: flex-start; gap: 32px; }
+.bot-creator-preview { display: flex; flex: 0 0 200px; flex-direction: column; align-items: center; gap: 12px; padding: 12px 0 24px; position: sticky; top: 0; }
+.bot-creator-preview > strong { font-size: 20px; }
+.bot-creator-preview > .settings-row-sub { text-align: center; }
+.bot-creator-controls { display: grid; gap: 20px; flex: 1; min-width: 0; padding-top: 16px; }
+.bot-options { border: 0; padding: 0; margin: 0; min-width: 0; }
+.bot-options legend { font-size: var(--text-md); font-weight: 600; margin-bottom: 8px; }
+.bot-options > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.bot-options button { border: 1px solid var(--border-subtle); border-radius: 8px; background: transparent; color: inherit; padding: 8px 12px; font: inherit; font-size: var(--text-sm); min-height: 36px; cursor: pointer; }
+.bot-part-options > div { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: 360px; }
+.bot-part-options[data-part="accessory"] > div { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+.bot-part-options button { display: grid; place-items: center; min-width: 0; height: 56px; padding: 6px; color: var(--text-primary); }
+.bot-part-options button:hover, .bot-part-options button[aria-pressed="true"] { background: var(--surface-inset); }
+.bot-part-preview { display: block; width: 100%; max-width: 42px; height: 40px; pointer-events: none; }
+.bot-part-preview svg { display: block; width: 100%; height: 100%; }
+.bot-colours { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.bot-colours label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--text-sm); }
+.bot-colours input { width: 40px; height: 32px; padding: 2px; border: 1px solid var(--border-subtle); border-radius: 6px; cursor: pointer; background: transparent; }
+.bot-options .bot-swatch { width: 36px; padding: 0; border-radius: 50%; }
+.bot-actions { display: flex; flex-wrap: wrap; gap: 8px; padding-bottom: 20px; }
+@media (max-width: 700px) {
+  .bot-creator { flex-direction: column; gap: 8px; }
+  .bot-creator-preview { flex-basis: auto; position: static; align-self: center; }
+  .bot-creator-controls { width: 100%; }
+}
+
+.bot-editor-dialog { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); width: min(760px, calc(100vw - 24px)); height: min(760px, calc(100dvh - 24px)); }
+.bot-editor-dialog .settings-body-header { padding: 20px 24px 12px; }
+.bot-editor-dialog .settings-body-header h2 { margin: 0; font-size: var(--text-xl); }
+.bot-editor-form { display: flex; flex-direction: column; min-height: 0; }
+.bot-editor-form .settings-body-scroll { flex: 1; padding: 8px 24px 24px; }
+.bot-editor-field { display: grid; gap: 8px; font-weight: 600; font-size: var(--text-md); }
+.bot-editor-field select { width: 100%; min-height: 36px; border: 1px solid var(--border-subtle); border-radius: 8px; padding: 6px 10px; background: var(--surface-panel); color: var(--text-primary); font: inherit; }
+.bot-editor-field .settings-row-sub { font-weight: 400; }
+.bot-editor-footer { border-top: 1px solid var(--border-subtle); padding: 14px 24px; }
+.bot-editor-footer .bot-actions { justify-content: flex-end; padding: 0; }
+.bot-editor-footer p { margin: 0 0 8px; color: var(--danger); font-size: var(--text-sm); }
+.bot-options button[aria-pressed="true"] { border-color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--text-primary); }
+.bot-options button:focus-visible, .bot-colours input:focus-visible, .bot-editor-field select:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+.bot-creator-preview > strong { max-width: 200px; overflow-wrap: anywhere; text-align: center; }
+@media (max-width: 600px) {
+  .bot-editor-dialog .bot-creator-preview { padding: 0; gap: 4px; }
+  .bot-editor-dialog .bot-creator-preview .raytone-avatar { width: 104px !important; height: 104px !important; }
+  .bot-editor-dialog .settings-body-header { padding: 16px 18px 8px; }
+  .bot-editor-form .settings-body-scroll { padding-inline: 18px; }
+}

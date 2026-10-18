@@ -9,6 +9,10 @@ import {
   type OutputPanelItem,
   type OutputPanelOpenRequest,
 } from "./components/agent-preview/outputframe/panelItem";
+import { useBotProfiles, bindBotConversation, forgetBotConversation, saveBotProfile } from "./runtime/useBotProfiles";
+import { BOT_NAMES, conversationBotId, type BotProfile } from "./runtime/botProfiles";
+import { DEFAULT_NEW_BOT } from "./runtime/botAppearance";
+import type { BotEditorState } from "./components/shell/BotEditor";
 import type { SettingsSectionId } from "./components/settings/SettingsDialog";
 import { AgentSwitcher, GroupHeader, GroupWelcome, NewChatMenu, HeaderAgent, ShellExtrasProvider, SidebarFooter, type AgentRunStatus, type ShellExtras } from "./components/shell/ShellExtras";
 import { settingsCopy } from "./i18n/copy/settings";
@@ -31,7 +35,7 @@ import {
 import { renderSlots, slotsForTemplate, type SlotRenderContext } from "./slots/slotRegistry";
 import { applyTheme, themeVariables } from "./theme/applyTheme";
 import { artifactThemeCss } from "./components/agent-preview/outputframe/artifactTheme";
-import { themeTokens, type ThemePresetId } from "./theme/themeTokens";
+import { resolveThemePreset, themeTokens, type ThemePresetId } from "./theme/themeTokens";
 import { isFixtureMode, useEventSource } from "./event-source";
 import { project } from "./exported-project";
 import {
@@ -235,6 +239,11 @@ export function AgentApp() {
   const [historyListFailed, setHistoryListFailed] = useState(false);
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
   const [runOutcome, setRunOutcome] = useState<RunOutcomeFace>();
+  const { store: botStore, profiles: bots } = useBotProfiles();
+  const [botDraft, setBotDraft] = useState<{ draft: BotProfile; creating: boolean }>();
+  const [botError, setBotError] = useState<string>();
+  const botStorageError = locale === "zh" ? "保存失败，请检查浏览器存储后重试。" : "Could not save. Check browser storage and retry.";
+  const editBot = (bot: BotProfile) => { setBotError(undefined); setBotDraft({ draft: { ...bot, appearance: { ...bot.appearance } }, creating: false }); };
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Mounted from the first open on, so later opens and closes keep their animation. */
   const [settingsMounted, setSettingsMounted] = useState(false);
@@ -245,10 +254,8 @@ export function AgentApp() {
     setSettingsSection(section);
     setSettingsOpen(true);
   };
-  const [themePreset, setThemePreset] = useState<ThemePresetId>(() => {
-    const stored = readSetting(THEME_KEY);
-    return stored && stored in themeTokens ? stored as ThemePresetId : project.theme.preset;
-  });
+  const [themePreset, setThemePreset] = useState<ThemePresetId>(() =>
+    resolveThemePreset(readSetting(THEME_KEY), project.theme.preset));
   const [permissionDefault, setPermissionDefault] = useState<"request" | "auto" | "allow-all" | undefined>(() => {
     const stored = readSetting(PERMISSION_DEFAULT_KEY);
     return stored === "request" || stored === "auto" || stored === "allow-all" ? stored : undefined;
@@ -270,6 +277,9 @@ export function AgentApp() {
     () => piConversations.find((conversation) => conversation.id === activePiConversationId) ?? piConversations[0],
     [activePiConversationId, piConversations],
   );
+  const activeBot = bots.find(bot => bot.id === (conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
+    ?? bots.find(bot => bot.id === agentSettings.presetId)!;
+  const presetBot = (id: AgentPresetId) => bots.find(bot => bot.id === id)!;
   const piSessionItems = useMemo(
     () => piConversationSidebarItems(piConversations
       .filter((conversation) => conversation.events.length > 0 || conversation.stored || hasComposerState(composer.drafts[conversation.id]))
@@ -279,7 +289,7 @@ export function AgentApp() {
   );
   const historyGroups = useSessionHistoryGroups(activePiConversationId, conversationHistoryGroup(
     piSessionItems.find(session => session.id === activePiConversationId)
-      ?? { id: activePiConversationId, agentPreset: agentSettings.presetId },
+      ?? { id: activePiConversationId, agentPreset: agentSettings.presetId }, botStore.conversations,
   ));
 
   // Mirrors the configurator's policy derivation so reasoning / tool / error states
@@ -386,7 +396,8 @@ export function AgentApp() {
   }, [piRunning, activePiConversationId]);
   const persona: AgentPersona = {
     kind: PRESET_AVATARS[agentSettings.presetId],
-    name: copy.composer.agentSettings.presets[agentSettings.presetId].name,
+    name: activeBot.name,
+    appearance: activeBot.appearance,
     state: avatarActivity({
       running: piRunning,
       awaitingUser: Boolean(liveApprovalTool || pendingQuestion),
@@ -437,8 +448,19 @@ export function AgentApp() {
   activeConversationIdRef.current = activePiConversationId;
   const activeStreamIdRef = useRef(streamId);
   activeStreamIdRef.current = streamId;
+  const messageSubmissions = useRef(new Map<string, ComposerDraft>());
   const messageBranch = useMessageBranch({ conversation: activePiConversation, enabled: !streamId, running: piRunning,
+    submissions: messageSubmissions.current,
+    async onResend(draft, sourceId) {
+      if (activeConversationIdRef.current !== sourceId || activeStreamIdRef.current) return;
+      const current = composer.drafts[sourceId];
+      await submitToPi(draft.prompt, { ...composerRunOptions, attachments: draft.attachments,
+        ...(current?.prompt === draft.prompt ? { draftSnapshot: { prompt: draft.prompt, attachmentIds: draft.attachments.map(file => file.id) } } : {}) });
+    },
     async onReady(conversation, draft, action, sourceId) {
+      const source = piConversations.find(entry => entry.id === sourceId);
+      const botId = source && conversationBotId(botStore, source);
+      if (botId) bindBotConversation(conversation.id, botId);
       setPiConversations(current => replacePiConversation(current, conversation));
       // A branch inherits the source's choice, except allow-all: that stays with the page it was armed on.
       const sourceMode = composer.drafts[sourceId]?.runOptions?.permissionMode;
@@ -549,9 +571,10 @@ export function AgentApp() {
   }, []);
 
   useEffect(() => {
-    const tokens = themeTokens[themePreset] ?? Object.values(themeTokens)[0];
+    const tokens = themeTokens[themePreset];
     applyTheme(tokens, document.documentElement);
     if (frameRef.current) applyTheme(tokens, frameRef.current);
+    storeSetting(THEME_KEY, themePreset);
   }, [themePreset]);
 
   useEffect(() => {
@@ -792,6 +815,8 @@ export function AgentApp() {
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
     };
     const runId = queued?.requestId ?? "pi_export_" + crypto.randomUUID();
+    messageSubmissions.current.set(runId, { prompt: normalizedPrompt, attachments: (context?.attachments ?? [])
+      .map((file, index) => ({ ...file, id: context?.draftSnapshot?.attachmentIds[index] ?? crypto.randomUUID() })) });
     liveRunIds.current.add(runId);
     runStop.bind(controller, runId);
     // The composer callback is bound to this conversation's draft, even after switching away.
@@ -1152,6 +1177,7 @@ export function AgentApp() {
   /** The host deletes the transcript; this page then forgets the conversation, its draft and queue. */
   async function deletePiConversation(id: string) {
     await deleteStoredConversation(id);
+    try { forgetBotConversation(id); } catch { /* A stale local association cannot resurrect deleted history. */ }
     const conversation = piConversations.find((entry) => entry.id === id);
     if (conversation) void composer.update(conversation, () => ({ prompt: "", attachments: [] }), () => ({ items: [] }));
     storedRunIds.current.delete(id);
@@ -1181,7 +1207,7 @@ export function AgentApp() {
     return members.length ? members : ["assistant", "planner", "builder"];
   }
   function setGroupMembers(conversationId: string, members: AgentPresetId[]) {
-    const names = ["我", ...members.map((m) => copy.composer.agentSettings.presets[m].name)].join("、");
+    const names = ["我", ...members.map((m) => presetBot(m).name)].join("、");
     const previous = piConversations.find((entry) => entry.id === conversationId);
     if (!previous) return;
     // Merge into the current state so an intervening transcript update is preserved.
@@ -1193,13 +1219,17 @@ export function AgentApp() {
     composer.update({ ...previous, groupMembers: members, title: names }, (draft) => draft);
   }
 
-  async function startNewSession(group = false, members: AgentPresetId[] = ["assistant", "planner", "builder"]) {
+  function startNewSession(group = false, members: AgentPresetId[] = ["assistant", "planner", "builder"], bot = activeBot) {
     navigatedRef.current = true;
     // A run in flight keeps going in its own conversation; it only draws while on screen.
     const conversation = group
       ? { ...createEphemeralPiConversation(`group_${crypto.randomUUID().slice(0, 12)}`),
-        title: ["我", ...members.map((m) => copy.composer.agentSettings.presets[m].name)].join("、"), groupMembers: members }
-      : createEphemeralPiConversation();
+        title: ["我", ...members.map((m) => presetBot(m).name)].join("、"), groupMembers: members }
+      : { ...createEphemeralPiConversation(), agentPreset: bot.presetId };
+    if (!group) {
+      try { bindBotConversation(conversation.id, bot.id); setBotError(undefined); }
+      catch { setBotError(botStorageError); return false; }
+    }
     setStreamId("");
     if (group) composer.update(conversation, (draft) => draft);
     setPiConversations((current) => replacePiConversation(current, conversation));
@@ -1217,6 +1247,7 @@ export function AgentApp() {
     setLeftCollapsed(false);
     // Collapsed, not opened: a fresh conversation has no output yet.
     setRightCollapsed(true);
+    return true;
   }
 
   /**
@@ -1233,15 +1264,22 @@ export function AgentApp() {
 
   /** Clicking an agent is how a new conversation starts (there is no separate "new chat" button).
    *  An empty conversation on screen is reused rather than stacking another blank one. */
-  function startConversationWith(presetId: AgentPresetId) {
+  function startConversationWith(presetId: AgentPresetId, bot = presetBot(presetId)) {
+    const needsNew = activePiConversationId.startsWith("group_") || activePiConversation.events.length > 0 || piRunning
+      || hasComposerState(composer.drafts[activePiConversationId]);
+    if (needsNew) { if (!startNewSession(false, undefined, bot)) return false; }
+    else {
+      try { bindBotConversation(activePiConversationId, bot.id); setBotError(undefined); }
+      catch { setBotError(botStorageError); return false; }
+      setPiConversations(current => current.map(entry => entry.id === activePiConversationId ? { ...entry, agentPreset: presetId } : entry));
+      setStreamId("");
+    }
     navigatedRef.current = true;
     setDrawerOpen(false);
     const next = { ...agentSettings, presetId };
     setAgentSettings(next);
     saveAgentSettings(next);
-    // A group is never reused as a one-agent chat, even while it is still empty.
-    if (activePiConversationId.startsWith("group_") || activePiConversation.events.length > 0 || piRunning
-      || hasComposerState(composer.drafts[activePiConversationId])) void startNewSession();
+    return true;
   }
 
   /** From settings (a routine's conversation): select it, listing it first if it is new here. */
@@ -1328,7 +1366,9 @@ export function AgentApp() {
     // the one control in the shell a user is guaranteed to try.
     onNewSession: startNewSession,
     // Each role greets in its own words; the configured greeting stays the fallback.
-    welcomeGreeting: copy.composer.agentSettings.presets[agentSettings.presetId]?.greeting ?? activeProject.welcome.greeting,
+    welcomeGreeting: activeBot.id === activeBot.presetId
+      ? (copy.composer.agentSettings.presets[agentSettings.presetId]?.greeting ?? activeProject.welcome.greeting).replaceAll(BOT_NAMES[agentSettings.presetId], activeBot.name)
+      : (locale === "zh" ? `你好，我是 ${activeBot.name}` : `Hi, I’m ${activeBot.name}`),
     isWelcome,
     defaultPermissionMode: permissionDefault ?? piRuntimeState?.defaultPermissionMode,
     // Settings opens from the sidebar footer and the header, not from the composer.
@@ -1344,7 +1384,7 @@ export function AgentApp() {
     void composer.update(conversation, update);
   };
   // Every agent with a conversation in flight shows it, not only the one on screen.
-  const agentStatuses: Partial<Record<AgentPresetId, AgentRunStatus>> = {};
+  const agentStatuses: Record<string, AgentRunStatus> = {};
   let groupStatus: AgentRunStatus | undefined;
   for (const conversation of piConversations) {
     if (!runningConversationIds.has(conversation.id) || !isAgentPresetId(conversation.agentPreset)) continue;
@@ -1357,17 +1397,40 @@ export function AgentApp() {
     }
     const waiting = awaitingConversationIds.has(conversation.id) || Boolean(pendingUserInput(conversation.events))
       || (conversation.id === activePiConversationId && Boolean(liveApprovalTool));
-    if (waiting) agentStatuses[conversation.agentPreset] = "needs-you";
-    else agentStatuses[conversation.agentPreset] ??= "running";
+    const botId = conversationBotId(botStore, conversation) ?? conversation.agentPreset;
+    if (waiting) agentStatuses[botId] = "needs-you";
+    else agentStatuses[botId] ??= "running";
   }
-  const activeTheme = themeTokens[themePreset] ?? Object.values(themeTokens)[0];
+  const activeTheme = themeTokens[themePreset];
   const themeVars = themeVariables(activeTheme);
   const composerRunOptions = {
     permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
     budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
   } satisfies ComposerRunOptions;
   const workingMember = activePiConversationId.startsWith("group_") ? workingGroupMember(events) : undefined;
+  const botEditor: BotEditorState | undefined = botDraft ? {
+    ...botDraft, error: botError,
+    onChange: draft => { setBotDraft({ ...botDraft, draft }); setBotError(undefined); },
+    onClose: () => { setBotDraft(undefined); setBotError(undefined); },
+    onSave: () => {
+      try {
+        const bot = { ...botDraft.draft, name: botDraft.draft.name.trim() };
+        saveBotProfile(bot);
+        if (botDraft.creating && !startConversationWith(bot.presetId, bot)) return;
+        setBotDraft(undefined); setBotError(undefined);
+      } catch { setBotError(botStorageError); }
+    },
+  } : undefined;
   const shellExtras: ShellExtras = {
+    bots: streamId ? undefined : bots,
+    sessionBotIds: streamId ? undefined : botStore.conversations,
+    onCreateBot: streamId ? undefined : () => {
+      setBotError(undefined);
+      setBotDraft({ creating: true, draft: { id: `bot_${crypto.randomUUID()}`, presetId: "assistant", name: "", appearance: { ...DEFAULT_NEW_BOT } } });
+    },
+    onEditBot: streamId ? undefined : editBot,
+    botError: botDraft ? undefined : botError,
+    botEditor,
     composerActivity: activityPreview ? {
       scope: `preview:${activePiConversationId}`,
       persona: activityPreview === "idle" ? undefined : { ...persona, state: activityPreview },
@@ -1375,7 +1438,7 @@ export function AgentApp() {
       scope: activePiConversationId,
       persona: piRunning ? {
         ...persona,
-        ...(workingMember ? { kind: PRESET_AVATARS[workingMember], name: copy.composer.agentSettings.presets[workingMember].name } : {}),
+        ...(workingMember ? { kind: PRESET_AVATARS[workingMember], name: presetBot(workingMember).name, appearance: presetBot(workingMember).appearance } : {}),
         state: groupTyping && persona.state !== "asking" ? "thinking" : persona.state,
       } : undefined,
     },
@@ -1394,6 +1457,10 @@ export function AgentApp() {
     agentSwitcher: (
       <AgentSwitcher
         avatars={PRESET_AVATARS}
+        bots={streamId ? undefined : bots}
+        activeBotId={activeBot.id}
+        onSelectBot={bot => startConversationWith(bot.presetId, bot)}
+        onEditBot={streamId ? undefined : editBot}
         activeId={agentSettings.presetId}
         statuses={agentStatuses}
         harnesses={piRuntimeState?.harnesses}
@@ -1403,10 +1470,6 @@ export function AgentApp() {
         groupStatus={groupStatus}
       />
     ),
-    sidebarAction: (
-      <NewChatMenu avatars={PRESET_AVATARS} onNewGroup={(members) => { setDrawerOpen(false); void startNewSession(true, members); }}
-        onSelectAgent={startConversationWith} />
-    ),
     groupTyping: runningConversationIds.has(activePiConversationId) ? groupTyping : undefined,
     welcomeGroup: activePiConversationId.startsWith("group_") ? (
       <GroupWelcome avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)}
@@ -1414,12 +1477,13 @@ export function AgentApp() {
     ) : undefined,
     // Only groups still titled with their roster: the last thing said names the row instead.
     groupPreviews: Object.fromEntries(piConversations.flatMap((entry) => entry.groupPreview && entry.id.startsWith("group_")
-      && entry.title === ["我", ...groupMembersOf(entry).map((m) => copy.composer.agentSettings.presets[m].name)].join("、")
+      && [groupMembersOf(entry).map((m) => presetBot(m).name), groupMembersOf(entry).map((m) => BOT_NAMES[m])]
+        .some(names => entry.title === ["我", ...names].join("、"))
       ? [[entry.id, entry.groupPreview.text.replace(/\s+/g, " ").trim()]] : [])),
     groupFaces: Object.fromEntries(piConversations.filter((entry) => entry.id.startsWith("group_"))
       .map((entry) => [entry.id, groupMembersOf(entry).map((m) => PRESET_AVATARS[m])])),
     sidebarFooter: <SidebarFooter onOpenSettings={() => openSettings("providers")} />,
-    headerAgent: activePiConversationId.startsWith("group_") ? (
+    headerAgent: <div className="shell-chat-participants">{activePiConversationId.startsWith("group_") ? (
       <GroupHeader avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)}
         draft={activePiConversation.events.length === 0 && !activePiConversation.stored}
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
@@ -1427,11 +1491,17 @@ export function AgentApp() {
       <HeaderAgent
         avatars={PRESET_AVATARS}
         settings={agentSettings}
+        bot={streamId ? undefined : activeBot}
+        onEditBot={streamId ? undefined : editBot}
         providerLabel={`${defaultProvider.label} · ${defaultProvider.defaultModel}`}
         onChange={changeAgentSettings}
         onManageProviders={() => openSettings("providers")}
       />
-    ),
+    )}<NewChatMenu avatars={PRESET_AVATARS}
+      members={activePiConversationId.startsWith("group_") ? groupMembersOf(activePiConversation) : [activeBot.presetId]}
+      onNewGroup={(members) => activePiConversationId.startsWith("group_")
+        ? setGroupMembers(activePiConversationId, members) : startNewSession(true, members)} />
+    </div>,
     searchConversations: streamId ? undefined : searchConversations,
     onDeleteSession: streamId ? undefined : deletePiConversation,
     onRenameSession: streamId ? undefined : renamePiConversation,
@@ -1449,10 +1519,10 @@ export function AgentApp() {
     ),
     historyGroups,
     composerMentions: activePiConversationId.startsWith("group_")
-      ? groupMembersOf(activePiConversation).map((id) => ({ id, name: copy.composer.agentSettings.presets[id].name, kind: PRESET_AVATARS[id] }))
+      ? groupMembersOf(activePiConversation).map((id) => ({ id, name: presetBot(id).name, handle: BOT_NAMES[id], kind: PRESET_AVATARS[id] }))
       : undefined,
     composerPlaceholder: activePiConversationId.startsWith("group_") ? "发到群里…（可用 @Raer @Tonny @Bob 指定成员）"
-      : settingsCopy[locale].shell.messageTo(copy.composer.agentSettings.presets[agentSettings.presetId].name),
+      : settingsCopy[locale].shell.messageTo(activeBot.name),
     stopStatus: !streamId && piRunning ? runStop.statusFor(activePiConversationId) : undefined,
     composerOptions: {
       value: composerRunOptions,
@@ -1709,7 +1779,6 @@ export function AgentApp() {
               open={settingsOpen}
               onOpenChange={setSettingsOpen}
               initialSection={settingsSection}
-              botAvatars={!streamId}
             project={activeProject}
             providerSettingsStatus={providerSettingsStatus}
             runtime={piRuntimeState}
@@ -1725,10 +1794,7 @@ export function AgentApp() {
               storeSetting(PERMISSION_DEFAULT_KEY, mode);
             }}
             themePreset={themePreset}
-            onThemeChange={(id) => {
-              setThemePreset(id);
-              storeSetting(THEME_KEY, id);
-            }}
+            onThemeChange={setThemePreset}
             imChannels={piRuntimeState ? imChannels : undefined}
             routines={piRuntimeState ? routines : undefined}
             mcpServers={piRuntimeState ? mcpServers : undefined}

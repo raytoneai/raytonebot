@@ -28,7 +28,7 @@ export function MessageActions({ project, role, text = "", messageId }: { projec
         ? { id: "copy", label: copy.chat.message.actions.copyPrompt, icon: <Copy size={14} /> }
         : undefined,
       (messageActions.userEdit ?? messageActions.edit)
-        ? { id: "edit", label: copy.chat.message.actions.editPromptAndRerun, icon: <Pencil size={14} /> }
+        ? { id: "resend", label: copy.chat.message.actions.resendPrompt, icon: <RotateCcw size={14} /> }
         : undefined,
       messageActions.userTime
         ? { id: "time", label: copy.chat.message.actions.promptTime, timeText: "09:47" }
@@ -70,7 +70,7 @@ export function MessageActions({ project, role, text = "", messageId }: { projec
           <button className="message-action-icon" aria-label={action.id === "copy" && feedback ? feedback : action.label} type="button"
             disabled={action.id === "copy" ? !text : !messageBranch?.canBranch(messageId)}
             onClick={action.id === "copy" ? () => void clipboard.copy(actionsRef.current?.closest(".message-item, .lane-message")?.querySelector(".msg-surface")) : () => {
-              if (!messageId || !messageBranch || (action.id !== "edit" && action.id !== "regenerate")) return;
+              if (!messageId || !messageBranch || (action.id !== "edit" && action.id !== "regenerate" && action.id !== "resend")) return;
               setActionError(undefined);
               setBranchPending(true);
               void messageBranch.run(messageId, action.id)
@@ -88,7 +88,7 @@ export function MessageActions({ project, role, text = "", messageId }: { projec
       ))}
       {feedback ? <span className="clipboard-feedback" role="status">{feedback}</span> : null}
       {actionError ? <span className="clipboard-feedback" role="alert">{actionError}</span> : null}
-      {branchPending ? <span className="clipboard-feedback" role="status">{copy.chat.message.actions.branchPending}</span> : null}
+      {branchPending && role !== "user" ? <span className="clipboard-feedback" role="status">{copy.chat.message.actions.branchPending}</span> : null}
     </div>
   );
 }

@@ -1,5 +1,5 @@
 import { providerCatalog, type AgentCanvasTemplate, type AgentFrontendProject } from "./agentuxConfig";
-import { minimalThemePresetIds, nativeThemePresetIds, themeTokens, type ThemePresetId } from "../theme/themeTokens";
+import { themeTokens, type ThemePresetId } from "../theme/themeTokens";
 
 export type PresetGroupId =
   | "conversation"
@@ -29,26 +29,14 @@ export type PresetGroup = {
 };
 
 const themeDirections: Record<ThemePresetId, string> = {
-  "warm-graphite": "Dark graphite with amber warmth.",
-  "cocoa-system": "Deep cocoa with rose-copper accents.",
-  "forest-ember": "Deep green-black with warm gold.",
   "soft-glass": "Soft gray glass with deep navy.",
-  "sand-workspace": "Warm white workspace with clay orange.",
-  "apricot-agent": "Clean orange workspace with tangerine accents.",
-  "cold-mono": "Cold black-and-white gray.",
-  "slate-blue": "Cool blue console palette.",
-  "cyan-grid": "Dark cyan-black technical palette.",
-  "ice-white": "Cold white with ice blue.",
-  "mist-blue": "Soft lavender surface with violet accent.",
-  "polar-mono": "Very cold white-gray surface with deep navy accent.",
+  "warm-graphite": "Dark graphite with amber warmth.",
 };
 
-// Both styles' schemes live in one section; the per-style CSS filter shows only
-// the active style's six, so a single header avoids an empty other-style header.
-const themeOptions = [...nativeThemePresetIds, ...minimalThemePresetIds].map((id) => ({
-  id,
-  label: themeTokens[id].name,
-  description: themeDirections[id],
+const themeOptions = Object.values(themeTokens).map((theme) => ({
+  id: theme.id,
+  label: theme.name,
+  description: themeDirections[theme.id],
   section: "Scaffold theme",
 }));
 

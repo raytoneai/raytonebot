@@ -1,5 +1,5 @@
 import * as RadixPopover from "@radix-ui/react-popover";
-import { ChevronDown, Settings } from "lucide-react";
+import { ChevronDown, Pencil, Plus, Settings } from "lucide-react";
 import { createContext, useContext, useState, type ReactNode, type RefObject } from "react";
 import type { TranscriptScroll } from "../../runtime/useTranscriptScroll";
 import type { BranchAction } from "../../runtime/useMessageBranch";
@@ -26,6 +26,8 @@ import {
 import { HarnessMark } from "./HarnessMark";
 import { Button } from "../ui/button";
 import "./shell.css";
+import { BotEditor, type BotEditorState } from "./BotEditor";
+import { type BotProfile } from "../../runtime/botProfiles";
 
 /**
  * Product chrome the exported layout has no slot for: the agent list in the sidebar, the
@@ -37,6 +39,12 @@ import "./shell.css";
  * sidebar and header render exactly as exported.
  */
 export type ShellExtras = {
+  botEditor?: BotEditorState;
+  bots?: readonly BotProfile[];
+  onCreateBot?: () => void;
+  onEditBot?: (bot: BotProfile) => void;
+  botError?: string;
+  sessionBotIds?: Record<string, string>;
   agentSwitcher?: ReactNode;
   /** Group chat: replaces the welcome greeting for a new group (its face, names and "To:" picker). */
   welcomeGroup?: ReactNode;
@@ -70,7 +78,7 @@ export type ShellExtras = {
   /** Live work above the input; an empty persona leaves a stable, quiet gap after completion. */
   composerActivity?: { scope: string; persona?: AgentPersona };
   /** Group chat: members the composer offers after "@", in group order. */
-  composerMentions?: readonly { id: AgentPresetId; name: string; kind: AvatarKind }[];
+  composerMentions?: readonly { id: AgentPresetId; name: string; handle?: string; kind: AvatarKind }[];
   /** The shell keeps each conversation's files and draft across layout remounts. */
   composerDraft?: { value: ComposerDraft; status?: "loading" | "saving" | "saved" | "unavailable" | "conflict"; onChange: (update: (current: ComposerDraft) => ComposerDraft) => void };
   /** Follow-ups typed while a turn runs. The shell owns order, sending and pausing; the composer only shows and edits. */
@@ -120,7 +128,7 @@ export type ShellExtras = {
 const ShellExtrasContext = createContext<ShellExtras>({});
 
 export function ShellExtrasProvider({ value, children }: { value: ShellExtras; children: ReactNode }) {
-  return <ShellExtrasContext.Provider value={value}>{children}</ShellExtrasContext.Provider>;
+  return <ShellExtrasContext.Provider value={value}>{children}{value.botEditor ? <BotEditor {...value.botEditor} /> : null}</ShellExtrasContext.Provider>;
 }
 
 export function useShellExtras(): ShellExtras {
@@ -143,13 +151,21 @@ export function AgentSwitcher({
   onNewGroup,
   groupActive,
   groupStatus,
+  bots,
+  activeBotId,
+  onSelectBot,
+  onEditBot,
 }: {
+  bots?: readonly BotProfile[];
+  activeBotId?: string;
+  onSelectBot?: (bot: BotProfile) => void;
+  onEditBot?: (bot: BotProfile) => void;
   onNewGroup?: () => void;
   groupActive?: boolean;
   groupStatus?: AgentRunStatus;
   avatars: Record<AgentPresetId, AvatarKind>;
   activeId: AgentPresetId;
-  statuses: Partial<Record<AgentPresetId, AgentRunStatus>>;
+  statuses: Partial<Record<string, AgentRunStatus>>;
   harnesses?: readonly AgentHarnessStatus[];
   disabled?: boolean;
   onSelect: (id: AgentPresetId) => void;
@@ -157,31 +173,36 @@ export function AgentSwitcher({
   const { locale } = useLocale();
   const t = settingsCopy[locale].shell;
   const roles = useCopy().composer.agentSettings.presets;
+  const botNames = useBotNames();
+  const choices = bots ?? AGENT_PRESETS.map(preset => ({ ...preset, presetId: preset.id, name: roles[preset.id].name, appearance: undefined }));
   return (
-    <section className="shell-agents" aria-label={t.agents}>
+    <section className="shell-agents" data-manage={bots ? "true" : undefined} aria-label={t.agents}>
       <h4 className="shell-agents-title">{t.agents}</h4>
-      {AGENT_PRESETS.map((preset) => {
+      {choices.map((bot) => {
+        const preset = agentPreset(bot.presetId);
         const available = harnesses?.find((entry) => entry.id === preset.harness)?.available !== false;
-        const active = !groupActive && preset.id === activeId;
-        const rowStatus: AgentStatus = !available ? "unavailable" : statuses[preset.id] ?? "idle";
+        const active = !groupActive && bot.id === (activeBotId ?? activeId);
+        const rowStatus: AgentStatus = !available ? "unavailable" : statuses[bot.id] ?? "idle";
         const statusLabel = rowStatus === "running" ? t.running : rowStatus === "needs-you" ? t.needsYou : rowStatus === "unavailable" ? t.notInstalled : undefined;
         return (
+          <div className="shell-agent-row" key={bot.id}>
           <button
             type="button"
-            key={preset.id}
             className="shell-agent"
             data-active={active}
             aria-current={active ? "true" : undefined}
-            disabled={disabled || !available}
-            title={t.switchHint}
-            onClick={() => onSelect(preset.id)}
+            aria-disabled={disabled || !available || undefined}
+            title={onEditBot ? (locale === "zh" ? "点击聊天，右键编辑 Bot" : "Click to chat, right-click to edit Bot") : t.switchHint}
+            onClick={() => { if (!disabled && available) { if (onSelectBot && bot.appearance) onSelectBot(bot as BotProfile); else onSelect(preset.id); } }}
+            onContextMenu={event => { if (onEditBot && bot.appearance) { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot as BotProfile); } }}
+            onKeyDown={event => { if (onEditBot && bot.appearance && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) { event.preventDefault(); onEditBot(bot as BotProfile); } }}
           >
             <span className="shell-agent-face" data-status={rowStatus}>
-              <AgentAvatar size={42} kind={avatars[preset.id]} />
+              <AgentAvatar size={42} kind={avatars[preset.id]} appearance={bot.appearance} />
               <span className="shell-agent-dot" data-status={rowStatus} aria-hidden="true" />
             </span>
             <span className="shell-agent-text">
-              <span className="shell-agent-name">{roles[preset.id].name}</span>
+              <span className="shell-agent-name">{bot.name}</span>
               <span className="shell-agent-sub">
                 {statusLabel ?? (
                   <>
@@ -192,11 +213,14 @@ export function AgentSwitcher({
               </span>
             </span>
           </button>
+          {onEditBot && bot.appearance ? <button type="button" className="shell-agent-edit" aria-label={`${locale === "zh" ? "编辑" : "Edit"} ${bot.name}`}
+            onClick={() => onEditBot(bot as BotProfile)}><Pencil size={14} /></button> : null}
+          </div>
         );
       })}
       {onNewGroup ? (
         <button type="button" className="shell-agent" data-active={groupActive} aria-current={groupActive ? "true" : undefined}
-          disabled={disabled} title="新建 Group：我、Raer、Tonny、Bob" onClick={onNewGroup}>
+          disabled={disabled} title={`新建 Group：我、${Object.values(botNames).join("、")}`} onClick={onNewGroup}>
           {/* Align the group face with the larger agent portraits. */}
           <span className="shell-agent-face" data-status={groupStatus ?? "idle"} style={{ width: 42, justifyContent: "center" }}>
             <GroupFace size={42} kinds={[avatars.assistant, avatars.planner, avatars.builder]} />
@@ -204,7 +228,7 @@ export function AgentSwitcher({
           </span>
           <span className="shell-agent-text">
             <span className="shell-agent-name">Group</span>
-            <span className="shell-agent-sub">{groupStatus === "running" ? t.running : groupStatus === "needs-you" ? t.needsYou : "我 · Raer · Tonny · Bob"}</span>
+            <span className="shell-agent-sub">{groupStatus === "running" ? t.running : groupStatus === "needs-you" ? t.needsYou : `我 · ${Object.values(botNames).join(" · ")}`}</span>
           </span>
         </button>
       ) : null}
@@ -234,7 +258,11 @@ export function HeaderAgent({
   disabled,
   onChange,
   onManageProviders,
+  bot,
+  onEditBot,
 }: {
+  bot?: BotProfile;
+  onEditBot?: (bot: BotProfile) => void;
   avatars: Record<AgentPresetId, AvatarKind>;
   settings: AgentSettings;
   /** e.g. "DeepSeek · deepseek-flash" */
@@ -247,7 +275,7 @@ export function HeaderAgent({
   const t = settingsCopy[locale];
   const roleCopy = useCopy().composer.agentSettings;
   const preset = agentPreset(settings.presetId);
-  const name = preset.id === "assistant" ? "Rae" : roleCopy.presets[preset.id].name;
+  const name = bot?.name ?? (preset.id === "assistant" ? "Rae" : roleCopy.presets[preset.id].name);
   const sourceKey = preset.harness === "claude-code" ? "claudeCodeModelSource" : preset.harness === "codex" ? "codexModelSource" : undefined;
   const source: CliModelSource | undefined = sourceKey ? settings[sourceKey] : undefined;
   const model = !sourceKey || source === "provider" ? providerLabel : sourceKey === "claudeCodeModelSource" ? t.agents.sourceLocal : t.agents.sourceLocalCodex;
@@ -255,8 +283,9 @@ export function HeaderAgent({
   return (
     <RadixPopover.Root>
       <RadixPopover.Trigger asChild>
-        <button type="button" className="shell-header-agent shell-header-compact" aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}>
-          <AgentAvatar size={28} kind={avatars[preset.id]} live={false} />
+        <button type="button" className="shell-header-agent shell-header-compact" aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}
+          onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot); } }}>
+          <AgentAvatar size={28} kind={avatars[preset.id]} appearance={bot?.appearance} live={false} />
           <strong className="shell-header-name">{name}</strong>
           <span className="shell-header-engine" title={HARNESS_LABELS[preset.harness]}>
             <HarnessMark harness={preset.harness} size={14} />
@@ -299,52 +328,57 @@ export function HeaderAgent({
 // ---------- Group chat: "+" menu, To: picker, group header with member panel ----------
 const GROUP_ROLE: Record<AgentPresetId, string> = { assistant: "助手", planner: "规划", builder: "实施" };
 const GROUP_NAME: Record<AgentPresetId, string> = { assistant: "Raer", planner: "Tonny", builder: "Bob" };
+function useBotNames(): Record<AgentPresetId, string> {
+  const { bots } = useShellExtras();
+  return Object.fromEntries(AGENT_PRESETS.map(({ id }) => [id, bots?.find(bot => bot.id === id)?.name ?? GROUP_NAME[id]])) as Record<AgentPresetId, string>;
+}
 
-/** Grok-style "+": pick who to talk to — one agent opens a chat with it, two or more make a group. */
-export function NewChatMenu({ avatars, onNewGroup, onSelectAgent }: {
+/** Invite from the conversation header; the existing participants stay selected. */
+export function NewChatMenu({ avatars, members, onNewGroup }: {
   avatars: Record<AgentPresetId, AvatarKind>;
+  members: readonly AgentPresetId[];
   onNewGroup: (members: AgentPresetId[]) => void;
-  onSelectAgent: (id: AgentPresetId) => void;
 }) {
+  const botNames = useBotNames();
   const [open, setOpen] = useState(false);
   const [picked, setPicked] = useState<AgentPresetId[]>([]);
-  const ordered = AGENT_PRESETS.map((p) => p.id).filter((id) => picked.includes(id));
+  const ordered = AGENT_PRESETS.map((p) => p.id).filter((id) => members.includes(id) || picked.includes(id));
   const toggle = (id: AgentPresetId) => setPicked((current) => current.includes(id) ? current.filter((m) => m !== id) : [...current, id]);
   const start = () => {
-    if (ordered.length === 1) onSelectAgent(ordered[0]);
-    else if (ordered.length > 1) onNewGroup(ordered);
+    if (picked.length) onNewGroup(ordered);
     setOpen(false);
     setPicked([]);
   };
   return (
     <RadixPopover.Root open={open} onOpenChange={(next) => { setOpen(next); if (!next) setPicked([]); }}>
       <RadixPopover.Trigger asChild>
-        <button type="button" className="rail-icon-btn" aria-label="新建对话" title="新建对话或 Group">
-          <span style={{ fontSize: 18, lineHeight: 1 }}>＋</span>
+        <button type="button" className="rail-icon-btn shell-invite-agent" aria-label="添加 Agent" title="添加 Agent 到聊天">
+          <Plus size={16} />
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
         <RadixPopover.Content className="shell-popover shell-member-popover" align="start" sideOffset={6} collisionPadding={12}>
           <div className="shell-member-to">
-            <span className="shell-member-meta">成员</span>
+            <span className="shell-member-meta">聊天成员</span>
             {ordered.length ? ordered.map((id) => (
-              <span key={id} className="shell-member-chip" data-selected="true"><AgentAvatar size={18} kind={avatars[id]} />{GROUP_NAME[id]}</span>
+              <span key={id} className="shell-member-chip" data-selected="true"><AgentAvatar size={18} kind={avatars[id]} />{botNames[id]}</span>
             )) : <span className="shell-member-meta">选择一位或多位</span>}
           </div>
           {AGENT_PRESETS.map((preset) => {
-            const on = picked.includes(preset.id);
+            const present = members.includes(preset.id);
+            const on = present || picked.includes(preset.id);
             return (
               <button type="button" key={preset.id} className="shell-member-row"
-                aria-pressed={on} onClick={() => toggle(preset.id)}>
+                aria-pressed={on} disabled={present} onClick={() => toggle(preset.id)}>
                 <AgentAvatar size={24} kind={avatars[preset.id]} />
-                <span>{GROUP_NAME[preset.id]}</span>
-                <span className="shell-member-meta shell-member-role">{GROUP_ROLE[preset.id]}</span>
+                <span>{botNames[preset.id]}</span>
+                <span className="shell-member-meta shell-member-role">{present ? "已加入" : GROUP_ROLE[preset.id]}</span>
                 <span aria-hidden="true" className="shell-member-check">{on ? "✓" : ""}</span>
               </button>
             );
           })}
-          <Button type="button" variant="primary" className="shell-member-start" disabled={!ordered.length} onClick={start}>
-            {ordered.length === 0 ? "选择成员" : ordered.length === 1 ? `和 ${GROUP_NAME[ordered[0]]} 聊` : `创建群聊（${ordered.length} 位助手）`}
+          <Button type="button" variant="primary" className="shell-member-start" disabled={!picked.length} onClick={start}>
+            {picked.length ? `加入聊天（${picked.length}）` : "选择要加入的 Agent"}
           </Button>
         </RadixPopover.Content>
       </RadixPopover.Portal>
@@ -363,18 +397,19 @@ export function GroupHeader({ avatars, members, draft, onChange }: {
   draft: boolean;
   onChange: (members: AgentPresetId[]) => void;
 }) {
+  const botNames = useBotNames();
   const toggle = (id: AgentPresetId) => {
     const next = members.includes(id) ? members.filter((m) => m !== id) : AGENT_PRESETS.map((p) => p.id).filter((m) => m === id || members.includes(m));
     if (next.length) onChange(next);
   };
-  const names = ["我", ...members.map((m) => GROUP_NAME[m])].join("、");
+  const names = ["我", ...members.map((m) => botNames[m])].join("、");
   if (draft) {
     return (
       <div className="shell-member-picker">
         <span className="shell-member-meta">成员</span>
         {AGENT_PRESETS.map((preset) => (
           <button key={preset.id} type="button" className="shell-member-chip" aria-pressed={members.includes(preset.id)} onClick={() => toggle(preset.id)}>
-            <AgentAvatar size={20} kind={avatars[preset.id]} />{GROUP_NAME[preset.id]}
+            <AgentAvatar size={20} kind={avatars[preset.id]} />{botNames[preset.id]}
           </button>
         ))}
       </div>
@@ -403,7 +438,7 @@ export function GroupHeader({ avatars, members, draft, onChange }: {
             return (
               <button key={preset.id} type="button" className="shell-member-row" aria-pressed={on} onClick={() => toggle(preset.id)}>
                 <AgentAvatar size={24} kind={avatars[preset.id]} />
-                <span>{GROUP_NAME[preset.id]} · {GROUP_ROLE[preset.id]}</span>
+                <span>{botNames[preset.id]} · {GROUP_ROLE[preset.id]}</span>
                 <span className="shell-member-meta shell-member-role">
                   <HarnessMark harness={preset.harness} />{on ? "在群里" : "已移出"}
                 </span>
@@ -422,10 +457,11 @@ export function GroupWelcome({ avatars, members, onChange }: {
   members: readonly AgentPresetId[];
   onChange: (members: AgentPresetId[]) => void;
 }) {
+  const botNames = useBotNames();
   return (
     <div className="composer-greeting" style={{ flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
       <span aria-hidden="true"><GroupFace size={76} kinds={members.map((m) => avatars[m])} /></span>
-      <h2 className="composer-greeting-text" style={{ margin: 0 }}>{["我", ...members.map((m) => GROUP_NAME[m])].join("、")}</h2>
+      <h2 className="composer-greeting-text" style={{ margin: 0 }}>{["我", ...members.map((m) => botNames[m])].join("、")}</h2>
       <p style={{ margin: 0, opacity: 0.6, fontSize: 14 }}>选择成员，开始对话。</p>
       <GroupHeader avatars={avatars} members={members} draft onChange={onChange} />
     </div>

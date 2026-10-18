@@ -1,5 +1,6 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="280" height="76" viewBox="0 0 280 76" color="#0C2458" role="img" aria-labelledby="title">
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="76" viewBox="0 0 280 76" role="img" aria-labelledby="title">
 <title id="title">Raytone Bot</title>
+<g id="raytone-logo">
 <defs>
 <linearGradient id="ray-outer-fade" x1="47" y1="0" x2="267" y2="0" gradientUnits="userSpaceOnUse">
 <stop offset="0" stop-color="#E7AC26" stop-opacity=".82"/>
@@ -25,8 +26,8 @@
 <path d="M59.55 27.4C91 27.4 148 28.65 266.2 28.96Q266.24 29 266.2 29.04C148 29.35 91 30.6 59.55 30.6A1.6 1.6 0 0 1 59.55 27.4Z"/>
 <path d="M59.55 43.4C91 43.4 148 44.65 266.2 44.96Q266.24 45 266.2 45.04C148 45.35 91 46.6 59.55 46.6A1.6 1.6 0 0 1 59.55 43.4Z"/>
 </g>
-<circle cx="28" cy="37" r="24" fill="#0C2458"/>
-<g fill="#E7AC26"><rect x="18" y="29" width="5.5" height="15" rx="2.75"/><rect x="32.5" y="29" width="5.5" height="15" rx="2.75"/></g>
+<circle cx="28" cy="37" r="24" fill="#E7AC26"/>
+<g fill="#0C2458"><rect x="18" y="29" width="5.5" height="15" rx="2.75"/><rect x="32.5" y="29" width="5.5" height="15" rx="2.75"/></g>
 <g transform="translate(12 5) scale(.92)">
 <g fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" transform="translate(65 21.8) scale(.72)">
   <path d="M0 32V1H11C27 1 27 18 11 18H0M12 18L25 32"/>
@@ -41,5 +42,6 @@
   <path d="M0 32V1H10C24 1 24 15 10 15H0M10 15C26 15 27 32 10 32H0"/>
   <ellipse transform="translate(29)" cx="10.5" cy="22" rx="10.5" ry="10.5"/>
   <path transform="translate(59)" d="M8 4V26Q8 34 17 31M0 12H17"/>
+</g>
 </g>
 </g></svg>

@@ -275,3 +275,11 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 - `.form.json` 仅接受显式 `raytone-form` v1 schema，最多20字段/24K字符，类型为 text/number/boolean/select。Output helper 使用 runtime hook 保存同源输入、稳定提交身份及封存值，提交沿 Composer 队列和主机 requestId。普通/群 prompt 可选 `artifactSubmission: {artifactId,submissionId}`，submissionId 必须等于 requestId；父 turn 保存来源，隐藏成员执行不继承父提交身份。结果按原 runId 查找并定位现有回答，脚本不参与提交。
 - 既有 `/__agentcanvas/pi/files` 的 GET 支持 `query`：有预算的本地 `.md/.txt` 路径/正文搜索，返回可选 snippet、truncated。`GET /documents?scope=&path=` 返回文本、SHA256 version、可选来源；`POST /documents` 接受 scope/name/content 及可选 conversationId/artifactId，另存到 documents 唯一路径；`PUT /documents` 接受 scope/path/content/version，旧版本409，保留服务器字节。均复用同源与工作区边界；存在活动运行时拒绝 POST/PUT。
 - 文件≤256 KiB、UTF-8；同一路径保存串行且原子 rename，使用 fd chmod 保留0660组权限。安全文件读取拒绝链接、私有路径及越界。来源引用随原会话 `documents` metadata（最多100项）保存，字节与 metadata 不具备跨文件事务保证；文本编辑草稿在浏览器本地，失效版本需用户明确丢弃/重新核对。新会话引用仍是原 attachments，不复制历史字节。无新服务、数据库或外部存储。
+
+### Bot 配置与聊天归属（2026-10-18）
+
+`runtime/botProfiles.ts` 区分 Bot ID 与引擎角色：三个内置 ID 保持 assistant / planner / builder，新 Bot 使用随机 ID 并选择现有角色。名字、结构化头像与 conversation ID → Bot ID 映射共同保存在当前 origin 的 `raytone.bot-profiles.v1`，`useBotProfiles` 处理同页通知和跨标签页更新。旧 `raytone.bot-appearances.v1` 按角色作为缺省值读取，编辑保存后由新配置优先，不删除旧数据。Bot 不接受任意 SVG。
+
+创建/编辑表单从 Settings 移到 `ShellExtras` 的唯一 `BotEditor` helper，入口为 `SessionSidebar` Logo、侧栏头像右键/键盘菜单键/编辑按钮，以及聊天标题头像右键。表单保存成功才更新；存储失败保留草稿。聊天主机仍使用原有 conversation ID 隔离上下文，新 Bot 复用所选角色的引擎、模型来源、工作区、工具权限与运行时人设；名称属于显示配置。历史分组、草稿、搜索、活动状态与消息分支按浏览器记录的 Bot ID 恢复，编辑现有 Bot 不允许改引擎。
+
+群聊成员仍是三个内置角色；显示名称和头像随配置更新，`@` 候选显示名称与稳定的 @Raer / @Tonny / @Bob 路由 handle。Bot 配置及归属映射不属于服务端备份，不跨浏览器/设备同步；清除浏览器存储后，服务端保存的聊天仍在，会回退到原引擎角色分组。未新增 HTTP 接口、数据库或服务。

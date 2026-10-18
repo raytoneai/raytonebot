@@ -184,7 +184,7 @@ export async function getStoredConversation(
   id: string,
   fetcher: typeof fetch = fetch,
   signal?: AbortSignal,
-): Promise<StoredConversationSummary & { events: AgentUXEvent[]; incomplete?: boolean }> {
+): Promise<StoredConversationSummary & { events: AgentUXEvent[]; incomplete?: boolean; turns?: { runId: string; prompt: string; attachments?: PiPromptAttachment[] }[] }> {
   const timeout = AbortSignal.timeout(15_000);
   return requestJson(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, undefined,
     signal ? AbortSignal.any([signal, timeout]) : timeout);

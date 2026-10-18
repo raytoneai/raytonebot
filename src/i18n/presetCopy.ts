@@ -342,55 +342,14 @@ const presetOptionZh: PresetOptionTable = {
     description: "允许脚手架界面提供提交命令。",
   },
 
-  // Theme — Native (原生风)
-  "warm-graphite": {
-    label: "暖石墨",
-    description: "暗灰 + 琥珀暖光",
-  },
-  "cocoa-system": {
-    label: "可可系统",
-    description: "深咖 + 玫瑰铜",
-  },
-  "forest-ember": {
-    label: "森林余烬",
-    description: "深绿黑 + 暖金",
-  },
+  // Theme
   "soft-glass": {
-    label: "柔光玻璃",
-    description: "苹果感浅灰 + 深蓝",
+    label: "亮色",
+    description: "浅灰背景与深蓝文字",
   },
-  "sand-workspace": {
-    label: "砂石工作台",
-    description: "温白 + 粘土橙",
-  },
-  "apricot-agent": {
-    label: "橙光助手",
-    description: "清爽白橙 + 亮橙",
-  },
-  // Theme — Minimal (极简风)
-  "cold-mono": {
-    label: "冷调黑白",
-    description: "黑白冷灰",
-  },
-  "slate-blue": {
-    label: "石板蓝",
-    description: "冷蓝控制台",
-  },
-  "cyan-grid": {
-    label: "青色栅格",
-    description: "深青黑 · 技术感",
-  },
-  "ice-white": {
-    label: "冰白",
-    description: "冷白 + 冰蓝",
-  },
-  "mist-blue": {
-    label: "雾紫",
-    description: "淡紫雾面 + 紫色主色",
-  },
-  "polar-mono": {
-    label: "极地深蓝",
-    description: "极冷白灰 + 深蓝主色",
+  "warm-graphite": {
+    label: "暗色",
+    description: "暗灰背景与琥珀点缀",
   },
 };
 

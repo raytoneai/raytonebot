@@ -1736,26 +1736,6 @@ textarea:focus-visible {
   box-shadow: none;
 }
 
-/* Theme palette curated per style (show/hide-by-style). Native offers its 6
-   warm/saturated schemes; Minimal (illustrated) offers its 6 cool/austere
-   schemes. Each style hides the other style's schemes so the two never overlap. */
-.preset-panel[data-style-preset="native"] .preset-option-cell[data-option-id="cold-mono"],
-.preset-panel[data-style-preset="native"] .preset-option-cell[data-option-id="slate-blue"],
-.preset-panel[data-style-preset="native"] .preset-option-cell[data-option-id="cyan-grid"],
-.preset-panel[data-style-preset="native"] .preset-option-cell[data-option-id="ice-white"],
-.preset-panel[data-style-preset="native"] .preset-option-cell[data-option-id="mist-blue"],
-.preset-panel[data-style-preset="native"] .preset-option-cell[data-option-id="polar-mono"] {
-  display: none;
-}
-.preset-panel[data-style-preset="illustrated"] .preset-option-cell[data-option-id="warm-graphite"],
-.preset-panel[data-style-preset="illustrated"] .preset-option-cell[data-option-id="cocoa-system"],
-.preset-panel[data-style-preset="illustrated"] .preset-option-cell[data-option-id="forest-ember"],
-.preset-panel[data-style-preset="illustrated"] .preset-option-cell[data-option-id="soft-glass"],
-.preset-panel[data-style-preset="illustrated"] .preset-option-cell[data-option-id="sand-workspace"],
-.preset-panel[data-style-preset="illustrated"] .preset-option-cell[data-option-id="apricot-agent"] {
-  display: none;
-}
-
 /* Parameter sliders revealed under the active writing option. */
 .writing-params {
   display: grid;
@@ -3638,12 +3618,9 @@ textarea:focus-visible {
 .session-brand-logo {
   display: block;
   height: 44px;
-  width: auto;
+  width: 162px;
   max-width: 100%;
-}
-.preview-frame[data-appearance="dark"] .session-brand-logo[data-variant="light"],
-.preview-frame:not([data-appearance="dark"]) .session-brand-logo[data-variant="dark"] {
-  display: none;
+  color: var(--text-primary);
 }
 
 .session-brand-actions {
@@ -4479,26 +4456,6 @@ textarea:focus-visible {
   --agent-spark-glow-start: #615DE0;
   --agent-spark-glow-end: #111E36;
   --agent-spark-glow-opacity: 0.46;
-}
-
-:is(.preview-frame, .preset-panel)[data-style-preset="native"][data-theme-preset="sand-workspace"] .agent-spark-avatar {
-  --agent-spark-main-start: #6F472F;
-  --agent-spark-main-end: #C98656;
-  --agent-spark-small-start: #805235;
-  --agent-spark-small-end: #D69A66;
-  --agent-spark-glow-start: #C98656;
-  --agent-spark-glow-end: #A7673F;
-  --agent-spark-glow-opacity: 0.34;
-}
-
-:is(.preview-frame, .preset-panel)[data-style-preset="native"][data-theme-preset="apricot-agent"] .agent-spark-avatar {
-  --agent-spark-main-start: #7D3F39;
-  --agent-spark-main-end: #D66A50;
-  --agent-spark-small-start: #92504A;
-  --agent-spark-small-end: #EE8C72;
-  --agent-spark-glow-start: #D66A50;
-  --agent-spark-glow-end: #F0A07E;
-  --agent-spark-glow-opacity: 0.36;
 }
 
 .preview-frame[data-style-preset="native"][data-appearance="dark"] .agent-spark-avatar {
@@ -12605,11 +12562,13 @@ pre {
 .workspace-file-list li { display: flex; align-items: center; }
 .workspace-file-list button { min-width: 0; flex: 1; }
 .workspace-file-list a.workspace-file-download { flex: 0 0 auto; width: auto; padding: 10px; }
+.output-artifact-list button { gap: 8px; min-height: 36px; padding: 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); line-height: 20px; }
+.output-artifact-list svg { color: var(--text-muted); }
+.output-artifact-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .preview-frame .image-output-preview img { width: 100%; height: auto; max-height: 65vh; object-fit: contain; }
 .preview-frame .audio-output-preview audio,
 .preview-frame .video-output-preview video { width: 100%; max-height: 65vh; }
-/* Feedback enters below the prompt. Saved confirmations fade without moving the input;
-   actionable feedback remains visible until its underlying state clears. */
+/* Actionable feedback remains visible until its underlying state clears. */
 .composer-draft-status {
   display: block;
   padding: 6px 12px 0;
@@ -12617,12 +12576,6 @@ pre {
   font-size: 12px;
   animation: composer-status-in 160ms var(--ease-out) both;
 }
-
-/* Quiet successful saves without moving the input; failures and stop feedback stay visible. */
-.composer-draft-status[data-saved="true"] {
-  animation: composer-status-in 160ms var(--ease-out) both, composer-status-out 160ms linear 2.5s forwards;
-}
-@keyframes composer-status-out { to { opacity: 0; visibility: hidden; } }
 
 @keyframes composer-status-in {
   from { opacity: 0; transform: translateY(4px); }
@@ -12649,7 +12602,6 @@ pre {
   .composer-queue-item[data-entering="true"] {
     animation: overlay-fade-in 80ms linear both;
   }
-  .composer-draft-status[data-saved="true"] { animation: composer-status-out 1ms linear 2.5s forwards; }
 }
 .composer-queue-item:hover { background: var(--surface-hover); }
 .composer-queue-index { flex: none; min-width: 1.5em; color: var(--text-muted); font-variant-numeric: tabular-nums; }

@@ -1038,3 +1038,19 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 实看 Ice White / Warm Graphite；各处同一角色的 SVG 颜色集合一致，标题头像所有后代 computed animation-name 为 none。19 个内置场景及欢迎页逐一切换，旧 `.halo/.mouth/.glint` 节点为 0，无浏览器 error。已恢复原 Ice White 主题，未修改模型/权限或发送真实任务。
 - `npm run build` 通过；首次全量测试暴露原配饰用例隐含依赖通用默认发型为飞机头，改成显式 quiff 测试输入后，头像 4 项单测及最终 397/397 全量测试通过、0 跳过；`git diff --check -- src docs/product` 通过。
 - 截图与场景结果：`output/avatar-palette/sidebar-light.png`、`sidebar-dark.png`、`desktop.png`、`fixture-checks.json`。未验证云端或调用真实模型，未部署、未推送。
+
+### 2026-10-18 Bot 创建/编辑入口
+
+- Logo 打开创建表单，默认 Pi；名字与结构化头像保存后进入侧栏。现有 Raer / Tonny / Bob 与新增 Bot 右键进入同一编辑表单；Settings 无 Bot 头像分区。
+- Chrome 独立浏览器上下文实测：创建 Muse、定制双丸子头像；同用 Pi 的 Raer / Muse 具有不同 conversation ID 和独立草稿，按 Bot 分组；重命名 Muse II 后刷新和重开草稿仍正确。三个内置 Bot 与新增 Bot 的取消不覆盖；Shift+F10 编辑可用；模拟 quota 错误保留草稿、显示失败且已保存 Bot 不变。
+- 桌面浅色/深色与 390×844 创建/编辑截图已查看，窄屏保存/取消常驻可达，无横向溢出。19 个内置事件场景与欢迎页逐一切换，无 pageerror、无页面横向溢出，fixture 不显示创建入口。
+- 补充浏览器检查：Claude Code / Codex 新 Bot 的引擎与标题对应，两个标签页同步配置；内置 Bot 改名后群聊候选仍插入稳定 @Raer，Escape 返回 Logo 焦点。最终 build、401/401 测试、diff 检查通过。
+- 证据：`output/bot-editor/checks.json`、`edge-checks.json`、`fixtures.json`、创建/编辑桌面与手机截图；验证脚本仅在隔离浏览器上下文中写入测试配置/草稿，不修改用户的浏览器配置或服务端历史。
+- 自动验证与最终限制见 03 顶部任务卡；本轮未调用真实模型、未部署云端，群聊与跨设备边界见 ADR-046。
+
+### 2026-10-18 固定眼型与头像部件预览
+
+- 移除眼型选项，所有基础眼型统一为既有长条胶囊；解析旧圆眼/笑眼配置时保留发型、配饰及颜色。保留原眨眼、视线、工作姿态与成功表情层，未修改动画控制器或动画样式。
+- 发型和配饰的 15 个选项只显示部件小图或「无」图标，没有脸、眼睛和可见文字；保留本地化无障碍名称、键盘焦点及选中反馈。小图复用头像 SVG 几何，使用主题文字色以保证任意已保存颜色下仍可辨认。
+- `npm run build`、403/403 测试（0 跳过）通过；新增旧眼型兼容与部件预览回归。Chrome 隔离上下文逐个点击全部选项，核对选中/大图、保存/刷新、旧配置转换与颜色保留；桌面浅深色、390×844 手机无横向溢出，手机选项最小宽 48px、高 56px，无 pageerror。
+- 19 个内置事件场景与欢迎页逐一切换，无 pageerror 或页面横向溢出；未调用真实模型或重新设计/调校动画。截图与交互结果在 `output/bot-editor/part-options/`，场景结果在 `output/bot-editor/fixtures.json`。未修改用户浏览器配置，未部署或推送。
