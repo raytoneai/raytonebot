@@ -11,6 +11,8 @@ import { SelectMenu } from "../ui";
 import { workArtifacts } from "../../runtime/workArtifacts";
 import { outputPanelItemFromRenderedArtifact } from "./outputframe/artifactPreview";
 import { OutputContent } from "./outputframe/OutputContent";
+import { OpenedOutputItem } from "./outputframe/OutputTabs";
+import type { OutputPanelSource } from "./outputframe/types";
 import { ExpandOutputIcon, OutputSourceSwitch, RightSidebarIcon } from "./outputframe/OutputSourceSwitch";
 import { outputTitle } from "./outputframe/labels";
 import { resolveArtifactRenderer } from "./outputframe/artifactPreview";
@@ -53,11 +55,18 @@ export function OutputFrame({
   const [query, setQuery] = useState("");
   const [truncated, setTruncated] = useState(false);
   const c = copy.workspace.outputFrame;
-  const { workspaceScope, workspaceRevision, workspaceSharedAvailable, onOpenFile, browserPanel, toolLog } = useShellExtras();
+  const { workspaceScope, workspaceRevision, workspaceSharedAvailable, onOpenFile, outputPanel, toolLog } = useShellExtras();
   const [expandedState, setExpanded] = useState(false);
   const expanded = fullscreen || expandedState;
-  // The phone's workspace entry opens files; the desktop output keeps its artifact by default.
-  const [showFiles, setShowFiles] = useState(fullscreen && project.output.source !== "console");
+  const [localSource, setLocalSource] = useState<OutputPanelSource>(project.output.source);
+  const source = outputPanel?.source ?? localSource;
+  const showFiles = source === "workspace";
+  const [workspacePreview, setWorkspacePreview] = useState<OutputPanelItem>();
+  const selectSource = (next: OutputPanelSource) => {
+    if (outputPanel) outputPanel.select(next);
+    else setLocalSource(next);
+    if (next === "artifact" || next === "console") onSourceChange?.(next);
+  };
   const [shared, setShared] = useState(false);
   const [path, setPath] = useState("");
   const [files, setFiles] = useState<PiWorkspaceFile[]>([]);
@@ -67,12 +76,10 @@ export function OutputFrame({
   const scope: PiFileScope = shared ? "shared" : workspaceScope ?? "assistant";
   const panelRef = useRef<HTMLElement>(null);
   const closeExpanded = () => fullscreen ? onCollapse?.() : setExpanded(false);
-  useEffect(() => { setPath(""); setQuery(""); }, [scope]);
-  useEffect(() => { if (toolLog?.targetId && project.output.source === "console") setShowFiles(false); }, [toolLog?.targetId, toolLog?.revision, project.output.source]);
-  // A fullscreen workspace entry starts at files even if another output tab is open.
-  useEffect(() => { if (activeOpenItemId && !fullscreen) setShowFiles(false); }, [activeOpenItemId, fullscreen]);
+  useEffect(() => { setPath(""); setQuery(""); setWorkspacePreview(undefined); }, [scope]);
+  useEffect(() => { setLocalSource(project.output.source); }, [project.output.source]);
   useEffect(() => {
-    if (!showFiles || !workspaceScope) return;
+    if (!showFiles || !workspaceScope || workspacePreview) return;
     const controller = new AbortController();
     setLoading(true);
     setFileError("");
@@ -82,7 +89,7 @@ export function OutputFrame({
       .catch((error: unknown) => { if (!controller.signal.aborted) setFileError(error instanceof Error ? error.message : String(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [showFiles, workspaceScope, scope, path, revision, workspaceRevision, query]);
+  }, [showFiles, workspaceScope, scope, path, revision, workspaceRevision, query, workspacePreview]);
   useEffect(() => {
     if (!expanded) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -107,7 +114,7 @@ export function OutputFrame({
   // A page being written shows here unless the user is looking at something else; once the
   // write succeeds, the file it watched opens as itself, scripts and all.
   const writing = liveHtmlWrite(viewModel.timeline);
-  const liveHtml = writing && project.output.source === "artifact" && !showFiles
+  const liveHtml = writing && source === "artifact"
     && (!openItems.length || (activeOpenItemId ?? openItems[openItems.length - 1].id) === `file:${writing.path}`) ? writing : undefined;
   const watched = useRef<LiveHtmlWrite | undefined>(undefined);
   useEffect(() => {
@@ -131,25 +138,22 @@ export function OutputFrame({
         className="utility-card artifact-frame"
         data-preview-anchor="output"
         data-expanded={expanded}
-        data-output-source={project.output.source}
+        data-output-source={source}
         data-artifact-renderer={project.output.artifactRenderer}
         data-output-surface={project.output.surface}
-        data-view={`${project.output.source}:${artifactRenderer}`}
+        data-view={`${source}:${artifactRenderer}`}
         role={fullscreen ? "dialog" : undefined}
         aria-modal={fullscreen || undefined}
-        aria-label={fullscreen ? c.files : undefined}
+        aria-label={fullscreen ? c.sourceLabel : undefined}
       >
-        <header className="utility-header output-header" aria-label={toolLog && project.output.source === "artifact" ? c.sourceArtifact : outputTitle(project.output.source, artifactRenderer, c)}>
+        <header className="utility-header output-header" aria-label={source === "workspace" ? c.files : source === "browser" ? c.sourceBrowser : toolLog && source === "artifact" ? c.sourceArtifact : outputTitle(source, artifactRenderer, c)}>
           <div className="utility-header-leading">
-            {onSourceChange ? (
-              <OutputSourceSwitch source={project.output.source} copy={c} onChange={(source) => { setShowFiles(false); onSourceChange(source); }}
-                browser={browserPanel ? { selected: browserPanel.selected, select: () => { setShowFiles(false); browserPanel.select(); } } : undefined} />
+            {onSourceChange || outputPanel ? (
+              <OutputSourceSwitch source={source} copy={c} onChange={selectSource}
+                browser={outputPanel?.browserAvailable} workspace={Boolean(workspaceScope)} />
             ) : null}
           </div>
           <div className="utility-header-actions">
-            {workspaceScope ? (
-              <button className="rail-icon-btn" type="button" aria-label={c.files} title={c.files} aria-pressed={showFiles} onClick={() => setShowFiles((current) => !current)}><FolderOpen size={16} /></button>
-            ) : null}
             <button
               className="rail-icon-btn"
               type="button"
@@ -179,7 +183,12 @@ export function OutputFrame({
             ) : null}
           </div>
         </header>
-        {browserPanel?.selected && !showFiles ? <BrowserView copy={c} onLoginOpen={() => setExpanded(true)} /> : showFiles && workspaceScope ? (
+        {source === "browser" ? <BrowserView copy={c} onLoginOpen={() => setExpanded(true)} /> : showFiles && workspaceScope ? workspacePreview ? (
+          <div className="artifact-content opened-output">
+            <button type="button" className="workspace-preview-back" onClick={() => setWorkspacePreview(undefined)}><ArrowLeft size={15} />{c.files}</button>
+            <OpenedOutputItem item={workspacePreview} copy={c} />
+          </div>
+        ) : (
           <div className="artifact-content workspace-files" aria-busy={loading}>
             <div className="artifact-title">
               <FolderOpen size={16} />
@@ -201,7 +210,7 @@ export function OutputFrame({
                       <button type="button" onClick={() => setPath(file.path)}><Folder size={16} /><span>{file.name}</span></button>
                     ) : (
                       <>
-                        <button type="button" onClick={() => { setShowFiles(false); onOpenFile?.({ id: `workspace:${scope}:${file.path}`, kind: "file", title: file.name, subtitle: file.path, downloadUrl: piFileDownloadUrl(scope, file.path) }); }}><File size={16} /><span>{query ? file.path : file.name}{file.snippet ? <small>{file.snippet}</small> : null}</span><small>{file.size.toLocaleString()} B</small></button>
+                        <button type="button" onClick={() => setWorkspacePreview(normalizeOutputPanelRequest({ id: `workspace:${scope}:${file.path}`, kind: "file", title: file.name, subtitle: file.path, downloadUrl: piFileDownloadUrl(scope, file.path) }))}><File size={16} /><span>{query ? file.path : file.name}{file.snippet ? <small>{file.snippet}</small> : null}</span><small>{file.size.toLocaleString()} B</small></button>
                         <a className="workspace-file-download" href={piFileDownloadUrl(scope, file.path)} download={file.name} aria-label={`${c.download} ${file.name}`} title={`${c.download} ${file.name}`}><Download size={16} /></a>
                       </>
                     )}
@@ -212,7 +221,7 @@ export function OutputFrame({
           </div>
         ) : <OutputContent
           project={project}
-          source={project.output.source}
+          source={source === "console" ? "console" : "artifact"}
           artifact={artifact}
           renderer={artifactRenderer}
           copy={c}

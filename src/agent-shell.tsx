@@ -132,6 +132,7 @@ import {
   type EphemeralPiConversation,
 } from "./pi/piConversationState";
 import { piErrorTurnEvents, PROMPT_REJECTED } from "./pi/piErrorTurn";
+import type { OutputPanelSource } from "./components/agent-preview/outputframe/types";
 import { workspaceFileUrl } from "./runtime/filePreview";
 import { artifactAuthor, artifactEventForReplay, refreshArtifactItems } from "./runtime/artifactContent";
 import { displayTaskPlans } from "./runtime/taskPlan";
@@ -212,9 +213,7 @@ export function AgentApp() {
   const [outputModalOpen, setOutputModalOpen] = useState(false);
   const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
   const [toolLogTarget, setToolLogTarget] = useState<{ id: string; nonce: number }>();
-  const [outputSource, setOutputSource] = useState(project.output.source);
-  /** The browser's live view, a third panel source held here (ADR-040); the project's stays. */
-  const [browserSelected, setBrowserSelected] = useState(false);
+  const [outputSource, setOutputSource] = useState<OutputPanelSource>(project.output.source);
   const [browserAvailable, setBrowserAvailable] = useState(false);
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
   const { project: configuredProject, setProject: setConfiguredProject, status: providerSettingsStatus } = useProviderSettings(project);
@@ -363,7 +362,7 @@ export function AgentApp() {
   const activeProject = useMemo(
     () => ({ ...configuredProject,
       layout: { ...configuredProject.layout, slots: configuredProject.layout.slots.map((slot) => enabledSlots?.includes(slot.id) ? { ...slot, enabled: true } : slot) },
-      output: { ...configuredProject.output, source: outputSource },
+      output: { ...configuredProject.output, source: outputSource === "console" ? "console" as const : "artifact" as const },
       conversation: streamId && !activityPreview ? configuredProject.conversation : {
         ...configuredProject.conversation, agentAvatar: false, userAvatar: false, speakerLabels: false,
       },
@@ -662,7 +661,6 @@ export function AgentApp() {
     setWorkspaceModalOpen(false);
     setActiveOutputPanelItemId(item.id);
     setOutputSource("artifact");
-    setBrowserSelected(false);
     if (rightPanelAvailable) {
       setOutputModalOpen(false);
       setRightCollapsed(false);
@@ -672,14 +670,14 @@ export function AgentApp() {
   }
 
   // An edited (or content-less) page has nothing to stream; it opens once saved, unless the user is
-  // watching the browser. Here rather than in OutputFrame, so a collapsed or hidden panel still opens.
+  // looking at another output source. Here rather than in OutputFrame, so a collapsed panel can open.
   // Only runs this page started or follows; the same `file:` id as the live preview's, one tab.
   const liveRunIds = useRef(new Set<string>());
   const lastTimeline = useRef({ conversationId: activePiConversationId, timeline: displayViewModel.timeline });
   useEffect(() => {
     const previous = lastTimeline.current;
     lastTimeline.current = { conversationId: activePiConversationId, timeline: displayViewModel.timeline };
-    if (previous.conversationId !== activePiConversationId || previous.timeline === displayViewModel.timeline || browserSelected) return;
+    if (previous.conversationId !== activePiConversationId || previous.timeline === displayViewModel.timeline || outputSource !== "artifact") return;
     const live = new Set(replayEvents.flatMap((event) => event.type.startsWith("tool.call.") && event.runId && liveRunIds.current.has(event.runId)
       ? [String(event.payload.toolCallId)] : []));
     for (const file of finishedHtmlEdits(previous.timeline, displayViewModel.timeline, (id) => live.has(id))) {
@@ -689,8 +687,10 @@ export function AgentApp() {
 
   /** Shows the browser's live view in the Output panel, opening the panel if needed. */
   function showBrowser() {
-    setBrowserSelected(true);
-    if (rightPanelAvailable) { setOutputModalOpen(false); setRightCollapsed(false); }
+    setOutputSource("browser");
+    setOutputModalOpen(false);
+    if (rightPanelAvailable) setRightCollapsed(false);
+    else setWorkspaceModalOpen(true);
   }
   // An agent asking the user to take over brings the browser into view once per request.
   const takeoverRequest = pendingQuestion?.questions.some((question) => question.id === "browser_takeover") ? pendingQuestion.requestId : undefined;
@@ -1374,7 +1374,7 @@ export function AgentApp() {
     activeOutputPanelItemId,
     onSelectOutputPanelItem: setActiveOutputPanelItemId,
     onCloseOutputPanelItem: closeOutputPanelItem,
-    onOutputSourceChange: (source: typeof outputSource) => { setBrowserSelected(false); setOutputSource(source); },
+    onOutputSourceChange: (source: "artifact" | "console") => { setOutputSource(source); },
     // Not a no-op: starting a new conversation needs no backend, it just clears the transcript
     // and returns to the welcome screen. Wiring it to `noop` made the button look broken —
     // the one control in the shell a user is guaranteed to try.
@@ -1460,7 +1460,7 @@ export function AgentApp() {
       displayViewModel.timeline.map((item) => item.kind === "message" && item.role === "user").lastIndexOf(true) + 1,
     ).map((item) => item.id) : []),
     toolLog: streamId ? undefined : { targetId: toolLogTarget?.id, revision: toolLogTarget?.nonce, open: (id) => {
-      setToolLogTarget((previous) => ({ id, nonce: (previous?.nonce ?? 0) + 1 })); setBrowserSelected(false); setOutputSource("console");
+      setToolLogTarget((previous) => ({ id, nonce: (previous?.nonce ?? 0) + 1 })); setOutputSource("console");
       setOutputModalOpen(false);
       if (rightPanelAvailable) setRightCollapsed(false);
       else setWorkspaceModalOpen(true);
@@ -1564,12 +1564,16 @@ export function AgentApp() {
       onChange: changeComposerDraft,
     },
     workspaceScope: agentSettings.presetId,
-    browserPanel: browserAvailable ? { selected: browserSelected, select: showBrowser } : undefined,
+    outputPanel: streamId ? undefined : { source: outputSource, browserAvailable, select: setOutputSource },
     workspaceRevision: piRunning,
     workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),
     workspace: piRuntimeState?.workspace,
     onOpenFile: openArtifact,
-    onBrowseWorkspace: streamId ? undefined : () => { setOutputSource("artifact"); setBrowserSelected(false); setWorkspaceModalOpen(true); },
+    onBrowseWorkspace: streamId ? undefined : () => {
+      setOutputSource("workspace"); setOutputModalOpen(false);
+      if (rightPanelAvailable) setRightCollapsed(false);
+      else setWorkspaceModalOpen(true);
+    },
     onAttachWorkspaceFile: streamId ? undefined : async (file) => {
       await composer.update(activePiConversation, (draft) => {
         if (draft.attachments.some(a => a.reference?.scope === file.scope && a.reference.path === file.path)) return draft;
@@ -1716,7 +1720,7 @@ export function AgentApp() {
           ) : null}
           {workspaceModalOpen ? (
             <Suspense fallback={null}>
-              <OutputFrame project={activeProject} viewModel={displayViewModel} fullscreen openItems={liveOutputPanelItems} activeOpenItemId={activeOutputPanelItemId} onSelectOpenItem={setActiveOutputPanelItemId} onCloseOpenItem={closeOutputPanelItem} onSourceChange={(source) => { setBrowserSelected(false); setOutputSource(source); }} onCollapse={() => setWorkspaceModalOpen(false)} />
+              <OutputFrame project={activeProject} viewModel={displayViewModel} fullscreen openItems={liveOutputPanelItems} activeOpenItemId={activeOutputPanelItemId} onSelectOpenItem={setActiveOutputPanelItemId} onCloseOpenItem={closeOutputPanelItem} onSourceChange={(source) => { setOutputSource(source); }} onCollapse={() => setWorkspaceModalOpen(false)} />
             </Suspense>
           ) : null}
           {outputModalOpen ? (

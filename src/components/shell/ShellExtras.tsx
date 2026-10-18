@@ -13,6 +13,7 @@ import { settingsCopy } from "../../i18n/copy/settings";
 import { appVersionLabel } from "../../appVersion";
 import type { ComposerDraft, ComposerRunOptions } from "../agent-preview/ComposerFrame";
 import type { OutputPanelOpenRequest } from "../agent-preview/outputframe/panelItem";
+import type { OutputPanelSource } from "../agent-preview/outputframe/types";
 import type { PiRuntimeState } from "../../pi/piClient";
 import {
   AGENT_PRESETS,
@@ -106,7 +107,7 @@ export type ShellExtras = {
   runActive?: ReadonlySet<string>;
   workspaceScope?: AgentPresetId;
   /** The shared browser's live view in the Output panel (ADR-040); absent when the host has none. */
-  browserPanel?: { selected: boolean; select(): void };
+  outputPanel?: { source: OutputPanelSource; select(source: OutputPanelSource): void; browserAvailable: boolean };
   /** Refresh the visible directory when a run starts or finishes. */
   workspaceRevision?: boolean;
   workspaceSharedAvailable?: boolean;

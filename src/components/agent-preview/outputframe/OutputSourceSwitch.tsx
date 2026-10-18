@@ -1,25 +1,25 @@
 import { motion, useReducedMotion } from "motion/react";
-import { FileCode2, Globe, PanelRight, TerminalSquare } from "lucide-react";
+import { FileCode2, FolderOpen, Globe, PanelRight, TerminalSquare } from "lucide-react";
 
-import type { OutputSource } from "../../../schema/agentuxConfig";
-import type { OutputFrameCopy } from "./types";
+import type { OutputFrameCopy, OutputPanelSource } from "./types";
 
 export function OutputSourceSwitch({
   source,
   copy,
   onChange,
   browser,
+  workspace,
 }: {
-  source: OutputSource;
+  source: OutputPanelSource;
   copy: OutputFrameCopy;
-  onChange: (source: OutputSource) => void;
-  /** The browser view, a third source the shell holds (the project's source stays as it was). */
-  browser?: { selected: boolean; select(): void };
+  onChange: (source: OutputPanelSource) => void;
+  browser?: boolean;
+  workspace?: boolean;
 }) {
   const reducedMotion = useReducedMotion();
-  const current = browser?.selected ? "browser" : source;
+  const current = source;
   return (
-    <div className="output-source-switch" role="group" aria-label={copy.titleArtifactPrefix}>
+    <div className="output-source-switch" role="group" aria-label={copy.sourceLabel}>
       <button
         type="button"
         aria-label={copy.titleArtifactPrefix}
@@ -51,11 +51,19 @@ export function OutputSourceSwitch({
           aria-pressed={current === "browser"}
           data-active={current === "browser"}
           title={copy.browser.view}
-          onClick={browser.select}
+          onClick={() => onChange("browser")}
         >
           {current === "browser" ? <SourcePill reduced={reducedMotion} /> : null}
           <Globe size={15} />
           <span className="output-source-label">{copy.sourceBrowser}</span>
+        </button>
+      ) : null}
+      {workspace ? (
+        <button type="button" aria-label={copy.sourceWorkspace} aria-pressed={current === "workspace"}
+          data-active={current === "workspace"} title={copy.files} onClick={() => onChange("workspace")}>
+          {current === "workspace" ? <SourcePill reduced={reducedMotion} /> : null}
+          <FolderOpen size={15} />
+          <span className="output-source-label">{copy.sourceWorkspace}</span>
         </button>
       ) : null}
     </div>

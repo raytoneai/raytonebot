@@ -11,6 +11,8 @@ const en = {
     sourceArtifact: "Artifact",
     sourceConsole: "Console",
     sourceBrowser: "Browser",
+    sourceWorkspace: "Workspace",
+    sourceLabel: "Output views",
     browser: {
       idle: "No browser open. When an agent uses the browser, you can watch it here.",
       unavailable: "This host has no browser installed.",
@@ -179,6 +181,8 @@ const zh: typeof en = {
     sourceArtifact: "产物",
     sourceConsole: "控制台",
     sourceBrowser: "浏览器",
+    sourceWorkspace: "工作区",
+    sourceLabel: "输出视图",
     browser: {
       idle: "浏览器未打开。成员使用浏览器时，你可以在这里实时查看。",
       unavailable: "这台主机没有安装浏览器。",
@@ -348,6 +352,8 @@ const ja: typeof en = {
     sourceArtifact: "アーティファクト",
     sourceConsole: "コンソール",
     sourceBrowser: "ブラウザー",
+    sourceWorkspace: "ワークスペース",
+    sourceLabel: "出力ビュー",
     browser: {
       idle: "ブラウザーは開いていません。エージェントが使うと、ここで様子を見られます。",
       unavailable: "このホストにはブラウザーがインストールされていません。",
