@@ -3,7 +3,7 @@ import type { AgentUXEvent } from "@agent-ux/protocol";
 
 /** A follow-up waiting for the current turn. Its id is the requestId it will be sent with, so
  *  the host rejects a second submission and a reload can check whether it was already accepted. */
-export type QueuedMessage = Pick<ComposerDraft, "prompt" | "attachments" | "runOptions"> & { id: string; createdAt: number };
+export type QueuedMessage = Pick<ComposerDraft, "prompt" | "attachments" | "runOptions"> & { id: string; createdAt: number; artifactSubmission?: import("./artifactForm.ts").ArtifactSubmission };
 /** Why sending stopped; only the user resumes. A reload always restores a queue as paused. */
 export type QueuePause = "stopped" | "failed" | "restored";
 export type FollowUpQueue = {

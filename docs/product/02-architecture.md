@@ -265,5 +265,13 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 - 群 HTTP prompt 与普通 prompt 共用 attachments 引用契约；新上传群文件存 shared。`groupChat` 路由后、接受消息前按所有可能的任务读取者调用现有文件校验；PM 说明和新成员介绍不传附件，摘要需要附件时校验 assistant。父轮记录附件引用；单个成员仍走原 `runPrompt` 二次验证。首条接收回执先落盘，之后保存 turn metadata，失败不会把未接受的请求 id 变成不可重试。
 - IndexedDB 的现有 conversation draft metadata 增加可选 groupMembers；只有尚无历史的新群允许仅成员名单的空记录保留。正常单聊及接受后的空记录行为不变，权限仍不恢复 allow-all。
 - `src/pi/artifactTool.ts` 提供 `publish_artifact`，主机验证后调用当前 adapter，走既有 artifact 事件和 OutputFrame。`resolveFilePath` 是 adapter 的可选主机回调，默认保持旧 fixture 行为；主机按各引擎 cwd 生成绝对 URI。参考 ADR-044。
-- 浏览器既有 `/browser/input` 可选 inputId（仅标识符，最多64字符），SSE frame 可选同名关联。开发诊断在输入批次执行并让页面渲染后截一帧；BrowserView 解码并经过绘制帧后才记录浏览器单调时钟的 send→display 延迟，最多200样本，不保留输入内容/不落盘，普通入口不请求额外截图。capturedAt 来自 CDP 帧时间；跨设备帧年龄需考虑时钟偏差。
-- 所有子 frame 导航均使 ref 失效；iframe scope 明确不支持、提示独立打开或接管。切换标签不阻塞在旧 CDP detach 上，旧帧仍由 page/session/version 检查拒绝；标题读取250ms后用缓存回退。交还/最后观看连接关闭/换页清理按键，鼠标移出再释放，防止清理本身点中原按钮。
+- 浏览器既有 `/browser/input` 可选 inputId（仅标识符，最多64字符），SSE frame 可选同名关联。开发诊断在输入批次执行并让页面渲染后截一帧；BrowserView 解码并经过绘制帧后才记录浏览器单调时钟的 send→display 延迟，最多200样本，不保留输入内容/不落盘，普通入口不请求额外截图。capturedAt 来自 CDP 帧时间；界面不显示跨机器相减的帧年龄。
+- 仅主 frame 导航使整页 ref 失效；iframe scope 明确不支持、提示独立打开或接管。切换标签不阻塞在旧 CDP detach 上，旧帧仍由 page/session/version 检查拒绝；标题读取250ms后用缓存回退。交还/最后观看连接关闭/换页清理按键，鼠标移出再释放，防止清理本身点中原按钮。
+
+
+### M5 第二批：任务、表单和文本工作区（2026-10-18）
+
+- `group.tasks` 随原会话文件保存 assignment、parentId、owner、requestId、runId、status、result、retryOf；读取无活动轮次的群时，pending/running 改为 needs_review。`/task <id> complete|cancel|retry` 是原群 prompt 内的显式控制命令，接受去重与存储约束；不自动重放。群写轮次共用串行 lease，并行讨论经 ApprovalGate 的可信 readOnly 标志拒绝非白名单工具，allow-all 也不绕过；单聊并发未改变。原工具/计划事件显示进度，不增加任务事件协议或看板。
+- `.form.json` 仅接受显式 `raytone-form` v1 schema，最多20字段/24K字符，类型为 text/number/boolean/select。Output helper 使用 runtime hook 保存同源输入、稳定提交身份及封存值，提交沿 Composer 队列和主机 requestId。普通/群 prompt 可选 `artifactSubmission: {artifactId,submissionId}`，submissionId 必须等于 requestId；父 turn 保存来源，隐藏成员执行不继承父提交身份。结果按原 runId 查找并定位现有回答，脚本不参与提交。
+- 既有 `/__agentcanvas/pi/files` 的 GET 支持 `query`：有预算的本地 `.md/.txt` 路径/正文搜索，返回可选 snippet、truncated。`GET /documents?scope=&path=` 返回文本、SHA256 version、可选来源；`POST /documents` 接受 scope/name/content 及可选 conversationId/artifactId，另存到 documents 唯一路径；`PUT /documents` 接受 scope/path/content/version，旧版本409，保留服务器字节。均复用同源与工作区边界；存在活动运行时拒绝 POST/PUT。
+- 文件≤256 KiB、UTF-8；同一路径保存串行且原子 rename，使用 fd chmod 保留0660组权限。安全文件读取拒绝链接、私有路径及越界。来源引用随原会话 `documents` metadata（最多100项）保存，字节与 metadata 不具备跨文件事务保证；文本编辑草稿在浏览器本地，失效版本需用户明确丢弃/重新核对。新会话引用仍是原 attachments，不复制历史字节。无新服务、数据库或外部存储。

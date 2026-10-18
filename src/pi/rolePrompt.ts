@@ -108,7 +108,7 @@ export function rolePrompt(role: AgentPresetId, layout: WorkspaceLayout, options
   if (soul) sections.push(`## SOUL.md (your character)\n${soul}`);
   const user = layout.shared ? personaFile(join(layout.shared, "USER.md")) : undefined;
   if (user) sections.push(`## USER.md (user preferences)\n${user}`);
-  if (role !== "planner") sections.push(INTERACTIVE_ARTIFACTS);
+  if (role !== "planner") sections.push(INTERACTIVE_ARTIFACTS, STRUCTURED_ARTIFACT_GUIDE);
   sections.push(productFaq({ sandboxed: options.sandboxed ?? false, layout }));
   return sections.join("\n\n");
 }
@@ -134,3 +134,6 @@ export function personaFile(path: string): string | undefined {
     if (fd !== undefined) closeSync(fd);
   }
 }
+
+// Structured files remain explicit deliverables; generated code never receives a submit channel.
+export const STRUCTURED_ARTIFACT_GUIDE = 'For an editable form, create a .form.json deliverable: {"kind":"raytone-form","version":1,"title":"Title","prompt":"What the next turn should do","fields":[{"id":"amount","label":"Amount","type":"number","required":true,"min":0}]}. Up to 20 fields; types text, number, boolean, select (options array). Register it with publish_artifact. Submission goes through the ordinary queue and permissions; never ask for credentials.';

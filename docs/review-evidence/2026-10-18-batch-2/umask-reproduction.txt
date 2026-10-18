@@ -1,0 +1,29 @@
+✖ document versions prevent lost edits; local search and attachment reads use the latest bytes (11.009625ms)
+✔ document HTTP saves source metadata, conflicts preserve bytes, and a new conversation attaches the edited file (39.393625ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 1
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 176.353625
+
+✖ failing tests:
+
+test at src/pi/documents.test.ts:11:1
+✖ document versions prevent lost edits; local search and attachment reads use the latest bytes (11.009625ms)
+  AssertionError [ERR_ASSERTION]: edits stay readable to isolated agent groups under umask 077
+
+  384 !== 432
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/documents.test.ts:22:12)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:358:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 384,
+    expected: 432,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

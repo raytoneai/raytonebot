@@ -18,6 +18,9 @@ export const SECRET_REFUSAL =
 
 /** Shared by the Pi tool wrappers and the HTTP controller. */
 export class PiApprovalGate {
+  private readOnly = false;
+  setReadOnly(value: boolean) { this.readOnly = value; }
+
   private mode: PiPermissionMode = "request";
   /** The agent whose "always allow" grants apply. The host keeps one gate per conversation and
    *  runs at most one turn per conversation, so a mutable scope (mode, cwd, agent) is safe. */
@@ -44,9 +47,16 @@ export class PiApprovalGate {
     this.policy = { ...this.policy, cwd };
   }
 
-  /** Credentials and environment dumps: refused in every mode, never asked about. */
+  /** Refusal precedes every approval mode and any remembered grants. */
+  refusalReason(toolName: string, args: unknown): string | undefined {
+    if (classifyToolCall(toolName, args, this.policy) === "secret") return SECRET_REFUSAL;
+    if (this.readOnly && !["read", "read_file", "grep", "glob", "find", "ls", "list_dir", "web_search", "web_fetch", "browser_accounts", "update_plan"].includes(toolName.toLowerCase().replace(/^mcp__raytone__/, ""))) {
+      return "This parallel assignment is read-only. Ask for a sequential task to change files, use the shared browser or run commands.";
+    }
+  }
+
   isRefused(toolName: string, args: unknown): boolean {
-    return classifyToolCall(toolName, args, this.policy) === "secret";
+    return Boolean(this.refusalReason(toolName, args));
   }
 
   /**
@@ -66,7 +76,8 @@ export class PiApprovalGate {
   }
 
   async wait(toolCallId: string, toolName: string, args: unknown, signal?: AbortSignal): Promise<void> {
-    if (this.isRefused(toolName, args)) throw new Error(SECRET_REFUSAL);
+    const refusal = this.refusalReason(toolName, args);
+    if (refusal) throw new Error(refusal);
     if (!this.requiresApproval(toolName, args)) return;
     // The abort listener below never fires for a signal that is already aborted.
     if (signal?.aborted) throw new Error("Tool approval was cancelled.");

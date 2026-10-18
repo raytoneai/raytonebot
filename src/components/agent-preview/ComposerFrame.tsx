@@ -138,7 +138,7 @@ export function ComposerFrame({
   const copy = useCopy();
   const { locale } = useLocale();
   const steerLabel = locale === "zh" ? "调整当前任务" : locale === "ja" ? "現在のタスクを調整" : "Adjust current task";
-  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity } = useShellExtras();
+  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity, onBrowseWorkspace } = useShellExtras();
   const reduceMotion = useReducedMotion();
   const workingPersona = composerActivity?.persona;
   const activityCopy = composerActivityCopy[locale];
@@ -614,6 +614,7 @@ export function ComposerFrame({
               </IconButton>
             </>
           ) : null}
+          {onBrowseWorkspace ? <IconButton type="button" label={copy.workspace.outputFrame.files} disabled={restoringDrafts} onClick={onBrowseWorkspace}><FileText size={16} /></IconButton> : null}
           {project.composer.toolToggle ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

@@ -1,3 +1,4 @@
+import { validArtifactSubmission } from "./artifactForm.ts";
 import type { ComposerDraft } from "../components/agent-preview/ComposerFrame";
 import type { EphemeralPiConversation } from "../pi/piConversationState";
 import type { QueuedMessage } from "./followUpQueue";
@@ -45,7 +46,7 @@ export function savedComposerDraft(conversation: EphemeralPiConversation, draft:
   const groupMembers = id.startsWith("group_") ? savedGroupMembers(conversation.groupMembers) : undefined;
   return { id, conversation: { id, title, createdAt, agentPreset, ...(groupMembers ? { groupMembers } : {}) }, draft: savedDraft(draft),
     updatedAt: Date.now(), version: crypto.randomUUID(), hasHistory: Boolean(conversation.stored || conversation.events.length), submission,
-    ...(queue?.length ? { queue: queue.map((item) => ({ id: item.id, createdAt: item.createdAt, ...savedDraft(item) })) } : {}) };
+    ...(queue?.length ? { queue: queue.map((item) => ({ id: item.id, createdAt: item.createdAt, ...(validArtifactSubmission(item.artifactSubmission) ? { artifactSubmission: item.artifactSubmission } : {}), ...savedDraft(item) })) } : {}) };
 }
 
 export function acceptedComposerDraft(draft: ComposerDraft, submission: NonNullable<SavedComposerDraft["submission"]>): ComposerDraft {
@@ -90,7 +91,7 @@ export function readComposerDrafts(db: IDBDatabase): Promise<SavedComposerDraft[
       typeof record?.id === "string" && record.conversation?.id === record.id
       && validDraft(record.draft) && Number.isFinite(record.updatedAt)).map((record: SavedComposerDraft) => {
         // A malformed item is dropped rather than sent with missing files or broader options.
-        const queue = Array.isArray(record.queue) ? record.queue.filter((item) => typeof item?.id === "string" && validDraft(item))
+        const queue = Array.isArray(record.queue) ? record.queue.filter((item) => typeof item?.id === "string" && validDraft(item) && (item.artifactSubmission === undefined || validArtifactSubmission(item.artifactSubmission) && item.artifactSubmission.submissionId === item.id))
           .map((item) => ({ ...item, createdAt: Number.isFinite(item.createdAt) ? item.createdAt : record.updatedAt, runOptions: savedRunOptions(item.runOptions) })) : [];
         const { queue: _stored, ...rest } = record;
         return { ...rest, conversation: { ...record.conversation, groupMembers: record.id.startsWith("group_") ? savedGroupMembers(record.conversation.groupMembers) : undefined }, draft: { ...record.draft, runOptions: savedRunOptions(record.draft.runOptions) }, ...(queue.length ? { queue } : {}) };

@@ -1,3 +1,6 @@
+import { DocumentActions } from "./DocumentActions";
+import { StructuredArtifact } from "./StructuredArtifact";
+import { parseArtifactForm } from "../../../runtime/artifactForm";
 import { Download, RefreshCw, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 
@@ -72,13 +75,15 @@ export function OutputTabs({
 }
 
 export function OpenedOutputItem({ item, copy }: { item: OutputPanelItem; copy: OutputFrameCopy }) {
-  const { workspace, workspaceScope } = useShellExtras();
+  const { workspace, workspaceScope, artifactForms } = useShellExtras();
   const downloadUrl = item.downloadUrl ?? (item.workspacePath && workspaceScope ? workspaceFileUrl(item.workspacePath, workspaceScope, workspace) : undefined);
   const preview = useFilePreview(item, downloadUrl);
   const [failedKey, setFailedKey] = useState<object>();
   const failed = failedKey === preview.key || Boolean(preview.error);
   const language = item.language ?? languageFromTitle(item.title);
   const renderKind = outputItemRenderKind(item);
+  let form, formError;
+  try { form = preview.body ? parseArtifactForm(preview.body) : undefined; } catch (error) { formError = error instanceof Error ? error.message : String(error); }
   return (
     <div className="opened-output-item" data-kind={item.kind} data-render-kind={renderKind}>
       <div className="artifact-title">
@@ -89,7 +94,8 @@ export function OpenedOutputItem({ item, copy }: { item: OutputPanelItem; copy: 
         {downloadUrl || preview.contentUrl ? <a className="rail-icon-btn" href={downloadUrl ?? preview.contentUrl} download={item.title} aria-label={copy.download}><Download size={16} /></a> : null}
         {downloadUrl || failed ? <button className="rail-icon-btn" type="button" aria-label={copy.retryPreview} onClick={preview.retry}><RefreshCw size={16} /></button> : null}
       </div>
-      {preview.loading ? <p role="status">{copy.loadingFiles}</p> : failed ? <p role="alert">{preview.error === "too-large" ? copy.previewTooLarge : copy.previewFailed}</p> : renderOpenedOutputBody({ ...item, body: preview.body, mediaSrc: preview.mediaSrc }, renderKind, language, copy, () => setFailedKey(preview.key))}
+      {!preview.loading && !failed && preview.body !== undefined && (/\.(md|txt)$/i.test(item.title) || !downloadUrl && ["markdown", "text"].includes(language)) ? <DocumentActions key={item.id} item={item} body={preview.body} downloadUrl={downloadUrl} /> : null}
+      {preview.loading ? <p role="status">{copy.loadingFiles}</p> : failed ? <p role="alert">{preview.error === "too-large" ? copy.previewTooLarge : copy.previewFailed}</p> : formError ? <p role="alert">{formError}</p> : form ? <StructuredArtifact key={JSON.stringify([artifactForms?.conversationId, item.artifactId ?? item.id, item.revision, preview.body])} artifactId={item.artifactId ?? item.id} source={preview.body!} form={form} /> : renderOpenedOutputBody({ ...item, body: preview.body, mediaSrc: preview.mediaSrc }, renderKind, language, copy, () => setFailedKey(preview.key))}
     </div>
   );
 }

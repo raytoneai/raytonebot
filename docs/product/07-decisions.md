@@ -389,3 +389,10 @@
 - 校验成功由主机向该轮 adapter 发内部 `artifact_published`，转换成已有 AgentUX artifact.created/finished、file URI。历史不复制文件字节，预览始终经过当前鉴权文件接口；write/edit 的 URI 由主机执行目录归一化，以真实路径去重。相同路径重登记更新已打开标签，缺文件按原预览错误/重试处理。
 - 名称中的 publish 指登记到对话，不对公网发布；不改变文件或审批语义。Pi 用 host tool、Claude 用现有 raytone SDK MCP、Codex 用现有 dynamicTools。旧版本创建的 Codex 原生线程没有新工具，需要新会话；不伪装新增成功。
 - 重新评估：需要版本快照、跨实例文件保留或结构化产物动作时另定范围；本项不新增数据库/服务/面板。
+
+## ADR-045：sandbox 内任务、表单和文档沿现有会话/工作区扩展（2026-10-18）
+
+- 群 `group.tasks` 为 assignment 权威记录：来源 requestId、父 id、负责人、执行 runId、状态和结果摘要，开始执行前先落盘。主任务与一层成员任务复用既有工具卡/计划产物；迟到结果必须匹配仍运行的 assignment/runId。进程重启后 pending/running 只变为 needs_review，不重放。群写轮次共用可取消串行队列，普通单聊并发规则不变；并行讨论由主机审批闸门强制只读，不只靠提示词。用户用 `/task <id> complete|cancel|retry` 显式核对或重试，重试链追溯原请求/附件，来源失效则拒绝。保留未决任务及最近十组已结束任务。
+- 结构化产物首版使用显式 `.form.json` 文档和有界字段 schema，表单是 Output 所属 helper；只有用户点击提交才向既有 Composer 队列加入稳定 requestId。浏览器在入队前保存封存输入与提交身份，原生轮次复用该 id 并记录来源产物；既有回答可由结果入口定位。表单失败不授予重试授权，不接任意执行 URL，工具仍走原审批。
+- 文档字节保留在现有角色/shared 工作区，复用 Output 文件入口与 Composer 附件引用；文本编辑由用户显式保存、带内容版本校验，拒绝覆盖变化后的文件。路径/关键词搜索有扫描预算，不引入数据库、向量服务、后台任务或外部存储。来源引用放在原会话 metadata；文件保存与 metadata 更新不是单一事务。仅编辑 UTF-8 md/txt ≤256 KiB，搜索有明确截断提示。进程重启恢复只承诺磁盘仍在。
+- 本轮不变更默认模型、vendor、布局 owner、外部 Web/control/console、唤醒和平台保留权限。真实模型、目标 Linux 与浏览器完整交互证据独立记录，不以单测替代。

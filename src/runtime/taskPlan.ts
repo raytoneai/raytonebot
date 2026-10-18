@@ -56,6 +56,15 @@ export function displayTaskPlans(view: AgentUXViewModel, events: readonly AgentU
   return { ...view, timeline: view.timeline.map((item) => {
     if (item.kind !== "artifact" || !item.data || typeof item.data !== "object") return item;
     const data = item.data as Record<string, unknown>;
+    if (data.kind === "group-tasks" && Array.isArray(data.tasks)) {
+      const names: Record<string, string> = { assistant: "Raer", planner: "Tonny", builder: "Bob" };
+      const states: Record<string, string> = locale === "zh" ? { pending: "待开始", running: "进行中", completed: "已完成", cancelled: "已取消", failed: "失败", needs_review: "待核对" } : { pending: "Pending", running: "Running", completed: "Completed", cancelled: "Cancelled", failed: "Failed", needs_review: "Needs review" };
+      const content = [locale === "zh" ? "# 群任务\n\n待核对任务：核对实际结果后发送 `/task 任务ID complete`、`cancel` 或 `retry`。" : "# Group assignments\n\nReview uncertain effects before using `/task ID complete`, `cancel` or `retry`.", ...data.tasks.map(t => {
+        const task = t as Record<string, string>;
+        return `${task.parentId ? "  " : ""}- **${states[task.status] ?? task.status}** · ${names[task.owner] ?? literal(task.owner ?? "")} · ${literal(task.title ?? "")}\n  ${literal(task.id ?? "")} ${task.parentId ? `← ${literal(task.parentId)}` : ""}${task.runId ? ` · run: ${literal(task.runId)}` : ""}${task.result ? `\n  ${literal(task.result)}` : ""}`;
+      })].join("\n\n");
+      return { ...item, artifactKind: "markdown", content, data: undefined };
+    }
     if (data.kind !== "task-plan" || typeof data.runId !== "string") return item;
     const plan = taskPlanSnapshot(data.runId, data.steps, data.explanation);
     if (!plan) return item;

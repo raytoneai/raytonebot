@@ -27,7 +27,7 @@ import { defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from 
 import { resolveWorkspaceLayout, type WorkspaceLayout } from "./workspaceLayout.ts";
 import { rolePrompt, withReplyLanguage, withConversationContext, withUnseenPrompts } from "./rolePrompt.ts";
 import { isAppLocale } from "../i18n/locales.ts";
-import { listWorkspaceFiles, openWorkspaceFile, promptWithWorkspaceFiles, saveWorkspaceDownload, uploadWorkspaceFile, WorkspaceFileError } from "./workspaceFiles.ts";
+import { listWorkspaceFiles, openWorkspaceFile, promptWithWorkspaceFiles, saveWorkspaceDownload, uploadWorkspaceFile, readWorkspaceDocument, replaceWorkspaceDocument, createWorkspaceDocument, searchWorkspaceDocuments, WorkspaceFileError } from "./workspaceFiles.ts";
 import { sendWorkspaceFile } from "./workspaceDownload.ts";
 import { createConversationRecorder } from "./conversationRecorder.ts";
 import { assertPiSessionFile, openPiSession } from "./nativeSession.ts";
@@ -70,6 +70,7 @@ import { artifactTools } from "./artifactTool.ts";
 import { attachGroupChat, type GroupController } from "./groupChat.ts";
 import { isolatePiTool } from "./runtime/isolatedPiTools.ts";
 import { requireAgentIsolation } from "./runtime/agentProcess.ts";
+import { validArtifactSubmission } from "../runtime/artifactForm.ts";
 import { createRoutineService, RoutineError, type RoutineCreateInput, type RoutineRequest, type RoutineService } from "./routines.ts";
 import type { RoutineView } from "./routineTypes.ts";
 
@@ -123,7 +124,7 @@ export type PiRuntimeController = {
    *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards.
    *  Internal group children may `waitForCapacity`; cancelling that wait leaves no receipt.
    *  `title` names a new conversation instead of its first prompt (a routine's own name). */
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean }): Promise<void>;
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean; readOnly?: boolean }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   steer(conversationId: string, runId: string, requestId: string, text: string): Promise<boolean>;
@@ -139,6 +140,7 @@ export type PiRuntimeController = {
    * `undefined` when the conversation has nothing running. A watcher leaving never stops the run.
    */
   followRun(conversationId: string, after: number, onEvent: (event: AgentUXEvent) => void): { done: Promise<void>; stop(): void } | undefined;
+  registerDocument(id: string, document: NonNullable<StoredConversation["documents"]>[number]): void;
   getConversation(id: string): (StoredConversation & { incomplete: boolean; activeRunId?: string }) | undefined;
   deleteConversation(id: string): void;
   /** Saves a hand-written title; undefined when there is no such conversation. */
@@ -676,7 +678,8 @@ export function createPiRuntimeController(options: {
                 ? `The planner may only write inside ${layout.shared}.`
                 : "The planner does not write files.";
             }
-            if (approvalGate.isRefused(request.tool.name, request.tool.args)) return SECRET_REFUSAL;
+            const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
+            if (refusal) return refusal;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
               request.startExecution();
               return true;
@@ -712,7 +715,8 @@ export function createPiRuntimeController(options: {
           mcpTools: options.mcpTools?.(),
           hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
-            if (approvalGate.isRefused(request.tool.name, request.tool.args)) return SECRET_REFUSAL;
+            const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
+            if (refusal) return refusal;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
               request.startExecution();
               return true;
@@ -775,6 +779,7 @@ export function createPiRuntimeController(options: {
       return state(conversationId);
     },
     async runPrompt(input, onEvent, options) {
+      if (input.artifactSubmission !== undefined && (!validArtifactSubmission(input.artifactSubmission) || input.artifactSubmission.submissionId !== input.requestId)) throw new Error("Invalid artifact submission identity.");
       const prompt = input.prompt?.trim() ? redactCredentials(input.prompt.trim()) : undefined;
       if (!prompt) throw new Error("Pi prompt is empty.");
       const conversationId = normalizeConversationId(input.conversationId);
@@ -816,6 +821,7 @@ export function createPiRuntimeController(options: {
       const stopOnSignal = () => void abortRuns(conversationId, slot.runId).catch(() => undefined);
       if (options?.signal?.aborted) stopOnSignal();
       options?.signal?.addEventListener("abort", stopOnSignal, { once: true });
+      gateFor(conversationId).setReadOnly(options?.readOnly ?? false);
       const role = isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant";
       const harness = agentPreset(role).harness;
       const runStartedAt = Date.now();
@@ -882,7 +888,7 @@ export function createPiRuntimeController(options: {
         slot.memoryDelivered = memoryNote?.delivered;
         const browserNote = browser?.contextNote();
         const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(workspacePrompt, options?.groupConversation), unseenPrompts(conversationId, harness))}${memoryNote?.text ? `\n\n${memoryNote.text}` : ""}${browserNote ? `\n\n${browserNote}` : ""}`, input.locale);
-        store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt,
+        store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt, ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}),
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, modelPrompt);
         else await runPiPrompt(input, conversationId, prompt, record, modelPrompt);
@@ -923,6 +929,11 @@ export function createPiRuntimeController(options: {
       for (const event of (store.get(id)?.events ?? []).slice(Math.max(0, after))) onEvent(event);
       slot.watchers.add(onEvent);
       return { done: slot.done, stop: () => slot.watchers.delete(onEvent) };
+    },
+    registerDocument(id, document) {
+      const saved = store.get(id);
+      if (!saved) throw new Error("Source conversation is unavailable.");
+      store.setExtra(id, { documents: [...(saved.documents ?? []).filter(d => d.scope !== document.scope || d.path !== document.path), document].slice(-100) });
     },
     getConversation(id) {
       const normalized = normalizeConversationId(id);
@@ -1089,13 +1100,39 @@ export function createPiHttpHost(options: {
         if (url.pathname === `${PI_API_PREFIX}/files`) {
           const scope = url.searchParams.get("scope");
           if (req.method === "GET") {
-            sendJson(res, 200, await listWorkspaceFiles(layout, scope, url.searchParams.get("path") ?? "", privatePaths));
+            sendJson(res, 200, await (url.searchParams.get("query") ? searchWorkspaceDocuments(layout, scope, url.searchParams.get("path") ?? "", url.searchParams.get("query"), privatePaths) : listWorkspaceFiles(layout, scope, url.searchParams.get("path") ?? "", privatePaths)));
             return true;
           }
           if (req.method === "POST") {
             sendJson(res, 201, await uploadWorkspaceFile(layout, scope, url.searchParams.get("name"), req, privatePaths));
             return true;
           }
+        }
+        if (url.pathname === `${PI_API_PREFIX}/documents`) {
+          if (req.method === "GET") {
+            const document = await readWorkspaceDocument(layout, url.searchParams.get("scope"), url.searchParams.get("path"), privatePaths);
+            const source = controller.listConversations().flatMap(c => (c.documents ?? []).filter(d => d.scope === document.scope && d.path === document.path).map(d => ({ conversationId: c.id, title: c.title, artifactId: d.artifactId })))[0];
+            sendJson(res, 200, { ...document, source });
+          } else if (req.method === "POST" || req.method === "PUT") {
+            if (controller.health().activeRuns) throw new WorkspaceFileError(409, "Wait for running tasks to finish before saving a document.");
+            const body = await readJson(req), id = stringField(body, "conversationId"), artifactId = stringField(body, "artifactId");
+            if (id && !controller.getConversation(id)) throw new WorkspaceFileError(404, "Source conversation is unavailable.");
+            if (artifactId && artifactId.length > 1000) throw new WorkspaceFileError(400, "Invalid artifact reference.");
+            const document = req.method === "PUT"
+              ? await replaceWorkspaceDocument(layout, body.scope, body.path, body.content, body.version, privatePaths)
+              : await createWorkspaceDocument(layout, body.scope, body.name, body.content, privatePaths);
+            if (req.method === "PUT" && !id) {
+              for (const source of controller.listConversations()) for (const reference of source.documents ?? []) {
+                if (reference.scope === document.scope && reference.path === document.path) controller.registerDocument(source.id, { ...reference, updatedAt: Date.now() });
+              }
+            }
+            if (id) {
+              try { controller.registerDocument(id, { scope: document.scope, path: document.path, name: document.name, artifactId, updatedAt: Date.now() }); }
+              catch { throw new WorkspaceFileError(500, `Document saved at ${document.path}, but its source could not be recorded. Check storage before retrying.`); }
+            }
+            sendJson(res, req.method === "POST" ? 201 : 200, { ...document, ...(id ? { source: { conversationId: id, title: controller.getConversation(id)?.title, artifactId } } : {}) });
+          } else sendJson(res, 405, { error: "Unsupported document operation." });
+          return true;
         }
         if ((req.method === "GET" || req.method === "HEAD") && url.pathname === `${PI_API_PREFIX}/files/download`) {
           const entry = await openWorkspaceFile(layout, url.searchParams.get("scope"), url.searchParams.get("path"), privatePaths);
@@ -1405,7 +1442,7 @@ export function createPiHttpHost(options: {
           res.once("close", () => clearInterval(heartbeat));
           try {
             await controller.runGroupPrompt({
-              conversationId, requestId, prompt, attachments: body.attachments as PiPromptInput["attachments"],
+              conversationId, requestId, prompt, artifactSubmission: body.artifactSubmission as PiPromptInput["artifactSubmission"], attachments: body.attachments as PiPromptInput["attachments"],
               ...(Array.isArray(body.members) ? { members: body.members.filter((m: unknown) => isAgentPresetId(m)) } : {}),
               provider: stringField(body, "provider"),
               model: stringField(body, "model"),
@@ -1451,6 +1488,7 @@ export function createPiHttpHost(options: {
               conversationId,
               requestId,
               prompt,
+              artifactSubmission: body.artifactSubmission as PiPromptInput["artifactSubmission"],
               attachments: body.attachments as PiPromptInput["attachments"],
               provider: stringField(body, "provider"),
               model: stringField(body, "model"),

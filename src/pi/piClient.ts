@@ -16,13 +16,13 @@ export async function answerPiQuestion(conversationId: string, requestId: string
 }
 
 export type PiFileScope = AgentPresetId | "shared";
-export type PiWorkspaceFile = { name: string; path: string; size: number; directory: boolean };
+export type PiWorkspaceFile = { name: string; path: string; size: number; directory: boolean; snippet?: string };
 export type PiFileReference = { scope: PiFileScope; path: string; name: string; size: number };
 export type PiPromptAttachment = Pick<PiFileReference, "scope" | "path"> & { name?: string };
 
-export async function listPiFiles(scope: PiFileScope, path = "", signal?: AbortSignal): Promise<{ files: PiWorkspaceFile[] }> {
+export async function listPiFiles(scope: PiFileScope, path = "", signal?: AbortSignal, query?: string): Promise<{ files: PiWorkspaceFile[]; truncated?: boolean }> {
   const timeout = AbortSignal.timeout(15_000);
-  return requestJson(fetch, `${PI_API_PREFIX}/files?${new URLSearchParams({ scope, path })}`, undefined,
+  return requestJson(fetch, `${PI_API_PREFIX}/files?${new URLSearchParams({ scope, path, ...(query ? { query } : {}) })}`, undefined,
     signal ? AbortSignal.any([signal, timeout]) : timeout);
 }
 
@@ -114,6 +114,7 @@ export type PiRuntimeConfiguration = {
 };
 
 export type PiPromptInput = {
+  artifactSubmission?: import("../runtime/artifactForm.ts").ArtifactSubmission;
   conversationId?: string;
   /** Correlates this submission with its stored run after a lost response; never auto-replayed. */
   requestId?: string;
@@ -540,4 +541,14 @@ function parseEventLine(line: string): AgentUXEvent | undefined {
 
 export async function steerPiTurn(conversationId: string, runId: string, requestId: string, text: string) {
   await requestJson(fetch, `${PI_API_PREFIX}/steer`, { conversationId, runId, requestId, text }, AbortSignal.timeout(15_000));
+}
+
+export type PiDocument = PiFileReference & { content: string; version: string; source?: { conversationId: string; title?: string; artifactId?: string } };
+export async function readPiDocument(scope: PiFileScope, path: string): Promise<PiDocument> {
+  return requestJson(fetch, `${PI_API_PREFIX}/documents?${new URLSearchParams({ scope, path })}`, undefined, AbortSignal.timeout(15000));
+}
+export async function savePiDocument(input: { scope: PiFileScope; path?: string; name?: string; content: string; version?: string; conversationId?: string; artifactId?: string }): Promise<PiDocument> {
+  const response = await fetch(`${PI_API_PREFIX}/documents`, { method: input.path ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input), signal: AbortSignal.timeout(15000) });
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Document save failed"));
+  return response.json();
 }

@@ -413,6 +413,9 @@ test("a group request interrupted by a process restart is closed and never repla
     assert.equal(saved.events.at(-1)?.type, "run.finished");
     assert.equal(saved.events.at(-1)?.payload.status, "cancelled");
     assert.equal(saved.incomplete, false);
+    const recovered = (saved as typeof saved & { group: { tasks: { status: string }[] } }).group.tasks;
+    assert.ok(recovered.length >= 2);
+    assert.ok(recovered.every(task => task.status === "needs_review"));
     bridge.setMode("finish"); // A duplicate-engine regression fails promptly instead of hanging.
     await assert.rejects(restarted.runGroupPrompt(input("interrupted-run"), () => {}), /already.*submitted/i);
     assert.equal(bridge.calls.length, 1);
@@ -675,7 +678,7 @@ test("failed final group metadata produces an error before any success and relea
   const disk = createConversationStore(dataDir);
   let metadataWrites = 0;
   const store = { ...disk, setExtra(id: string, extra: Record<string, unknown>) {
-    if (id === groupId && ++metadataWrites === 2) throw new Error("final metadata could not be saved");
+    if (id === groupId && (extra.group as { lines?: unknown[] })?.lines?.length && ++metadataWrites === 1) throw new Error("final metadata could not be saved");
     disk.setExtra(id, extra);
   } };
   const controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: bridge.factory });
@@ -700,7 +703,7 @@ test("a persistent disk failure reports an accepted group's missing terminal wit
   const blocked = join(disk.dir, `${groupId}.json.tmp`);
   let writes = 0;
   const store = { ...disk, setExtra(id: string, extra: Record<string, unknown>) {
-    if (id === groupId && ++writes === 2) mkdirSync(blocked);
+    if (id === groupId && (extra.group as { lines?: unknown[] })?.lines?.length && ++writes === 1) mkdirSync(blocked);
     disk.setExtra(id, extra);
   } };
   const controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: bridge.factory });
@@ -899,6 +902,10 @@ test("group attachments follow only actual task readers through mention, sequenc
     await run("mention-files", "@Bob read this", [{ scope: "builder", path: "private.txt" }]);
     assert.deepEqual(bridge.calls.map(c => c.id), ["group_mention-files.m.builder"]);
     assert.match(bridge.calls[0].prompt, /attached_workspace_files/);
+    const tasks = (controller.getConversation("group_mention-files") as unknown as { group: { tasks: { status: string; parentId?: string; runId?: string; result?: string }[] } }).group.tasks;
+    assert.equal(tasks.length, 2);
+    assert.ok(tasks.every(t => t.status === "completed"));
+    assert.ok(tasks[1].parentId && tasks[1].runId && tasks[1].result);
     bridge.calls.length = 0;
     store.begin("group_newcomer-files", "assistant", "seed");
     store.setExtra("group_newcomer-files", { group: { members: ["assistant", "builder"], introduced: ["builder"], lines: [
@@ -925,4 +932,57 @@ test("group attachments follow only actual task readers through mention, sequenc
     await assert.rejects(run("denied-sequence", "先规划再实现", [{ scope: "builder", path: "private.txt" }]), /Attachments must belong/);
     assert.equal(bridge.calls.length, 0, "no PM or member starts after failed preflight");
   } finally { controller.dispose(); await close(router); AGENT_PRESETS.forEach((p, i) => p.harness = harnesses[i]); rmSync(root, { recursive: true, force: true }); }
+});
+
+for (const choice of ["complete", "cancel", "retry"] as const) test(`explicit task review ${choice} preserves identity and never replays without a user command`, async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-task-review-"));
+  const store = createConversationStore(dataDir), bridge = controlledBridges();
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: bridge.factory });
+  const taskId = "assignment_00000000-0000-0000-0000-000000000001";
+  store.begin(groupId, "assistant", "original");
+  store.saveTurn(groupId, { runId: "original-run", harness: "pi", prompt: "@Raer original work" });
+  store.setExtra(groupId, { group: { members: ["assistant"], introduced: ["assistant"], lines: [{ author: "user", text: "original work" }], tasks: [{ id: taskId, requestId: "original-run", owner: "assistant", title: "Original work", status: "needs_review", runId: "old-native", updatedAt: 1 }] } });
+  try {
+    controller.getConversation(groupId);
+    assert.equal(bridge.calls.length, 0, "reading recovered tasks never starts work");
+    const request = { ...input(`review-${choice}`), prompt: `/task ${taskId} ${choice}` };
+    await controller.runGroupPrompt(request, () => {});
+    assert.equal(bridge.calls.length, choice === "retry" ? 1 : 0);
+    const meta = (controller.getConversation(groupId) as unknown as { group: { tasks: { id: string; status: string; retryOf?: string }[] } }).group;
+    assert.equal(meta.tasks.find(t => t.id === taskId)?.status, choice === "retry" ? "needs_review" : choice === "complete" ? "completed" : "cancelled");
+    if (choice === "retry") assert.ok(meta.tasks.some(t => t.retryOf === taskId));
+    await assert.rejects(controller.runGroupPrompt(request, () => {}), /already.*submitted/i);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("assignment persistence failure prevents the member from starting and reports an error", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-assignment-write-"));
+  const disk = createConversationStore(dataDir), bridge = controlledBridges();
+  let failed = false;
+  const store = { ...disk, setExtra(id: string, extra: Record<string, unknown>) {
+    const tasks = (extra.group as { tasks?: { parentId?: string; status: string }[] } | undefined)?.tasks;
+    if (!failed && id === groupId && tasks?.some(t => t.parentId && t.status === "running")) { failed = true; throw new Error("assignment storage failed"); }
+    disk.setExtra(id, extra);
+  } };
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: bridge.factory });
+  try {
+    const events: AgentUXEvent[] = [];
+    await controller.runGroupPrompt(input("assignment-fail"), event => events.push(event));
+    assert.equal(bridge.calls.length, 0); assert.equal(failed, true);
+    assert.equal(events.at(-1)?.type, "run.error");
+    assert.match(String(events.at(-1)?.payload.message), /assignment storage/);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("retrying an unresolved assignment whose owner left is rejected without leaking an active group", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-assignment-owner-"));
+  const store = createConversationStore(dataDir), bridge = controlledBridges();
+  const id = "assignment_00000000-0000-0000-0000-000000000002";
+  store.begin(groupId, "assistant", "seed");
+  store.setExtra(groupId, { group: { members: ["assistant"], lines: [], tasks: [{ id, requestId: "old", owner: "builder", title: "Build", status: "needs_review", updatedAt: 1 }] } });
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: bridge.factory });
+  try {
+    await assert.rejects(controller.runGroupPrompt({ ...input("removed-owner"), prompt: `/task ${id} retry` }, () => {}), /owner left/);
+    assert.equal(bridge.calls.length, 0); assert.equal(controller.getConversation(groupId)?.activeRunId, undefined);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
 });

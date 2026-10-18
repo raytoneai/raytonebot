@@ -98,3 +98,19 @@ test("saved plan details show confirmed owners and unfinished blockers without i
   for (const metadata of [{ owner: 3 }, { owner: "x".repeat(161) }, { blockedBy: [3] }, { blockedBy: [""] },
     { blockedBy: Array(101).fill("1") }, { dependenciesPending: "yes" }]) assert.equal(taskPlanSnapshot("r", [{ ...base, ...metadata }]), undefined);
 });
+
+
+test("group assignment snapshots use the existing artifact renderer with owners and uncertain state", async () => {
+  const { newGroupTask, groupTaskEvents } = await import("../pi/groupTasks.ts");
+  const root = newGroupTask("group-run", "assistant", "Implement and review");
+  const child = { ...newGroupTask("group-run", "builder", "Implementation", root.id), status: "needs_review" as const, runId: "native-run" };
+  const events = groupTaskEvents("group-run", [root, child]);
+  const view = displayTaskPlans(createAgentUXViewModel(events.map(artifactEventForReplay)), events, "zh");
+  const artifact = view.timeline.find(item => item.kind === "artifact");
+  assert.ok(artifact?.kind === "artifact");
+  assert.equal(artifact.artifactKind, "markdown");
+  assert.match(artifact.content!, /待核对.*Bob/);
+  const displayed = artifact.content!.replaceAll("\\", "");
+  assert.ok(displayed.includes(root.id) && displayed.includes(child.id));
+  assert.match(artifact.content!, /native-run/);
+});

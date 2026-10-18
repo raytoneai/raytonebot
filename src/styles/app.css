@@ -12842,3 +12842,14 @@ pre {
 .artifact-frame[data-output-source="console"] { display: flex; flex-direction: column; min-height: 0; height: 100%; }
 .artifact-frame > .terminal-output { display: block; flex: 1; min-height: 0; overflow: auto; }
 .terminal-output > [data-log-tool] { margin-top: 10px; }
+
+/* Documents and structured inputs extend the existing output surface. */
+.document-actions, .structured-artifact { padding: 12px; border: 1px solid var(--border-color, #ddd); border-radius: 10px; margin-block: 12px; }
+.document-toolbar, .document-copy-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block: 8px; }
+.document-editor textarea { display: block; width: 100%; box-sizing: border-box; font: inherit; resize: vertical; margin-block: 10px; }
+.document-actions button, .structured-artifact button { border: 1px solid var(--border-color, #ddd); border-radius: 6px; padding: 6px 10px; background: transparent; color: inherit; cursor: pointer; }
+.document-actions :disabled, .structured-artifact :disabled { opacity: .55; cursor: default; }
+.workspace-document-search, .document-copy-controls input, .structured-artifact input:not([type=checkbox]), .structured-artifact select { min-width: 0; max-width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid var(--border-color, #ddd); border-radius: 6px; background: transparent; color: inherit; }
+.workspace-document-search { width: 100%; margin-block: 8px; }
+.structured-artifact input:focus-visible, .document-editor textarea:focus-visible, .workspace-document-search:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.opened-output-item:has(.document-editor) > .markdown-preview, .opened-output-item:has(.document-editor) > pre { display: none; }

@@ -56,7 +56,7 @@ export function useComposerDrafts() {
     setQueues(currentQueues.current);
   }
 
-  function update(conversation: EphemeralPiConversation, change: (draft: ComposerDraft) => ComposerDraft, changeQueue?: (queue: FollowUpQueue) => FollowUpQueue) {
+  function update(conversation: EphemeralPiConversation, change: (draft: ComposerDraft) => ComposerDraft, changeQueue?: (queue: FollowUpQueue) => FollowUpQueue, strict = false) {
     const draft = change(current.current[conversation.id] ?? emptyDraft());
     touched.current.add(conversation.id);
     current.current = { ...current.current, [conversation.id]: draft };
@@ -72,6 +72,7 @@ export function useComposerDrafts() {
     };
     report("saving");
     // Transactions are ordered; a late earlier save cannot resurrect an accepted/deleted draft.
+    let failure: unknown;
     writes.current = writes.current.then(async () => {
       const db = await database.current;
       if (!db) throw new Error("Draft storage unavailable");
@@ -79,8 +80,8 @@ export function useComposerDrafts() {
       if (hasSavedState(record)) versions.current.set(record.id, record.version);
       else versions.current.delete(record.id);
       report("saved");
-    }).catch((error) => report(error?.message === "draft-conflict" ? "conflict" : "unavailable"));
-    return writes.current;
+    }).catch((error) => { failure = error; report(error?.message === "draft-conflict" ? "conflict" : "unavailable"); });
+    return writes.current.then(() => { if (strict && failure) throw failure; });
   }
 
   function submitted(conversation: EphemeralPiConversation, submission: NonNullable<SavedComposerDraft["submission"]>) {
@@ -104,9 +105,10 @@ export function useComposerDrafts() {
   }
 
   /** A follow-up that did not come from the composer (an artifact's button) joins the same queue. */
-  function enqueuePrompt(conversation: EphemeralPiConversation, prompt: string, options: ComposerRunOptions) {
-    const item: QueuedMessage = { id: "pi_export_" + crypto.randomUUID(), createdAt: Date.now(), prompt, attachments: [], runOptions: { ...options } };
-    return update(conversation, (draft) => draft, (queue) => ({ ...queue, items: [...queue.items, item] }));
+  function enqueuePrompt(conversation: EphemeralPiConversation, prompt: string, options: ComposerRunOptions, requestId?: string, artifactId?: string) {
+    if (requestId && currentQueues.current[conversation.id]?.items.some(item => item.id === requestId)) return Promise.resolve();
+    const item: QueuedMessage = { id: requestId ?? "pi_export_" + crypto.randomUUID(), createdAt: Date.now(), prompt, ...(requestId && artifactId ? { artifactSubmission: { artifactId, submissionId: requestId } } : {}), attachments: [], runOptions: { ...options } };
+    return update(conversation, (draft) => draft, (queue) => ({ ...queue, items: [...queue.items, item] }), Boolean(requestId));
   }
 
   const removeQueued = (conversation: EphemeralPiConversation, ids: ReadonlySet<string>) => {

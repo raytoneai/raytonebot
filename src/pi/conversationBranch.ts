@@ -1,3 +1,4 @@
+import { validArtifactSubmission, type ArtifactSubmission } from "../runtime/artifactForm.ts";
 import type { AgentHarnessId } from "./harnessCatalog.ts";
 import type { PiPromptAttachment } from "./piClient.ts";
 import type { StoredConversation } from "./conversationStore.ts";
@@ -8,6 +9,7 @@ export type NativeTurnCheckpoint =
   | { harness: "codex"; sessionId: string; turnId: string };
 export type StoredTurn = {
   runId: string; harness: AgentHarnessId; prompt: string; attachments?: PiPromptAttachment[];
+  artifactSubmission?: ArtifactSubmission;
   native?: NativeTurnCheckpoint;
 };
 export type NativeBranch =
@@ -30,6 +32,7 @@ export function validBranchMetadata(turns: unknown, branch: unknown): boolean {
   if (turns !== undefined && (!Array.isArray(turns) || turns.some(value => {
     const turn = record(value);
     return typeof turn.runId !== "string" || !turn.runId || typeof turn.prompt !== "string"
+      || (turn.artifactSubmission !== undefined && (!validArtifactSubmission(turn.artifactSubmission) || turn.artifactSubmission.submissionId !== turn.runId))
       || !["pi", "claude-code", "codex"].includes(String(turn.harness))
       || (turn.native !== undefined && (!validNative(turn.native) || record(turn.native).harness !== turn.harness))
       || (turn.attachments !== undefined && (!Array.isArray(turn.attachments) || turn.attachments.some(value => {

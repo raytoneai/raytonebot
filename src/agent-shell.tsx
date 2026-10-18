@@ -758,7 +758,7 @@ export function AgentApp() {
   };
 
   async function submitToPi(prompt: string, context?: ComposerSubmitContext, target = activePiConversation,
-    queued?: { requestId: string; agentPreset: AgentPresetId }) {
+    queued?: { requestId: string; agentPreset: AgentPresetId; artifactSubmission?: import("./runtime/artifactForm").ArtifactSubmission }) {
     if (runningConversationIds.has(target.id)) return false;
     const normalizedPrompt = prompt.trim();
     if (!normalizedPrompt) return false;
@@ -838,6 +838,7 @@ export function AgentApp() {
         ...(isGroup ? { members: groupMembersOf(nextConversation) } : {}),
         conversationId: nextConversation.id,
         requestId: runId,
+        artifactSubmission: queued?.artifactSubmission,
         prompt: normalizedPrompt,
         attachments,
         provider: provider.id,
@@ -1057,7 +1058,7 @@ export function AgentApp() {
         budgetMode: item.runOptions?.budgetMode ?? "medium",
         // Only the host's acceptance takes it off the queue; a rejected send stays for review.
         onAccepted: () => void composer.removeQueued(conversation, new Set([item.id])),
-      }, conversation, { requestId: item.id, agentPreset: isAgentPresetId(conversation.agentPreset) ? conversation.agentPreset : agentSettings.presetId });
+      }, conversation, { requestId: item.id, artifactSubmission: item.artifactSubmission, agentPreset: isAgentPresetId(conversation.agentPreset) ? conversation.agentPreset : agentSettings.presetId });
     } finally {
       dispatchingQueueRef.current.delete(conversation.id);
       setQueueTick((tick) => tick + 1);
@@ -1478,6 +1479,34 @@ export function AgentApp() {
     workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),
     workspace: piRuntimeState?.workspace,
     onOpenFile: openArtifact,
+    onBrowseWorkspace: streamId ? undefined : () => { setOutputSource("artifact"); setBrowserSelected(false); setWorkspaceModalOpen(true); },
+    onAttachWorkspaceFile: streamId ? undefined : async (file) => {
+      await composer.update(activePiConversation, (draft) => {
+        if (draft.attachments.some(a => a.reference?.scope === file.scope && a.reference.path === file.path)) return draft;
+        if (draft.attachments.length >= 10) throw new Error("At most 10 attachments / 最多 10 个附件");
+        return { ...draft, attachments: [...draft.attachments, { id: crypto.randomUUID(), name: file.name, isImage: false, reference: file }] };
+      });
+      setOutputModalOpen(false); setWorkspaceModalOpen(false);
+      setComposerFocus(activePiConversation.id);
+    },
+    artifactForms: streamId ? undefined : {
+      conversationId: activePiConversation.id,
+      result: (requestId) => {
+        const terminal = [...activePiConversation.events].reverse().find(event => event.runId === requestId && (event.type === "run.finished" || event.type === "run.error"));
+        if (terminal) return terminal.type === "run.finished" && terminal.payload.status === "success" ? "completed" : "failed";
+        if (composer.queues[activePiConversation.id]?.items.some(item => item.id === requestId)) return "queued";
+        return activePiConversation.events.some(event => event.runId === requestId) ? "running" : undefined;
+      },
+      openResult: (requestId) => {
+        const event = activePiConversation.events.find(e => e.runId === requestId && e.type === "text.started" && e.payload.role === "assistant");
+        const textId = event?.payload.textId;
+        if (typeof textId === "string") setSearchTarget({ conversationId: activePiConversation.id, textId, nonce: crypto.randomUUID() });
+      },
+      submit: async (requestId, prompt, artifactId) => {
+        if (storedRunIds.current.get(activePiConversation.id)?.has(requestId)) return;
+        await composer.enqueuePrompt({ ...activePiConversation, agentPreset: agentSettings.presetId }, prompt, composerRunOptions, requestId, artifactId);
+      },
+    },
     artifactThemeCss: artifactThemeCss((name) => themeVars[name] ?? "", activeTheme.appearance),
     onArtifactPrompt: streamId ? undefined : (text) => void composer.enqueuePrompt(
       { ...activePiConversation, agentPreset: agentSettings.presetId },

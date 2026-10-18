@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import type { AgentUXArtifactTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
 
 import type { AgentFrontendProject, OutputSource } from "../../schema/agentuxConfig";
+import { useLocale } from "../../i18n/LocaleContext";
 import { useCopy } from "../../i18n/LocaleContext";
 import { listPiFiles, piFileDownloadUrl, type PiWorkspaceFile, type PiFileScope } from "../../pi/piClient";
 import { useShellExtras } from "../shell/ShellExtras";
@@ -48,6 +49,9 @@ export function OutputFrame({
   fullscreen?: boolean;
 }) {
   const copy = useCopy();
+  const { locale } = useLocale();
+  const [query, setQuery] = useState("");
+  const [truncated, setTruncated] = useState(false);
   const c = copy.workspace.outputFrame;
   const { workspaceScope, workspaceRevision, workspaceSharedAvailable, onOpenFile, browserPanel, toolLog } = useShellExtras();
   const [expandedState, setExpanded] = useState(false);
@@ -63,21 +67,22 @@ export function OutputFrame({
   const scope: PiFileScope = shared ? "shared" : workspaceScope ?? "assistant";
   const panelRef = useRef<HTMLElement>(null);
   const closeExpanded = () => fullscreen ? onCollapse?.() : setExpanded(false);
-  useEffect(() => { setPath(""); }, [scope]);
+  useEffect(() => { setPath(""); setQuery(""); }, [scope]);
   useEffect(() => { if (toolLog?.targetId && project.output.source === "console") setShowFiles(false); }, [toolLog?.targetId, toolLog?.revision, project.output.source]);
-  useEffect(() => { if (activeOpenItemId) setShowFiles(false); }, [activeOpenItemId]);
+  // A fullscreen workspace entry starts at files even if another output tab is open.
+  useEffect(() => { if (activeOpenItemId && !fullscreen) setShowFiles(false); }, [activeOpenItemId, fullscreen]);
   useEffect(() => {
     if (!showFiles || !workspaceScope) return;
     const controller = new AbortController();
     setLoading(true);
     setFileError("");
     setFiles([]);
-    void listPiFiles(scope, path, controller.signal)
-      .then((result) => { if (!controller.signal.aborted) setFiles(result.files); })
+    void listPiFiles(scope, path, controller.signal, query.trim() || undefined)
+      .then((result) => { if (!controller.signal.aborted) { setFiles(result.files); setTruncated(Boolean(result.truncated)); } })
       .catch((error: unknown) => { if (!controller.signal.aborted) setFileError(error instanceof Error ? error.message : String(error)); })
       .finally(() => { if (!controller.signal.aborted) setLoading(false); });
     return () => controller.abort();
-  }, [showFiles, workspaceScope, scope, path, revision, workspaceRevision]);
+  }, [showFiles, workspaceScope, scope, path, revision, workspaceRevision, query]);
   useEffect(() => {
     if (!expanded) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
@@ -182,6 +187,8 @@ export function OutputFrame({
               <SelectMenu size="sm" value={shared ? "shared" : "agent"} onValueChange={(value) => { setPath(""); setShared(value === "shared"); }} ariaLabel={c.files} options={[{ value: "agent", label: copy.composer.agentSettings.presets[workspaceScope].name }, ...(workspaceSharedAvailable ? [{ value: "shared", label: c.sharedFiles }] : [])]} />
               <button className="rail-icon-btn" type="button" aria-label={c.refreshFiles} onClick={() => setRevision((value) => value + 1)}><RefreshCw size={15} /></button>
             </div>
+            <input className="workspace-document-search" type="search" maxLength={100} aria-label={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} placeholder={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} value={query} onChange={e => setQuery(e.target.value)} />
+            {truncated ? <p role="status">{locale === "zh" ? "结果已达到扫描上限，请缩小搜索范围" : "Search limit reached; narrow the query"}</p> : null}
             <div className="workspace-files-path">
               <button className="rail-icon-btn" type="button" disabled={!path} aria-label={c.parentFolder} onClick={() => setPath(path.split("/").slice(0, -1).join("/"))}><ArrowLeft size={15} /></button>
               <code>/{path}</code>
@@ -194,7 +201,7 @@ export function OutputFrame({
                       <button type="button" onClick={() => setPath(file.path)}><Folder size={16} /><span>{file.name}</span></button>
                     ) : (
                       <>
-                        <button type="button" onClick={() => { setShowFiles(false); onOpenFile?.({ id: `workspace:${scope}:${file.path}`, kind: "file", title: file.name, subtitle: file.path, downloadUrl: piFileDownloadUrl(scope, file.path) }); }}><File size={16} /><span>{file.name}</span><small>{file.size.toLocaleString()} B</small></button>
+                        <button type="button" onClick={() => { setShowFiles(false); onOpenFile?.({ id: `workspace:${scope}:${file.path}`, kind: "file", title: file.name, subtitle: file.path, downloadUrl: piFileDownloadUrl(scope, file.path) }); }}><File size={16} /><span>{query ? file.path : file.name}{file.snippet ? <small>{file.snippet}</small> : null}</span><small>{file.size.toLocaleString()} B</small></button>
                         <a className="workspace-file-download" href={piFileDownloadUrl(scope, file.path)} download={file.name} aria-label={`${c.download} ${file.name}`} title={`${c.download} ${file.name}`}><Download size={16} /></a>
                       </>
                     )}
