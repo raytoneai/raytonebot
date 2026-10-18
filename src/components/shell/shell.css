@@ -144,7 +144,7 @@
 
 .shell-header-agent:hover, .shell-header-agent[data-state="open"] { background: var(--surface-hover, var(--surface-inset)); }
 .shell-header-text { display: grid; min-width: 0; line-height: 1.2; }
-.shell-header-text strong { color: var(--text-primary); font-size: var(--text-lg); font-weight: 700; }
+.shell-header-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-size: var(--text-lg); font-weight: 700; }
 .shell-header-text span { overflow: hidden; color: var(--text-muted); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
 
 .shell-header-compact {

@@ -1425,6 +1425,13 @@ export function createPiHttpHost(options: {
           sendJson(res, 200, await controller.newSession(stringField(body, "conversationId")));
           return true;
         }
+        if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/group/members`) {
+          const body = await readJson(req);
+          const id = stringField(body, "conversationId");
+          if (!id || !Array.isArray(body.members)) sendJson(res, 400, { error: "conversationId and members are required." });
+          else sendJson(res, 200, controller.setGroupMembers(id, body.members as string[], body.availableBots as PiPromptInput["availableBots"], stringField(body, "hostId")));
+          return true;
+        }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/group/prompt`) {
           const body = await readJson(req);
           const prompt = stringField(body, "prompt")?.trim();
@@ -1443,7 +1450,8 @@ export function createPiHttpHost(options: {
           try {
             await controller.runGroupPrompt({
               conversationId, requestId, prompt, artifactSubmission: body.artifactSubmission as PiPromptInput["artifactSubmission"], attachments: body.attachments as PiPromptInput["attachments"],
-              ...(Array.isArray(body.members) ? { members: body.members.filter((m: unknown) => isAgentPresetId(m)) } : {}),
+              ...(Array.isArray(body.members) ? { members: body.members as string[] } : {}),
+              availableBots: body.availableBots as PiPromptInput["availableBots"], botId: stringField(body, "botId"),
               provider: stringField(body, "provider"),
               model: stringField(body, "model"),
               thinkingLevel: stringField(body, "thinkingLevel"),
@@ -1486,6 +1494,7 @@ export function createPiHttpHost(options: {
           try {
             await controller.runPrompt({
               conversationId,
+              availableBots: body.availableBots as PiPromptInput["availableBots"], botId: stringField(body, "botId"),
               requestId,
               prompt,
               artifactSubmission: body.artifactSubmission as PiPromptInput["artifactSubmission"],

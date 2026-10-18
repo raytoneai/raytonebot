@@ -19,4 +19,6 @@ test("history groups preserve role identity and recency, keeping group chats and
   ]);
   assert.deepEqual(groupSessionHistory([]), []);
   assert.deepEqual(groupSessionHistory([sessions[0]]).map(group => group.id), ["builder"]);
+  const promoted = piConversationSidebarItems([{ ...createEphemeralPiConversation("pi_promoted"), agentPreset: "assistant", groupMembers: ["assistant", "planner"] }]);
+  assert.deepEqual(groupSessionHistory(promoted, { pi_promoted: "assistant" }).map(group => group.id), ["group"], "membership takes precedence over the old single-chat binding");
 });

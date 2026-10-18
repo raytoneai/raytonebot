@@ -6,7 +6,7 @@ const GROUP_AUTHORS: Record<string, { kind: AvatarKind; name: string }> = {
   assistant: { kind: "woman", name: "Raer" }, planner: { kind: "man", name: "Tonny" }, builder: { kind: "boy", name: "Bob" },
 };
 // Tool and artifact ids are wrapped as JSON [runId, field, id] by replayIdentity, so match inside too.
-const itemAuthor = (item: AgentUXTimelineItem) => /(?:^|")(assistant|planner|builder)~/.exec(String(item.id))?.[1];
+const itemAuthor = (item: AgentUXTimelineItem) => /(?:^|")(assistant|planner|builder|bot_[a-f0-9-]{36})~/.exec(String(item.id))?.[1];
 import { useShellExtras } from "../shell/ShellExtras";
 import { cloneElement, type ReactElement } from "react";
 import { useTranscriptScroll } from "../../runtime/useTranscriptScroll";
@@ -66,7 +66,7 @@ export function ChatFrame({
   const copy = useCopy();
   const promptHistory = previewPrompts?.filter((prompt) => prompt.trim().length > 0);
 
-  const { headerAgent, transcriptScroll, transcriptTarget, groupTyping, composerActivity } = useShellExtras();
+  const { headerAgent, transcriptScroll, transcriptTarget, groupTyping, groupHostId, composerActivity } = useShellExtras();
   const listRef = useTranscriptScroll(viewModel.timeline, transcriptScroll, transcriptTarget);
   return (
     <section
@@ -98,6 +98,7 @@ export function ChatFrame({
             forceToolsOpen,
             toolCollapseSignal,
             onApprovalDecision,
+            groupHostId,
           )
         )}
         {groupTyping && !composerActivity ? <GroupTypingRow member={groupTyping} /> : null}
@@ -160,10 +161,11 @@ function renderConversation(
   forceToolsOpen: boolean,
   toolCollapseSignal: number,
   onApprovalDecision: ((toolCallId: string, decision: ApprovalDecision) => void | Promise<void>) | undefined,
+  groupHostId?: string,
 ): ReactElement[] {
   const rows: ReactElement[] = [];
   let lane: AgentUXTimelineItem[] = [];
-  const groupMode = entries.some((entry) => entry.kind === "item" && Boolean(itemAuthor(entry.item)));
+  const groupMode = Boolean(groupHostId) || entries.some((entry) => entry.kind === "item" && Boolean(itemAuthor(entry.item)));
   let laneAuthor: string | undefined;
   let turnIndex = 0;
   let latestTurnRow = -1;
@@ -178,7 +180,7 @@ function renderConversation(
     const author = laneAuthor;
     lane = [];
     latestTurnRow = rows.length;
-    if (groupMode && author && GROUP_AUTHORS[author]) latestByMember.set(author, rows.length);
+    if (groupMode && author) latestByMember.set(author, rows.length);
     rows.push(
       <AssistantTurn
         key={`turn:${turnIndex}`}
@@ -208,7 +210,7 @@ function renderConversation(
       rows.push(<UserPromptBubble key={`msg:${entry.item.id}`} project={project} prompt={entry.item.text || ""} messageId={entry.item.id} />);
       continue;
     }
-    const author = itemAuthor(entry.item);
+    const author = itemAuthor(entry.item) ?? groupHostId;
     if (groupMode && lane.length && author !== laneAuthor) flushLane();
     laneAuthor = author;
     lane.push(entry.item);
@@ -228,7 +230,7 @@ function renderConversation(
 function GroupTypingRow({ member }: { member: string }) {
   const outer = useAgentPersona();
   const bot = useShellExtras().bots?.find(entry => entry.id === member);
-  const face = bot ? { ...GROUP_AUTHORS[member], name: bot.name, appearance: bot.appearance } : GROUP_AUTHORS[member];
+  const face = bot ? { ...GROUP_AUTHORS[bot.presetId], name: bot.name, appearance: bot.appearance } : GROUP_AUTHORS[member];
   if (!face) return null;
   const persona = { ...(outer ?? { state: "thinking" as const }), ...face, state: "thinking" as const };
   return (
@@ -277,7 +279,7 @@ function AssistantTurn({
   const outer = useAgentPersona();
   const bot = useShellExtras().bots?.find(entry => entry.id === groupAuthor);
   if (groupAuthor && outer) {
-    const member = GROUP_AUTHORS[groupAuthor];
+    const member = GROUP_AUTHORS[bot?.presetId ?? groupAuthor];
     const persona = member ? { ...outer, ...member, appearance: bot?.appearance, name: bot?.name ?? member.name, state: live ? outer.state : "idle" as const }
       : { ...outer, name: "群聊编排", kind: undefined as unknown as AvatarKind };
     return (

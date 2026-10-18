@@ -1,11 +1,12 @@
+import { isGroupConversation } from "../pi/piConversationState.ts";
 import { useEffect, useState } from "react";
 import { isAgentPresetId, type AgentPresetId } from "../pi/harnessCatalog.ts";
 import type { SearchSession } from "./useConversationSearch.ts";
 
 export type HistoryGroupId = AgentPresetId | "group" | "other" | `bot_${string}`;
 
-export function conversationHistoryGroup(session: { id: string; agentPreset?: string }, botIds?: Record<string, string>): HistoryGroupId {
-  if (session.id.startsWith("group_")) return "group";
+export function conversationHistoryGroup(session: { id: string; agentPreset?: string; groupMembers?: string[]; group?: { members: string[] } }, botIds?: Record<string, string>): HistoryGroupId {
+  if (isGroupConversation(session)) return "group";
   const botId = botIds?.[session.id];
   if (botId && (isAgentPresetId(botId) || botId.startsWith("bot_"))) return botId as HistoryGroupId;
   return isAgentPresetId(session.agentPreset) ? session.agentPreset : "other";

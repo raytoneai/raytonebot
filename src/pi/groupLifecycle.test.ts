@@ -986,3 +986,83 @@ test("retrying an unresolved assignment whose owner left is rejected without lea
     assert.equal(bridge.calls.length, 0); assert.equal(controller.getConversation(groupId)?.activeRunId, undefined);
   } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
 });
+
+test("inviting a custom Bot promotes the same conversation and preserves context across restart", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-invite-"));
+  const bridge = controlledBridges();
+  let controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
+  const id = "pi_existing_discussion";
+  const guest = { id: "bot_11111111-1111-1111-1111-111111111111", name: "小审", presetId: "assistant" as const };
+  try {
+    await controller.runPrompt({ conversationId: id, requestId: "original", prompt: "请检查订单 A1001 的重复扣费问题" }, () => {});
+    const original = controller.getConversation(id)!;
+    const snapshot = JSON.stringify(original.events);
+    const originalCount = original.events.length;
+    const received: AgentUXEvent[] = [];
+    await controller.runPrompt({ conversationId: id, requestId: "invite", prompt: "请小审来看看问题", botId: "assistant", availableBots: [guest] }, event => received.push(event));
+    const saved = controller.getConversation(id)!;
+    const group = saved.group as import("./groupChat.ts").GroupMeta;
+    assert.deepEqual(group.members, ["assistant", guest.id]);
+    assert.equal(saved.id, id);
+    assert.equal(saved.title, original.title);
+    assert.equal(JSON.stringify(saved.events.slice(0, originalCount)), snapshot);
+    assert.ok(bridge.calls.some(call => call.id.endsWith(`.m.${guest.id}`) && call.prompt.includes("订单 A1001") && call.prompt.includes("你是群里的 小审")));
+    assert.ok(received.some(event => event.messageId?.startsWith(`${guest.id}~`)), "custom author is visible independently of its Pi engine");
+    assert.equal(received.filter(event => event.type === "run.finished").length, 1);
+    assert.equal(received.at(-1)?.payload.status, "success");
+    controller.dispose();
+    controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
+    assert.deepEqual((controller.getConversation(id)!.group as typeof group).members, group.members);
+    const before = bridge.calls.length;
+    await controller.runPrompt({ conversationId: id, requestId: "follow-up", prompt: "@小审 再检查一次" }, () => {});
+    assert.equal(bridge.calls.length, before + 1);
+    assert.ok(bridge.calls.at(-1)!.id.endsWith(`.m.${guest.id}`));
+    await assert.rejects(controller.runPrompt({ conversationId: id, requestId: "follow-up", prompt: "@小审 再检查一次" }, () => {}), /already.*submitted/i);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("member changes do not run models, reject active conversations, and keep custom approvals routed", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-invite-approval-"));
+  const bridge = controlledBridges();
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
+  const guest = { id: "bot_22222222-2222-2222-2222-222222222222", name: "Reviewer", presetId: "assistant" as const };
+  const id = "pi_member_controls";
+  try {
+    controller.setGroupMembers(id, ["assistant", guest.id], [guest], "assistant");
+    assert.equal(bridge.calls.length, 0);
+    assert.throws(() => controller.setGroupMembers(id, [guest.id], [guest], "assistant"), /host must stay/);
+    bridge.setMode("approval");
+    const events: AgentUXEvent[] = [];
+    const running = controller.runPrompt({ conversationId: id, requestId: "custom-approval", prompt: "@Reviewer work" }, event => events.push(event));
+    await until(() => events.some(event => event.type === "tool.call.awaiting_approval"));
+    assert.throws(() => controller.setGroupMembers(id, ["assistant"], [guest], "assistant"), /当前回复/);
+    const approval = events.find(event => event.type === "tool.call.awaiting_approval")!;
+    const toolId = String(approval.payload.toolCallId);
+    assert.ok(toolId.startsWith(`${guest.id}~`));
+    assert.equal(controller.resolveApproval(toolId, "yes", id, "wrong-run"), false);
+    assert.equal(controller.resolveApproval(toolId, "yes", id, "custom-approval"), true);
+    await running;
+    assert.equal(events.at(-1)?.payload.status, "success");
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("HTTP membership changes preserve the source and require the existing same-origin boundary", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-members-http-"));
+  const bridge = controlledBridges();
+  const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  const base = `${await listen(server)}/__agentcanvas/pi`;
+  const body = { conversationId: "pi_http_invite", members: ["assistant", "planner"], hostId: "assistant" };
+  try {
+    const request = (origin?: string, members = body.members) => fetch(`${base}/group/members`, { method: "POST",
+      headers: { "content-type": "application/json", ...(origin ? { origin } : {}) }, body: JSON.stringify({ ...body, members }) });
+    assert.equal((await request("https://outside.example")).status, 403);
+    assert.equal((await request()).status, 200);
+    const saved = await (await fetch(`${base}/conversations/${body.conversationId}`)).json();
+    assert.deepEqual(saved.group.members, body.members);
+    assert.equal(saved.events.length, 0);
+    assert.equal(bridge.calls.length, 0);
+    assert.notEqual((await request(undefined, ["assistant", "unknown"])).status, 200);
+    assert.deepEqual((await (await fetch(`${base}/conversations/${body.conversationId}`)).json()).group.members, body.members);
+  } finally { host.dispose(); await close(server); rmSync(dataDir, { recursive: true, force: true }); }
+});

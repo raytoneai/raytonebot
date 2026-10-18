@@ -13,10 +13,16 @@ export type EphemeralPiConversation = {
   activeRunId?: string;
   /** Group chat: a group's members and the last thing said in it. */
   groupMembers?: string[];
+  groupParticipants?: import("./groupParticipants.ts").GroupParticipant[];
+  groupHostId?: string;
   groupPreview?: { author: string; text: string };
 };
 
-export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt" | "agentPreset">;
+export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt" | "agentPreset" | "groupMembers">;
+
+export function isGroupConversation(conversation: { id: string; groupMembers?: readonly string[]; group?: { members: readonly string[] } }): boolean {
+  return Boolean(conversation.groupMembers?.length || conversation.group?.members.length || conversation.id.startsWith("group_"));
+}
 
 export function createEphemeralPiConversation(
   id = createConversationId(),
@@ -74,7 +80,7 @@ export function replacePiConversation(
 export function piConversationSidebarItems(
   conversations: readonly EphemeralPiConversation[],
 ): readonly PiConversationSidebarItem[] {
-  return conversations.map(({ id, title, createdAt, agentPreset }) => ({ id, title, createdAt, agentPreset }));
+  return conversations.map(({ id, title, createdAt, agentPreset, groupMembers }) => ({ id, title, createdAt, agentPreset, groupMembers }));
 }
 
 function createConversationId(): string {

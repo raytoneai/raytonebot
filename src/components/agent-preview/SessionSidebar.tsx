@@ -576,7 +576,7 @@ function SessionGroup({
               title={preview ? `${title}\n${preview}` : undefined}
               onClick={() => onSelectResult ? onSelectResult(session) : onSelect?.(id)}
             >
-              {disclosure ? null : id.startsWith("group_") ? (
+              {disclosure ? null : groupFaces?.[id] ? (
                 <span className="session-item-avatar" data-group="true" aria-hidden="true"><GroupFace size={20} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
               ) : avatars?.[id] ? (
                 <span className="session-item-avatar" aria-hidden="true" onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.stopPropagation(); onEditBot(bot); } }}><AgentAvatar size={18} kind={avatars[id]} appearance={bot?.appearance} /></span>

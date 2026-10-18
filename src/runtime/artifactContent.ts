@@ -1,4 +1,3 @@
-import type { AgentPresetId } from "../pi/harnessCatalog.ts";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import type { AgentUXTimelineItem } from "@agent-ux/render-core";
 import type { OutputPanelItem } from "../components/agent-preview/outputframe/panelItem.ts";
@@ -31,6 +30,6 @@ export function refreshArtifactItems(items: readonly OutputPanelItem[], timeline
 }
 
 /** Replay wraps group artifact ids in [run, field, id]; filenames never determine ownership. */
-export function artifactAuthor(id: string): AgentPresetId | undefined {
-  return /(?:^|")(assistant|planner|builder)~/.exec(id.replace(/^artifact:/, ""))?.[1] as AgentPresetId | undefined;
+export function artifactAuthor(id: string): string | undefined {
+  return /(?:^|")(assistant|planner|builder|bot_[a-f0-9-]{36})~/.exec(id.replace(/^artifact:/, ""))?.[1];
 }

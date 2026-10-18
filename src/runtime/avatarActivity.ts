@@ -3,18 +3,18 @@ import type { AgentUXTimelineItem } from "@agent-ux/render-core";
 
 import type { AvatarState } from "../avatars/avatarMotion";
 import { toolAction } from "./toolPresentation.ts";
-import { isAgentPresetId, type AgentPresetId } from "../pi/harnessCatalog.ts";
+import { validParticipantId } from "../pi/groupParticipants.ts";
 
 const ACTIVE_TOOL = new Set(["pending", "args_streaming", "started", "running", "in_progress"]);
 
 /** Keep the group's working member through its output, but never across turns. */
-export function workingGroupMember(events: readonly AgentUXEvent[]): AgentPresetId | undefined {
+export function workingGroupMember(events: readonly AgentUXEvent[]): string | undefined {
   for (let index = events.length - 1; index >= 0; index -= 1) {
     const event = events[index];
     if (event.type === "run.started" || event.type === "run.finished" || event.type === "run.error") return undefined;
     if (event.type === "group.member.started") {
       const member = (event.payload as { member?: unknown } | undefined)?.member;
-      return isAgentPresetId(member) ? member : undefined;
+      return validParticipantId(member) ? member : undefined;
     }
   }
   return undefined;

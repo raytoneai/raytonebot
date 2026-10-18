@@ -114,6 +114,9 @@ export type PiRuntimeConfiguration = {
 };
 
 export type PiPromptInput = {
+  members?: string[];
+  botId?: string;
+  availableBots?: import("./groupParticipants.ts").GroupParticipant[];
   artifactSubmission?: import("../runtime/artifactForm.ts").ArtifactSubmission;
   conversationId?: string;
   /** Correlates this submission with its stored run after a lost response; never auto-replayed. */
@@ -150,6 +153,7 @@ export async function testProviderConnection(
 }
 
 export type StoredConversationSummary = {
+  group?: { members: string[]; participants?: import("./groupParticipants.ts").GroupParticipant[]; hostId?: string; preview?: { author: string; text: string } };
   id: string;
   title: string;
   createdAt: number;
@@ -193,6 +197,11 @@ export async function getStoredConversation(
 /** Title and metadata only; used to pick up the model-written title after a first turn. */
 export async function getStoredConversationSummary(id: string, fetcher: typeof fetch = fetch): Promise<StoredConversationSummary> {
   return requestJson(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}?summary=1`, undefined, AbortSignal.timeout(15_000));
+}
+
+export async function updateGroupMembers(conversationId: string, members: string[], availableBots: import("./groupParticipants.ts").GroupParticipant[], hostId?: string, fetcher: typeof fetch = fetch) {
+  return requestJson<Awaited<ReturnType<typeof getStoredConversation>>>(fetcher, `${PI_API_PREFIX}/group/members`,
+    { conversationId, members, availableBots, hostId }, AbortSignal.timeout(15_000));
 }
 
 /** Removes the saved transcript. The host refuses (409) while a run is active in it. */

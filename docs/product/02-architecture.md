@@ -57,6 +57,7 @@ Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子�
 | POST | `/__agentcanvas/pi/config` | provider/model/thinking/会话 key |
 | POST | `/__agentcanvas/pi/prompt` | 发起一轮，返回 NDJSON 事件流；可选 `requestId` 对应该轮 `runId`，用于断线后核对提交；**连接断开不中止**，只有 `/abort` 停止 |
 | POST | `/__agentcanvas/pi/group/prompt` | 群聊轮次，成员经现有 `runPrompt` 执行；群请求以已落盘事件去重，使用同一 `/live`、`/abort`、`/approval`、`/input` 接口恢复和交互 |
+| POST | `/__agentcanvas/pi/group/members` | 在原会话更新成员；`conversationId`、`members`、`availableBots`、`hostId`，运行中拒绝修改，不调用模型 |
 | GET | `/__agentcanvas/pi/conversations/:id/live?after=N` | 重新接上运行中的一轮：先补发第 N 个之后的已存事件，再推实时事件，轮次结束时关闭；未在运行返回 409 |
 | POST | `/__agentcanvas/pi/abort` | 新界面传 `{conversationId,runId}`，仅停止匹配轮次；过时/已结束返回 409，非法身份返回 400；旧调用省略 runId 沿用按会话停止，空对象仍为管理用停止全部 |
 | POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no`；新界面携带 `conversationId`、`runId` 和原生 `toolCallId`，只匹配对应轮次；409 = 已失效 |
@@ -282,4 +283,8 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 
 创建/编辑表单从 Settings 移到 `ShellExtras` 的唯一 `BotEditor` helper，入口为 `SessionSidebar` Logo、侧栏头像右键/键盘菜单键/编辑按钮，以及聊天标题头像右键。表单保存成功才更新；存储失败保留草稿。聊天主机仍使用原有 conversation ID 隔离上下文，新 Bot 复用所选角色的引擎、模型来源、工作区、工具权限与运行时人设；名称属于显示配置。历史分组、草稿、搜索、活动状态与消息分支按浏览器记录的 Bot ID 恢复，编辑现有 Bot 不允许改引擎。
 
-群聊成员仍是三个内置角色；显示名称和头像随配置更新，`@` 候选显示名称与稳定的 @Raer / @Tonny / @Bob 路由 handle。Bot 配置及归属映射不属于服务端备份，不跨浏览器/设备同步；清除浏览器存储后，服务端保存的聊天仍在，会回退到原引擎角色分组。未新增 HTTP 接口、数据库或服务。
+2026-10-19 群聊扩展到自建 Bot：`groupParticipants.ts` 校验 `{id,name,presetId}` 名单，`group.members` 保存 Bot ID、`participants` 保存名字与引擎快照、`hostId` 保存主持。`@` 使用当前名字（支持中文）；头像完整配置仍在浏览器，其他浏览器恢复群记录时使用角色默认头像。
+
+单聊可以在原 ID 上增加 group metadata；前端历史分组和运行状态按 metadata 识别群聊，兼容旧 `group_` ID。原 transcript 保留，`group.lines` 从最近 20 条用户/助手消息初始化，每条限 4,000 字符；群内 `<conversation>.m.<botId>` 原生子会话从这个有界上下文开始，使用 Bot 的既有角色工作区和权限，不克隆原生 session。成员/署名/审批/任务负责人均用 Bot ID，执行时才映射到 preset。
+
+普通 prompt 和 group prompt 都接受可选 `availableBots`，普通 prompt 可附 `botId`。主机仅从顶层用户消息识别明确邀请；子轮、引用、工具结果不能改成员。邀请安排主持和新成员进行一轮只读讨论后收口；菜单只更新成员，不执行模型。成员变更沿现有同源边界，运行时拒绝修改，最多八个 Bot；不新增服务、数据库或独立面板。

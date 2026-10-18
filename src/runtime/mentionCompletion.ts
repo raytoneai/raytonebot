@@ -9,14 +9,14 @@ export type MentionCandidate = { id: string; name: string; handle?: string };
 
 export type MentionQuery = { start: number; end: number; query: string };
 
-const QUERY = /(?:^|[^A-Za-z0-9._%+-])@([A-Za-z]*)$/;
+const QUERY = /(?:^|[^A-Za-z0-9._%+-])@([\p{L}\p{N}_-]*)$/u;
 
 /** The `@word` that ends at the caret, if any. */
 export function mentionQuery(text: string, caret: number): MentionQuery | undefined {
   const match = QUERY.exec(text.slice(0, caret));
   if (!match) return undefined;
   // A completed name followed by more letters ("@Raerx") is not a query for that name.
-  const end = caret + (/^[A-Za-z]*/.exec(text.slice(caret))?.[0].length ?? 0);
+  const end = caret + (/^[\p{L}\p{N}_-]*/u.exec(text.slice(caret))?.[0].length ?? 0);
   return { start: caret - match[1].length - 1, end, query: match[1] };
 }
 

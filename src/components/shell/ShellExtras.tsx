@@ -51,7 +51,8 @@ export type ShellExtras = {
   /** Group chat: an action in the sidebar header (the "+" menu). */
   sidebarAction?: ReactNode;
   /** Group chat: the group member working on this turn who has not shown any output yet. */
-  groupTyping?: AgentPresetId;
+  groupTyping?: string;
+  groupHostId?: string;
   /** Group chat: untitled group id (title is still the roster) → last message, shown as the row title. */
   groupPreviews?: Record<string, string>;
   /** Group chat: group conversation id → its members' faces. */
@@ -78,7 +79,7 @@ export type ShellExtras = {
   /** Live work above the input; an empty persona leaves a stable, quiet gap after completion. */
   composerActivity?: { scope: string; persona?: AgentPersona };
   /** Group chat: members the composer offers after "@", in group order. */
-  composerMentions?: readonly { id: AgentPresetId; name: string; handle?: string; kind: AvatarKind }[];
+  composerMentions?: readonly { id: string; name: string; handle?: string; presetId?: AgentPresetId; kind: AvatarKind }[];
   /** The shell keeps each conversation's files and draft across layout remounts. */
   composerDraft?: { value: ComposerDraft; status?: "loading" | "saving" | "saved" | "unavailable" | "conflict"; onChange: (update: (current: ComposerDraft) => ComposerDraft) => void };
   /** Follow-ups typed while a turn runs. The shell owns order, sending and pausing; the composer only shows and edits. */
@@ -220,7 +221,7 @@ export function AgentSwitcher({
       })}
       {onNewGroup ? (
         <button type="button" className="shell-agent" data-active={groupActive} aria-current={groupActive ? "true" : undefined}
-          disabled={disabled} title={`新建 Group：我、${Object.values(botNames).join("、")}`} onClick={onNewGroup}>
+          disabled={disabled} title={`新建 Group：我、${AGENT_PRESETS.map(preset => botNames[preset.id]).join("、")}`} onClick={onNewGroup}>
           {/* Align the group face with the larger agent portraits. */}
           <span className="shell-agent-face" data-status={groupStatus ?? "idle"} style={{ width: 42, justifyContent: "center" }}>
             <GroupFace size={42} kinds={[avatars.assistant, avatars.planner, avatars.builder]} />
@@ -228,7 +229,7 @@ export function AgentSwitcher({
           </span>
           <span className="shell-agent-text">
             <span className="shell-agent-name">Group</span>
-            <span className="shell-agent-sub">{groupStatus === "running" ? t.running : groupStatus === "needs-you" ? t.needsYou : `我 · ${Object.values(botNames).join(" · ")}`}</span>
+            <span className="shell-agent-sub">{groupStatus === "running" ? t.running : groupStatus === "needs-you" ? t.needsYou : `我 · ${AGENT_PRESETS.map(preset => botNames[preset.id]).join(" · ")}`}</span>
           </span>
         </button>
       ) : null}
@@ -328,26 +329,34 @@ export function HeaderAgent({
 // ---------- Group chat: "+" menu, To: picker, group header with member panel ----------
 const GROUP_ROLE: Record<AgentPresetId, string> = { assistant: "助手", planner: "规划", builder: "实施" };
 const GROUP_NAME: Record<AgentPresetId, string> = { assistant: "Raer", planner: "Tonny", builder: "Bob" };
-function useBotNames(): Record<AgentPresetId, string> {
+function useGroupBots() {
   const { bots } = useShellExtras();
-  return Object.fromEntries(AGENT_PRESETS.map(({ id }) => [id, bots?.find(bot => bot.id === id)?.name ?? GROUP_NAME[id]])) as Record<AgentPresetId, string>;
+  return bots ?? AGENT_PRESETS.map(preset => ({ id: preset.id, presetId: preset.id, name: GROUP_NAME[preset.id], appearance: undefined }));
+}
+function useBotNames(): Record<string, string> {
+  return Object.fromEntries(useGroupBots().map(bot => [bot.id, bot.name]));
 }
 
 /** Invite from the conversation header; the existing participants stay selected. */
 export function NewChatMenu({ avatars, members, onNewGroup }: {
   avatars: Record<AgentPresetId, AvatarKind>;
-  members: readonly AgentPresetId[];
-  onNewGroup: (members: AgentPresetId[]) => void;
+  members: readonly string[];
+  onNewGroup: (members: string[]) => void | Promise<void>;
 }) {
+  const candidates = useGroupBots();
   const botNames = useBotNames();
+  const [error, setError] = useState<string>();
+  const [pending, setPending] = useState(false);
   const [open, setOpen] = useState(false);
-  const [picked, setPicked] = useState<AgentPresetId[]>([]);
-  const ordered = AGENT_PRESETS.map((p) => p.id).filter((id) => members.includes(id) || picked.includes(id));
-  const toggle = (id: AgentPresetId) => setPicked((current) => current.includes(id) ? current.filter((m) => m !== id) : [...current, id]);
-  const start = () => {
-    if (picked.length) onNewGroup(ordered);
-    setOpen(false);
-    setPicked([]);
+  const [picked, setPicked] = useState<string[]>([]);
+  const ordered = candidates.map(p => p.id).filter((id) => members.includes(id) || picked.includes(id));
+  const toggle = (id: string) => setPicked((current) => current.includes(id) ? current.filter((m) => m !== id) : [...current, id]);
+  const start = async () => {
+    if (!picked.length || pending) return;
+    setPending(true); setError(undefined);
+    try { await onNewGroup(ordered); setOpen(false); setPicked([]); }
+    catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+    finally { setPending(false); }
   };
   return (
     <RadixPopover.Root open={open} onOpenChange={(next) => { setOpen(next); if (!next) setPicked([]); }}>
@@ -361,23 +370,24 @@ export function NewChatMenu({ avatars, members, onNewGroup }: {
           <div className="shell-member-to">
             <span className="shell-member-meta">聊天成员</span>
             {ordered.length ? ordered.map((id) => (
-              <span key={id} className="shell-member-chip" data-selected="true"><AgentAvatar size={18} kind={avatars[id]} />{botNames[id]}</span>
+              <span key={id} className="shell-member-chip" data-selected="true"><AgentAvatar size={18} kind={avatars[candidates.find(bot => bot.id === id)!.presetId]} />{botNames[id]}</span>
             )) : <span className="shell-member-meta">选择一位或多位</span>}
           </div>
-          {AGENT_PRESETS.map((preset) => {
+          {candidates.map((preset) => {
             const present = members.includes(preset.id);
             const on = present || picked.includes(preset.id);
             return (
               <button type="button" key={preset.id} className="shell-member-row"
                 aria-pressed={on} disabled={present} onClick={() => toggle(preset.id)}>
-                <AgentAvatar size={24} kind={avatars[preset.id]} />
+                <AgentAvatar size={24} kind={avatars[preset.presetId]} appearance={preset.appearance} />
                 <span>{botNames[preset.id]}</span>
-                <span className="shell-member-meta shell-member-role">{present ? "已加入" : GROUP_ROLE[preset.id]}</span>
+                <span className="shell-member-meta shell-member-role">{present ? "已加入" : GROUP_ROLE[preset.presetId]}</span>
                 <span aria-hidden="true" className="shell-member-check">{on ? "✓" : ""}</span>
               </button>
             );
           })}
-          <Button type="button" variant="primary" className="shell-member-start" disabled={!picked.length} onClick={start}>
+          {error ? <p className="shell-member-note" role="alert">{error}</p> : null}
+          <Button type="button" variant="primary" className="shell-member-start" disabled={!picked.length || pending} onClick={() => void start()}>
             {picked.length ? `加入聊天（${picked.length}）` : "选择要加入的 Agent"}
           </Button>
         </RadixPopover.Content>
@@ -391,25 +401,32 @@ export function NewChatMenu({ avatars, members, onNewGroup }: {
  * The group's top bar. Before the first message it is a "To:" picker; afterwards the group's face and
  * names, which open a member panel (roles, engines, add/remove for the next message).
  */
-export function GroupHeader({ avatars, members, draft, onChange }: {
+export function GroupHeader({ avatars, members, draft, onChange, hostId = members[0] }: {
   avatars: Record<AgentPresetId, AvatarKind>;
-  members: readonly AgentPresetId[];
+  members: readonly string[];
   draft: boolean;
-  onChange: (members: AgentPresetId[]) => void;
+  hostId?: string;
+  onChange: (members: string[]) => void | Promise<void>;
 }) {
+  const candidates = useGroupBots();
   const botNames = useBotNames();
-  const toggle = (id: AgentPresetId) => {
-    const next = members.includes(id) ? members.filter((m) => m !== id) : AGENT_PRESETS.map((p) => p.id).filter((m) => m === id || members.includes(m));
-    if (next.length) onChange(next);
+  const [error, setError] = useState<string>();
+  const [pending, setPending] = useState(false);
+  const toggle = async (id: string) => {
+    if (pending || id === hostId) return;
+    const next = members.includes(id) ? members.filter((m) => m !== id) : candidates.map(p => p.id).filter((m) => m === id || members.includes(m));
+    if (!next.length) return;
+    setPending(true); setError(undefined);
+    try { await onChange(next); } catch (error) { setError(error instanceof Error ? error.message : String(error)); } finally { setPending(false); }
   };
   const names = ["我", ...members.map((m) => botNames[m])].join("、");
   if (draft) {
     return (
       <div className="shell-member-picker">
         <span className="shell-member-meta">成员</span>
-        {AGENT_PRESETS.map((preset) => (
-          <button key={preset.id} type="button" className="shell-member-chip" aria-pressed={members.includes(preset.id)} onClick={() => toggle(preset.id)}>
-            <AgentAvatar size={20} kind={avatars[preset.id]} />{botNames[preset.id]}
+        {candidates.map((preset) => (
+          <button key={preset.id} type="button" className="shell-member-chip" aria-pressed={members.includes(preset.id)} disabled={pending || preset.id === hostId} onClick={() => void toggle(preset.id)}>
+            <AgentAvatar size={20} kind={avatars[preset.presetId]} appearance={preset.appearance} />{botNames[preset.id]}
           </button>
         ))}
       </div>
@@ -418,8 +435,8 @@ export function GroupHeader({ avatars, members, draft, onChange }: {
   return (
     <RadixPopover.Root>
       <RadixPopover.Trigger asChild>
-        <button type="button" className="shell-header-agent">
-          <GroupFace size={34} kinds={members.map((m) => avatars[m])} />
+        <button type="button" className="shell-header-agent shell-header-compact" title={names}>
+          <GroupFace size={34} kinds={members.map(m => avatars[candidates.find(bot => bot.id === m)!.presetId])} />
           <span className="shell-header-text">
             <strong>{names}</strong>
             <span>{members.length + 1} 位成员</span>
@@ -429,18 +446,19 @@ export function GroupHeader({ avatars, members, draft, onChange }: {
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
         <RadixPopover.Content className="shell-popover shell-member-popover" align="start" sideOffset={8} collisionPadding={12}>
-          <div className="shell-member-note">成员（改动从下一条消息生效）</div>
+          <div className="shell-member-note">聊天成员</div>
+          {error ? <p className="shell-member-note" role="alert">{error}</p> : null}
           <div className="shell-member-row">
             <GroupFace size={24} kinds={[]} /><span>我</span><span className="shell-member-meta shell-member-role">你</span>
           </div>
-          {AGENT_PRESETS.map((preset) => {
+          {candidates.map((preset) => {
             const on = members.includes(preset.id);
             return (
-              <button key={preset.id} type="button" className="shell-member-row" aria-pressed={on} onClick={() => toggle(preset.id)}>
-                <AgentAvatar size={24} kind={avatars[preset.id]} />
-                <span>{botNames[preset.id]} · {GROUP_ROLE[preset.id]}</span>
+              <button key={preset.id} type="button" className="shell-member-row" aria-pressed={on} disabled={pending || preset.id === hostId} onClick={() => void toggle(preset.id)}>
+                <AgentAvatar size={24} kind={avatars[preset.presetId]} appearance={preset.appearance} />
+                <span>{botNames[preset.id]} · {GROUP_ROLE[preset.presetId]}</span>
                 <span className="shell-member-meta shell-member-role">
-                  <HarnessMark harness={preset.harness} />{on ? "在群里" : "已移出"}
+                  <HarnessMark harness={agentPreset(preset.presetId).harness} />{on ? "在群里" : "已移出"}
                 </span>
               </button>
             );
@@ -454,13 +472,14 @@ export function GroupHeader({ avatars, members, draft, onChange }: {
 /** Group chat: the welcome area of a group that has no messages yet — who is in it, and who to add. */
 export function GroupWelcome({ avatars, members, onChange }: {
   avatars: Record<AgentPresetId, AvatarKind>;
-  members: readonly AgentPresetId[];
-  onChange: (members: AgentPresetId[]) => void;
+  members: readonly string[];
+  onChange: (members: string[]) => void | Promise<void>;
 }) {
+  const candidates = useGroupBots();
   const botNames = useBotNames();
   return (
     <div className="composer-greeting" style={{ flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
-      <span aria-hidden="true"><GroupFace size={76} kinds={members.map((m) => avatars[m])} /></span>
+      <span aria-hidden="true"><GroupFace size={76} kinds={members.map(m => avatars[candidates.find(bot => bot.id === m)!.presetId])} /></span>
       <h2 className="composer-greeting-text" style={{ margin: 0 }}>{["我", ...members.map((m) => botNames[m])].join("、")}</h2>
       <p style={{ margin: 0, opacity: 0.6, fontSize: 14 }}>选择成员，开始对话。</p>
       <GroupHeader avatars={avatars} members={members} draft onChange={onChange} />

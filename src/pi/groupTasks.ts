@@ -1,13 +1,12 @@
 import { randomUUID } from "node:crypto";
 import type { AgentUXEvent } from "@agent-ux/protocol";
-import type { AgentPresetId } from "./harnessCatalog.ts";
 
 export type GroupTask = {
-  id: string; parentId?: string; retryOf?: string; reviewedAt?: number; requestId: string; owner: AgentPresetId; title: string;
+  id: string; parentId?: string; retryOf?: string; reviewedAt?: number; requestId: string; owner: string; title: string;
   status: "pending" | "running" | "completed" | "cancelled" | "failed" | "needs_review";
   runId?: string; result?: string; updatedAt: number;
 };
-export function newGroupTask(requestId: string, owner: AgentPresetId, title: string, parentId?: string): GroupTask {
+export function newGroupTask(requestId: string, owner: string, title: string, parentId?: string): GroupTask {
   return { id: `assignment_${randomUUID()}`, requestId, owner, title: title.slice(0, 500), status: "pending", updatedAt: Date.now(), ...(parentId ? { parentId } : {}) };
 }
 /** Keep unresolved work, plus the ten most recent finished roots and their children. */

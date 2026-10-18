@@ -13,6 +13,8 @@ test("an @ at a word boundary opens a query up to the caret; an e-mail address d
   assert.equal(mentionQuery("rick@bo", 7), undefined);
   assert.equal(mentionQuery("@Raer 看看", 8), undefined, "past the word");
   assert.equal(mentionQuery("@ 看", 3), undefined);
+  assert.deepEqual(mentionQuery("请 @小", 4), { start: 2, end: 4, query: "小" });
+  assert.deepEqual(mentionMatches([{ id: "custom", name: "小审" }], "小").map(member => member.id), ["custom"]);
 });
 
 test("matches are name prefixes in group order, case-insensitive, and close once a name is complete", () => {

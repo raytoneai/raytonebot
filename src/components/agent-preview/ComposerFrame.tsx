@@ -567,7 +567,7 @@ export function ComposerFrame({
                 >
                   <AgentAvatar size={20} kind={member.kind} />
                   <span className="composer-mention-name">{member.name}{member.handle && member.handle !== member.name ? ` · @${member.handle}` : ""}</span>
-                  <span className="composer-mention-role">{copy.composer.frame.mentionRoles[member.id]}</span>
+                  <span className="composer-mention-role">{member.presetId ? copy.composer.frame.mentionRoles[member.presetId] : ""}</span>
                 </li>
               ))}
             </ul>

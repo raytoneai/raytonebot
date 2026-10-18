@@ -10,7 +10,7 @@ import { clearUserInputDraft, emptyUserInputDraft, readUserInputDraft, writeUser
 type Draft = UserInputDraft & { pending?: boolean; error?: string; done?: boolean; saved?: boolean };
 
 /** Form state belongs to the shell so opening Output does not erase a partial answer. */
-export function useUserInput(request: PendingUserInput | undefined, conversationId: string, locale: AppLocale): ComponentProps<typeof InlineApprovalPrompt> | undefined {
+export function useUserInput(request: PendingUserInput | undefined, conversationId: string, locale: AppLocale, group = conversationId.startsWith("group_")): ComponentProps<typeof InlineApprovalPrompt> | undefined {
   const [drafts, setDrafts] = useState<Record<string, Draft>>({});
   const current = useRef(drafts);
   const sending = useRef(new Set<string>());
@@ -66,7 +66,7 @@ export function useUserInput(request: PendingUserInput | undefined, conversation
           update({ choices: { ...draft.choices, [question.id]: choices },
             ...(!question.multiSelect ? { other: { ...draft.other, [question.id]: "" } } : {}), error: undefined });
           // In a group, a lone single-choice question answers on one click.
-          if (conversationId.startsWith("group_") && questions.length === 1 && !question.multiSelect && !question.allowOther) {
+          if (group && questions.length === 1 && !question.multiSelect && !question.allowOther) {
             void send({ [question.id]: [option.label] });
           }
         } })),

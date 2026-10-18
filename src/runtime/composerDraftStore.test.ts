@@ -51,6 +51,7 @@ test("a new group's member-only draft survives, while empty accepted groups and 
   assert.deepEqual(record.conversation.groupMembers, ["builder"]);
   assert.equal(hasSavedState(record), true);
   assert.equal(hasSavedState({ ...record, hasHistory: true }), false);
-  assert.equal(hasSavedState(savedComposerDraft({ ...conversation, id: "solo" }, record.draft)), false);
+  assert.equal(hasSavedState(savedComposerDraft({ ...conversation, id: "solo", groupMembers: undefined }, record.draft)), false);
+  assert.equal(hasSavedState(savedComposerDraft({ ...conversation, id: "pi_promoted" }, record.draft)), true, "promoted rooms keep their original conversation ID");
   assert.deepEqual(savedComposerDraft({ ...conversation, groupMembers: ["builder", "admin", "builder"] }, record.draft).conversation.groupMembers, ["builder"]);
 });

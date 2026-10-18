@@ -18,6 +18,7 @@ import { createConversationCache } from "./conversationCache.ts";
  * conversation-wide `seq`, matching `appendPiConversationEvents`.
  */
 export type StoredConversation = {
+  group?: import("./groupChat.ts").GroupMeta;
   id: string;
   title: string;
   /** "summary": the model titled it; "user": renamed by hand; absent: the truncated first prompt. */

@@ -71,5 +71,6 @@ test("open file tabs refresh the exact path and never adopt another directory's 
 
 test("group artifact ownership survives replay wrapping and is never inferred from a filename", () => {
   for (const id of ['builder~file', 'artifact:builder~file', 'artifact:["group","artifactId","builder~file"]']) assert.equal(artifactAuthor(id), "builder");
+  assert.equal(artifactAuthor('artifact:["group","artifactId","bot_11111111-1111-1111-1111-111111111111~file"]'), "bot_11111111-1111-1111-1111-111111111111");
   for (const id of ["report.html", "artifact:builder-report.html", "unrelated~file"]) assert.equal(artifactAuthor(id), undefined);
 });

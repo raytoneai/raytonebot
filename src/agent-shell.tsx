@@ -52,7 +52,7 @@ import {
   listStoredConversations,
   searchStoredConversations,
   resolvePiApproval,
-  runPiTurn, runGroupTurn,
+  runPiTurn, runGroupTurn, updateGroupMembers,
   uploadPiFile,
   startNewPiSession,
   PiRequestError,
@@ -62,6 +62,8 @@ import {
   type StoredConversationSummary,
 } from "./pi/piClient";
 import { piRuntimeConfigurationForProvider } from "./pi/piProviderSync";
+import { isGroupConversation } from "./pi/piConversationState";
+import { validParticipantId } from "./pi/groupParticipants";
 import { isAgentPresetId, loadAgentSettings, saveAgentSettings, settingsUseProvider, type AgentPresetId, type AgentSettings } from "./pi/harnessCatalog";
 import { CustomAvatarsProvider, AgentPersonaProvider, type AgentPersona, type AvatarKind } from "./avatars/AgentPersona";
 import type { TranscriptScroll } from "./runtime/useTranscriptScroll";
@@ -277,9 +279,19 @@ export function AgentApp() {
     () => piConversations.find((conversation) => conversation.id === activePiConversationId) ?? piConversations[0],
     [activePiConversationId, piConversations],
   );
-  const activeBot = bots.find(bot => bot.id === (conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
+  const knownBots = [...bots];
+  for (const participant of piConversations.flatMap(conversation => conversation.groupParticipants ?? [])) {
+    if (!knownBots.some(bot => bot.id === participant.id)) knownBots.push({ ...bots.find(bot => bot.id === participant.presetId)!, ...participant });
+  }
+  const activeBot = bots.find(bot => bot.id === (activePiConversation.groupHostId ?? conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
     ?? bots.find(bot => bot.id === agentSettings.presetId)!;
-  const presetBot = (id: AgentPresetId) => bots.find(bot => bot.id === id)!;
+  const presetBot = (id: string) => {
+    const bot = knownBots.find(bot => bot.id === id);
+    if (bot) return bot;
+    const participant = activePiConversation.groupParticipants?.find(bot => bot.id === id);
+    const base = bots.find(bot => bot.id === (participant?.presetId ?? "assistant"))!;
+    return participant ? { ...base, ...participant } : base;
+  };
   const piSessionItems = useMemo(
     () => piConversationSidebarItems(piConversations
       .filter((conversation) => conversation.events.length > 0 || conversation.stored || hasComposerState(composer.drafts[conversation.id]))
@@ -312,19 +324,19 @@ export function AgentApp() {
     if (!piRuntimeState || streamId) return;
     void getBrowserState().then((state) => setBrowserAvailable(state.available), () => setBrowserAvailable(false));
   }, [Boolean(piRuntimeState), streamId]);
-  const questionProps = useUserInput(pendingQuestion, activePiConversationId, locale);
+  const questionProps = useUserInput(pendingQuestion, activePiConversationId, locale, isGroupConversation(activePiConversation));
   const pendingSetup = useMemo(() => pendingChannelSetup(events), [events]);
   const setupProps = useChannelSetup(pendingSetup, activePiConversationId, locale);
   // Group chat: a group's routing is a debug event; only ?devtools=1 shows it in the chat.
-  const visibleEvents = useMemo(() => activePiConversationId.startsWith("group_") && !devtoolsRequested()
+  const visibleEvents = useMemo(() => isGroupConversation(activePiConversation) && !devtoolsRequested()
     ? events.filter((event) => event.visibility !== "debug") : events, [events, activePiConversationId]);
   // In a group, the member that started working and has produced nothing visible yet.
-  const groupTyping = useMemo((): AgentPresetId | undefined => {
-    if (!activePiConversationId.startsWith("group_")) return undefined;
-    let pending: AgentPresetId | undefined;
+  const groupTyping = useMemo((): string | undefined => {
+    if (!isGroupConversation(activePiConversation)) return undefined;
+    let pending: string | undefined;
     for (const event of events) {
       const payload = (event.payload ?? {}) as Record<string, unknown>;
-      if (event.type === "group.member.started" && isAgentPresetId(payload.member)) pending = payload.member;
+      if (event.type === "group.member.started" && validParticipantId(payload.member)) pending = payload.member;
       else if (event.type === "run.finished" || event.type === "run.error") pending = undefined;
       else if (pending && /^(text|reasoning|tool\.call|artifact)\./.test(event.type)) {
         const ids = [event.messageId, payload.toolCallId, payload.textId, payload.reasoningId, payload.artifactId];
@@ -455,7 +467,7 @@ export function AgentApp() {
       if (activeConversationIdRef.current !== sourceId || activeStreamIdRef.current) return;
       const current = composer.drafts[sourceId];
       await submitToPi(draft.prompt, { ...composerRunOptions, attachments: draft.attachments,
-        ...(current?.prompt === draft.prompt ? { draftSnapshot: { prompt: draft.prompt, attachmentIds: draft.attachments.map(file => file.id) } } : {}) });
+        ...(current?.prompt === draft.prompt && current.attachments.length === draft.attachments.length && current.attachments.every(file => draft.attachments.some(original => original.id === file.id)) ? { draftSnapshot: { prompt: draft.prompt, attachmentIds: draft.attachments.map(file => file.id) } } : {}) });
     },
     async onReady(conversation, draft, action, sourceId) {
       const source = piConversations.find(entry => entry.id === sourceId);
@@ -636,7 +648,7 @@ export function AgentApp() {
     const path = typeof request === "string" ? request : request.workspacePath;
     if (item.kind === "file" && path && !item.downloadUrl) {
       const author = artifactAuthor(item.id);
-      item.downloadUrl = workspaceFileUrl(path, isAgentPresetId(author) ? author : agentSettings.presetId, piRuntimeState?.workspace);
+      item.downloadUrl = workspaceFileUrl(path, author ? presetBot(author).presetId : agentSettings.presetId, piRuntimeState?.workspace);
     }
     setOutputPanelItems((current) => {
       const index = current.findIndex((entry) => entry.id === item.id || Boolean(item.workspacePath && entry.workspacePath === item.workspacePath));
@@ -791,7 +803,7 @@ export function AgentApp() {
     const normalizedPrompt = prompt.trim();
     if (!normalizedPrompt) return false;
     const conversationId = target.id;
-    const isGroup = conversationId.startsWith("group_");
+    const isGroup = isGroupConversation(target);
     // Synchronous guard: state updates land later, so a double submit could slip past `piRunning`.
     if (piAbortRefs.current.has(conversationId)) return false;
     const provider = defaultProviderConnection(activeProject);
@@ -821,6 +833,7 @@ export function AgentApp() {
     runStop.bind(controller, runId);
     // The composer callback is bound to this conversation's draft, even after switching away.
     const onAccepted = () => {
+      messageSubmissions.current.delete(runId);
       setFollowProblems((current) => ({ ...current, [conversationId]: undefined }));
       setHistoryProblems((current) => current[conversationId] === "incomplete" ? { ...current, [conversationId]: undefined } : current);
       composer.accepted(nextConversation, new Set([runId]));
@@ -867,6 +880,8 @@ export function AgentApp() {
       for await (const event of (isGroup ? runGroupTurn : runPiTurn)({
         ...(isGroup ? { members: groupMembersOf(nextConversation) } : {}),
         conversationId: nextConversation.id,
+        botId: conversationBotId(botStore, nextConversation) ?? activeBot.id,
+        availableBots: bots.map(({ id, name, presetId }) => ({ id, name, presetId })),
         requestId: runId,
         artifactSubmission: queued?.artifactSubmission,
         prompt: normalizedPrompt,
@@ -885,6 +900,7 @@ export function AgentApp() {
           return false;
         }
         if (confirmsPromptAccepted(event)) onAccepted();
+        if (event.type === "group.members.updated") nextConversation = { ...nextConversation, ...groupFields(event.payload) };
         nextConversation = appendPiConversationEvents(nextConversation, [event]);
         commit.push(nextConversation);
         if (event.type === "tool.call.awaiting_approval" || event.type === "run.awaiting_input") {
@@ -897,7 +913,7 @@ export function AgentApp() {
       }
       commit.flush();
       // The host titles a new conversation with its model during the first turn.
-      if (turnStartEventCount === 0 || isGroup) refreshConversationTitle(conversationId);
+      if (turnStartEventCount === 0 || isGroupConversation(nextConversation)) refreshConversationTitle(conversationId);
       // The turn already delivered its terminal; a metadata refresh failure must not reattach it.
       await refreshPiRuntime().catch(() => undefined);
     } catch (error) {
@@ -992,6 +1008,7 @@ export function AgentApp() {
             if (event.runId) liveRunIds.current.add(event.runId);
             if (submission && event.runId === submission.requestId) submission.onAccepted?.();
             retries = 0;
+            if (event.type === "group.members.updated") current = { ...current, ...groupFields(event.payload) };
             current = appendPiConversationEvents(current, [event]);
             commit.push(current);
             if (event.type === "tool.call.awaiting_approval" || event.type === "run.awaiting_input") {
@@ -1168,7 +1185,7 @@ export function AgentApp() {
   function refreshConversationTitle(id: string, retry = true) {
     void getStoredConversationSummary(id).then((summary) => {
       const { title, titleSource } = summary;
-      setPiConversations((current) => current.map((entry) => entry.id === id && (entry.title !== title || id.startsWith("group_"))
+      setPiConversations((current) => current.map((entry) => entry.id === id && (entry.title !== title || summary.group)
         ? { ...entry, title, ...groupFields(summary) } : entry));
       if (titleSource !== "summary" && retry) setTimeout(() => refreshConversationTitle(id, false), 4_000);
     }).catch(() => undefined);
@@ -1192,9 +1209,9 @@ export function AgentApp() {
   }
 
   // Group chat: members and the last message come with the host's summary of the conversation.
-  function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupPreview"> {
-    const group = (entry as { group?: { members?: string[]; preview?: { author: string; text: string } } }).group;
-    return group ? { ...(group.members ? { groupMembers: group.members } : {}), ...(group.preview ? { groupPreview: group.preview } : {}) } : {};
+  function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupParticipants" | "groupHostId" | "groupPreview"> {
+    const group = (entry as StoredConversationSummary).group;
+    return group ? { groupMembers: group.members, groupParticipants: group.participants, groupHostId: group.hostId, groupPreview: group.preview } : {};
   }
   /** A saved conversation the sidebar lists before its transcript is opened. */
   function storedStub(entry: StoredConversationSummary): EphemeralPiConversation {
@@ -1202,29 +1219,26 @@ export function AgentApp() {
       activeRunId: entry.activeRunId, events: [], stored: true, ...groupFields(entry) };
   }
   // Group chat: members live on the conversation; the host keeps its own copy per turn.
-  function groupMembersOf(conversation: EphemeralPiConversation): AgentPresetId[] {
-    const members = (conversation.groupMembers ?? []).filter(isAgentPresetId);
+  function groupMembersOf(conversation: EphemeralPiConversation): string[] {
+    const members = (conversation.groupMembers ?? []).filter(validParticipantId);
     return members.length ? members : ["assistant", "planner", "builder"];
   }
-  function setGroupMembers(conversationId: string, members: AgentPresetId[]) {
-    const names = ["我", ...members.map((m) => presetBot(m).name)].join("、");
-    const previous = piConversations.find((entry) => entry.id === conversationId);
+  async function setGroupMembers(conversationId: string, members: string[]) {
+    const previous = piConversations.find(entry => entry.id === conversationId);
     if (!previous) return;
-    // Merge into the current state so an intervening transcript update is preserved.
-    setPiConversations((current) => {
-      const latest = current.find((entry) => entry.id === conversationId);
-      return latest ? replacePiConversation(current, { ...latest, groupMembers: members, title: names }) : current;
-    });
-    // Draft storage only takes identity/metadata here; it keeps accepted-history state sticky.
-    composer.update({ ...previous, groupMembers: members, title: names }, (draft) => draft);
+    const saved = await updateGroupMembers(conversationId, members, bots.map(({ id, name, presetId }) => ({ id, name, presetId })),
+      previous.groupHostId ?? conversationBotId(botStore, previous) ?? activeBot.id);
+    const updated = { ...previous, title: saved.title, ...groupFields(saved) };
+    setPiConversations(current => current.map(entry => entry.id === conversationId ? { ...entry, title: saved.title, ...groupFields(saved) } : entry));
+    await composer.update(updated, draft => draft);
   }
 
-  function startNewSession(group = false, members: AgentPresetId[] = ["assistant", "planner", "builder"], bot = activeBot) {
+  function startNewSession(group = false, members: string[] = ["assistant", "planner", "builder"], bot = activeBot) {
     navigatedRef.current = true;
     // A run in flight keeps going in its own conversation; it only draws while on screen.
     const conversation = group
       ? { ...createEphemeralPiConversation(`group_${crypto.randomUUID().slice(0, 12)}`),
-        title: ["我", ...members.map((m) => presetBot(m).name)].join("、"), groupMembers: members }
+        title: ["我", ...members.map((m) => presetBot(m).name)].join("、"), groupMembers: members, groupHostId: "assistant", groupParticipants: bots.map(({ id, name, presetId }) => ({ id, name, presetId })) }
       : { ...createEphemeralPiConversation(), agentPreset: bot.presetId };
     if (!group) {
       try { bindBotConversation(conversation.id, bot.id); setBotError(undefined); }
@@ -1265,7 +1279,7 @@ export function AgentApp() {
   /** Clicking an agent is how a new conversation starts (there is no separate "new chat" button).
    *  An empty conversation on screen is reused rather than stacking another blank one. */
   function startConversationWith(presetId: AgentPresetId, bot = presetBot(presetId)) {
-    const needsNew = activePiConversationId.startsWith("group_") || activePiConversation.events.length > 0 || piRunning
+    const needsNew = isGroupConversation(activePiConversation) || activePiConversation.events.length > 0 || piRunning
       || hasComposerState(composer.drafts[activePiConversationId]);
     if (needsNew) { if (!startNewSession(false, undefined, bot)) return false; }
     else {
@@ -1389,7 +1403,7 @@ export function AgentApp() {
   for (const conversation of piConversations) {
     if (!runningConversationIds.has(conversation.id) || !isAgentPresetId(conversation.agentPreset)) continue;
     // Group chat: a group's turn shows on the group row, not on one member's face.
-    if (conversation.id.startsWith("group_")) {
+    if (isGroupConversation(conversation)) {
       const groupWaiting = awaitingConversationIds.has(conversation.id) || Boolean(pendingUserInput(conversation.events))
         || (conversation.id === activePiConversationId && Boolean(liveApprovalTool));
       groupStatus = groupWaiting ? "needs-you" : groupStatus ?? "running";
@@ -1407,7 +1421,7 @@ export function AgentApp() {
     permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
     budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
   } satisfies ComposerRunOptions;
-  const workingMember = activePiConversationId.startsWith("group_") ? workingGroupMember(events) : undefined;
+  const workingMember = isGroupConversation(activePiConversation) ? workingGroupMember(events) : undefined;
   const botEditor: BotEditorState | undefined = botDraft ? {
     ...botDraft, error: botError,
     onChange: draft => { setBotDraft({ ...botDraft, draft }); setBotError(undefined); },
@@ -1422,7 +1436,7 @@ export function AgentApp() {
     },
   } : undefined;
   const shellExtras: ShellExtras = {
-    bots: streamId ? undefined : bots,
+    bots: streamId ? undefined : knownBots,
     sessionBotIds: streamId ? undefined : botStore.conversations,
     onCreateBot: streamId ? undefined : () => {
       setBotError(undefined);
@@ -1438,7 +1452,7 @@ export function AgentApp() {
       scope: activePiConversationId,
       persona: piRunning ? {
         ...persona,
-        ...(workingMember ? { kind: PRESET_AVATARS[workingMember], name: presetBot(workingMember).name, appearance: presetBot(workingMember).appearance } : {}),
+        ...(workingMember ? { kind: PRESET_AVATARS[presetBot(workingMember).presetId], name: presetBot(workingMember).name, appearance: presetBot(workingMember).appearance } : {}),
         state: groupTyping && persona.state !== "asking" ? "thinking" : persona.state,
       } : undefined,
     },
@@ -1466,25 +1480,26 @@ export function AgentApp() {
         harnesses={piRuntimeState?.harnesses}
         onSelect={startConversationWith}
         onNewGroup={() => { setDrawerOpen(false); void startNewSession(true); }}
-        groupActive={activePiConversationId.startsWith("group_")}
+        groupActive={isGroupConversation(activePiConversation)}
         groupStatus={groupStatus}
       />
     ),
+    groupHostId: isGroupConversation(activePiConversation) ? activePiConversation.groupHostId ?? "assistant" : undefined,
     groupTyping: runningConversationIds.has(activePiConversationId) ? groupTyping : undefined,
-    welcomeGroup: activePiConversationId.startsWith("group_") ? (
+    welcomeGroup: isGroupConversation(activePiConversation) ? (
       <GroupWelcome avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)}
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
     ) : undefined,
     // Only groups still titled with their roster: the last thing said names the row instead.
-    groupPreviews: Object.fromEntries(piConversations.flatMap((entry) => entry.groupPreview && entry.id.startsWith("group_")
-      && [groupMembersOf(entry).map((m) => presetBot(m).name), groupMembersOf(entry).map((m) => BOT_NAMES[m])]
+    groupPreviews: Object.fromEntries(piConversations.flatMap((entry) => entry.groupPreview && isGroupConversation(entry)
+      && [groupMembersOf(entry).map((m) => presetBot(m).name), groupMembersOf(entry).map((m) => BOT_NAMES[presetBot(m).presetId])]
         .some(names => entry.title === ["我", ...names].join("、"))
       ? [[entry.id, entry.groupPreview.text.replace(/\s+/g, " ").trim()]] : [])),
-    groupFaces: Object.fromEntries(piConversations.filter((entry) => entry.id.startsWith("group_"))
-      .map((entry) => [entry.id, groupMembersOf(entry).map((m) => PRESET_AVATARS[m])])),
+    groupFaces: Object.fromEntries(piConversations.filter((entry) => isGroupConversation(entry))
+      .map((entry) => [entry.id, groupMembersOf(entry).map((m) => PRESET_AVATARS[presetBot(m).presetId])])),
     sidebarFooter: <SidebarFooter onOpenSettings={() => openSettings("providers")} />,
-    headerAgent: <div className="shell-chat-participants">{activePiConversationId.startsWith("group_") ? (
-      <GroupHeader avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)}
+    headerAgent: <div className="shell-chat-participants">{isGroupConversation(activePiConversation) ? (
+      <GroupHeader avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)} hostId={activePiConversation.groupHostId}
         draft={activePiConversation.events.length === 0 && !activePiConversation.stored}
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
     ) : (
@@ -1498,9 +1513,8 @@ export function AgentApp() {
         onManageProviders={() => openSettings("providers")}
       />
     )}<NewChatMenu avatars={PRESET_AVATARS}
-      members={activePiConversationId.startsWith("group_") ? groupMembersOf(activePiConversation) : [activeBot.presetId]}
-      onNewGroup={(members) => activePiConversationId.startsWith("group_")
-        ? setGroupMembers(activePiConversationId, members) : startNewSession(true, members)} />
+      members={isGroupConversation(activePiConversation) ? groupMembersOf(activePiConversation) : [activeBot.id]}
+      onNewGroup={(members) => setGroupMembers(activePiConversationId, members)} />
     </div>,
     searchConversations: streamId ? undefined : searchConversations,
     onDeleteSession: streamId ? undefined : deletePiConversation,
@@ -1518,10 +1532,10 @@ export function AgentApp() {
       )),
     ),
     historyGroups,
-    composerMentions: activePiConversationId.startsWith("group_")
-      ? groupMembersOf(activePiConversation).map((id) => ({ id, name: presetBot(id).name, handle: BOT_NAMES[id], kind: PRESET_AVATARS[id] }))
+    composerMentions: isGroupConversation(activePiConversation)
+      ? groupMembersOf(activePiConversation).map((id) => ({ id, presetId: presetBot(id).presetId, name: presetBot(id).name, handle: presetBot(id).name, kind: PRESET_AVATARS[presetBot(id).presetId] }))
       : undefined,
-    composerPlaceholder: activePiConversationId.startsWith("group_") ? "发到群里…（可用 @Raer @Tonny @Bob 指定成员）"
+    composerPlaceholder: isGroupConversation(activePiConversation) ? "发到群里…（输入 @ 选择成员）"
       : settingsCopy[locale].shell.messageTo(activeBot.name),
     stopStatus: !streamId && piRunning ? runStop.statusFor(activePiConversationId) : undefined,
     composerOptions: {
@@ -1534,7 +1548,7 @@ export function AgentApp() {
       canEnqueue: !acceptingConversationIds.has(activePiConversationId),
       canEdit: !hasComposerDraft(composer.drafts[activePiConversationId]),
       inputScope: activePiConversationId,
-      onSteer: piRunning && agentSettings.presetId === "assistant" && !activePiConversationId.startsWith("group_") ? async (text, requestId) => {
+      onSteer: piRunning && agentSettings.presetId === "assistant" && !isGroupConversation(activePiConversation) ? async (text, requestId) => {
         const runId = activePiConversation.activeRunId ?? [...activePiConversation.events].reverse().find(event => event.type === "run.started")?.runId;
         if (!runId) throw new Error("No active run.");
         await steerPiTurn(activePiConversationId, runId, requestId, text);
