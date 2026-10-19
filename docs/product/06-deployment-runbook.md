@@ -1,5 +1,9 @@
 # 06 AgentSphere 部署运维手册
 
+> AgentMatrix 承载路径（分支 `am-hosting`）见 [../agentmatrix-deployment.md](../agentmatrix-deployment.md)：
+> `npm run am:deploy` 用 SDK 0.11.0 创建 Workspace/Environment/Session，并在机器内执行
+> `scripts/agentmatrix/bootstrap.sh`。下文仍是 AgentSphere 生产栈的操作手册。
+
 平台：AgentSphere 生产栈（E2B fork，Firecracker microVM，单台 OVH 裸金属，无故障自愈）。原始使用指南：本机 `~/Desktop/agentsphere-sandbox-quickstart.md`。首次部署记录：[../agentsphere-deployment.md](../agentsphere-deployment.md)。
 
 ## 必须记住的平台事实

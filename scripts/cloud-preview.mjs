@@ -16,7 +16,10 @@ const page = (title, body) => `<!doctype html><html lang="zh-CN"><head><meta cha
 // Only this authenticated boundary may normalize cloud requests for the local Pi host.
 // With a handoff secret (ADR-041) the welcome page's one-time link becomes a session cookie;
 // Basic Auth stays for operators and the control service's own health checks.
-function accessGate(publicOrigin, password, handoff) {
+// `trustProxy` is for a reverse proxy that terminates TLS and forwards the public Host in
+// x-forwarded-host (the AgentMatrix PreviewProxy). It is opt-in and only safe when the proxy
+// overwrites that header: a directly reachable server would let a caller forge it.
+function accessGate(publicOrigin, password, handoff, { trustProxy = false } = {}) {
   const origin = new URL(publicOrigin);
   assert.equal(origin.protocol, 'https:', 'RAYTONEBOT_PUBLIC_ORIGIN must use HTTPS');
   assert.equal(origin.href, `${origin.origin}/`, 'Use a bare public origin');
@@ -40,7 +43,8 @@ function accessGate(publicOrigin, password, handoff) {
       res.setHeader('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'");
       res.end(markup);
     };
-    if (req.headers.host !== origin.host) return reject(403, 'Unexpected host');
+    const forwardedHost = trustProxy ? String(req.headers['x-forwarded-host'] ?? '').split(',')[0].trim() : '';
+    if (req.headers.host !== origin.host && forwardedHost !== origin.host) return reject(403, 'Unexpected host');
     const path = (req.url ?? '/').split('?')[0];
     if (path === HANDOFF_PATH) {
       if (!redeem || req.method !== 'GET') return reject(404, 'Not found');
@@ -85,6 +89,19 @@ if (process.argv.includes('--check')) {
   };
   assert.equal(check({}).res.statusCode, 401);
   assert.equal(check({ authorization: 'Basic wrong' }).res.statusCode, 401);
+  // A proxy-forwarded host is trusted only when explicitly enabled.
+  assert.equal(check({ authorization: auth, host: '127.0.0.1:5188', 'x-forwarded-host': new URL(origin).host }).res.statusCode, 403);
+  const proxied = accessGate(origin, password, undefined, { trustProxy: true });
+  const throughProxy = (headers) => {
+    const req = { method: 'GET', url: '/', headers: { host: '127.0.0.1:5188', ...headers } };
+    const res = { statusCode: 200, setHeader() {}, end() {} };
+    let accepted = false;
+    proxied(req, res, () => { accepted = true; });
+    return { req, res, accepted };
+  };
+  assert.equal(throughProxy({ authorization: auth, 'x-forwarded-host': new URL(origin).host }).accepted, true);
+  assert.equal(throughProxy({ authorization: auth, 'x-forwarded-host': 'attacker.example.com' }).res.statusCode, 403);
+  assert.equal(throughProxy({ authorization: auth }).res.statusCode, 403);
   assert.equal(check({ authorization: auth, host: 'attacker.example.com' }).res.statusCode, 403);
   for (const foreign of ['https://attacker.example.com', 'null', 'https://preview.example.com:444']) {
     assert.equal(check({ authorization: auth, origin: foreign }).res.statusCode, 403);
@@ -140,11 +157,14 @@ if (process.argv.includes('--check')) {
   console.log('PASS: cloud authentication, exact host/origin, CSRF rejection, trusted normalization, handoff sessions.');
 } else {
   const handoffSecret = process.env.RAYTONEBOT_HANDOFF_SECRET || undefined;
+  const trustProxy = process.env.RAYTONEBOT_TRUST_PROXY_ORIGIN === '1';
   const guard = accessGate(process.env.RAYTONEBOT_PUBLIC_ORIGIN, process.env.RAYTONEBOT_PASSWORD,
-    handoffSecret ? { secret: handoffSecret, controlOrigin: process.env.RAYTONEBOT_CONTROL_ORIGIN || undefined } : undefined);
+    handoffSecret ? { secret: handoffSecret, controlOrigin: process.env.RAYTONEBOT_CONTROL_ORIGIN || undefined } : undefined,
+    { trustProxy });
   // The gate holds the password and handoff secret now; agent tools inherit this process's environment.
   delete process.env.RAYTONEBOT_PASSWORD;
   delete process.env.RAYTONEBOT_HANDOFF_SECRET;
+  delete process.env.RAYTONEBOT_TRUST_PROXY_ORIGIN;
   await preview({
     preview: {
       host: '0.0.0.0', port, strictPort: true, cors: false,

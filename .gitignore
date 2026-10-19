@@ -8,3 +8,6 @@ dist/
 backups/
 __pycache__/
 *.pyc
+
+# AgentMatrix deployment state (resolved IDs and the generated access password)
+.agentmatrix/

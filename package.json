@@ -11,15 +11,21 @@
     "build": "tsc && vite build",
     "preview": "vite preview",
     "preview:cloud": "node scripts/cloud-preview.mjs",
+    "am:plan": "node scripts/agentmatrix/deploy.mjs plan",
+    "am:deploy": "node scripts/agentmatrix/deploy.mjs deploy",
+    "am:status": "node scripts/agentmatrix/deploy.mjs status",
+    "am:preview": "node scripts/agentmatrix/deploy.mjs preview",
+    "am:stop": "node scripts/agentmatrix/deploy.mjs stop",
     "typecheck": "tsc --noEmit",
     "check:local": "node scripts/check-local.mjs",
-    "test": "node --test control/*.test.ts src/pi/*.test.ts src/pi/browser/*.test.ts src/pi/imChannels/*.test.ts src/harness/adapters/*.test.ts src/runtime/*.test.ts"
+    "test": "node --test control/*.test.ts src/pi/*.test.ts src/pi/browser/*.test.ts src/pi/imChannels/*.test.ts src/harness/adapters/*.test.ts src/runtime/*.test.ts scripts/agentmatrix/*.test.ts"
   },
   "dependencies": {
     "@agent-ux/protocol": "file:./vendor/agent-ux/protocol",
     "@agent-ux/react": "file:./vendor/agent-ux/react",
     "@agent-ux/render-core": "file:./vendor/agent-ux/render-core",
     "@agent-ux/runtime": "file:./vendor/agent-ux/runtime",
+    "@agentmatrix.pro/sdk": "0.11.0",
     "@agentmatrix/agentcanvas-contract": "file:./vendor/agentmatrix/agentcanvas-contract",
     "@earendil-works/pi-ai": "1.0.1",
     "@earendil-works/pi-coding-agent": "1.0.1",
