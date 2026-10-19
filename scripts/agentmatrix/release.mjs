@@ -9,8 +9,9 @@
 
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
-import { join } from "node:path";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join, resolve } from "node:path";
 import { promisify } from "node:util";
 
 import { AM } from "./config.mjs";
@@ -70,10 +71,11 @@ export async function buildRelease({ repoRoot, outDir, skipBuild = false, log = 
     commit, dirty, builtAt: new Date().toISOString(), sdkVersion, contractVersion: readContractVersion(repoRoot),
   });
 
-  mkdirSync(outDir, { recursive: true });
-  const file = join(outDir, releaseName(commit, dirty));
+  const destination = resolve(outDir);
+  mkdirSync(destination, { recursive: true });
+  const file = join(destination, releaseName(commit, dirty));
   rmSync(file, { force: true });
-  const manifestDir = join(outDir, "manifest");
+  const manifestDir = join(destination, "manifest");
   mkdirSync(manifestDir, { recursive: true });
   writeFileSync(join(manifestDir, "AM-RELEASE.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
@@ -87,6 +89,23 @@ export async function buildRelease({ repoRoot, outDir, skipBuild = false, log = 
   }
   const sha256 = createHash("sha256").update(readFileSync(file)).digest("hex");
   return { file, bytes, sha256, commit, dirty, builtAt: manifest.builtAt };
+}
+
+/**
+ * Builds the release from `HEAD` in a throwaway worktree, so uncommitted work in
+ * the developer's tree can never leak into a deployed archive.
+ */
+export async function buildReleaseFromHead({ repoRoot, outDir, log = () => {} }) {
+  const checkout = mkdtempSync(join(tmpdir(), "raytonebot-release-"));
+  await run("git", ["worktree", "add", "--detach", checkout, "HEAD"], repoRoot);
+  try {
+    symlinkSync(join(repoRoot, "node_modules"), join(checkout, "node_modules"));
+    log(`release: building HEAD in ${checkout}`);
+    return await buildRelease({ repoRoot: checkout, outDir, skipBuild: false, log });
+  } finally {
+    await run("git", ["worktree", "remove", "--force", checkout], repoRoot).catch(() => {});
+    rmSync(checkout, { recursive: true, force: true });
+  }
 }
 
 /** Reads the version from the installed SDK rather than a hard-coded literal. */

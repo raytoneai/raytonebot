@@ -22,7 +22,7 @@ import {
   createClient, ensureEnvironment, ensureEnvironmentSpec, ensurePreview, ensureSession, ensureWorkspace,
   previewOrigin, probePreview, publishRelease, publishSecrets, readWorkspaceText, resolveAgentSpec, runBootstrapTurn,
 } from "./platform.mjs";
-import { buildRelease } from "./release.mjs";
+import { buildRelease, buildReleaseFromHead } from "./release.mjs";
 import { readAccess, readState, writeAccess, writeState } from "./state.mjs";
 
 const root = process.cwd();
@@ -30,6 +30,7 @@ const argv = process.argv.slice(2);
 const command = argv.find((arg) => !arg.startsWith("-")) ?? "deploy";
 const dryRun = command === "plan" || argv.includes("--dry-run");
 const skipBuild = argv.includes("--skip-build");
+const clean = argv.includes("--clean");
 
 const log = (line) => console.log(`[am] ${line}`);
 
@@ -52,7 +53,9 @@ async function deploy(config, state) {
   const password = readAccess(root).password ?? randomBytes(24).toString("base64url");
   writeAccess(root, { password, username: "raytonebot" });
 
-  const release = await buildRelease({ repoRoot: root, outDir: join(root, ".agentmatrix", "release"), skipBuild, log });
+  const release = clean
+    ? await buildReleaseFromHead({ repoRoot: root, outDir: join(root, ".agentmatrix", "release"), log })
+    : await buildRelease({ repoRoot: root, outDir: join(root, ".agentmatrix", "release"), skipBuild, log });
   log(`release: ${release.bytes} bytes sha256 ${release.sha256.slice(0, 16)}… (${release.commit.slice(0, 8)}${release.dirty ? " dirty" : ""})`);
   if (dryRun) {
     printPlan(config, release);

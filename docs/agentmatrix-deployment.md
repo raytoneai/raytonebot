@@ -27,8 +27,9 @@ bash /workspace/am/bootstrap.sh start https://<preview-origin>
 export ARIADRA_API_KEY=...          # Console → API Keys，data-plane key
 export ARIADRA_NAMESPACE=default    # 可选
 export DEEPSEEK_API_KEY=...         # 可选：写进 bot 私有 env，Agent 子进程拿不到
-npm run am:plan                     # 只打印解析结果，不创建资源
-npm run am:deploy                   # 发布、安装、启动、自检
+npm run am:plan                     # 只打印解析结果，不创建资源，不构建
+npm run am:deploy                   # 发布、安装、启动、自检（用当前工作树构建）
+npm run am:deploy -- --clean        # 从 HEAD 的临时 worktree 构建，脏工作树不进入发布包
 npm run am:status                   # Environment/Session/Preview/health
 npm run am:preview                  # 刷新短期签名入口
 npm run am:stop                     # 停应用、归档 Session、删除 Environment（保留 Workspace）
@@ -45,8 +46,8 @@ npm run am:stop                     # 停应用、归档 Session、删除 Enviro
 ## 部署做了什么
 
 1. **固定发布包**：`git` commit（脏树会带 `-dirty`）+ `npm run build` 的 `dist/` + 全部源码与
-   `vendor/`，打包成 `raytonebot-<sha8>.tar.gz`，记录 SHA-256 和 SDK/合同版本。压缩后约 8.9 MB，
-   低于 20 MiB 附件上限。
+   `vendor/`，打包成 `raytonebot-<sha8>.tar.gz`，记录 SHA-256 和 SDK/合同版本。压缩后约 8.7 MB，
+   低于 20 MiB 附件上限。`--clean` 在临时 worktree 里从 HEAD 构建并打包，未提交改动不会进入发布。
 2. **Workspace**：按名称复用或创建 `raytonebot` Workspace（一个逻辑部署一个卷）。
 3. **EnvironmentSpec**：复用或创建 `raytonebot-e2b`，出站 `deny` + 只放行 `api.deepseek.com`、
    `registry.npmjs.org`，入站只开放 5188 端口给 PreviewProxy。
