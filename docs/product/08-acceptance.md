@@ -1101,3 +1101,9 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 飞书、钉钉、企业微信、Telegram 使用官方站点的图标资源并在本地提供；显示尺寸均为 28×28px，品牌色在亮暗主题保留，平台名称仍是按钮的可访问文本。
 - build、436/436 测试、diff 检查通过。独立测试数据/端口 5199 实看亮暗主题与钉钉展开，四张图片成功加载；20 个预览场景逐一渲染，无页面横向溢出与浏览器 error。截图与场景记录：`output/im-logos/`。
 - 仅更换 IM 设置的图标，未连接真实 IM，未部署或推送。
+
+### 2026-10-19 内置头像保存值恢复
+
+- 修复前 API revision 1 的三套外观与用户截图逐一匹配，和 DEFAULT_BOTS 不同；备份 `/tmp/raytone-avatar-before-20261019.json` 后，通过 API 分别恢复三个内置头像及 planner 的 tony 名字，revision 4，读取 API 与磁盘内容一致。
+- 一次性隔离复现：导入异常旧配置→显式保存默认头像→重建 BotConfigStore→重导入旧配置，修正后的名字/外观不变。现有 `botAppearance`、`botProfiles`、`botConfig` 共 14 项测试通过，build 通过。
+- Chrome 原页面自动同步；新开页与刷新保持，浅深色截图 `output/avatar-restore/light.png` / `dark.png`，Raer SVG 内容跨主题一致，无浏览器 error。验证结束恢复原亮色主题并关闭临时页。未更改源码/运行时接口，未验证云端配置。
