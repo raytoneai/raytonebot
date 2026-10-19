@@ -21,6 +21,7 @@ import { readConfig, requireConfig, secretLines } from "./config.mjs";
 import {
   createClient, ensureEnvironment, ensureEnvironmentSpec, ensurePreview, ensureSession, ensureWorkspace,
   previewOrigin, probePreview, publishRelease, publishSecrets, readWorkspaceText, resolveAgentSpec, runBootstrapTurn,
+  waitForMarker,
 } from "./platform.mjs";
 import { buildRelease, buildReleaseFromHead } from "./release.mjs";
 import { readAccess, readState, writeAccess, writeState } from "./state.mjs";
@@ -81,7 +82,10 @@ async function deploy(config, state) {
   if (!installed.includes(release.sha256)) {
     log("turn 1/2: install the release inside the Environment");
     const output = await runBootstrapTurn(client, sessionId, "bash /workspace/am/bootstrap.sh install", { log });
-    if (!output.includes("AM_INSTALLED")) throw new Error(`install did not confirm:\n${output.slice(-1500)}`);
+    if (!output.includes("AM_INSTALL_STARTED")) throw new Error(`install did not start:\n${output.slice(-1500)}`);
+    await waitForMarker(client, workspaceId, {
+      ok: "am/install.ok", failed: "am/install.failed", match: release.sha256, timeoutMs: 25 * 60_000, describe: "install", log,
+    });
     log("install: AM_INSTALLED");
   } else {
     log("install: this release is already installed in the Workspace");
@@ -89,10 +93,10 @@ async function deploy(config, state) {
 
   log(`turn 2/2: start the app on ${origin}`);
   const output = await runBootstrapTurn(client, sessionId, `bash /workspace/am/bootstrap.sh start ${origin}`, { log });
-  if (!output.includes("AM_LISTENING")) throw new Error(`start did not confirm:\n${output.slice(-1500)}`);
-
-  const listening = await readWorkspaceText(client, workspaceId, "am/listening.ok").catch(() => "");
-  if (!listening.includes(origin)) throw new Error(`am/listening.ok does not record ${origin}: ${listening.trim()}`);
+  if (!output.includes("AM_START_STARTED")) throw new Error(`start did not start:\n${output.slice(-1500)}`);
+  await waitForMarker(client, workspaceId, {
+    ok: "am/listening.ok", failed: "am/start.failed", match: origin, timeoutMs: 5 * 60_000, describe: "start", log,
+  });
 
   const probe = await probePreview(preview, password);
   writeState(root, {

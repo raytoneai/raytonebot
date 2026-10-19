@@ -2,13 +2,17 @@
 # RaytoneBot on AgentMatrix: the in-Environment half of the deployment (RT-01).
 #
 # The platform has no public exec API, so a managed Session's shell runs this
-# script. It is the only command the agent is asked to run, and it is uploaded
-# from this repository before the Session starts, never typed by the model.
+# script. The agent runs one short command; the long work (npm ci, health poll)
+# is detached here and reported through marker files in the Workspace, so the
+# agent's own tool timeout never decides whether the deployment succeeds.
 #
-#   bootstrap.sh install                    verify + extract the published release, npm ci
-#   bootstrap.sh start   <public-origin>    write env, start, wait for health
-#   bootstrap.sh stop                       stop the keeper and the server
-#   bootstrap.sh status                     print health and the last log line
+#   bootstrap.sh install          schedule install; prints AM_INSTALL_STARTED
+#   bootstrap.sh start <origin>   schedule start;   prints AM_START_STARTED
+#   bootstrap.sh stop             stop the keeper and the server
+#   bootstrap.sh status           print health
+#
+# Markers read by scripts/agentmatrix/deploy.mjs:
+#   am/install.ok  am/install.failed  am/listening.ok  am/start.failed
 set -euo pipefail
 
 AM_DIR=/workspace/am
@@ -23,6 +27,24 @@ HEALTH_URL=http://127.0.0.1:5188/__agentcanvas/pi/health
 
 log() { printf '[raytonebot] %s\n' "$*"; }
 fail() { printf '[raytonebot] FAIL: %s\n' "$*" >&2; exit 1; }
+
+detach() {
+  if command -v setsid >/dev/null 2>&1; then
+    setsid nohup "$@" &
+  else
+    nohup "$@" &
+  fi
+  echo $!
+}
+
+mark_failed() {
+  local name=$1 code=$?
+  [ "$code" -eq 0 ] && return 0
+  {
+    printf 'failed %s code %s\n' "$(date -u +%FT%TZ)" "$code"
+    tail -n 20 "$LOG_DIR/$name.out" 2>/dev/null || true
+  } >"$AM_DIR/$name.failed"
+}
 
 write_keepalive() {
   cat >"$KEEPALIVE" <<'KEEPER'
@@ -63,41 +85,52 @@ health() {
   curl -fsS -m 5 -u "raytonebot:${RAYTONEBOT_PASSWORD}" "$HEALTH_URL"
 }
 
-install_release() {
+install_now() {
+  trap 'mark_failed install' EXIT
   local sha_file="$AM_DIR/release.sha256"
+  local dir_file="$AM_DIR/release.dir"
   [ -f "$sha_file" ] || fail "missing $sha_file (publish the release first)"
-  [ -d "$AM_DIR/release" ] || fail "missing $AM_DIR/release (publish the release first)"
+  [ -f "$dir_file" ] || fail "missing $dir_file (publish the release first)"
   mkdir -p "$AM_DIR" "$DATA_DIR" "$LOG_DIR"
   write_keepalive
 
-  cat "$AM_DIR"/release/part-* >"$AM_DIR/release.tgz"
-  local expected
+  local release_dir root_dir
+  release_dir=$(tr -d '[:space:]' <"$dir_file")
+  case "$release_dir" in am/release/*) ;; *) fail "unexpected release directory $release_dir" ;; esac
+  root_dir=$(dirname "$AM_DIR")
+  cat "$root_dir/$release_dir"/part-* >"$AM_DIR/release.tgz"
+  local expected actual
   expected=$(tr -d '[:space:]' <"$sha_file")
-  local actual
   actual=$(sha256sum "$AM_DIR/release.tgz" | cut -d' ' -f1)
   [ "$expected" = "$actual" ] || fail "release checksum mismatch ($actual != $expected)"
 
   local stage="$APP_DIR.stage"
   rm -rf "$stage"
   mkdir -p "$stage"
-  tar -xzf "$AM_DIR/release.tgz" -C "$stage" || fail "cannot extract the release"
+  local tar_opts=(-xzf "$AM_DIR/release.tgz" -C "$stage")
+  if tar --version 2>/dev/null | head -n 1 | grep -q 'GNU tar'; then
+    # Older archives carried macOS extended headers; GNU tar warns once per entry.
+    tar_opts=(--warning=no-unknown-keyword "${tar_opts[@]}")
+  fi
+  tar "${tar_opts[@]}" 2>>"$LOG_DIR/extract.out" || fail "cannot extract the release"
   [ -f "$stage/scripts/cloud-preview.mjs" ] || fail "archive has no scripts/cloud-preview.mjs"
   [ -f "$stage/dist/index.html" ] || fail "archive has no dist/index.html"
 
   log "installing dependencies"
-  ( cd "$stage" && npm ci --no-audit --no-fund --loglevel=error ) >>"$LOG_DIR/install.out" 2>&1 ||
-    fail "npm ci failed; see $LOG_DIR/install.out"
+  ( cd "$stage" && npm ci --no-audit --no-fund --loglevel=error ) || fail "npm ci failed; see $LOG_DIR/install.out"
 
+  stop_app >/dev/null 2>&1 || true
   rm -rf "$APP_DIR.previous"
   [ -d "$APP_DIR" ] && mv "$APP_DIR" "$APP_DIR.previous"
   mv "$stage" "$APP_DIR"
   rm -rf "$APP_DIR.previous"
-  stop_app >/dev/null 2>&1 || true
   printf 'installed %s %s\n' "$(date -u +%FT%TZ)" "$expected" >"$AM_DIR/install.ok"
+  trap - EXIT
   log "AM_INSTALLED"
 }
 
-start_app() {
+start_now() {
+  trap 'mark_failed start' EXIT
   local origin=${1:?usage: bootstrap.sh start <public-origin>}
   case "$origin" in https://*) ;; *) fail "public origin must be https (got $origin)" ;; esac
   [ -f "$AM_DIR/install.ok" ] || fail "run install first"
@@ -107,6 +140,8 @@ start_app() {
   if health >/dev/null 2>&1; then
     if grep -qsF " $origin" "$AM_DIR/listening.ok"; then
       log "already running on this origin"
+      printf 'listening %s %s\n' "$(date -u +%FT%TZ)" "$origin" >"$AM_DIR/listening.ok"
+      trap - EXIT
       log "AM_LISTENING"
       return 0
     fi
@@ -144,20 +179,18 @@ start_app() {
   . "$ENV_FILE"
   set +a
   cd "$APP_DIR"
-  if command -v setsid >/dev/null 2>&1; then
-    setsid nohup bash "$KEEPALIVE" >>"$LOG_DIR/keepalive.out" 2>&1 &
-  else
-    nohup bash "$KEEPALIVE" >>"$LOG_DIR/keepalive.out" 2>&1 &
-  fi
-  echo $! >"$AM_DIR/keepalive.pid"
+  local pid
+  pid=$(detach bash "$KEEPALIVE" >>"$LOG_DIR/keepalive.out" 2>&1)
+  echo "$pid" >"$AM_DIR/keepalive.pid"
   cd - >/dev/null
-  log "started keeper pid $(cat "$AM_DIR/keepalive.pid")"
+  log "started keeper pid $pid"
 
   for _ in $(seq 1 90); do
     if health >/dev/null 2>&1; then
-      printf 'listening %s %s\n' "$(date -u +%FT%TZ)" "$origin" >"$AM_DIR/listening.ok"
       health
       printf '\n'
+      printf 'listening %s %s\n' "$(date -u +%FT%TZ)" "$origin" >"$AM_DIR/listening.ok"
+      trap - EXIT
       log "AM_LISTENING"
       return 0
     fi
@@ -177,9 +210,22 @@ stop_app() {
   log "stopped"
 }
 
+schedule() {
+  local name=$1
+  shift
+  mkdir -p "$AM_DIR" "$LOG_DIR"
+  rm -f "$AM_DIR/$name.ok" "$AM_DIR/$name.failed"
+  local pid
+  pid=$(detach bash "$0" "__$name" "$@" >>"$LOG_DIR/$name.out" 2>&1)
+  echo "$pid" >"$AM_DIR/$name.pid"
+  log "AM_$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')_STARTED"
+}
+
 case "${1:-}" in
-  install) install_release ;;
-  start) start_app "${2:-}" ;;
+  install) schedule install ;;
+  start) schedule start "${2:-}" ;;
+  __install) install_now ;;
+  __start) start_now "${2:-}" ;;
   stop) stop_app ;;
   status)
     health || { log "not healthy"; exit 1; }

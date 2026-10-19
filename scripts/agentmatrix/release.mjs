@@ -24,8 +24,8 @@ export const EXCLUDES = [
   ".agentmatrix", ".claude", ".DS_Store",
 ];
 
-const run = async (command, args, cwd) => {
-  const { stdout } = await exec(command, args, { cwd, maxBuffer: 64 * 1024 * 1024 });
+const run = async (command, args, cwd, env = {}) => {
+  const { stdout } = await exec(command, args, { cwd, env: { ...process.env, ...env }, maxBuffer: 64 * 1024 * 1024 });
   return stdout.trim();
 };
 
@@ -79,9 +79,13 @@ export async function buildRelease({ repoRoot, outDir, skipBuild = false, log = 
   mkdirSync(manifestDir, { recursive: true });
   writeFileSync(join(manifestDir, "AM-RELEASE.json"), `${JSON.stringify(manifest, null, 2)}\n`);
 
-  const args = ["-czf", file, ...EXCLUDES.map((entry) => `--exclude=${entry}`),
+  // bsdtar on macOS would otherwise add LIBARCHIVE.xattr headers that GNU tar on the
+  // sandbox reports for every entry, flooding the agent's output.
+  const metadataFlags = process.platform === "darwin" ? ["--no-mac-metadata", "--no-xattrs"] : [];
+  const args = ["-czf", file, ...metadataFlags,
+    ...EXCLUDES.map((entry) => `--exclude=${entry}`), "--exclude=._*",
     "-C", repoRoot, ".", "-C", manifestDir, "AM-RELEASE.json"];
-  await run("tar", args, repoRoot);
+  await run("tar", args, repoRoot, { COPYFILE_DISABLE: "1" });
 
   const bytes = statSync(file).size;
   if (bytes > AM.maxAttachmentBytes) {

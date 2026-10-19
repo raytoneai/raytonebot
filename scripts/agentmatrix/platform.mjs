@@ -66,14 +66,19 @@ export async function ensureWorkspace(client, config, log = () => {}) {
 export async function publishRelease(client, { volumeId, release, bootstrapScript, log = () => {} }) {
   const bytes = readFileSync(release.file);
   const parts = Math.max(1, Math.ceil(bytes.length / CHUNK_BYTES));
+  // One directory per release digest: a shorter new release can never be
+  // corrupted by parts left over from an earlier one.
+  const directory = `am/release/${release.sha256.slice(0, 12)}`;
   await client.workspaces.entries.mkdir(volumeId, "am").catch(() => {});
   await client.workspaces.entries.mkdir(volumeId, "am/release").catch(() => {});
+  await client.workspaces.entries.mkdir(volumeId, directory).catch(() => {});
   for (let index = 0; index < parts; index += 1) {
     const slice = bytes.subarray(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES);
-    const name = `am/release/part-${String(index).padStart(3, "0")}`;
+    const name = `${directory}/part-${String(index).padStart(3, "0")}`;
     await client.workspaces.files.write(volumeId, name, new Uint8Array(slice));
   }
   await client.workspaces.files.writeText(volumeId, "am/release-parts", String(parts));
+  await client.workspaces.files.writeText(volumeId, "am/release.dir", directory);
   await client.workspaces.files.writeText(volumeId, "am/release.sha256", release.sha256);
   await client.workspaces.files.writeText(volumeId, "am/bootstrap.sh", bootstrapScript);
   log(`workspace: published ${parts} release part(s) (${release.bytes} bytes, sha256 ${release.sha256.slice(0, 12)}…)`);
@@ -87,6 +92,24 @@ export async function publishSecrets(client, { volumeId, lines, log = () => {} }
 export async function readWorkspaceText(client, volumeId, path) {
   const response = await client.workspaces.files.read(volumeId, path);
   return response.text();
+}
+
+/**
+ * Waits for one of the markers the detached bootstrap writes. The agent's shell
+ * only starts the work, so the deployment never depends on the model's timeout.
+ */
+export async function waitForMarker(client, volumeId, { ok, failed, match, timeoutMs, describe, log = () => {} }) {
+  const deadline = Date.now() + timeoutMs;
+  const started = Date.now();
+  while (Date.now() < deadline) {
+    const okText = await readWorkspaceText(client, volumeId, ok).catch(() => "");
+    if (okText.trim() && (!match || okText.includes(match))) return okText;
+    const failedText = await readWorkspaceText(client, volumeId, failed).catch(() => "");
+    if (failedText.trim()) throw new Error(`${describe} failed inside the Environment:\n${failedText.trim()}`);
+    if (Date.now() - started > 30_000) log(`${describe}: still running…`);
+    await sleep(5_000);
+  }
+  throw new Error(`${describe} did not finish within ${Math.round(timeoutMs / 60_000)} minutes`);
 }
 
 // ----------------------------------------------------------- EnvironmentSpec
@@ -270,11 +293,12 @@ export function lastAgentText(events) {
  */
 export async function runBootstrapTurn(client, sessionId, command, { log = () => {}, timeoutMs = 15 * 60_000 } = {}) {
   const message = [
-    "Run exactly this command with your shell tool and then report its output verbatim:",
+    "Run exactly this command with your shell tool and then report its output verbatim.",
+    "It schedules work in the background and returns immediately:",
     "",
     `    ${command}`,
     "",
-    "Do not edit files, do not run anything else, and stop as soon as the command exits.",
+    "Do not edit files, do not wait for the background work, and stop as soon as the command exits.",
   ].join("\n");
   const context = await replyContext(client, sessionId);
   const deadline = Date.now() + timeoutMs;
