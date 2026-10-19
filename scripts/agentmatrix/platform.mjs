@@ -21,7 +21,7 @@ export function createClient(config) {
     apiKey: config.apiKey,
     baseURL: config.baseURL,
     namespace: config.namespace,
-    maxRetries: 2,
+    maxRetries: 4,
   });
 }
 
@@ -47,7 +47,7 @@ export async function listAll(list, query = {}) {
   const rows = [];
   let cursor;
   for (let page = 0; page < 20; page += 1) {
-    const envelope = await list({ ...query, ...(cursor ? { cursor } : {}) });
+    const envelope = await withRetry(() => list({ ...query, ...(cursor ? { cursor } : {}) }), { label: "list" });
     rows.push(...envelope.data);
     if (!envelope.has_more || !envelope.next_page) break;
     cursor = envelope.next_page;
@@ -68,7 +68,7 @@ export async function ensureWorkspace(client, config, log = () => {}) {
     log(`workspace: reusing ${existing.volume_id}`);
     return existing.volume_id;
   }
-  const created = await client.workspaces.create({ name: AM.workspaceName });
+  const created = await withRetry(() => client.workspaces.create({ name: AM.workspaceName }), { label: "workspace create" });
   log(`workspace: created ${created.volume_id}`);
   return created.volume_id;
 }
@@ -117,7 +117,7 @@ export async function publishSecrets(client, { volumeId, lines, log = () => {} }
 }
 
 export async function readWorkspaceText(client, volumeId, path) {
-  const response = await client.workspaces.files.read(volumeId, path);
+  const response = await withRetry(() => client.workspaces.files.read(volumeId, path), { label: `read ${path}` });
   return response.text();
 }
 
@@ -196,7 +196,7 @@ export async function ensureEnvironmentSpec(client, config, log = () => {}) {
     const allowsPort = (existing.network_policy?.public_access?.allow ?? [])
       .some((rule) => rule.type === "port" && rule.port === config.port);
     if (!allowsPort) {
-      await client.environmentSpecs.update(existing.environment_spec_id, { network_policy: networkPolicy(config.port) });
+      await withRetry(() => client.environmentSpecs.update(existing.environment_spec_id, { network_policy: networkPolicy(config.port) }), { label: "environment spec update" });
       log(`environment spec: updated ${existing.environment_spec_id} to allow port ${config.port}`);
     } else {
       log(`environment spec: reusing ${existing.environment_spec_id}`);
@@ -213,14 +213,14 @@ export async function ensureEnvironmentSpec(client, config, log = () => {}) {
     log("environment spec: provider cannot enforce an outbound allowlist; open egress is recorded as a known gap");
   }
 
-  const created = await client.environmentSpecs.create({
+  const created = await withRetry(() => client.environmentSpecs.create({
     name: AM.environmentSpecName,
     description: "RaytoneBot host: Node HTTP app on 5188, preview allowed, narrow egress when the provider supports it.",
     runtime_kind: provider.runtime_kind,
     runtime_config: runtimeConfig(provider),
     ...(config.region ? { region: config.region } : {}),
     network_policy: networkPolicy(config.port, { outboundAllowlist }),
-  });
+  }), { label: "environment spec create" });
   log(`environment spec: created ${created.data.environment_spec_id} on ${provider.display_name}`);
   return created.data.environment_spec_id;
 }
@@ -233,7 +233,7 @@ async function waitOperation(client, sandboxId, operation, log) {
   while (current.state !== "completed") {
     if (Date.now() > deadline) throw new Error(`sandbox ${current.type} did not finish within 10 minutes`);
     await sleep(Math.max(2000, (current.retry_after_seconds ?? 2) * 1000));
-    current = (await client.sandboxes.operation(sandboxId, operation.operation_id)).data;
+    current = (await withRetry(() => client.sandboxes.operation(sandboxId, operation.operation_id), { label: "operation get" })).data;
     log?.(`environment: ${current.type} ${current.state}${current.reason ? ` (${current.reason})` : ""}`);
   }
   if (current.outcome !== "succeeded") {
@@ -248,13 +248,12 @@ async function waitOperation(client, sandboxId, operation, log) {
  */
 export async function ensureRunning(client, sandboxId, log = () => {}) {
   for (let attempt = 0; attempt < 80; attempt += 1) {
-    const { data } = await client.sandboxes.get(sandboxId);
+    const { data } = await withRetry(() => client.sandboxes.get(sandboxId), { label: "sandbox get" });
     if (data.state === "running") return sandboxId;
     if (data.state === "paused") {
       try {
-        const resumed = await client.sandboxes.resume(sandboxId, {
-          idempotencyKey: `raytonebot-resume-${randomBytes(12).toString("hex")}`,
-        });
+        const idempotencyKey = `raytonebot-resume-${randomBytes(12).toString("hex")}`;
+        const resumed = await withRetry(() => client.sandboxes.resume(sandboxId, { idempotencyKey }), { label: "sandbox resume" });
         await waitOperation(client, sandboxId, resumed.data.operation, log);
         log(`environment: resumed ${sandboxId}`);
         return sandboxId;
@@ -273,7 +272,7 @@ export async function ensureEnvironment(client, config, { environmentSpecId, wor
   const candidates = [config.sandboxId, previousId].filter(Boolean);
   for (const id of candidates) {
     try {
-      const { data } = await client.sandboxes.get(id);
+      const data = (await withRetry(() => client.sandboxes.get(id), { label: "sandbox get" })).data;
       if (data.state !== "deleted") {
         log(`environment: reusing ${data.sandbox_id} (${data.state})`);
         return data.sandbox_id;
@@ -287,7 +286,7 @@ export async function ensureEnvironment(client, config, { environmentSpecId, wor
   } else {
     // A previous run can fail before its state is written. Adopt the instance it
     // created instead of taking a second (quota-limited) Environment slot.
-    const page = await client.sandboxes.list({ limit: 20 });
+    const page = await withRetry(() => client.sandboxes.list({ limit: 20 }), { label: "sandbox list" });
     const adopted = page.data.find((row) => row.state !== "deleted" &&
       (!row.environment_spec_id || row.environment_spec_id === environmentSpecId) &&
       (!row.workspace_id || row.workspace_id === workspaceId));
@@ -296,10 +295,11 @@ export async function ensureEnvironment(client, config, { environmentSpecId, wor
       return adopted.sandbox_id;
     }
   }
-  const created = await client.sandboxes.create(
+  const idempotencyKey = `raytonebot-env-${randomBytes(12).toString("hex")}`;
+  const created = await withRetry(() => client.sandboxes.create(
     { environment_spec_id: environmentSpecId, workspace_id: workspaceId },
-    { idempotencyKey: `raytonebot-env-${randomBytes(12).toString("hex")}` },
-  );
+    { idempotencyKey },
+  ), { label: "sandbox create" });
   await waitOperation(client, created.data.sandbox.sandbox_id, created.data.operation, log);
   log(`environment: created ${created.data.sandbox.sandbox_id}`);
   return created.data.sandbox.sandbox_id;
@@ -319,7 +319,7 @@ export async function resolveAgentSpec(client, config, log = () => {}) {
         "and set AGENTMATRIX_AGENT_SPEC_ID.");
   }
   const version = config.agentSpecVersion ?? chosen.latest_version;
-  const { data } = await client.agentSpecs.versions.get(chosen.agent_spec_id, version);
+  const { data } = await withRetry(() => client.agentSpecs.versions.get(chosen.agent_spec_id, version), { label: "agent spec version" });
   const mode = data.tool_permission_mode;
   const bypass = data.runtime_driver === "codex_cli" ? mode === "never" : mode === "bypassPermissions";
   if (!bypass) {
@@ -333,7 +333,7 @@ export async function resolveAgentSpec(client, config, log = () => {}) {
 export async function ensureSession(client, config, { sandboxId, agentSpec, previous, log = () => {} }) {
   if (previous?.sessionId) {
     try {
-      const { data } = await client.sessions.get(previous.sessionId);
+      const { data } = await withRetry(() => client.sessions.get(previous.sessionId), { label: "session get" });
       if (data.current_status !== "terminated") {
         log(`session: reusing ${data.session_id} (${data.current_status})`);
         return data.session_id;
@@ -342,7 +342,7 @@ export async function ensureSession(client, config, { sandboxId, agentSpec, prev
       if (error?.status !== 404) throw error;
     }
   }
-  const page = await client.sessions.list({ limit: 100, archived: "all" });
+  const page = await withRetry(() => client.sessions.list({ limit: 100, archived: "all" }), { label: "session list" });
   const adopted = page.data
     .filter((row) => row.sandbox_id === sandboxId && row.current_status !== "terminated")
     .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
@@ -350,12 +350,12 @@ export async function ensureSession(client, config, { sandboxId, agentSpec, prev
     log(`session: adopted ${adopted.session_id} (${adopted.current_status})`);
     return adopted.session_id;
   }
-  const created = await client.sessions.create({
+  const created = await withRetry(() => client.sessions.create({
     agent_spec_id: agentSpec.agentSpecId,
     agent_spec_version: agentSpec.version,
     sandbox_id: sandboxId,
     ...(config.llmCredentialId ? { llm_provider_credential_id: config.llmCredentialId } : {}),
-  });
+  }, { idempotencyKey: `raytonebot-session-${sandboxId.slice(-12)}` }), { label: "session create" });
   log(`session: created ${created.data.session_id}`);
   return created.data.session_id;
 }
@@ -424,11 +424,11 @@ export async function runBootstrapTurn(client, sessionId, command, { log = () =>
 // ------------------------------------------------------------------- Previews
 
 export async function ensurePreview(client, sessionId, port = AM.port, log = () => {}) {
-  const list = await client.sessions.resources.preview.list(sessionId);
+  const list = await withRetry(() => client.sessions.resources.preview.list(sessionId), { label: "preview list" });
   const active = list.data.find((row) => row.status === "active" && row.port === port);
   const { data } = active
-    ? await client.sessions.resources.preview.get(sessionId, active.preview_id)
-    : await client.sessions.resources.preview.create(sessionId, { port, label: "raytonebot" });
+    ? await withRetry(() => client.sessions.resources.preview.get(sessionId, active.preview_id), { label: "preview get" })
+    : await withRetry(() => client.sessions.resources.preview.create(sessionId, { port, label: "raytonebot" }), { label: "preview create" });
   log(`preview: ${data.preview_id} ${data.url_expires_at ? `expires ${data.url_expires_at}` : ""}`);
   return data;
 }
