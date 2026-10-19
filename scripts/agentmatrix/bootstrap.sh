@@ -94,6 +94,13 @@ health() {
 install_now() {
   trap 'mark_failed install' EXIT
   local sha_file="$AM_DIR/release.sha256"
+  if [ -f "$sha_file" ] && [ -f "$AM_DIR/install.ok" ] &&
+     grep -qF "$(tr -d '[:space:]' <"$sha_file")" "$AM_DIR/install.ok"; then
+    log "release already installed"
+    trap - EXIT
+    log "AM_INSTALLED"
+    return 0
+  fi
   local dir_file="$AM_DIR/release.dir"
   [ -f "$sha_file" ] || fail "missing $sha_file (publish the release first)"
   [ -f "$dir_file" ] || fail "missing $dir_file (publish the release first)"
@@ -122,8 +129,13 @@ install_now() {
   [ -f "$stage/scripts/cloud-preview.mjs" ] || fail "archive has no scripts/cloud-preview.mjs"
   [ -f "$stage/dist/index.html" ] || fail "archive has no dist/index.html"
 
-  log "installing dependencies"
-  ( cd "$stage" && npm ci --no-audit --no-fund --loglevel=error ) || fail "npm ci failed; see $LOG_DIR/install.out"
+  if [ -d "$APP_DIR/node_modules" ] && cmp -s "$APP_DIR/package-lock.json" "$stage/package-lock.json"; then
+    log "reusing node_modules (lockfile unchanged)"
+    mv "$APP_DIR/node_modules" "$stage/node_modules"
+  else
+    log "installing dependencies"
+    ( cd "$stage" && npm ci --no-audit --no-fund --loglevel=error ) || fail "npm ci failed; see $LOG_DIR/install.out"
+  fi
 
   stop_app >/dev/null 2>&1 || true
   rm -rf "$APP_DIR.previous"

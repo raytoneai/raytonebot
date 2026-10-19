@@ -81,21 +81,29 @@ async function deploy(config, state) {
   const origin = previewOrigin(preview);
   await publishSecrets(client, { volumeId: workspaceId, lines: secretLines(config, password), log });
 
-  log(`turn 1/1: install (if needed) and start on ${origin}`);
-  const output = await runBootstrapTurn(client, sessionId, `bash /workspace/am/bootstrap.sh deploy ${origin}`, {
-    log, timeoutMs: 14 * 60_000,
-  });
-  const failed = (await Promise.all(["am/install.failed", "am/start.failed"].map((path) =>
-    readWorkspaceText(client, workspaceId, path).catch(() => "")))).filter(Boolean).join("\n");
-  if (failed.trim()) throw new Error(`deployment failed inside the Environment:\n${failed.trim()}`);
-  try {
+  const installed = await readWorkspaceText(client, workspaceId, "am/install.ok").catch(() => "");
+  if (!installed.includes(release.sha256)) {
+    // npm ci takes ~10 minutes here, which is the platform's whole turn budget,
+    // so install is detached and the marker is polled instead.
+    log("turn 1/2: install the release inside the Environment");
+    const started = await runBootstrapTurn(client, sessionId, "bash /workspace/am/bootstrap.sh install", { log });
+    if (!started.includes("AM_INSTALL_STARTED")) throw new Error(`install did not start:\n${started.slice(-1500)}`);
     await waitForMarker(client, workspaceId, {
-      ok: "am/listening.ok", failed: "am/start.failed", match: origin, timeoutMs: 90_000, describe: "start", log,
+      ok: "am/install.ok", failed: "am/install.failed", match: release.sha256, timeoutMs: 30 * 60_000, describe: "install", log,
       wake: () => ensureRunning(client, sandboxId, log),
     });
-  } catch (error) {
-    throw new Error(`${error.message}\nagent output:\n${output.slice(-1200)}`);
+    log("install: AM_INSTALLED");
+  } else {
+    log("install: this release is already installed in the Workspace");
   }
+
+  log(`turn 2/2: start the app on ${origin}`);
+  const started = await runBootstrapTurn(client, sessionId, `bash /workspace/am/bootstrap.sh start ${origin}`, { log });
+  if (!started.includes("AM_START_STARTED")) throw new Error(`start did not start:\n${started.slice(-1500)}`);
+  await waitForMarker(client, workspaceId, {
+    ok: "am/listening.ok", failed: "am/start.failed", match: origin, timeoutMs: 5 * 60_000, describe: "start", log,
+    wake: () => ensureRunning(client, sandboxId, log),
+  });
 
   const probe = await probePreview(preview, password);
   writeState(root, {
