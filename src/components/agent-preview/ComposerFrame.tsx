@@ -618,7 +618,7 @@ export function ComposerFrame({
               </IconButton>
             </>
           ) : null}
-          {onBrowseWorkspace ? <IconButton type="button" label={copy.workspace.outputFrame.files} disabled={restoringDrafts} onClick={onBrowseWorkspace}><FileText size={16} /></IconButton> : null}
+          {!isWelcome && onBrowseWorkspace ? <IconButton type="button" label={copy.workspace.outputFrame.files} disabled={restoringDrafts} onClick={onBrowseWorkspace}><FileText size={16} /></IconButton> : null}
           {project.composer.toolToggle ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
