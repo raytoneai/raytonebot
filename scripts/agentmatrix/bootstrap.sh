@@ -109,7 +109,11 @@ health() {
   [ -f "$ENV_FILE" ] || return 1
   # shellcheck disable=SC1090
   set -a; . "$ENV_FILE"; set +a
-  curl -fsS -m 5 -u "raytonebot:${RAYTONEBOT_PASSWORD}" "$HEALTH_URL"
+  # The app's gate compares Host with the configured public origin, so a loopback
+  # probe has to present that host rather than 127.0.0.1.
+  local host=${RAYTONEBOT_PUBLIC_ORIGIN#https://}
+  host=${host%/}
+  curl -fsS -m 5 -u "raytonebot:${RAYTONEBOT_PASSWORD}" -H "Host: ${host}" "$HEALTH_URL"
 }
 
 install_now() {
