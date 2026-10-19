@@ -30,14 +30,14 @@ const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 const transient = (error) => error?.status === undefined || error?.status === 408 || error?.status === 429 || error?.status >= 500;
 
 /** The local proxy occasionally drops a connect; writes are small and safe to re-issue. */
-export async function withRetry(action, { attempts = 4, log = () => {}, label = "request" } = {}) {
+export async function withRetry(action, { attempts = 6, log = () => {}, label = "request" } = {}) {
   for (let attempt = 1; ; attempt += 1) {
     try {
       return await action();
     } catch (error) {
       if (attempt >= attempts || !transient(error)) throw error;
       log(`${label}: ${error.code ?? error.message}; retrying (${attempt}/${attempts})`);
-      await sleep(attempt * 1_500);
+      await sleep(attempt * 2_000);
     }
   }
 }
@@ -79,6 +79,16 @@ export async function ensureWorkspace(client, config, log = () => {}) {
  * that `bootstrap.sh install` concatenates and checks against the SHA-256.
  */
 export async function publishRelease(client, { volumeId, release, bootstrapScript, log = () => {} }) {
+  // The digest marker is written only after every part landed, so a matching
+  // marker proves the published archive is complete.
+  const published = await withRetry(() => readWorkspaceText(client, volumeId, "am/release.sha256"), { log, label: "release marker" })
+    .then((text) => text.trim())
+    .catch(() => "");
+  if (published === release.sha256) {
+    await withRetry(() => client.workspaces.files.writeText(volumeId, "am/bootstrap.sh", bootstrapScript), { log, label: "bootstrap.sh" });
+    log("workspace: this release is already published");
+    return;
+  }
   const bytes = readFileSync(release.file);
   const parts = Math.max(1, Math.ceil(bytes.length / CHUNK_BYTES));
   // One directory per release digest: a shorter new release can never be
