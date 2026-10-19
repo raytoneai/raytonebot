@@ -54,8 +54,15 @@ function accessGate(publicOrigin, password, handoff, { trustProxy = false } = {}
       res.setHeader('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'");
       res.end(markup);
     };
+    // A reverse proxy may rewrite Host to the upstream address. When it does, the only
+    // trustworthy signal left is that the request arrived through the proxy port; a
+    // direct request cannot present a loopback Host plus that marker.
     const forwardedHost = trustProxy ? String(req.headers['x-forwarded-host'] ?? '').split(',')[0].trim() : '';
-    if (req.headers.host !== origin.host && forwardedHost !== origin.host) return reject(403, 'Unexpected host');
+    const forwardedPort = trustProxy ? String(req.headers['x-forwarded-port'] ?? '').split(',')[0].trim() : '';
+    const proxiedLoopback = req.headers.host === new URL(localOrigin).host && (forwardedPort === '443' || forwardedPort === '80');
+    if (req.headers.host !== origin.host && forwardedHost !== origin.host && !proxiedLoopback) {
+      return reject(403, 'Unexpected host');
+    }
     const path = (req.url ?? '/').split('?')[0];
     if (path === HANDOFF_PATH) {
       if (!redeem || req.method !== 'GET') return reject(404, 'Not found');
@@ -113,6 +120,9 @@ if (process.argv.includes('--check')) {
   assert.equal(throughProxy({ authorization: auth, 'x-forwarded-host': new URL(origin).host }).accepted, true);
   assert.equal(throughProxy({ authorization: auth, 'x-forwarded-host': 'attacker.example.com' }).res.statusCode, 403);
   assert.equal(throughProxy({ authorization: auth }).res.statusCode, 403);
+  // PreviewProxy rewrites Host to the upstream and marks the original port instead.
+  assert.equal(throughProxy({ authorization: auth, 'x-forwarded-port': '443' }).accepted, true);
+  assert.equal(throughProxy({ authorization: auth, 'x-forwarded-port': '8080' }).res.statusCode, 403);
   assert.equal(check({ authorization: auth, host: 'attacker.example.com' }).res.statusCode, 403);
   for (const foreign of ['https://attacker.example.com', 'null', 'https://preview.example.com:444']) {
     assert.equal(check({ authorization: auth, origin: foreign }).res.statusCode, 403);
