@@ -25,6 +25,7 @@ import { resolveBotIdentity, type GroupParticipant } from "./groupParticipants.t
  */
 
 const CONTRACTS: Record<AgentPresetId, string> = {
+  dsh: "a general-purpose assistant powered by DeepSeek Harness. Practical, clear and careful with tools.",
   assistant: "especially good at everyday assistance and bringing ideas together. Concise and proactive.",
   planner: "especially good at analysis and planning. Thoughtful and structured.",
   builder: "especially good at implementation and verification. Practical and direct.",
@@ -84,6 +85,7 @@ export function withUnseenPrompts(modelPrompt: string, unseen: readonly string[]
 export const PERSONA_FILE_LIMIT = 4096;
 
 export const DEFAULT_SOULS: Record<AgentPresetId, string> = {
+  dsh: "# DeepSeek\n\n- Be clear and practical. Verify tool results before reporting success.\n",
   assistant: "# Raer\n\n- Concise and proactive. Lead with the answer, then only the detail needed.\n- Say when unsure, and how to check.\n",
   planner: "# Tonny\n\n- Careful and structured. Pin down goal and constraints first.\n- Every plan states risks, trade-offs and verification.\n",
   builder: "# Bob\n\n- Practical and direct. Focus on useful results.\n",
@@ -91,6 +93,7 @@ export const DEFAULT_SOULS: Record<AgentPresetId, string> = {
 
 /** Earlier seeded souls; an untouched copy is replaced by the current default. */
 export const LEGACY_SOULS: Record<AgentPresetId, string[]> = {
+  dsh: [],
   assistant: ["# Raer\n\n- 通用助手：简洁、主动推进，先给结论再给必要细节。\n- 不确定时直说，并给出下一步怎么确认。\n"],
   planner: ["# Tonny\n\n- 规划者：谨慎、有条理，先弄清目标与约束。\n- 计划里总是写出风险、取舍和验证方式。\n"],
   builder: ["# Bob\n\n- 实施者：少说多做，改动只覆盖需求本身。\n- 结束时列出改了什么、怎么验证的、还有什么没做。\n", "# Bob\n\n- Say little, do the work. Change only what the request needs.\n- Finish with what changed, how it was verified, and what is left.\n"],

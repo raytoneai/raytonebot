@@ -86,6 +86,7 @@
 .shell-agent-sub { overflow: hidden; color: var(--text-muted); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
 /* Engine logo before its name; optically centred on the small label. */
 .harness-mark { display: inline-block; flex: none; margin-right: 4px; vertical-align: -1px; }
+.preview-frame[data-appearance="dark"] .harness-mark[data-harness="dsh"] { fill: #fff; }
 
 .shell-sidebar-footer {
   display: flex;

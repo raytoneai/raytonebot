@@ -28,7 +28,7 @@ import { appendRecentStderr, createChildProcessTerminator, RUNTIME_PROCESS_GROUP
 
 export type CliPermissionMode = "request" | "auto" | "allow-all";
 
-type CliRunBase = {
+export type CliRunBase = {
   cwd: string;
   prompt: string;
   permissionMode: CliPermissionMode;
@@ -100,6 +100,7 @@ const CLAUDE_ASK_TOOLS = ["Bash", "Edit", "MultiEdit", "Write", "NotebookEdit", 
 
 export function cliCommand(harness: Exclude<AgentHarnessId, "pi">, env: NodeJS.ProcessEnv = process.env): string {
   if (harness === "claude-code") return env.RAYTONEBOT_CLAUDE_BIN?.trim() || "claude";
+  if (harness === "dsh") return env.RAYTONEBOT_DSH_BIN?.trim() || "dsh";
   return env.RAYTONEBOT_CODEX_BIN?.trim() || "codex";
 }
 
@@ -114,7 +115,7 @@ export function detectCliHarnesses(): Promise<AgentHarnessStatus[]> {
       else resolve({ id, available: true, version: stdout.trim().split("\n")[0] });
     });
   });
-  const value = Promise.all([probe("claude-code"), probe("codex")]);
+  const value = Promise.all([probe("claude-code"), probe("codex"), probe("dsh")]);
   statusCache = { at: Date.now(), value };
   return value;
 }
@@ -245,7 +246,7 @@ export function buildCodexArgs(options: Pick<CodexRunOptions, "cwd" | "resumeId"
 type JsonLine = Record<string, unknown>;
 
 /** Spawn one CLI turn, hand each stdout JSON line to `onLine`, and settle when it exits. */
-async function runCliProcess(params: {
+export async function runCliProcess(params: {
   label: string;
   command: string;
   args: string[];
@@ -255,6 +256,8 @@ async function runCliProcess(params: {
   stdinLines?: unknown[];
   stdinText?: string;
   onLine(line: JsonLine, stdin: NodeJS.WritableStream): void;
+  /** Give an engine time to cancel its separately grouped tools before killing the engine. */
+  onAbort?(stdin: NodeJS.WritableStream): void;
   /** Called after each line; true closes stdin (Claude keeps it open for permission replies). */
   isFinished?(): boolean;
 }): Promise<void> {
@@ -275,7 +278,12 @@ async function runCliProcess(params: {
     stdinEnded = true;
     if (!child.stdin.destroyed && child.stdin.writable) child.stdin.end();
   };
-  const abort = () => terminate("abort");
+  let abortTimer: ReturnType<typeof setTimeout> | undefined;
+  const abort = () => {
+    if (!params.onAbort) { terminate("abort"); return; }
+    params.onAbort(child.stdin);
+    abortTimer = setTimeout(() => terminate("abort"), 5_000);
+  };
   params.signal.addEventListener("abort", abort, { once: true });
   child.stdin.on("error", () => {
     if (!exited && !params.signal.aborted) terminate();
@@ -344,6 +352,7 @@ async function runCliProcess(params: {
     }
     if (params.isFinished && !params.isFinished()) throw new Error(`${params.label} closed before completing the turn.`);
   } finally {
+    if (abortTimer) clearTimeout(abortTimer);
     params.signal.removeEventListener("abort", abort);
     lines.close();
     endInput();

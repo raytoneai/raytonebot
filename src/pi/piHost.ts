@@ -22,6 +22,7 @@ import {
 } from "./piClient.ts";
 import { sameOriginRequestAllowed } from "./requestOrigin.ts";
 import { detectCliHarnesses, runClaudeCode, runCodex } from "./cliHarness.ts";
+import { runDsh } from "./dshHarness.ts";
 import { lastClaudeTaskPlan } from "./claudeTaskPlan.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
 import { defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from "./permissionPolicy.ts";
@@ -504,13 +505,13 @@ export function createPiRuntimeController(options: {
     return { name: definition.name, baseUrl: definition.baseUrl, apiKey, model: model ?? definition.models[0] };
   };
 
-  const claudeProvider = (providerId?: string, model?: string) => {
+  const claudeProvider = (providerId?: string, model?: string, engine = "Claude Code") => {
     const definition = providerId ? providerDefinitions.get(providerId) : undefined;
     if (!definition) {
-      throw new Error("Claude Code has no model service configured. Save the model service in settings, or switch Claude Code to the local login.");
+      throw new Error(`${engine} has no model service configured. Save the model service in settings.`);
     }
     const baseUrl = anthropicBaseUrlForProvider(definition);
-    if (!baseUrl) throw new Error(`${definition.name} has no Anthropic-compatible endpoint, which Claude Code needs.`);
+    if (!baseUrl) throw new Error(`${definition.name} has no Anthropic-compatible endpoint, which ${engine} needs.`);
     const apiKey = providerKeys.get(definition.id)
       ?? (definition.apiKeyEnvVar ? process.env[definition.apiKeyEnvVar]?.trim() : undefined);
     if (!apiKey) {
@@ -637,6 +638,7 @@ export function createPiRuntimeController(options: {
     // so keep it in memory and write the conversation once when the run ends.
     let nativeTurn: NativeTurnCheckpoint | undefined;
     const onNativeTurn = ({ sessionId, id }: { sessionId: string; id: string }) => {
+      if (harness === "dsh") return; // ACP has native resume but no trustworthy fork checkpoint.
       nativeTurn = harness === "claude-code" ? { harness, sessionId, afterMessageId: id } : { harness, sessionId, turnId: id };
       runs.get(conversationId)?.memoryDelivered?.();
     };
@@ -653,7 +655,25 @@ export function createPiRuntimeController(options: {
     try {
       adapter.startUserMessage(prompt);
       if (sandboxed) requireAgentIsolation();
-      if (harness === "claude-code") {
+      if (harness === "dsh") {
+        if (sandboxed) throw new Error("DSH is currently available for local testing only.");
+        const provider = await modelLease(claudeProvider(input.provider, input.model, "DeepSeek Harness"), "anthropic", conversationId, input.thinkingLevel);
+        lease = provider;
+        await runDsh({
+          cwd: runCwd, home: join(dataDir, "dsh", encodeURIComponent(conversationId)), prompt: modelPrompt,
+          systemPrompt: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots }),
+          permissionMode, resumeId, signal: run.signal, emit, onSessionId, onUserInput,
+          onAccepted: () => runs.get(conversationId)?.memoryDelivered?.(),
+          provider, webTools, mcpTools: options.mcpTools?.(), hostTools: hostToolsFor(conversationId, role),
+          async onPermission(request) {
+            const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
+            if (refusal) return refusal;
+            if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) { request.startExecution(); return true; }
+            try { await hold(request.toolCallId, request.tool.name, request.tool.args, request.startExecution); return true; }
+            catch (error) { return errorMessage(error); }
+          },
+        });
+      } else if (harness === "claude-code") {
         if (sandboxed && input.claudeCodeModelSource === "local-login") throw new Error("Sandbox agents require a configured model service; local login is disabled.");
         const provider = input.claudeCodeModelSource === "local-login" ? undefined
           : await modelLease(claudeProvider(input.provider, input.model), "anthropic", conversationId, input.thinkingLevel);

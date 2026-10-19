@@ -1107,3 +1107,19 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 修复前 API revision 1 的三套外观与用户截图逐一匹配，和 DEFAULT_BOTS 不同；备份 `/tmp/raytone-avatar-before-20261019.json` 后，通过 API 分别恢复三个内置头像及 planner 的 tony 名字，revision 4，读取 API 与磁盘内容一致。
 - 一次性隔离复现：导入异常旧配置→显式保存默认头像→重建 BotConfigStore→重导入旧配置，修正后的名字/外观不变。现有 `botAppearance`、`botProfiles`、`botConfig` 共 14 项测试通过，build 通过。
 - Chrome 原页面自动同步；新开页与刷新保持，浅深色截图 `output/avatar-restore/light.png` / `dark.png`，Raer SVG 内容跨主题一致，无浏览器 error。验证结束恢复原亮色主题并关闭临时页。未更改源码/运行时接口，未验证云端配置。
+
+### 2026-10-19 DSH 本地引擎
+
+- CLI `0.2.0-rc.2` → `0.2.1-rc.2`；桌面客户端同为最新 `0.2.1-rc.2`。创建 Bot 可选 DeepSeek Harness；三个内置 Bot 和原默认模型不变。
+- 最终 build、444/444 测试、check:local 通过。实际 DSH + 可控端点验证原生写入、拒绝无副作用、宿主工具恰好一次、未知 session 拒绝、换进程续接、停止 shell 后子进程不存在。
+- 本机真实 DeepSeek `deepseek-flash` 完成 glob/remember/write/read，审批先于操作，产物预览与刷新恢复正常；临时测试记忆已清理。20 个内置界面场景全部可渲染、无横向溢出。
+- 补充真实模型验收：主机重载后续接相同 native session，不用工具正确回忆原文件内容；拒绝 edit 后文件字节不变；批准 sleep 测试后停止，子进程 PID 消失；取消后继续同一会话回复「DSH 已就绪」。用户现有始终允许设置保留。证据 `output/dsh-local-check/live-followup.*` 与 `after-stop.json`。
+- 证据与边界：[DSH 验收记录](../review-evidence/2026-10-19-dsh/README.md)，截图/协议检查记录 `output/dsh-local-check/`。仅本地，未部署；ACP 已提交文本、原生历史分支/PTC/自主子 Agent/Linux 隔离尚未开放。
+
+### 2026-10-19 Harness 客户端图标
+
+- 侧栏、聊天标题、成员菜单共用 HarnessMark：Claude Code 小螃蟹、蓝色 Codex、黑色 DSH 鲸鱼，浅深色变体不依赖模型服务。
+- 最终 build、444/444 测试通过；20 个内置预览场景逐一切换，无浏览器 error/横向溢出。Chrome 实看侧栏亮暗主题与 DSH 标题；鲸鱼计算填色亮色 rgb(0,0,0)、暗色 rgb(255,255,255)。恢复原亮色，未发送消息或部署。
+- 截图和场景记录：`output/harness-icons/`；来源与许可证：`docs/harness-icons.md`。
+
+- 2026-10-19 提交前复验：撤回全部鲸鱼头像配饰，既有配饰选项恢复；build、444/444 测试、check:local、实际 DSH 可控端点的批准/拒绝/宿主工具/停止子进程/重启续接通过。20 个界面场景无 error/横向溢出。界面记录 `output/dsh-local-check/commit/`；本次未调用真实模型，未部署。

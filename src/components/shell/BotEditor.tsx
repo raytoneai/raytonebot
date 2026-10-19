@@ -55,7 +55,7 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
                   placeholder={zh ? "给 Bot 起个名字" : "Name your Bot"} autoComplete="off" onChange={event => onChange({ ...draft, name: event.target.value })} /></label>
                 <label className="bot-editor-field">{zh ? "引擎" : "Engine"}
                   <select value={draft.presetId} disabled={!creating} onChange={event => onChange({ ...draft, presetId: event.target.value as BotProfile["presetId"] })}>
-                    <option value="assistant">Pi</option><option value="planner">Claude Code</option><option value="builder">Codex CLI</option>
+                    <option value="assistant">Pi</option><option value="planner">Claude Code</option><option value="builder">Codex CLI</option><option value="dsh">DeepSeek Harness</option>
                   </select>
                   <span className="settings-row-sub">{zh ? "独立聊天记录，共用该引擎的工作区与权限。" : "Separate chats; shares this engine's workspace and permissions."}</span>
                 </label>

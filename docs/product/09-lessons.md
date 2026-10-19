@@ -380,3 +380,12 @@
 
 - 本机首次服务端迁移写入了较早浏览器缓存中的头像和 Tonny 名字；用户正在使用的浏览器随后被服务端值同步覆盖。默认头像常量仍正确，问题是迁移初值来源。排障应对照服务端 revision/保存内容与用户当前期望，不能只改默认常量或按亮暗主题重设颜色。
 - 验证迁移必须用独立数据目录和端口，避免测试浏览器的旧缓存先初始化真实服务端。纠正时先备份，再通过带 revision 的既有保存 API 更新指定 Bot；保留其他配置，并检查磁盘、刷新、重启和再次导入旧缓存。不能为修复这次初值错误而自动清除所有自定义头像。
+
+### 2026-10-19 可选引擎不能假定已有内置 Bot
+
+- 新增 DSH preset 但不新增默认 Bot 后，刷新时持久化选中了 dsh，异步 Bot 配置尚未读取；按 preset id 查 Bot 返回 undefined，整个页面报错。选择当前 Bot 时先匹配实际 Bot/preset，未加载阶段回退现有默认 Bot；历史成员也使用可用外观兜底。实际刷新和 devtools 回归已验证。
+- 旧版生成文件的识别模板应保留当时的角色列表，不能跟随新 AGENT_PRESETS 扩展，否则未编辑的旧 AGENTS.md 不再匹配，迁移失效。保留原三角色匹配，并继续拒绝覆盖用户编辑文件。
+- DSH 原生 bash 使用独立进程组，停止先发送 ACP session/cancel，等待子命令退出后再兜底终止 DSH；只 kill 父进程不足以证明命令已停止。实测长 sleep 的 PID 在取消后不存在。
+- `/state.sessionKeyProviders` 只反映服务端内存，不能据此判定用户尚未填 key。浏览器 `sessionKeys` 会在发送前由 `synchronizePiRuntime` 同步；先检查设置页的遮罩状态并从已配置页面发起测试，不读取或打印密钥，也不要无谓要求用户重填。
+
+- 2026-10-19 Harness 图标：引擎身份使用客户端标识（Claude Code 小螃蟹、Codex 蓝色终端、DSH 黑鲸鱼），不能复用所选模型/供应商图标。现有主页面暗色由 `.preview-frame[data-appearance="dark"]` 控制，computed color-scheme 仍为 light；局部黑白资源变体应跟随该标记，不能只用 light-dark()。

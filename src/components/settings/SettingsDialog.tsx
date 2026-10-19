@@ -47,10 +47,11 @@ export type { ProviderPatch } from "../../runtime/providerSettings";
 export type SettingsSectionId = "providers" | "permissions" | "channels" | "routines" | "mcp" | "memory" | "appearance" | "about";
 type SectionId = SettingsSectionId;
 
-const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI" };
+const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI", dsh: "DeepSeek Harness" };
 const INSTALL_COMMANDS: Partial<Record<AgentHarnessId, string>> = {
   "claude-code": "npm install -g @anthropic-ai/claude-code",
   codex: "npm install -g @openai/codex",
+  dsh: "npm install -g @deepseek-ai/dsh@0.2.1-rc.2",
 };
 /** Stands for a key that is set but never sent to the page; it carries none of its characters. */
 const MASK = "••••••••••••••••";

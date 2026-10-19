@@ -1,10 +1,18 @@
 # 10 Agent 角色、引擎与权限
 
+## 可选 DeepSeek Harness（2026-10-19，本机）
+
+点击 Logo → 创建 Bot → 引擎选择 **DeepSeek Harness**。名字/头像由已有 Bot 配置保存；不会自动新增第四个内置 Bot。使用设置里的 DeepSeek 模型服务（或明确配置的 Anthropic 兼容服务），不读取 DSH 桌面客户端登录，不改变其他 Bot 的模型。
+
+安装 `npm install -g @deepseek-ai/dsh@0.2.1-rc.2`，用 `dsh --version` 核对；非 PATH 安装可通过 `RAYTONEBOT_DSH_BIN` 指定实际入口。新入口、审批、思考/文本、工具、产物、停止和历史沿现有界面。原生会话保存在 RaytoneBot 数据目录 `dsh/<conversationId>/sessions/`，换进程后续接原 id，丢失则报错。
+
+所有 native/host 工具都先经过 RaytoneBot 的审批规则，拒绝不执行；停止先通知 DSH 取消，让长命令及子进程收尾。个人 `~/.dsh` 列为凭据私有路径。首版文本在模型提交后显示；暂不开放原生历史分支、PTC、自主子 Agent 和后台任务。仅供本地运行，云沙箱明确拒绝，未部署。细节见 ADR-050 与 [本地验收记录](../review-evidence/2026-10-19-dsh/README.md)。
+
 2026-10-04 工作树更新；旧验证记录保留在末尾，新 Linux 隔离与 app-server 的验收见 [08](08-acceptance.md)。生产实例尚未部署本轮变更。
 
 ## 三个预置角色
 
-界面上的名字：助手 = **Raer**，规划 = **Tonny**，实施 = **Bob**（各语言相同；代码里的角色 id 仍是 `assistant` / `planner` / `builder`）。欢迎语按角色区分，文案在 `src/i18n/copy/composer.ts` 的 `presets.*.greeting`。引擎名旁的小图标在 `src/components/shell/HarnessMark.tsx`（Pi 取自 pi.dev，Claude / OpenAI 取自 Simple Icons，CC0）。
+界面上的名字：助手 = **Raer**，规划 = **Tonny**，实施 = **Bob**（各语言相同；代码里的角色 id 仍是 `assistant` / `planner` / `builder`）。欢迎语按角色区分，文案在 `src/i18n/copy/composer.ts` 的 `presets.*.greeting`。引擎名旁的小图标在 `src/components/shell/HarnessMark.tsx`（Pi、Claude Code 小螃蟹、蓝色 Codex、黑色 DSH 鲸鱼；[来源与许可](../harness-icons.md)）。
 
 | 角色 | 引擎 | 擅长 | 模型 | 头像 |
 | --- | --- | --- | --- | --- |

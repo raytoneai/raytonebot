@@ -1,5 +1,15 @@
 # 02 架构
 
+## DSH 本地接入补充（2026-10-19）
+
+创建 Bot 的现有表单可选择 `dsh`（DeepSeek Harness），原三个内置 Bot 与默认模型不变。`piHost.runCliPrompt` → `dshHarness.ts` 启动已安装的固定版本 `@deepseek-ai/dsh@0.2.1-rc.2`；`dshProtocol.ts` 将 ACP 的文本、思考、工具、审批转换成 Pi wire events，继续使用 `piAdapter` 和现有界面。ACP 此版本只推送已提交文本。
+
+每轮创建临时 HOME / DSH_HOME / DSH_AGENTS_HOME 与受控 profile，launcher 直接调用已安装包导出的 `runProfile`，避免 CLI 自动加载个人 `.env`。真实模型 key 留在主机，子进程仅持本轮 Anthropic 兼容网关租约。关闭账号凭据、会话日志上传、PTC、子 Agent、自主后台任务与个人配置发现；所有工具经过插件的异步授权和同步 guard。
+
+宿主 web/MCP/记忆/浏览器/计划/提问等工具通过本轮 0600 Unix socket 回到现有执行函数。主机核对原生 session、tool call id、名称和原参数，授权只消费一次。native read/write/edit/bash 由 DSH 执行，参数先归一化供既有权限规则检查。停止先发 `session/cancel`，给 DSH 清理独立进程组的命令，再由通用进程管理兜底终止。
+
+原生会话持久化在 `<dataDir>/dsh/<conversationId>/sessions`，既有会话 JSON 的 `cliSession` 保存引擎及 id。续接失败直接报错，不换新会话；没有原生 fork checkpoint，历史分支明确拒绝。`dsh` 加入工作区、附件、文档和 Bot 配置校验；本机默认仍共用项目工作区。沙箱模式主动拒绝运行，需完成独立 Linux 隔离验收后再开放。
+
 ## 当前架构（2026-10-04 工作树；生产实例尚未更新）
 
 2026-10-18 sandbox 内可靠性补充（本机工作树）：`settingsFile.ts` 统一区分 ENOENT 与不可读/结构错误。记忆、MCP、例行任务和 IM 的坏文件保留并拒绝保存，设置接口返回错误；不可用的工具/时钟/连接器停用，普通聊天主机仍可启动。用户修复后重启重新读取，不自动替换为默认配置。授权和 IM 配置、映射、Telegram 游标在文件成功替换后才更新内存。

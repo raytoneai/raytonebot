@@ -60,7 +60,7 @@ function retire(path: string, generated: readonly string[]) {
 
 /** The last generated brief, recognised so it can be retired. */
 function workspaceBrief(role: AgentPresetId, layout: WorkspaceLayout): string {
-  const others = AGENT_PRESETS.filter((preset) => preset.id !== role).map((preset) => `\`${layout.agents[preset.id]}\``).join(", ");
+  const others = AGENT_PRESETS.filter((preset) => preset.id !== "dsh" && preset.id !== role).map((preset) => `\`${layout.agents[preset.id]}\``).join(", ");
   return `# Workspace (${role})
 
 Shared: \`${layout.shared}\` (handoffs, plans, other agents' work only; names: \`plans/<topic>.md\`, \`handoffs/<from>-to-<to>.md\`, \`artifacts/\`). Do not change ${others}.
@@ -77,7 +77,7 @@ function legacyBriefs(role: AgentPresetId, layout: WorkspaceLayout): string[] {
 This directory is your own working directory in RaytoneBot.
 
 - Shared with every agent: \`${layout.shared}\`. ${sharedLine}
-- Other agents' directories: ${AGENT_PRESETS.filter((preset) => preset.id !== role)
+- Other agents' directories: ${AGENT_PRESETS.filter((preset) => preset.id !== "dsh" && preset.id !== role)
     .map((preset) => `\`${layout.agents[preset.id]}\` (${preset.id})`).join(", ")}. Do not change them.
 - Suggested handoff names in the shared directory: \`plans/<topic>.md\`, \`handoffs/<from>-to-<to>.md\`, \`artifacts/\`.
 `);
@@ -86,8 +86,7 @@ This directory is your own working directory in RaytoneBot.
 function sharedReadme(layout: WorkspaceLayout): string {
   return `# Shared workspace
 
-Every RaytoneBot agent can read and write here: the assistant (Pi), the planner (Claude Code)
-and the builder (Codex CLI). Use it to coordinate.
+Every RaytoneBot agent can read and write here. Use it for handoffs between engines.
 
 - \`plans/\`: plans written for others to follow
 - \`handoffs/\`: notes from one agent to another, named \`<from>-to-<to>.md\`

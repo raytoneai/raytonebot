@@ -25,6 +25,7 @@ test("secret: credentials and environment dumps", () => {
     ["read", { path: "~/.raytonebot/env" }],
     ["read", { path: resolve(homedir(), ".ssh/id_ed25519") }],
     ["write", { path: resolve(homedir(), ".claude/.credentials.json") }],
+    ["read", { path: resolve(homedir(), ".dsh/credentials.json") }],
     ["bash", { command: "cat ~/.raytonebot/env" }],
     ["bash", { command: "env | grep KEY" }],
     ["bash", { command: "printenv" }],

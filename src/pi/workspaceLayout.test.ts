@@ -12,7 +12,7 @@ import { rolePrompt } from "./rolePrompt.ts";
 
 test("without a root every role shares one directory and nothing is created", () => {
   const layout = resolveWorkspaceLayout({ fallbackCwd: "/app" });
-  assert.deepEqual(Object.values(layout.agents), ["/app", "/app", "/app"]);
+  assert.deepEqual(layout.agents, { assistant: "/app", planner: "/app", builder: "/app", dsh: "/app" });
   assert.equal(layout.shared, undefined);
   assert.doesNotMatch(rolePrompt("planner", layout), /shared by every agent/);
   assert.match(rolePrompt("planner", layout), /You are Tonny/);

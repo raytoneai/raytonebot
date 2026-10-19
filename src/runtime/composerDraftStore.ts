@@ -84,7 +84,7 @@ function savedGroupMembers(value: unknown): string[] | undefined {
 
 const validDraft = (draft: ComposerDraft | undefined) => typeof draft?.prompt === "string" && Array.isArray(draft.attachments)
   && draft.attachments.every((attachment) => attachment.file instanceof File || (attachment.reference
-    && ["assistant", "planner", "builder", "shared"].includes(attachment.reference.scope) && typeof attachment.reference.path === "string"));
+    && ["assistant", "planner", "builder", "dsh", "shared"].includes(attachment.reference.scope) && typeof attachment.reference.path === "string"));
 
 export function readComposerDrafts(db: IDBDatabase): Promise<SavedComposerDraft[]> {
   return new Promise((resolve, reject) => {

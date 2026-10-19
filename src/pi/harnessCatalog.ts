@@ -5,13 +5,13 @@
  * Every harness ends in the same AgentUX events (CLI streams are translated to Pi's session
  * vocabulary and run through `piAdapter`), so switching roles never changes the UI.
  */
-export type AgentHarnessId = "pi" | "claude-code" | "codex";
+export type AgentHarnessId = "pi" | "claude-code" | "codex" | "dsh";
 
 /** A preset agent: one harness plus the job it is best at. Labels live in i18n copy. */
-export type AgentPresetId = "assistant" | "planner" | "builder";
+export type AgentPresetId = "assistant" | "planner" | "builder" | "dsh";
 
 /** Initial display names only. Runtime identity and permissions always use IDs. */
-export const DEFAULT_BOT_NAMES: Record<AgentPresetId, string> = { assistant: "Raer", planner: "Tonny", builder: "Bob" };
+export const DEFAULT_BOT_NAMES: Record<AgentPresetId, string> = { assistant: "Raer", planner: "Tonny", builder: "Bob", dsh: "DeepSeek" };
 
 export type AgentPreset = {
   id: AgentPresetId;
@@ -27,6 +27,7 @@ export const AGENT_PRESETS: readonly AgentPreset[] = [
   { id: "planner", harness: "claude-code", disallowedTools: ["Edit", "MultiEdit", "NotebookEdit"] },
   // Codex CLI: implements in the workspace.
   { id: "builder", harness: "codex" },
+  { id: "dsh", harness: "dsh" },
 ];
 
 export const DEFAULT_AGENT_PRESET_ID: AgentPresetId = "assistant";
@@ -56,7 +57,7 @@ export const DEFAULT_AGENT_SETTINGS: AgentSettings = {
 };
 
 export function isAgentHarnessId(value: unknown): value is AgentHarnessId {
-  return value === "pi" || value === "claude-code" || value === "codex";
+  return value === "pi" || value === "claude-code" || value === "codex" || value === "dsh";
 }
 
 export function isAgentPresetId(value: unknown): value is AgentPresetId {
@@ -70,7 +71,7 @@ export function agentPreset(id: AgentPresetId): AgentPreset {
 /** Whether a run with these settings uses the provider connection configured in settings. */
 export function settingsUseProvider(settings: AgentSettings): boolean {
   const { harness } = agentPreset(settings.presetId);
-  if (harness === "pi") return true;
+  if (harness === "pi" || harness === "dsh") return true;
   if (harness === "claude-code") return settings.claudeCodeModelSource === "provider";
   return settings.codexModelSource === "provider";
 }

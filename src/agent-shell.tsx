@@ -122,6 +122,7 @@ const PRESET_AVATARS: Record<AgentPresetId, AvatarKind> = {
   assistant: "woman",
   planner: "man",
   builder: "boy",
+  dsh: "woman",
 };
 import {
   appendPiConversationEvents,
@@ -282,17 +283,17 @@ export function AgentApp() {
   const knownBots = useMemo(() => {
     const knownBots = [...bots];
     for (const participant of piConversations.flatMap(conversation => [...conversation.availableBots ?? [], ...conversation.groupParticipants ?? []])) {
-      if (!knownBots.some(bot => bot.id === participant.id)) knownBots.push({ ...bots.find(bot => bot.id === participant.presetId)!, ...participant });
+      if (!knownBots.some(bot => bot.id === participant.id)) knownBots.push({ ...(bots.find(bot => bot.presetId === participant.presetId) ?? bots[0]), ...participant });
     }
     return knownBots;
   }, [bots, piConversations]);
   const activeBot = knownBots.find(bot => bot.id === (activePiConversation.groupHostId ?? conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
-    ?? bots.find(bot => bot.id === agentSettings.presetId)!;
+    ?? bots.find(bot => bot.presetId === agentSettings.presetId) ?? bots[0];
   const presetBot = (id: string) => {
     const bot = knownBots.find(bot => bot.id === id);
     if (bot) return bot;
     const participant = activePiConversation.groupParticipants?.find(bot => bot.id === id);
-    const base = bots.find(bot => bot.id === (participant?.presetId ?? "assistant"))!;
+    const base = bots.find(bot => bot.presetId === (participant?.presetId ?? "assistant")) ?? bots[0];
     return participant ? { ...base, ...participant } : base;
   };
   const piSessionItems = useMemo(

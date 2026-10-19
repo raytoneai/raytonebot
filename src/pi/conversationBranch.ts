@@ -33,11 +33,11 @@ export function validBranchMetadata(turns: unknown, branch: unknown): boolean {
     const turn = record(value);
     return typeof turn.runId !== "string" || !turn.runId || typeof turn.prompt !== "string"
       || (turn.artifactSubmission !== undefined && (!validArtifactSubmission(turn.artifactSubmission) || turn.artifactSubmission.submissionId !== turn.runId))
-      || !["pi", "claude-code", "codex"].includes(String(turn.harness))
+      || !["pi", "claude-code", "codex", "dsh"].includes(String(turn.harness))
       || (turn.native !== undefined && (!validNative(turn.native) || record(turn.native).harness !== turn.harness))
       || (turn.attachments !== undefined && (!Array.isArray(turn.attachments) || turn.attachments.some(value => {
         const file = record(value);
-        return !["assistant", "planner", "builder", "shared"].includes(String(file.scope)) || typeof file.path !== "string";
+        return !["assistant", "planner", "builder", "dsh", "shared"].includes(String(file.scope)) || typeof file.path !== "string";
       })));
   }))) return false;
   const source = record(branch);
@@ -61,6 +61,7 @@ export function branchPrefix(source: StoredConversation, beforeRunId: string) {
   if (turns.some(previous => previous.harness !== turn.harness)) throw new ConversationBranchError("Cannot branch across an engine change.");
   let native: NativeBranch | undefined;
   if (events.length) {
+    if (turn.harness === "dsh") throw new ConversationBranchError("DSH supports continuing this conversation, but not branching its native context. Start a new conversation instead.");
     if (turn.native?.harness === "pi" && turn.native.beforeEntryId) {
       native = { harness: "pi", sessionId: turn.native.sessionId, sourceId: turn.native.sourceId, entryId: turn.native.beforeEntryId };
     } else if (turn.native?.harness === "codex") {

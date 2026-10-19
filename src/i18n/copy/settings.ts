@@ -34,7 +34,7 @@ const en = {
     usesProvider: "Uses the default model service",
   },
   providers: {
-    intro: "The default service powers Pi Bots, and Claude Code and Codex Bots when they use a model service.",
+    intro: "The default service powers Pi and DeepSeek Harness Bots, and Claude Code and Codex Bots when they use a model service.",
     persistence: {
       "load-failed": "Saved model settings could not be restored. Project defaults are in use.",
       "save-failed": "Changes apply to this page but were not saved. Check browser storage and use an address without credentials, query parameters or a fragment.",
@@ -266,7 +266,7 @@ const zh: typeof en = {
     usesProvider: "使用默认模型服务",
   },
   providers: {
-    intro: "默认服务供 Pi Bot 使用；Claude Code、Codex Bot 选择模型服务时也用它。",
+    intro: "默认服务供 Pi、DeepSeek Harness Bot 使用；Claude Code、Codex Bot 选择模型服务时也用它。",
     persistence: {
       "load-failed": "无法恢复已保存的模型服务设置，当前使用项目默认值。",
       "save-failed": "更改仅在本页生效，尚未保存。请检查浏览器存储权限；服务地址不能包含账号密码、查询参数或片段。",
@@ -498,7 +498,7 @@ const ja: typeof en = {
     usesProvider: "既定のモデルサービスを使用",
   },
   providers: {
-    intro: "既定のサービスは Pi Bot と、モデルサービスを選んだ Claude Code・Codex Bot が使います。",
+    intro: "既定のサービスは Pi・DeepSeek Harness Bot と、モデルサービスを選んだ Claude Code・Codex Bot が使います。",
     persistence: {
       "load-failed": "保存済みのモデル設定を復元できませんでした。プロジェクトの既定値を使用しています。",
       "save-failed": "変更はこのページでのみ有効で、未保存です。ブラウザーの保存権限を確認し、認証情報・クエリー・フラグメントを含まないアドレスを指定してください。",

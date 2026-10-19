@@ -138,7 +138,7 @@ export function useShellExtras(): ShellExtras {
   return useContext(ShellExtrasContext);
 }
 
-export const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI" };
+export const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI", dsh: "DeepSeek Harness" };
 
 /** State of an agent's runs: any of its conversations may be in flight, on screen or not. */
 export type AgentRunStatus = "idle" | "running" | "needs-you";
@@ -172,7 +172,7 @@ export function AgentSwitcher({
   const { locale } = useLocale();
   const t = settingsCopy[locale].shell;
   const roles = useCopy().composer.agentSettings.presets;
-  const choices = bots ?? AGENT_PRESETS.map(preset => ({ ...preset, presetId: preset.id, name: roles[preset.id].name, appearance: undefined }));
+  const choices = bots ?? AGENT_PRESETS.filter(preset => preset.id !== "dsh").map(preset => ({ ...preset, presetId: preset.id, name: roles[preset.id].name, appearance: undefined }));
   return (
     <section className="shell-agents" data-manage={bots ? "true" : undefined} aria-label={t.agents}>
       <h4 className="shell-agents-title">{t.agents}</h4>
@@ -310,11 +310,11 @@ export function HeaderAgent({
 }
 
 // ---------- Group chat: "+" menu, To: picker, group header with member panel ----------
-const GROUP_ROLE: Record<AgentPresetId, string> = { assistant: "助手", planner: "规划", builder: "实施" };
+const GROUP_ROLE: Record<AgentPresetId, string> = { assistant: "助手", planner: "规划", builder: "实施", dsh: "通用助手" };
 const GROUP_NAME = BOT_NAMES;
 function useGroupBots() {
   const { bots } = useShellExtras();
-  return bots ?? AGENT_PRESETS.map(preset => ({ id: preset.id, presetId: preset.id, name: GROUP_NAME[preset.id], appearance: undefined }));
+  return bots ?? AGENT_PRESETS.filter(preset => preset.id !== "dsh").map(preset => ({ id: preset.id, presetId: preset.id, name: GROUP_NAME[preset.id], appearance: undefined }));
 }
 export function useBotNames(): Record<string, string> {
   return Object.fromEntries(useGroupBots().map(bot => [bot.id, bot.name]));

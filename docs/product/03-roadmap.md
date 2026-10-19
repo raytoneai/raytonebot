@@ -1,5 +1,16 @@
 # 03 路线图与进度
 
+### T6.1 DSH 本地引擎接入（2026-10-19）
+
+- 目标：用户在现有创建 Bot 表单选择 DeepSeek Harness，使用已配置模型完成本地任务，审批、停止、历史与续接沿用现有体验。
+- 入口与 owner：ShellExtras / BotEditor 的引擎选项；ChatFrame、现有 approval 与 OutputFrame 渲染同一 AgentUX 事件。状态由 `src/pi/` DSH 运行器、主机和既有 Bot 配置持有。
+- 范围：新增 DSH 子进程适配、受控 profile、宿主工具桥；扩充引擎/preset 及工作区校验。保留默认模型与三个内置 Bot。不引入常驻服务或新 UI，不部署云端。
+- 接口：已有 prompt/state/Bot 配置接受 `dsh` 引擎与 preset；DSH 原生会话 id 存入既有 cliSession。配置隔离于用户 DSH 客户端配置，模型只接本轮租约。
+- 验收：最新本地客户端版本核对；真实 DSH 读写/批准/拒绝/停止/续接；协议与配置回归、build、完整测试、check:local；浏览器创建/聊天及全部 devtools 场景。
+- 边界：首版采用 ACP 已提交文本，暂不承诺逐 token；原生分支、PTC 和自主子 Agent 不开放；沙箱部署待独立 Linux 验证，未验证时拒绝 DSH 沙箱任务。
+- [x] 实现与本地验收：CLI 更新至 `0.2.1-rc.2`，桌面同版本；实际 DSH 可控协议端点验证批准/拒绝/宿主工具/停止子进程/重启续接，真实 DeepSeek 模型完成读写和宿主记忆工具。build、444 项测试、check:local 与 20 个 devtools 场景通过；证据见 [DSH 本地验收](../review-evidence/2026-10-19-dsh/README.md)。未部署。
+- [x] 真实模型补验：同一原生 session 跨主机重载续接、拒绝 edit 后无文件变化、停止长命令后子进程退出、取消后继续聊天均通过。保留用户已有授权设置，未改运行时代码或再次重启。
+
 ### 2026-10-19 移除聊天首页工作区入口
 
 - [x] ComposerFrame 在欢迎页不显示工作区按钮，沿用现有 isWelcome 状态；有消息的对话及输出面板工作区页签保留。
@@ -677,3 +688,7 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 - 2026-10-19 IM 品牌图标：SettingsDialog 的飞书、钉钉、企业微信、Telegram 从首字占位改为本地品牌 Logo，统一 32px 槽位与 28px 图标，保留原色；官方资源来源记录在 `public/brand/im/README.md`。build、436/436 测试通过；隔离端口 5199 检查浅深色、资源加载、频道展开与 20 个预览场景，无浏览器 error/横向溢出。证据 `output/im-logos/`；未连接真实 IM，未部署。
 
 - 2026-10-19 内置头像配置恢复：用户反馈的三套异常头像来自本机服务端首次导入的旧浏览器设置（revision 1），当前代码的 DEFAULT_BOTS 与用户选定造型一致。备份后通过既有配置 API 恢复 Raer 长发耳麦、tony 橙发圆眼镜、Bob 蓝帽，统一奶油色脸/深蓝眼；名字恢复为用户指定的 tony。修正保存数据，无运行时代码更改。14 项头像/配置相关测试、build 通过；隔离复现验证重启/旧配置导入不覆盖恢复值，浏览器新页、刷新及亮暗主题通过；证据 `output/avatar-restore/`。未修改会话或发送消息，未操作云端。
+
+- 2026-10-19 Harness 图标修正：共享 HarnessMark 将模型图标替换为 Claude Code 橙色像素小螃蟹、Codex 蓝色终端、DSH 黑鲸鱼；深色按现有 data-appearance 切换白鲸鱼，Pi 保留。来源/许可见 `docs/harness-icons.md`。build、444/444 测试、20 个预览场景、浅深色侧栏与 DSH 标题检查通过；证据 `output/harness-icons/`。仅本地 UI，未调用模型或部署。
+
+- 2026-10-19 收尾：按用户要求撤回鲸鱼头饰、遮阳帽与发卡实验，保留 DSH 本地接入及 Harness 客户端图标。提交前 build、444/444 测试、check:local、实际 DSH 可控端点验收和 20 个界面场景均通过；未调用真实模型或部署。

@@ -71,7 +71,7 @@ export function createMemoryService(options: { dataDir?: string; now?(): number;
     && Array.isArray(value.memories) && value.memories.every(memory => memory && typeof memory.id === "string" && typeof memory.text === "string"
       && Number.isFinite(memory.createdAt) && Number.isFinite(memory.updatedAt)
       && (memory.source === undefined || memory.source && typeof memory.source.conversationId === "string"
-        && ["assistant", "planner", "builder"].includes(memory.source.agent))));
+        && ["assistant", "planner", "builder", "dsh"].includes(memory.source.agent))));
   if (loaded.data) data = loaded.data;
   const assertReadable = () => { if (loaded.error) throw loaded.error; };
   /** Conversation → the version its model last saw. In memory: after a restart each one sees it once more. */

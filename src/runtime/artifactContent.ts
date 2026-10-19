@@ -31,5 +31,5 @@ export function refreshArtifactItems(items: readonly OutputPanelItem[], timeline
 
 /** Replay wraps group artifact ids in [run, field, id]; filenames never determine ownership. */
 export function artifactAuthor(id: string): string | undefined {
-  return /(?:^|")(assistant|planner|builder|bot_[a-f0-9-]{36})~/.exec(id.replace(/^artifact:/, ""))?.[1];
+  return /(?:^|")(assistant|planner|builder|dsh|bot_[a-f0-9-]{36})~/.exec(id.replace(/^artifact:/, ""))?.[1];
 }

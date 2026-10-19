@@ -70,7 +70,7 @@ export function createConversationStore(dataDir = defaultDataDir()) {
       const value = JSON.parse(readFileSync(file, "utf8")) as StoredConversation;
       if (!value || value.id !== id || typeof value.title !== "string" || !isAgentPresetId(value.agentPreset)
         || (value.piSessionId != null && (typeof value.piSessionId !== "string" || !value.piSessionId))
-        || (value.documents !== undefined && (!Array.isArray(value.documents) || value.documents.length > 100 || value.documents.some(d => !d || !["assistant", "planner", "builder", "shared"].includes(d.scope) || typeof d.path !== "string" || typeof d.name !== "string" || !Number.isFinite(d.updatedAt) || (d.artifactId !== undefined && (typeof d.artifactId !== "string" || d.artifactId.length > 1000)))))
+        || (value.documents !== undefined && (!Array.isArray(value.documents) || value.documents.length > 100 || value.documents.some(d => !d || !["assistant", "planner", "builder", "dsh", "shared"].includes(d.scope) || typeof d.path !== "string" || typeof d.name !== "string" || !Number.isFinite(d.updatedAt) || (d.artifactId !== undefined && (typeof d.artifactId !== "string" || d.artifactId.length > 1000)))))
         || !validBranchMetadata(value.turns, value.branch)
         || !Number.isFinite(value.createdAt) || !Number.isFinite(value.updatedAt) || !Array.isArray(value.events)
         || value.events.some((event) => !event || typeof event.type !== "string" || !event.payload || typeof event.payload !== "object")) {

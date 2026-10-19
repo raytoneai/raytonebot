@@ -60,6 +60,7 @@ export function defaultSecretPaths(options: { home?: string } = {}): string[] {
     ".codex/auth.json",
     ".claude.json",
     ".claude/.credentials.json",
+    ".dsh",
   ].map((entry) => resolve(home, entry));
 }
 
@@ -71,7 +72,7 @@ export function defaultProtectedPaths(options: { workspaces: readonly string[]; 
   const paths: string[] = [];
   // Agent config inside the workspace would let one run plant hooks or settings for the next.
   for (const workspace of options.workspaces) {
-    paths.push(...[".claude", ".codex", ".agents", ".git/hooks", ".mcp.json", ".npmrc"].map((entry) => resolve(workspace, entry)));
+    paths.push(...[".claude", ".codex", ".dsh", ".agents", ".git/hooks", ".mcp.json", ".npmrc"].map((entry) => resolve(workspace, entry)));
   }
   const home = options.agentHome ?? homedir();
   paths.push(...[".bashrc", ".bash_profile", ".profile", ".zshrc", ".zprofile", ".npmrc"].map((entry) => resolve(home, entry)));

@@ -5,7 +5,7 @@ export type BotProfile = { id: string; presetId: AgentPresetId; name: string; ap
 export type BotConfigView = { revision: number; profiles: BotProfile[] };
 export type BotProfileStore = { profiles: BotProfile[]; conversations: Record<string, string> };
 export const BOT_PROFILES_KEY = "raytone.bot-profiles.v1";
-export const BOT_KINDS = { assistant: "woman", planner: "man", builder: "boy" } as const satisfies Record<AgentPresetId, BotKind>;
+export const BOT_KINDS = { assistant: "woman", planner: "man", builder: "boy", dsh: "woman" } as const satisfies Record<AgentPresetId, BotKind>;
 export const BOT_NAMES = DEFAULT_BOT_NAMES;
 export const BOT_NAME_LIMIT = 40;
 const customId = /^bot_[a-f0-9-]{36}$/;
@@ -42,7 +42,7 @@ export function resolveBotProfiles(store: BotProfileStore, legacy: BotAppearance
     ...(["assistant", "planner", "builder"] as const).map(presetId => store.profiles.find(bot => bot.id === presetId) ?? {
       id: presetId, presetId, name: BOT_NAMES[presetId], appearance: legacy[BOT_KINDS[presetId]] ?? DEFAULT_BOTS[BOT_KINDS[presetId]],
     }),
-    ...store.profiles.filter(bot => !isAgentPresetId(bot.id)),
+    ...store.profiles.filter(bot => !["assistant", "planner", "builder"].includes(bot.id)),
   ];
 }
 

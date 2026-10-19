@@ -4,10 +4,10 @@ import { AgentAvatar, AgentPersonaProvider, avatarBusy, useAgentPersona, type Av
 
 // Group chat: member items carry ids tagged "<role>~…" (see src/pi/groupChat.ts).
 const GROUP_AUTHORS: Record<string, { kind: AvatarKind; name: string }> = {
-  assistant: { kind: "woman", name: DEFAULT_BOT_NAMES.assistant }, planner: { kind: "man", name: DEFAULT_BOT_NAMES.planner }, builder: { kind: "boy", name: DEFAULT_BOT_NAMES.builder },
+  assistant: { kind: "woman", name: DEFAULT_BOT_NAMES.assistant }, planner: { kind: "man", name: DEFAULT_BOT_NAMES.planner }, builder: { kind: "boy", name: DEFAULT_BOT_NAMES.builder }, dsh: { kind: "woman", name: DEFAULT_BOT_NAMES.dsh },
 };
 // Tool and artifact ids are wrapped as JSON [runId, field, id] by replayIdentity, so match inside too.
-const itemAuthor = (item: AgentUXTimelineItem) => /(?:^|")(assistant|planner|builder|bot_[a-f0-9-]{36})~/.exec(String(item.id))?.[1];
+const itemAuthor = (item: AgentUXTimelineItem) => /(?:^|")(assistant|planner|builder|dsh|bot_[a-f0-9-]{36})~/.exec(String(item.id))?.[1];
 import { useShellExtras } from "../shell/ShellExtras";
 import { cloneElement, type ReactElement } from "react";
 import { useTranscriptScroll } from "../../runtime/useTranscriptScroll";
