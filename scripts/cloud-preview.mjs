@@ -38,7 +38,7 @@ function accessGate(publicOrigin, password, handoff, { trustProxy = false } = {}
     if (headerLog) {
       try {
         // Bounded, opt-in diagnostic for adapting to a new reverse proxy.
-        if (statSync(headerLog, { throwIfNoEntry: false })?.size < 256 * 1024) {
+        if ((statSync(headerLog, { throwIfNoEntry: false })?.size ?? 0) < 256 * 1024) {
           appendFileSync(headerLog, `${JSON.stringify({ url: req.url, headers: req.headers })}\n`);
         }
       } catch { /* diagnostics must never break serving */ }
