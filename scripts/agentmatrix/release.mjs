@@ -9,7 +9,7 @@
 
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -104,6 +104,10 @@ export async function buildReleaseFromHead({ repoRoot, outDir, log = () => {} })
   await run("git", ["worktree", "add", "--detach", checkout, "HEAD"], repoRoot);
   try {
     symlinkSync(join(repoRoot, "node_modules"), join(checkout, "node_modules"));
+    // vendor/ is frozen build output, and its own dist/ directories are gitignored,
+    // so a clean checkout would ship packages whose entry points do not exist.
+    rmSync(join(checkout, "vendor"), { recursive: true, force: true });
+    cpSync(join(repoRoot, "vendor"), join(checkout, "vendor"), { recursive: true });
     log(`release: building HEAD in ${checkout}`);
     return await buildRelease({ repoRoot: checkout, outDir, skipBuild: false, log });
   } finally {
