@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { appendFileSync, statSync } from 'node:fs';
 import { createHash, timingSafeEqual } from 'node:crypto';
 import { preview } from 'vite';
 import {
@@ -31,7 +32,17 @@ function accessGate(publicOrigin, password, handoff, { trustProxy = false } = {}
   const redeem = secret ? handoffRedeemer(secret, origin.origin) : undefined;
   const welcomeLink = control ? `<p><a href="${control}/welcome">回到欢迎页重新进入</a></p>` : '';
 
+  const headerLog = process.env.RAYTONEBOT_HEADER_LOG;
+
   return (req, res, next) => {
+    if (headerLog) {
+      try {
+        // Bounded, opt-in diagnostic for adapting to a new reverse proxy.
+        if (statSync(headerLog, { throwIfNoEntry: false })?.size < 256 * 1024) {
+          appendFileSync(headerLog, `${JSON.stringify({ url: req.url, headers: req.headers })}\n`);
+        }
+      } catch { /* diagnostics must never break serving */ }
+    }
     res.setHeader('cache-control', 'no-store');
     res.setHeader('referrer-policy', 'no-referrer');
     res.setHeader('x-content-type-options', 'nosniff');
