@@ -33,14 +33,14 @@ const transient = (error) => error?.status === undefined || error?.status === 40
   error?.status === 429 || error?.status >= 500;
 
 /** The local proxy occasionally drops a connect; writes are small and safe to re-issue. */
-export async function withRetry(action, { attempts = 6, log = () => {}, label = "request" } = {}) {
+export async function withRetry(action, { attempts = 10, log = () => {}, label = "request" } = {}) {
   for (let attempt = 1; ; attempt += 1) {
     try {
       return await action();
     } catch (error) {
       if (attempt >= attempts || !transient(error)) throw error;
       log(`${label}: ${error.code ?? error.message}; retrying (${attempt}/${attempts})`);
-      await sleep(attempt * 5_000);
+      await sleep(Math.min(30_000, attempt * 5_000));
     }
   }
 }
@@ -101,8 +101,10 @@ export async function publishRelease(client, { volumeId, release, bootstrapScrip
   await client.workspaces.entries.mkdir(volumeId, "am/release").catch(() => {});
   await client.workspaces.entries.mkdir(volumeId, directory).catch(() => {});
   for (let index = 0; index < parts; index += 1) {
-    const slice = bytes.subarray(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES);
     const name = `${directory}/part-${String(index).padStart(3, "0")}`;
+    const uploaded = await client.workspaces.entries.stat(volumeId, name).then(() => true).catch(() => false);
+    if (uploaded) continue;
+    const slice = bytes.subarray(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES);
     await withRetry(() => client.workspaces.files.write(volumeId, name, new Uint8Array(slice)),
       { log, label: `upload ${index + 1}/${parts}` });
   }
@@ -115,7 +117,8 @@ export async function publishRelease(client, { volumeId, release, bootstrapScrip
 }
 
 export async function publishSecrets(client, { volumeId, lines, log = () => {} }) {
-  await client.workspaces.files.writeText(volumeId, "am/secrets.env", `${lines.join("\n")}\n`);
+  await withRetry(() => client.workspaces.files.writeText(volumeId, "am/secrets.env", `${lines.join("\n")}\n`),
+    { log, label: "secrets" });
   log("workspace: wrote am/secrets.env (moved into the bot's private env file on start)");
 }
 
