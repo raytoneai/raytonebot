@@ -29,7 +29,7 @@ import type { McpServersState } from "../../runtime/useMcpServers";
 import type { McpServerView } from "../../pi/mcpTypes";
 import type { MemoriesState } from "../../runtime/useMemories";
 import { MEMORY_COUNT_LIMIT, MEMORY_TEXT_LIMIT, type MemoryView } from "../../pi/memoryTypes";
-import { CHANNEL_FIELDS, type ChannelPatch, type ChannelView } from "../../pi/imChannels/types";
+import { CHANNEL_FIELDS, type ChannelPatch, type ChannelPlatform, type ChannelView } from "../../pi/imChannels/types";
 import { useBotNames } from "../shell/ShellExtras";
 import "./settings.css";
 
@@ -55,6 +55,12 @@ const INSTALL_COMMANDS: Partial<Record<AgentHarnessId, string>> = {
 /** Stands for a key that is set but never sent to the page; it carries none of its characters. */
 const MASK = "••••••••••••••••";
 const LOCALE_LABELS: Record<AppLocale, string> = { zh: "中文", en: "English", ja: "日本語" };
+const CHANNEL_LOGOS: Record<ChannelPlatform, string> = {
+  feishu: "/brand/im/feishu.png",
+  dingtalk: "/brand/im/dingtalk.png",
+  wecom: "/brand/im/wecom.png",
+  telegram: "/brand/im/telegram.svg",
+};
 
 export type SettingsDialogProps = {
   open: boolean;
@@ -524,7 +530,9 @@ function ChannelRow({ t, channel, state, open, onToggleOpen }: {
   return (
     <div className="settings-provider" data-open={open}>
       <div className="settings-row">
-        <ProviderMark label={name} />
+        <span className="settings-channel-mark" aria-hidden="true">
+          <img src={CHANNEL_LOGOS[channel.platform]} alt="" width={28} height={28} />
+        </span>
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title"><strong>{name}</strong></span>
           <span className="settings-row-sub">
