@@ -78,24 +78,61 @@ Sandbox 内布局：
 
 ## 入口与鉴权
 
-`RAYTONEBOT_PUBLIC_ORIGIN` 设为 preview origin，应用原有的 Basic Auth、Host/Origin 与 CSRF 检查全部保留。
-`RAYTONEBOT_TRUST_PROXY_ORIGIN=1` 让 Host 校验额外接受 **且仅接受** `x-forwarded-host` 等于配置 origin
-的请求，用于 PreviewProxy 转发时改写 Host 的情况；该开关默认关闭，直连实例不得开启。
+`RAYTONEBOT_PUBLIC_ORIGIN` 设为 preview origin。应用原有的 Basic Auth、Host/Origin 与 CSRF 检查保留；
+`RAYTONEBOT_TRUST_PROXY_ORIGIN=1` 只让 Host 校验接受代理改写后的 Host（`x-forwarded-host` 或
+loopback Host + `x-forwarded-port: 443`）。
 
-Preview URL 是短期签名链接（`url_expires_at`），可能带 `/.ariadra/preview/open?token=…` 入口路径，
-不是稳定书签入口。`npm run am:preview` 取新链接；链接过期不影响应用进程。
+因为 PreviewProxy 剥掉所有客户端凭证，`RAYTONEBOT_PREVIEW_INGRESS=1` 额外允许“经代理到达”的请求免
+Basic Auth，以签名 URL 作为凭证；直连（无代理标记）仍返回 401。该开关只应在平台入口后面打开。
+
+机器存活期间 `https://prv-….preview.agentmatrix.pro/` 可以直接打开；`/.ariadra/preview/open?token=…`
+是带 5 分钟签名的唤醒/进入链接，过期只影响该链接，不影响应用进程。`npm run am:preview` 取新链接，
+`npm run am:wake` 恢复暂停的 Environment 并刷新链接。
+
+## 首次真实部署结果（2026-10-19）
+
+在租户 `default` 上完成一次真实部署并验证应用在 AgentMatrix 入口可用：
+
+| 资源 | 值 |
+| --- | --- |
+| Workspace | `vol_01M59N4B5GVN4HGWHB14NDC7PP`（`raytonebot`） |
+| EnvironmentSpec | `env_55a0acd8783b283457a779b5a699cf1d`（`raytonebot-e2b`，container provider） |
+| Environment | `sbx_b31c43b7cdcb5d560292f227f4ce12e218b2a7cd16f7e7696720909586a9eb60` |
+| Session | `ssn_45d9074cdc4fc41384a6a44fb31ff6bf`（`Ariadra-Starter-Assistant` v1, claude_code / bypassPermissions） |
+| Preview | `prv_be9d0d136cd0fa8b3fc1f373d1fdfc5b`，端口 5188 |
+| 稳定 origin | `https://prv-be9d0d136cd0fa8b3fc1f373d1fdfc5b.preview.agentmatrix.pro/` |
+
+实测：入口 `GET /` 返回 200 与应用 HTML，`/assets/*` 200，`GET /__agentcanvas/pi/health` 返回
+`{"status":"ok",...}`，`/__agentcanvas/pi/state` 与 `/__agentcanvas/pi/conversations` 正常。
+Workspace 里产品数据落在 `.raytonebot/data`，角色目录在 `agents/{assistant,planner,builder}` 与 `shared`。
+
+部署中确认的平台事实（都已写进脚本）：
+
+- **PreviewProxy 会剥掉 `Authorization`、`Cookie` 和自定义请求头**，只保留 `host`、`user-agent`、
+  `accept(-encoding)`、`x-forwarded-port`。因此浏览器无法携带 Basic Auth 或会话 Cookie 进入应用。
+  适配层用 `RAYTONEBOT_PREVIEW_INGRESS=1` 把“经代理转发”当作入口凭证（签名 URL 本身是短期凭证），
+  直连请求仍要求 Basic Auth。这是对“保留现有鉴权”的**已知偏离**，正式入口仍应由 AM-04 提供。
+- PreviewProxy 会把 `Host` 改写成上游地址并只给 `x-forwarded-port: 443`，所以应用侧用
+  `RAYTONEBOT_TRUST_PROXY_ORIGIN=1` 接受这种代理请求。
+- 首次 `npm ci` 约 10 分钟（450 包），正好等于一次 turn 的执行预算，所以安装是分离进程 + 标记文件轮询；
+  之后只要 lockfile 不变就复用 `node_modules`，部署约 1–2 分钟。
+- 空闲约 5 分钟后 Environment 会 pause；进程被冻结而不是被杀，resume 后继续（首次安装跨过一次 pause
+  仍完成）。`am:wake` / 新的入口请求可以恢复。
+- 租户 provider 是 `container_sandbox`，`outbound_allowlist=false`，所以只能开放出站；这是平台能力缺口，
+  不是适配层的选择。
 
 ## 已验证 / 未验证
 
 | 项目 | 状态 |
 | --- | --- |
 | 发布包可重复构建、摘要、< 20 MiB | 已验证（本机） |
-| 认证、Host/Origin、CSRF、代理 Host 信任、handoff | `node scripts/cloud-preview.mjs --check` 通过 |
+| 认证、Host/Origin、CSRF、代理 Host 信任、预览入口、handoff | `node scripts/cloud-preview.mjs --check` 通过 |
 | 适配层单元测试（配置、分片、分页、入口 origin、日志提取） | 通过 |
-| 真实 AgentMatrix 租户上的部署 | **待执行**：本机没有 `ARIADRA_API_KEY` |
-| Sandbox 内 `npm ci` 与 Chromium 浏览器 | 未验证；模板不含 Chromium，浏览器接管功能可能不可用 |
+| 真实 AgentMatrix 租户上的部署与应用响应 | 已验证（见上表） |
+| Sandbox 内 `npm ci` | 已验证（约 10 分钟；之后复用） |
+| Chromium 浏览器、真实模型轮次、IM、routines | 未验证；模板不含 Chromium，租户没有注入模型 key |
 | 无人访问时 IM / routines 持续运行 | 未验证；Environment 空闲仍会 pause（AM-03） |
-| 崩溃后自动恢复、稳定入口、独立备份 | 未实现（AM-01/03/04/05） |
+| 崩溃后自动恢复、稳定鉴权入口、独立备份 | 未实现（AM-01/03/04/05） |
 | UID/网络隔离（raytone-agent、raytone-browser、nft、ACL） | 未实现；AM Environment 是单一 OS 账号 |
 
 ## 与需求稿的对应
