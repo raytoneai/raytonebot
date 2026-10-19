@@ -142,12 +142,11 @@ export async function waitForMarker(client, volumeId, { ok, failed, match, timeo
     const failedResult = await read(failed);
     if (failedResult.text) throw new Error(`${describe} failed inside the Environment:\n${failedResult.text}`);
 
-    // An idle-paused Environment detaches its Workspace, so reads answer 503 until
-    // it is resumed. Cheap GETs are harmless while it is already running.
-    const unavailable = [okResult.error, failedResult.error].some((error) => error && error.status !== 404);
-    if (unavailable && wake && Date.now() - lastWake > 15_000) {
+    // A paused Environment freezes the detached install. The deployment has to
+    // keep it awake itself: a workspace read may still answer 404 while the
+    // machine is paused, so readiness is checked on every cycle, not only on 503.
+    if (wake && Date.now() - lastWake > 20_000) {
       lastWake = Date.now();
-      log(`${describe}: Workspace unavailable; resuming the Environment`);
       await wake().catch((error) => log(`${describe}: resume failed: ${error.code ?? error.message}`));
     }
     if (Date.now() - lastReport > 30_000) {
@@ -248,7 +247,7 @@ async function waitOperation(client, sandboxId, operation, log) {
  * state machine, so an in-flight transition is waited out rather than replayed.
  */
 export async function ensureRunning(client, sandboxId, log = () => {}) {
-  for (let attempt = 0; attempt < 40; attempt += 1) {
+  for (let attempt = 0; attempt < 80; attempt += 1) {
     const { data } = await client.sandboxes.get(sandboxId);
     if (data.state === "running") return sandboxId;
     if (data.state === "paused") {
