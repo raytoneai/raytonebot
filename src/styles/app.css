@@ -12583,24 +12583,111 @@ pre {
 }
 
 /* Workspace browsing reuses the output panel and its header controls. */
-/* Expanded output hides overflow by default; workspace files own their scrolling. */
-.artifact-frame .artifact-content.workspace-files {
+.artifact-frame[data-output-source="workspace"] {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  height: 100%;
+}
+.artifact-frame[data-output-source="workspace"][data-expanded="true"] {
+  inset: 0;
+  width: min(880px, calc(100vw - 48px));
+  height: min(760px, calc(100dvh - 64px));
+  margin: auto;
+}
+.artifact-frame[data-output-source="workspace"] > .output-header { flex: none; }
+.artifact-frame[data-output-source="workspace"] > .opened-output {
+  flex: 1;
   min-height: 0;
   overflow: auto;
-  overscroll-behavior: contain;
-  align-content: start;
 }
-.workspace-files-path { display: flex; align-items: center; gap: 8px; margin: 12px 0; min-width: 0; }
-.workspace-files-path code { overflow-wrap: anywhere; }
+/* Keep the scope, search and current path visible while the file list scrolls. */
+.artifact-frame .artifact-content.workspace-files {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  gap: 0;
+  min-height: 0;
+  overflow: hidden;
+  font-size: var(--text-md);
+  line-height: 20px;
+}
+.workspace-files-toolbar {
+  display: grid;
+  grid-template-columns: 144px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  flex: none;
+  padding: 4px 0 8px;
+}
+.workspace-files-toolbar .rail-icon-btn { width: 34px; height: 34px; }
+.workspace-search-field { display: flex; align-items: center; position: relative; min-width: 0; }
+.workspace-search-field > svg { position: absolute; left: 10px; color: var(--text-muted); pointer-events: none; }
+.workspace-files-path {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  min-height: 36px;
+  margin-bottom: 4px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--border-subtle);
+  color: var(--text-secondary);
+}
+.workspace-files-path code {
+  overflow: hidden;
+  font-family: var(--font-mono);
+  font-size: var(--text-sm);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.workspace-files-results {
+  min-height: 0;
+  flex: 1;
+  overflow: auto;
+  overscroll-behavior: contain;
+  scrollbar-width: thin;
+}
+.preview-frame .workspace-files-results > p {
+  padding: 12px 8px;
+  font-size: var(--text-sm);
+  color: var(--text-muted);
+}
 .workspace-file-list { list-style: none; margin: 0; padding: 0; }
 .workspace-file-list a, .workspace-file-list button { display: flex; align-items: center; gap: 10px; width: 100%; padding: 10px 4px; border: 0; background: transparent; color: inherit; text-align: left; text-decoration: none; font: inherit; cursor: pointer; }
-.workspace-file-list a:hover, .workspace-file-list button:hover { background: var(--surface-inset); }
+@media (hover: hover) and (pointer: fine) {
+  .workspace-file-list a:hover, .workspace-file-list button:hover { background: var(--surface-inset); }
+}
 .workspace-file-list svg { flex: 0 0 auto; }
 .workspace-file-list span { flex: 1; overflow-wrap: anywhere; min-width: 0; }
 .workspace-file-list small { flex: 0 0 auto; opacity: .6; }
 .workspace-file-list li { display: flex; align-items: center; }
 .workspace-file-list button { min-width: 0; flex: 1; }
 .workspace-file-list a.workspace-file-download { flex: 0 0 auto; width: auto; padding: 10px; }
+.workspace-files .workspace-file-list button { min-height: 36px; padding: 8px; border-radius: var(--radius-sm); font-size: var(--text-md); line-height: 20px; }
+.workspace-files .workspace-file-list svg { color: var(--text-muted); }
+.workspace-file-list .workspace-file-name { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.workspace-file-list .workspace-file-size { font-size: var(--text-sm); font-variant-numeric: tabular-nums; color: var(--text-muted); opacity: 1; }
+.workspace-file-list .workspace-file-snippet { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 2; overflow: hidden; font-size: var(--text-sm); color: var(--text-muted); opacity: 1; }
+.workspace-files .workspace-file-download { border-radius: var(--radius-sm); }
+@container output (max-width: 560px) {
+  .workspace-files-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
+  .workspace-files-toolbar .workspace-scope-select { width: min(180px, 100%); }
+  .workspace-search-field { grid-row: 2; grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .artifact-frame[data-output-source="workspace"][data-expanded="true"] {
+    width: calc(100vw - 24px);
+    height: calc(100dvh - 32px);
+  }
+}
+@media (pointer: coarse) {
+  .workspace-files .workspace-file-list button,
+  .workspace-files .workspace-file-download { min-height: 44px; }
+  .workspace-files-toolbar .rail-icon-btn,
+  .workspace-files-path .rail-icon-btn { width: 44px; height: 44px; }
+}
 .output-artifact-list button { gap: 8px; min-height: 36px; padding: 8px; border-radius: var(--radius-sm); font-size: var(--text-sm); line-height: 20px; }
 .output-artifact-list svg { color: var(--text-muted); }
 .output-artifact-list span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -12923,7 +13010,10 @@ pre {
 .document-editor textarea { display: block; width: 100%; box-sizing: border-box; font: inherit; resize: vertical; margin-block: 10px; }
 .document-actions button, .structured-artifact button { border: 1px solid var(--border-color, #ddd); border-radius: 6px; padding: 6px 10px; background: transparent; color: inherit; cursor: pointer; }
 .document-actions :disabled, .structured-artifact :disabled { opacity: .55; cursor: default; }
-.workspace-document-search, .document-copy-controls input, .structured-artifact input:not([type=checkbox]), .structured-artifact select { min-width: 0; max-width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid var(--border-color, #ddd); border-radius: 6px; background: transparent; color: inherit; }
-.workspace-document-search { width: 100%; margin-block: 8px; }
-.structured-artifact input:focus-visible, .document-editor textarea:focus-visible, .workspace-document-search:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+.document-copy-controls input, .structured-artifact input:not([type=checkbox]), .structured-artifact select { min-width: 0; max-width: 100%; box-sizing: border-box; padding: 8px; border: 1px solid var(--border-color, #ddd); border-radius: 6px; background: transparent; color: inherit; }
+.workspace-document-search { width: 100%; min-width: 0; height: var(--control-md); padding: 0 10px 0 32px; border: 1px solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-panel); color: var(--text-primary); font-family: inherit; font-size: var(--text-md); line-height: 20px; }
+.workspace-document-search::placeholder { color: var(--text-muted); opacity: 1; }
+.workspace-document-search:focus-visible { outline: 2px solid transparent; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.structured-artifact input:focus-visible, .document-editor textarea:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
+@media (pointer: coarse) { .workspace-document-search { min-height: 44px; font-size: 16px; } }
 .opened-output-item:has(.document-editor) > .markdown-preview, .opened-output-item:has(.document-editor) > pre { display: none; }

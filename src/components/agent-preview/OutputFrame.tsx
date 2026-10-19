@@ -1,4 +1,4 @@
-import { ArrowLeft, Download, File, Folder, FolderOpen, Maximize2, Minimize2, PanelRight, RefreshCw, X } from "lucide-react";
+import { ArrowLeft, Download, File, Folder, Maximize2, Minimize2, PanelRight, RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { AgentUXArtifactTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
 
@@ -190,34 +190,37 @@ export function OutputFrame({
           </div>
         ) : (
           <div className="artifact-content workspace-files" aria-busy={loading}>
-            <div className="artifact-title">
-              <FolderOpen size={16} />
-              <span>{c.files}</span>
-              <SelectMenu size="sm" value={shared ? "shared" : "agent"} onValueChange={(value) => { setPath(""); setShared(value === "shared"); }} ariaLabel={c.files} options={[{ value: "agent", label: copy.composer.agentSettings.presets[workspaceScope].name }, ...(workspaceSharedAvailable ? [{ value: "shared", label: c.sharedFiles }] : [])]} />
+            <div className="workspace-files-toolbar">
+              <SelectMenu className="workspace-scope-select" size="md" value={shared ? "shared" : "agent"} onValueChange={(value) => { setPath(""); setShared(value === "shared"); }} ariaLabel={c.files} options={[{ value: "agent", label: copy.composer.agentSettings.presets[workspaceScope].name }, ...(workspaceSharedAvailable ? [{ value: "shared", label: c.sharedFiles }] : [])]} />
+              <label className="workspace-search-field">
+                <Search size={15} aria-hidden="true" />
+                <input className="workspace-document-search" type="search" maxLength={100} aria-label={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} placeholder={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} value={query} onChange={e => setQuery(e.target.value)} />
+              </label>
               <button className="rail-icon-btn" type="button" aria-label={c.refreshFiles} onClick={() => setRevision((value) => value + 1)}><RefreshCw size={15} /></button>
             </div>
-            <input className="workspace-document-search" type="search" maxLength={100} aria-label={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} placeholder={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} value={query} onChange={e => setQuery(e.target.value)} />
-            {truncated ? <p role="status">{locale === "zh" ? "结果已达到扫描上限，请缩小搜索范围" : "Search limit reached; narrow the query"}</p> : null}
             <div className="workspace-files-path">
               <button className="rail-icon-btn" type="button" disabled={!path} aria-label={c.parentFolder} onClick={() => setPath(path.split("/").slice(0, -1).join("/"))}><ArrowLeft size={15} /></button>
-              <code>/{path}</code>
+              <code title={`/${path}`}>/{path}</code>
             </div>
-            {fileError ? <p role="alert">{fileError}</p> : loading ? <p role="status">{c.loadingFiles}</p> : files.length === 0 ? <p>{c.emptyFiles}</p> : (
-              <ul className="workspace-file-list">
-                {files.map((file) => (
-                  <li key={file.path}>
-                    {file.directory ? (
-                      <button type="button" onClick={() => setPath(file.path)}><Folder size={16} /><span>{file.name}</span></button>
-                    ) : (
-                      <>
-                        <button type="button" onClick={() => setWorkspacePreview(normalizeOutputPanelRequest({ id: `workspace:${scope}:${file.path}`, kind: "file", title: file.name, subtitle: file.path, downloadUrl: piFileDownloadUrl(scope, file.path) }))}><File size={16} /><span>{query ? file.path : file.name}{file.snippet ? <small>{file.snippet}</small> : null}</span><small>{file.size.toLocaleString()} B</small></button>
-                        <a className="workspace-file-download" href={piFileDownloadUrl(scope, file.path)} download={file.name} aria-label={`${c.download} ${file.name}`} title={`${c.download} ${file.name}`}><Download size={16} /></a>
-                      </>
-                    )}
-                  </li>
-                ))}
-              </ul>
-            )}
+            <div className="workspace-files-results">
+              {truncated ? <p role="status">{locale === "zh" ? "结果已达到扫描上限，请缩小搜索范围" : "Search limit reached; narrow the query"}</p> : null}
+              {fileError ? <p role="alert">{fileError}</p> : loading ? <p role="status">{c.loadingFiles}</p> : files.length === 0 ? <p>{c.emptyFiles}</p> : (
+                <ul className="workspace-file-list">
+                  {files.map((file) => (
+                    <li key={file.path}>
+                      {file.directory ? (
+                        <button type="button" title={file.path} onClick={() => setPath(file.path)}><Folder size={16} /><span className="workspace-file-name">{file.name}</span></button>
+                      ) : (
+                        <>
+                          <button type="button" title={file.path} onClick={() => setWorkspacePreview(normalizeOutputPanelRequest({ id: `workspace:${scope}:${file.path}`, kind: "file", title: file.name, subtitle: file.path, downloadUrl: piFileDownloadUrl(scope, file.path) }))}><File size={16} /><span><span className="workspace-file-name">{query ? file.path : file.name}</span>{file.snippet ? <small className="workspace-file-snippet">{file.snippet}</small> : null}</span><small className="workspace-file-size">{file.size.toLocaleString()} B</small></button>
+                          <a className="workspace-file-download" href={piFileDownloadUrl(scope, file.path)} download={file.name} aria-label={`${c.download} ${file.name}`} title={`${c.download} ${file.name}`}><Download size={16} /></a>
+                        </>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </div>
         ) : <OutputContent
           project={project}
