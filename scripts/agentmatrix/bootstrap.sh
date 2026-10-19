@@ -84,6 +84,27 @@ KEEPER
   chmod 700 "$KEEPALIVE"
 }
 
+# npm links `file:` dependencies into node_modules. Those links do not survive the
+# app directory being replaced, and the file API cannot repair them, so replace
+# each one with a real copy of the vendored package.
+ensure_vendor_packages() {
+  local root=$1 pair link vendored
+  for pair in "@agent-ux/protocol:agent-ux/protocol" \
+              "@agent-ux/react:agent-ux/react" \
+              "@agent-ux/render-core:agent-ux/render-core" \
+              "@agent-ux/runtime:agent-ux/runtime" \
+              "@agentmatrix/agentcanvas-contract:agentmatrix/agentcanvas-contract"; do
+    link=${pair%%:*}
+    vendored=${pair#*:}
+    if [ -f "$root/node_modules/$link/package.json" ]; then continue; fi
+    [ -f "$root/vendor/$vendored/package.json" ] || fail "missing vendored package $vendored"
+    log "repairing $link from vendor/$vendored"
+    rm -rf "$root/node_modules/$link"
+    mkdir -p "$(dirname "$root/node_modules/$link")"
+    cp -R "$root/vendor/$vendored" "$root/node_modules/$link"
+  done
+}
+
 health() {
   [ -f "$ENV_FILE" ] || return 1
   # shellcheck disable=SC1090
@@ -141,6 +162,8 @@ install_now() {
     [ -f "$stage/node_modules/vite/package.json" ] || fail "npm ci finished without vite"
     touch "$stage/node_modules/.raytonebot-complete"
   fi
+
+  ensure_vendor_packages "$stage"
 
   stop_app >/dev/null 2>&1 || true
   rm -rf "$APP_DIR.previous"
