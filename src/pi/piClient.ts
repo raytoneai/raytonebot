@@ -1,3 +1,4 @@
+import type { BotProfile, BotConfigView } from "../runtime/botProfiles.ts";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 
 import type { PiApprovalDecision } from "../harness/adapters/piAdapter.ts";
@@ -562,4 +563,14 @@ export async function savePiDocument(input: { scope: PiFileScope; path?: string;
   const response = await fetch(`${PI_API_PREFIX}/documents`, { method: input.path ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input), signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Document save failed"));
   return response.json();
+}
+
+export function listBotConfig(): Promise<BotConfigView> {
+  return requestJson(fetch, `${PI_API_PREFIX}/bots`, undefined, AbortSignal.timeout(15_000));
+}
+export function importBotConfig(profiles: BotProfile[], conversations: Record<string, string>): Promise<BotConfigView> {
+  return requestJson(fetch, `${PI_API_PREFIX}/bots/import`, { profiles, conversations }, AbortSignal.timeout(15_000));
+}
+export function putBotConfig(bot: BotProfile, revision: number): Promise<BotConfigView> {
+  return requestJson(fetch, `${PI_API_PREFIX}/bots`, { bot, revision }, AbortSignal.timeout(15_000));
 }

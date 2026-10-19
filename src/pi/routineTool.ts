@@ -4,11 +4,11 @@ import { defineTool } from "@earendil-works/pi-coding-agent";
 import type { RoutineRequest } from "./routines.ts";
 import type { RoutineView } from "./routineTypes.ts";
 
-/** Raer's `create_routine` (ADR-033): saves a routine switched off; the user turns it on in Settings. */
+/** A Bot's `create_routine` (ADR-033): saves a routine switched off; the user turns it on in Settings. */
 export function createRoutineTool(create: (request: RoutineRequest) => Promise<RoutineView>) {
   return defineTool({
     name: "create_routine", label: "Create routine",
-    description: "Save a routine: instructions Raer runs on a schedule in its own conversation. It is created switched off. Returns the saved routine or an error.",
+    description: "Save a routine: instructions you run on a schedule in its own conversation. It is created switched off. Returns the saved routine or an error.",
     promptGuidelines: [
       "Use create_routine when the user wants something done on a schedule (every morning, weekdays at 9, every Friday). Turn their wording into a five-field cron: minute hour day month weekday.",
       "Use the timezone the user names or that the conversation makes clear, as an IANA name (Asia/Shanghai). If it is unclear, ask before you call the tool.",

@@ -4,6 +4,7 @@ import { createServer } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import { DEFAULT_NEW_BOT } from "../../runtime/botAppearance.ts";
 
 import type { InboundMessage } from "./channelBridge.ts";
 import { ChannelStore } from "./channelStore.ts";
@@ -125,7 +126,10 @@ test("connect_channel: the token goes from the card to the channel store, never 
   const answer = (body: Record<string, unknown>) => fetch(`${base}/channels/setup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const events: { type: string; payload: Record<string, any> }[] = [];
   try {
-    const run = host.controller.runPrompt({ conversationId: "web-1", requestId: "r1", prompt: "connect my telegram" }, (event) => events.push(event as never));
+    const botId = "bot_bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
+    assert.equal((await fetch(`${base}/bots/import`, { method: "POST", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ profiles: [{ id: botId, presetId: "assistant", name: "Custom pairing Bot", appearance: DEFAULT_NEW_BOT }] }) })).status, 200);
+    const run = host.controller.runPrompt({ conversationId: "web-1", botId, requestId: "r1", prompt: "connect my telegram" }, (event) => events.push(event as never));
     await tick();
     const card = () => events.filter((event) => event.type === "run.awaiting_input").at(-1)!.payload;
     assert.equal(card().channelSetup.stage, "credentials");
@@ -149,7 +153,7 @@ test("connect_channel: the token goes from the card to the channel store, never 
     await run;
     assert.deepEqual(results, [{ status: "connected", platform: "telegram", bot: "@rtb_bot", allowedUser: "@ann" }]);
     const channel = (await (await fetch(`${base}/channels`)).json()).channels.find((entry: { platform: string }) => entry.platform === "telegram");
-    assert.deepEqual([channel.enabled, channel.allowUsers, channel.secretsSet.botToken], [true, ["7"], true]);
+    assert.deepEqual([channel.enabled, channel.allowUsers, channel.secretsSet.botToken, channel.botId], [true, ["7"], true, botId], "pairing uses the creating Bot, not the default assistant");
     assert.ok(events.some((event) => event.type === "tool.call.progress" && event.payload.inputRequestId === requestId), "the card closes");
     const transcript = JSON.stringify(host.controller.getConversation("web-1"));
     assert.ok(!JSON.stringify(events).includes(TOKEN) && !transcript.includes(TOKEN) && !JSON.stringify(results).includes(TOKEN));

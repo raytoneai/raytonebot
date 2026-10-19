@@ -141,7 +141,7 @@ const en = {
     },
   },
   routines: {
-    intro: "{assistant} runs these on a schedule, each in its own conversation. To add one, ask {assistant} in chat, e.g. “Every weekday at 9, check …”. New routines start switched off.",
+    intro: "Each routine runs as the Bot that created it, in its own conversation. To add one, ask {assistant} in chat, e.g. “Every weekday at 9, check …”. New routines start switched off.",
     clockNote: "Routines run on time while the bot is awake. A run that falls while the sandbox is paused is skipped, not made up later.",
     empty: "No routines yet.",
     loadFailed: (detail: string) => `Could not load routines · ${detail}`,
@@ -373,7 +373,7 @@ const zh: typeof en = {
     },
   },
   routines: {
-    intro: "{assistant} 按计划运行这些任务，每个任务有自己的对话。要新建，在聊天里对 {assistant} 说，例如「每个工作日 9 点帮我看一下……」。新任务默认关闭。",
+    intro: "任务由创建它的 Bot 按计划运行，每个任务有自己的对话。要新建，在聊天里对 {assistant} 说，例如「每个工作日 9 点帮我看一下……」。新任务默认关闭。",
     clockNote: "机器人运行期间按时执行；沙箱暂停期间错过的场次会跳过，之后不补跑。",
     empty: "还没有例行任务。",
     loadFailed: (detail: string) => `无法读取例行任务 · ${detail}`,
@@ -605,7 +605,7 @@ const ja: typeof en = {
     },
   },
   routines: {
-    intro: "{assistant} がスケジュールどおりに実行します。ルーティンごとに専用の会話があります。追加するにはチャットで {assistant} に頼みます（例：「平日 9 時に…を確認して」）。新しいルーティンはオフで作成されます。",
+    intro: "作成した Bot がスケジュールどおりに実行します。ルーティンごとに専用の会話があります。追加するにはチャットで {assistant} に頼みます（例：「平日 9 時に…を確認して」）。新しいルーティンはオフで作成されます。",
     clockNote: "ボットの起動中は定刻に実行します。サンドボックスの一時停止中に過ぎた回はスキップされ、後から実行されません。",
     empty: "ルーティンはまだありません。",
     loadFailed: (detail: string) => `ルーティンを読み込めません · ${detail}`,

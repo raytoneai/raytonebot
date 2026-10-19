@@ -46,3 +46,14 @@ test("Renamed group members still insert the host's stable routing handle", () =
   assert.deepEqual(mentionMatches(members, "Raer"), []);
   assert.equal(applyMention("@", { start: 0, end: 1, query: "" }, members[0].handle).text, "@Raer ");
 });
+
+test("server display caches are never reimported as legacy Bot edits", async () => {
+  const { legacyBotImport } = await import("./botProfiles.ts");
+  const { DEFAULT_NEW_BOT } = await import("./botAppearance.ts");
+  const legacy = JSON.stringify({ profiles: [{ id: "planner", presetId: "planner", name: "tony", appearance: DEFAULT_NEW_BOT }], conversations: {} });
+  const imported = legacyBotImport(legacy, null)!;
+  assert.equal(imported.profiles.find(bot => bot.id === "planner")!.name, "tony");
+  assert.equal(legacyBotImport(JSON.stringify({ ...imported, source: "server" }), JSON.stringify({ woman: DEFAULT_NEW_BOT })), undefined);
+  assert.equal(legacyBotImport(null, null), undefined);
+  assert.deepEqual(legacyBotImport(null, JSON.stringify({ woman: DEFAULT_NEW_BOT }))!.profiles[0].appearance, DEFAULT_NEW_BOT);
+});

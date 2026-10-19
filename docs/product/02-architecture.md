@@ -294,3 +294,11 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 `rolePrompt` 用当前名字生成身份与团队清单；角色只决定能力、工作区和限制。未编辑的 SOUL 模板在送给模型时替换标题，磁盘文件和用户自定义内容保留；当前配置身份优先于旧对话/人设称呼。Pi 通过 host-owned append prompt 与 SDK `setActiveToolsByName` 在下一轮刷新，保留 native session；CLI 每轮重建系统说明，模型副本附当前身份，用户原文不变。
 
 所有群成员共用一套路由，模型输出 `{mode,members:[稳定ID]}`；名字仅在用户输入边界解析，不决定可用模式。旧 router 的符号 route key 仅作兼容输入，映射固定内置 ID，不发入当前模型提示。重名点名拒绝猜测，前缀重叠按最长完整名字解析；PM 确认选项由计划成员生成，回答通过该轮选项表映射 ID，任务重试直接读取 owner ID。
+
+### 服务端 Bot 配置（2026-10-19，ADR-049）
+
+上述浏览器存储范围已由 ADR-049 取代。`src/pi/botConfig.ts` 在现有主机内读写数据目录 `bots.json`（0600），保存 `{revision, profiles:[{id,presetId,name,appearance}]}`；三个内置缺省值只用于尚未配置的 ID。`GET /__agentcanvas/pi/bots` 返回完整名单，`POST` 接收 `{bot,revision}`，冲突返回 409；不可改变 ID 对应的引擎，头像仍是结构化枚举/颜色，最多 100 个 Bot。
+
+`POST /__agentcanvas/pi/bots/import` 接收旧 `{profiles,conversations}`，只补缺失配置和未绑定且引擎一致的旧对话；不覆盖服务器保存的改名或已有 botId。`useBotProfiles` 首次导入旧名字/头像，之后读服务器，localStorage 仅为带 `source:server` 的显示缓存和未提交对话归属缓存。发送前完成同步，保存失败保留草稿；一页所有头像共享一个轮询器，前台 3 秒、聚焦及跨标签页通知刷新，未变化不重新发布状态。
+
+HTTP host 共用一个 BotConfigStore，网页、IM、例行任务和群聊运行都按其名单解析 Bot ID。会话/群保存的 availableBots/participants 是历史快照，不再覆盖当前配置。群创建同时保存主持 botId，IM 检查已绑定会话身份以区分改名与更换 Bot。IM 设置新增可选 botId（旧 agentPreset 回退到内置 ID），频道 picker 可选全部配置 Bot；聊天配对沿用发起 Bot。Routine 新增 botId，来自创建工具所处轮次，不由模型指定；旧任务回退 assistant。每次调度都重新查当前配置，UI 用同一名字表显示所属 Bot，原有模型配置和调度行为保持。

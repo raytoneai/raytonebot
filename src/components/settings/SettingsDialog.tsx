@@ -528,7 +528,7 @@ function ChannelRow({ t, channel, state, open, onToggleOpen }: {
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title"><strong>{name}</strong></span>
           <span className="settings-row-sub">
-            {channel.status.botName ? `${channel.status.botName} · ` : ""}{botNames[channel.agentPreset]} · {channel.access === "open" ? c.open : c.allowlist}
+            {channel.status.botName ? `${channel.status.botName} · ` : ""}{botNames[channel.botId ?? channel.agentPreset] ?? channel.botId} · {channel.access === "open" ? c.open : c.allowlist}
           </span>
         </button>
         <span className="settings-key-pill" data-tone={tone}><Dot />{c.state[channel.status.state]}</span>
@@ -569,9 +569,9 @@ function ChannelRow({ t, channel, state, open, onToggleOpen }: {
           <Field label={c.role}>
             <SelectMenu
               ariaLabel={c.role}
-              value={channel.agentPreset}
-              options={AGENT_PRESETS.map((preset) => ({ value: preset.id, label: botNames[preset.id] }))}
-              onValueChange={(value) => save({ agentPreset: value as ChannelView["agentPreset"] })}
+              value={channel.botId ?? channel.agentPreset}
+              options={Object.entries(botNames).map(([value, label]) => ({ value, label }))}
+              onValueChange={(value) => save({ botId: value })}
             />
           </Field>
           <Field label={c.access}>
@@ -777,6 +777,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation 
   onOpenConversation?: (id: string) => void;
 }) {
   const c = t.routines;
+  const botNames = useBotNames();
   const { locale } = useLocale();
   const [confirming, setConfirming] = useState(false);
   const busy = state.busy === routine.id;
@@ -791,7 +792,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation 
         <ProviderMark label={routine.title} />
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title"><strong>{routine.title}</strong></span>
-          <span className="settings-row-sub"><code>{routine.schedule}</code> · {routine.timezone}{when ? ` · ${when}` : ""}</span>
+          <span className="settings-row-sub">{botNames[routine.botId ?? "assistant"] ?? routine.botId} · <code>{routine.schedule}</code> · {routine.timezone}{when ? ` · ${when}` : ""}</span>
         </button>
         <span className="settings-key-pill" data-tone={last?.waiting ? "warn" : tone}><Dot />{last?.waiting ? c.waiting : last ? c.status[last.status] : c.neverRun}</span>
         <Switch

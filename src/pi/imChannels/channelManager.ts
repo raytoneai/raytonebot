@@ -1,3 +1,4 @@
+import type { BotConfigStore } from "../botConfig.ts";
 import { join } from "node:path";
 
 import type { PiPermissionMode } from "../approvalGate.ts";
@@ -30,6 +31,7 @@ export type ChannelManager = {
 /** Keeps each enabled channel connected and its status readable by the settings page. */
 export function createChannelManager(options: {
   runtime: ChannelRuntime;
+  bots?: BotConfigStore;
   dataDir: string;
   defaultPermissionMode: PiPermissionMode;
   factories?: ConnectorFactories;
@@ -115,6 +117,7 @@ export function createChannelManager(options: {
       access: settings.access,
       allowUsers: settings.allowUsers,
       agentPreset: settings.agentPreset,
+      botId: settings.botId ?? settings.agentPreset,
       ...(settings.model ? { model: { provider: settings.model.definition.id, model: settings.model.model } } : {}),
       status: slots[platform].status,
       denied: slots[platform].denied.filter((entry) => !settings.allowUsers.includes(entry.id)),
@@ -123,11 +126,17 @@ export function createChannelManager(options: {
 
   if (!store.error) for (const platform of CHANNEL_PLATFORMS) if (store.get(platform).enabled) restart(platform);
 
+  const botPatch = (patch: ChannelPatch): ChannelPatch => {
+    const id = patch.botId ?? patch.agentPreset;
+    if (!id || !options.bots) return patch;
+    const bot = options.bots.require(id);
+    return { ...patch, botId: bot.id, agentPreset: bot.presetId };
+  };
   return {
     list: () => CHANNEL_PLATFORMS.map(view),
     update(platform, patch) {
       const before = store.get(platform);
-      const after = store.update(platform, patch);
+      const after = store.update(platform, botPatch(patch));
       // Access, role and model are read per message; only the connection itself needs a restart.
       if (before.enabled !== after.enabled || JSON.stringify(before.credentials) !== JSON.stringify(after.credentials)
         || (after.enabled && slots[platform].status.state === "error" && patch.enabled === true)) restart(platform);
@@ -135,7 +144,7 @@ export function createChannelManager(options: {
     },
     async connect(platform, patch) {
       const before = store.get(platform);
-      store.update(platform, { ...patch, enabled: true });
+      store.update(platform, { ...botPatch(patch), enabled: true });
       restart(platform);
       await slots[platform].ready;
       const result = view(platform);

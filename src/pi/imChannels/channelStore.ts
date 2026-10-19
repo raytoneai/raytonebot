@@ -11,6 +11,7 @@ export type ChannelSettings = {
   access: ChannelAccess;
   allowUsers: string[];
   agentPreset: AgentPresetId;
+  botId?: string;
   model?: ChannelModel;
 };
 
@@ -39,6 +40,7 @@ export class ChannelStore {
       && Object.values(data.chats).every(id => typeof id === "string")
       && Object.values(data.channels).every(settings => settings && typeof settings.enabled === "boolean"
         && ["open", "allowlist"].includes(settings.access) && isAgentPresetId(settings.agentPreset)
+        && (settings.botId === undefined || typeof settings.botId === "string")
         && Array.isArray(settings.allowUsers) && settings.allowUsers.every(id => typeof id === "string")
         && settings.credentials && typeof settings.credentials === "object" && !Array.isArray(settings.credentials)
         && Object.values(settings.credentials).every(value => typeof value === "string"))
@@ -79,6 +81,7 @@ export class ChannelStore {
       ...(patch.access ? { access: patch.access } : {}),
       ...(patch.allowUsers ? { allowUsers: patch.allowUsers } : {}),
       ...(patch.agentPreset ? { agentPreset: patch.agentPreset } : {}),
+      ...(patch.botId ? { botId: patch.botId } : patch.agentPreset ? { botId: patch.agentPreset } : {}),
       ...(patch.model ? { model: patch.model } : {}),
     });
     this.save({ ...this.data, channels: { ...this.data.channels, [platform]: next } });
@@ -136,6 +139,7 @@ function normalize(platform: ChannelPlatform, value: Partial<ChannelSettings>): 
     allowUsers: [...new Set((Array.isArray(value.allowUsers) ? value.allowUsers : [])
       .filter((id): id is string => typeof id === "string").map((id) => id.trim()).filter(Boolean))].slice(0, 100),
     agentPreset: isAgentPresetId(value.agentPreset) ? value.agentPreset : "assistant",
+    ...(value.botId ? { botId: value.botId } : {}),
     ...(model ? { model } : {}),
   };
 }

@@ -4,6 +4,8 @@ export type RoutineRunStatus = "running" | "success" | "error" | "cancelled" | "
 
 export type RoutineView = {
   id: string;
+  /** Stable creator identity; older routines belong to assistant. */
+  botId?: string;
   title: string;
   /** Five-field cron, read by the host's clock in `timezone`. */
   schedule: string;

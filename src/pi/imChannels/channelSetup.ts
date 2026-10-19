@@ -10,6 +10,7 @@ export type ChannelSetupResult =
 
 export type ChannelSetupRun = {
   conversationId: string;
+  botId?: string;
   platform: ChannelPlatform;
   signal: AbortSignal;
   /** The turn came from an IM chat. Where the turn came from decides, not the conversation: a
@@ -22,6 +23,7 @@ export type ChannelSetupRun = {
 
 type Entry = {
   conversationId: string;
+  botId?: string;
   state: ChannelSetupState;
   show(state: ChannelSetupState): void;
   startPairing(botName?: string): void;
@@ -60,6 +62,7 @@ export function createChannelSetup(manager: ChannelManager) {
         let unwatch: (() => void) | undefined;
         const current: Entry = {
           conversationId: input.conversationId,
+          botId: input.botId,
           state: { platform, stage: "credentials" },
           show(state) { current.state = state; input.announce(requestId, state); },
           startPairing(botName) {
@@ -100,7 +103,7 @@ export function createChannelSetup(manager: ChannelManager) {
       if (action === "submit") {
         if (stage !== "credentials") throw new ChannelSetupError("Already connected.", 409);
         try {
-          const view = await manager.connect(platform, { fields: fields ?? {} });
+          const view = await manager.connect(platform, { fields: fields ?? {}, ...(current.botId ? { botId: current.botId } : {}) });
           current.startPairing(view.status.botName);
           return current.state;
         } catch (error) {

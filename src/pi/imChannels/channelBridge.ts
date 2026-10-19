@@ -31,7 +31,8 @@ export type Replier = {
 
 export type ReplyStream = { update(text: string): Promise<void>; finish(text: string): Promise<void> };
 
-export type ChannelRuntime = Pick<PiRuntimeController, "runPrompt" | "configure" | "abort" | "resolveApproval" | "resolveUserInput">;
+export type ChannelRuntime = Pick<PiRuntimeController, "runPrompt" | "configure" | "abort" | "resolveApproval" | "resolveUserInput">
+  & Partial<Pick<PiRuntimeController, "getConversation">>;
 
 type Pending = {
   conversationId: string;
@@ -148,7 +149,10 @@ export class ChannelBridge {
 
   private async run(chatKey: string, prompt: string, message: InboundMessage, settings: ChannelSettings) {
     let conversationId = this.options.store.conversationFor(chatKey);
-    if (!conversationId) {
+    const saved = conversationId ? this.options.runtime.getConversation?.(conversationId) : undefined;
+    const boundBot = saved?.botId ?? saved?.group?.hostId ?? saved?.agentPreset;
+    // A name change keeps context; selecting another Bot must never reuse that identity.
+    if (!conversationId || boundBot && boundBot !== (settings.botId ?? settings.agentPreset)) {
       conversationId = newConversationId(chatKey);
       this.options.store.bindConversation(chatKey, conversationId);
     }
@@ -208,6 +212,7 @@ export class ChannelBridge {
           model: model?.model,
           permissionMode: this.options.defaultPermissionMode,
           agentPreset: settings.agentPreset,
+          botId: settings.botId ?? settings.agentPreset,
         }, (event: AgentUXEvent) => {
           const payload = (event.payload ?? {}) as Record<string, any>;
           switch (event.type) {

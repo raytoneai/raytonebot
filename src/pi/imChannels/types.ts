@@ -34,6 +34,7 @@ export type ChannelView = {
   access: ChannelAccess;
   allowUsers: string[];
   agentPreset: AgentPresetId;
+  botId?: string;
   model?: { provider: string; model: string };
   status: { state: ChannelConnectionState; error?: string; botName?: string; since?: number };
   /** Senders turned away by the allowlist, newest first, so the owner can let them in. */
@@ -64,5 +65,6 @@ export type ChannelPatch = {
   access?: ChannelAccess;
   allowUsers?: string[];
   agentPreset?: AgentPresetId;
+  botId?: string;
   model?: ChannelModel;
 };

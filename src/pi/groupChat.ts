@@ -1,3 +1,4 @@
+import type { BotConfigStore } from "./botConfig.ts";
 import { randomUUID } from "node:crypto";
 
 import type { AgentUXEvent } from "@agent-ux/protocol";
@@ -416,6 +417,7 @@ export const untag = (value: string): { member?: string; id: string } => {
 
 // ---------- controller wrapper ----------
 type Deps = {
+  bots?: BotConfigStore;
   store: ConversationStore;
   userInputGate: UserInputGate;
   validateAttachments?(attachments: PiPromptInput["attachments"], member: AgentPresetId): Promise<void>;
@@ -449,7 +451,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     const saved = controller.getConversation(id);
     if (active.has(id) || resets.has(id) || saved?.activeRunId) throw new Error("请等当前回复结束后再调整成员。");
     const previous = groupOf(id)?.group;
-    const catalog = participantCatalog(bots, previous?.participants ?? participantCatalog(saved?.availableBots));
+    const catalog = deps.bots?.catalog() ?? participantCatalog(bots, previous?.participants ?? participantCatalog(saved?.availableBots));
     const selected = selectedParticipants(members, catalog);
     const host = hostId ?? previous?.hostId ?? saved?.botId ?? saved?.agentPreset ?? members[0];
     if (!members.includes(host)) throw new Error("The conversation host must stay in the room.");
@@ -458,7 +460,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       lines: conversationGroupLines(saved?.events ?? [], host), introduced: saved?.events.length ? [host] : [],
     };
     if (!saved) deps.store.begin(id, selected.find(bot => bot.id === host)!.presetId, "");
-    deps.store.setExtra(id, { group: meta, ...(!meta.preserveTitle && !saved?.titleSource ? { title: groupTitle(members, Object.fromEntries(catalog.map(bot => [bot.id, bot.name]))) } : {}) });
+    deps.store.setExtra(id, { ...(!saved?.botId ? { botId: host } : {}), availableBots: catalog, group: meta, ...(!meta.preserveTitle && !saved?.titleSource ? { title: groupTitle(members, Object.fromEntries(catalog.map(bot => [bot.id, bot.name]))) } : {}) });
     return deps.store.get(id)!;
   }
 
@@ -497,7 +499,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     const reviewed = command ? meta.tasks?.find(t => t.id === command[1]) : undefined;
     if (command && (!reviewed || !["needs_review", "failed"].includes(reviewed.status))) throw new Error("Only this group's unresolved assignments can be reviewed or retried.");
     // The client sends the group's members (chosen in "To:", edited in the member panel); keep the group order.
-    const catalog = participantCatalog(input.availableBots, meta.participants ?? DEFAULT_PARTICIPANTS);
+    const catalog = deps.bots?.catalog() ?? participantCatalog(input.availableBots, meta.participants ?? DEFAULT_PARTICIPANTS);
     const requested = input.members;
     if (Array.isArray(requested)) {
       meta.members = selectedParticipants(requested, catalog).map(bot => bot.id);
@@ -862,6 +864,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     runGroupPrompt,
     setGroupMembers,
     async runPrompt(input, onEvent, options) {
+      if (deps.bots) input = deps.bots.input(input, input.conversationId ? deps.store.get(input.conversationId) : undefined);
       // Only top-level user requests can invite. A child prompt/tool result never alters the room.
       if (options?.groupConversation || !input.conversationId) return controller.runPrompt(input, onEvent, options);
       const existing = groupOf(input.conversationId);

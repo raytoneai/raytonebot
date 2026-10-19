@@ -1,3 +1,4 @@
+import { BotConfigStore, BotConfigError } from "./botConfig.ts";
 import { realpathSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { resolve as resolvePath } from "node:path";
@@ -169,6 +170,7 @@ export function createPiRuntimeController(options: {
   /** Conversations and Pi sessions on disk. Default: ~/.raytonebot/data. */
   dataDir?: string;
   store?: ConversationStore;
+  bots?: BotConfigStore;
   bridgeFactory?: PiBridgeFactory;
   limits?: RunLimits;
   /** Connecting an IM channel from chat; the host binds it to its channel manager. */
@@ -183,6 +185,7 @@ export function createPiRuntimeController(options: {
   browser?: BrowserService;
 }): GroupController {
   const { cwd } = options;
+  const botConfig = options.bots;
   const dataDir = options.dataDir ?? defaultDataDir();
   const store = options.store ?? createConversationStore(dataDir);
   const limits = options.limits ?? runLimits();
@@ -288,7 +291,7 @@ export function createPiRuntimeController(options: {
     fromChannel?: boolean;
     groupConversation?: boolean;
     /** The turn's model service and language, for a routine created during it. */
-    turn: Pick<PiPromptInput, "provider" | "model" | "locale">;
+    turn: Pick<PiPromptInput, "provider" | "model" | "locale" | "botId">;
     adapter?: PiEventAdapter;
     stop?: () => Promise<void>;
     steer?: (text: string, requestId: string) => Promise<void>;
@@ -349,7 +352,7 @@ export function createPiRuntimeController(options: {
   const setupChannel = (conversationId: string, { toolCallId, platform, signal }: ChannelSetupRequest) => {
     const slot = runs.get(conversationId), adapter = slot?.adapter;
     if (!adapter || !options.channelSetup) throw new Error("Channel setup is not available in this run.");
-    return options.channelSetup({ conversationId, platform, signal, fromChannel: slot?.fromChannel === true,
+    return options.channelSetup({ conversationId, platform, signal, botId: slot.turn.botId, fromChannel: slot?.fromChannel === true,
       announce: (requestId, state) => adapter.apply({ type: "channel_setup", requestId, toolCallId, state }),
       resolved: (requestId) => adapter.apply({ type: "channel_setup_resolved", requestId, toolCallId }),
     });
@@ -358,7 +361,7 @@ export function createPiRuntimeController(options: {
     const slot = runs.get(conversationId);
     if (!slot || !options.createRoutine) throw new Error("Routines are not available in this run.");
     const definition = slot.turn.provider ? providerDefinitions.get(slot.turn.provider) : undefined;
-    return options.createRoutine({ ...request, fromConversationId: conversationId, locale: slot.turn.locale,
+    return options.createRoutine({ ...request, fromConversationId: conversationId, botId: slot.turn.botId, locale: slot.turn.locale,
       ...(definition ? { model: { definition, model: slot.turn.model ?? definition.models[0] } } : {}) });
   };
   /** A run registers how to stop it once it has started; a stop that arrived earlier applies now. */
@@ -883,8 +886,10 @@ export function createPiRuntimeController(options: {
           else await op.catch(() => undefined);
         }
         const saved = store.get(conversationId);
-        const identity = resolveBotIdentity(role, input, saved);
+        if (botConfig) input = botConfig.input(input, saved);
+        const identity = resolveBotIdentity(role, input, botConfig ? { botId: saved?.botId } : saved);
         input = { ...input, botId: identity.botId, availableBots: identity.availableBots };
+        slot.turn = input;
         const fresh = !saved;
         const conversation = store.begin(conversationId, role, options?.title ?? prompt);
         opened = true;
@@ -1040,6 +1045,7 @@ export function createPiRuntimeController(options: {
   };
   // Group chat wraps the controller (groupChat.ts, ADR-032).
   return attachGroupChat(api, { store, userInputGate,
+    bots: options.bots,
     validateAttachments: (attachments, role) => promptWithWorkspaceFiles("", attachments, role, layout, [dataDir]).then(() => {}),
     credentials: providerCredentials,
     providerDefinition: (id) => id ? providerDefinitions.get(id) : undefined,
@@ -1070,15 +1076,17 @@ export function createPiHttpHost(options: {
   let channelSetup: ReturnType<typeof createChannelSetup> | undefined;
   let routines: RoutineService | undefined;
   const dataDir = options.dataDir ?? defaultDataDir();
+  const bots = new BotConfigStore(join(dataDir, "bots.json"));
+  const store = createConversationStore(dataDir);
   const mcp = createMcpService({ dataDir, log: runtimeLogger(dataDir) });
   const memory = createMemoryService({ dataDir, log: runtimeLogger(dataDir) });
   const browser = options.browser === false ? undefined : options.browser ?? createBrowserService({ dataDir, log: runtimeLogger(dataDir) });
-  const controller = createPiRuntimeController({ ...options, layout, channelSetup: (run) => channelSetup!.run(run),
+  const controller = createPiRuntimeController({ ...options, layout, store, bots, channelSetup: (run) => channelSetup!.run(run),
     createRoutine: (input) => routines!.create(input), mcpTools: () => mcp.toolkit(), memory, browser });
-  routines = createRoutineService({ dataDir, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
+  routines = createRoutineService({ dataDir, bots, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
   const stopClock = options.routineClock === false ? undefined : routines.startClock();
   // Starts the enabled channels; the vite plugin creates this host when its server starts.
-  const channels = createChannelManager({ runtime: controller, dataDir, defaultPermissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir), factories: options.channelFactories });
+  const channels = createChannelManager({ bots, runtime: controller, dataDir, defaultPermissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir), factories: options.channelFactories });
   channelSetup = createChannelSetup(channels);
 
   return {
@@ -1100,6 +1108,32 @@ export function createPiHttpHost(options: {
       }
 
       try {
+        if (url.pathname === `${PI_API_PREFIX}/bots` || url.pathname === `${PI_API_PREFIX}/bots/import`) {
+          try {
+            if (req.method === "GET" && url.pathname.endsWith("/bots")) sendJson(res, 200, bots.view());
+            else if (req.method === "POST") {
+              const body = await readJson(req);
+              if (url.pathname.endsWith("/import")) {
+                const view = bots.import(body.profiles);
+                // Older browser-only history bindings become durable without changing an existing identity.
+                const bindings = body.conversations;
+                if (bindings && typeof bindings === "object" && !Array.isArray(bindings)) {
+                  for (const [id, botId] of Object.entries(bindings)) {
+                    if (typeof botId !== "string" || !/^[a-zA-Z0-9._:-]{1,160}$/.test(id)) continue;
+                    const bot = view.profiles.find(bot => bot.id === botId), saved = store.get(id);
+                    if (bot && saved && !saved.botId && !controller.getConversation(id)?.activeRunId && saved.agentPreset === bot.presetId)
+                      store.setExtra(id, { botId });
+                  }
+                }
+                sendJson(res, 200, view);
+              } else sendJson(res, 200, bots.save(body.bot, body.revision));
+            } else sendJson(res, 405, { error: "Unsupported Bot operation." });
+          } catch (error) {
+            if (!(error instanceof BotConfigError)) throw error;
+            sendJson(res, error.status, { error: error.message });
+          }
+          return true;
+        }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/health`) {
           sendJson(res, 200, controller.health());
           return true;
@@ -1531,7 +1565,7 @@ export function createPiHttpHost(options: {
         }
         sendJson(res, 404, { error: "Unknown Pi endpoint." });
       } catch (error) {
-        if (!res.headersSent) sendJson(res, error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
+        if (!res.headersSent) sendJson(res, error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
         else if (!res.destroyed) res.end();
       }
       return true;
@@ -1556,6 +1590,7 @@ function channelPatch(body: Record<string, unknown>): ChannelPatch {
     ...(body.access === "open" || body.access === "allowlist" ? { access: body.access } : {}),
     ...(Array.isArray(body.allowUsers) ? { allowUsers: body.allowUsers.filter((id): id is string => typeof id === "string" && id.length <= 200) } : {}),
     ...(isAgentPresetId(body.agentPreset) ? { agentPreset: body.agentPreset } : {}),
+    ...(typeof body.botId === "string" ? { botId: body.botId } : {}),
     ...(model && typeof definition.id === "string" && typeof definition.baseUrl === "string" && Array.isArray(definition.models)
       ? { model: { model, definition: {
         id: definition.id, name: stringField(definition, "name") ?? definition.id, baseUrl: definition.baseUrl,

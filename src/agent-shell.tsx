@@ -9,7 +9,7 @@ import {
   type OutputPanelItem,
   type OutputPanelOpenRequest,
 } from "./components/agent-preview/outputframe/panelItem";
-import { useBotProfiles, bindBotConversation, forgetBotConversation, saveBotProfile } from "./runtime/useBotProfiles";
+import { useBotProfiles, bindBotConversation, forgetBotConversation, saveBotProfile, syncBotProfiles } from "./runtime/useBotProfiles";
 import { BOT_NAMES, conversationBotId, type BotProfile } from "./runtime/botProfiles";
 import { DEFAULT_NEW_BOT } from "./runtime/botAppearance";
 import type { BotEditorState } from "./components/shell/BotEditor";
@@ -240,11 +240,12 @@ export function AgentApp() {
   const [historyListFailed, setHistoryListFailed] = useState(false);
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
   const [runOutcome, setRunOutcome] = useState<RunOutcomeFace>();
-  const { store: botStore, profiles: bots } = useBotProfiles();
-  const [botDraft, setBotDraft] = useState<{ draft: BotProfile; creating: boolean }>();
+  const { store: botStore, profiles: bots, revision: botRevision, error: botLoadError } = useBotProfiles();
+  const [botSaving, setBotSaving] = useState(false);
+  const [botDraft, setBotDraft] = useState<{ draft: BotProfile; creating: boolean; revision?: number }>();
   const [botError, setBotError] = useState<string>();
-  const botStorageError = locale === "zh" ? "保存失败，请检查浏览器存储后重试。" : "Could not save. Check browser storage and retry.";
-  const editBot = (bot: BotProfile) => { setBotError(undefined); setBotDraft({ draft: { ...bot, appearance: { ...bot.appearance } }, creating: false }); };
+  const botStorageError = locale === "zh" ? "保存失败，请检查连接后重试。" : "Could not save. Check the connection and retry.";
+  const editBot = (bot: BotProfile) => { setBotError(undefined); setBotDraft({ draft: { ...bot, appearance: { ...bot.appearance } }, creating: false, revision: botRevision }); };
   const [settingsOpen, setSettingsOpen] = useState(false);
   /** Mounted from the first open on, so later opens and closes keep their animation. */
   const [settingsMounted, setSettingsMounted] = useState(false);
@@ -850,6 +851,7 @@ export function AgentApp() {
       showIfActive(conversation);
     });
     try {
+      await syncBotProfiles();
       // Reopening and reattaching share this load; a new turn never starts from an empty stub.
       if (nextConversation.stored && nextConversation.events.length === 0) {
         nextConversation = await loadStoredConversation(nextConversation);
@@ -1421,16 +1423,19 @@ export function AgentApp() {
   } satisfies ComposerRunOptions;
   const workingMember = isGroupConversation(activePiConversation) ? workingGroupMember(events) : undefined;
   const botEditor: BotEditorState | undefined = botDraft ? {
-    ...botDraft, error: botError,
-    onChange: draft => { setBotDraft({ ...botDraft, draft }); setBotError(undefined); },
-    onClose: () => { setBotDraft(undefined); setBotError(undefined); },
-    onSave: () => {
+    ...botDraft, error: botError ?? botLoadError, saving: botSaving, ready: botRevision !== undefined,
+    onChange: draft => { if (!botSaving) { setBotDraft({ ...botDraft, draft }); setBotError(undefined); } },
+    onClose: () => { if (!botSaving) { setBotDraft(undefined); setBotError(undefined); } },
+    onSave: async () => {
+      if (botSaving) return;
+      setBotSaving(true);
       try {
         const bot = { ...botDraft.draft, name: botDraft.draft.name.trim() };
-        saveBotProfile(bot);
+        await saveBotProfile(bot, botDraft.revision ?? botRevision);
         if (botDraft.creating && !startConversationWith(bot.presetId, bot)) return;
         setBotDraft(undefined); setBotError(undefined);
-      } catch { setBotError(botStorageError); }
+      } catch (error) { setBotError(error instanceof Error ? error.message : botStorageError); }
+      finally { setBotSaving(false); }
     },
   } : undefined;
   const shellExtras: ShellExtras = {
@@ -1438,10 +1443,10 @@ export function AgentApp() {
     sessionBotIds: streamId ? undefined : botStore.conversations,
     onCreateBot: streamId ? undefined : () => {
       setBotError(undefined);
-      setBotDraft({ creating: true, draft: { id: `bot_${crypto.randomUUID()}`, presetId: "assistant", name: "", appearance: { ...DEFAULT_NEW_BOT } } });
+      setBotDraft({ creating: true, revision: botRevision, draft: { id: `bot_${crypto.randomUUID()}`, presetId: "assistant", name: "", appearance: { ...DEFAULT_NEW_BOT } } });
     },
     onEditBot: streamId ? undefined : editBot,
-    botError: botDraft ? undefined : botError,
+    botError: botDraft ? undefined : botError ?? (botLoadError ? `${locale === "zh" ? "Bot 配置同步失败：" : "Bot sync failed: "}${botLoadError}` : undefined),
     botEditor,
     composerActivity: activityPreview ? {
       scope: `preview:${activePiConversationId}`,

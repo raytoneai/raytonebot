@@ -1,7 +1,8 @@
 import { DEFAULT_BOT_NAMES, isAgentPresetId, type AgentPresetId } from "../pi/harnessCatalog.ts";
-import { DEFAULT_BOTS, parseBotAppearance, type BotAppearance, type BotAppearances, type BotKind } from "./botAppearance.ts";
+import { DEFAULT_BOTS, parseBotAppearance, parseBotAppearances, type BotAppearance, type BotAppearances, type BotKind } from "./botAppearance.ts";
 
 export type BotProfile = { id: string; presetId: AgentPresetId; name: string; appearance: BotAppearance };
+export type BotConfigView = { revision: number; profiles: BotProfile[] };
 export type BotProfileStore = { profiles: BotProfile[]; conversations: Record<string, string> };
 export const BOT_PROFILES_KEY = "raytone.bot-profiles.v1";
 export const BOT_KINDS = { assistant: "woman", planner: "man", builder: "boy" } as const satisfies Record<AgentPresetId, BotKind>;
@@ -57,4 +58,12 @@ export function updateBotProfile(store: BotProfileStore, value: BotProfile): Bot
 export function conversationBotId(store: BotProfileStore, conversation: { id: string; botId?: string; agentPreset?: string }): string | undefined {
   if (conversation.id.startsWith("group_")) return;
   return conversation.botId ?? store.conversations[conversation.id] ?? (isAgentPresetId(conversation.agentPreset) ? conversation.agentPreset : undefined);
+}
+
+/** A server display cache must never be mistaken for an older browser's editable configuration. */
+export function legacyBotImport(raw: string | null, appearances: string | null): BotProfileStore | undefined {
+  try { if (raw && JSON.parse(raw)?.source === "server") return; } catch { /* Validate with the legacy readers. */ }
+  if (!raw && !appearances) return;
+  const store = parseBotProfiles(raw);
+  return { ...store, profiles: resolveBotProfiles(store, parseBotAppearances(appearances)) };
 }

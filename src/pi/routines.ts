@@ -1,3 +1,4 @@
+import type { BotConfigStore } from "./botConfig.ts";
 import { randomUUID } from "node:crypto";
 import { mkdirSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
@@ -10,10 +11,10 @@ import { ROUTINE_FAILURE_LIMIT, type RoutineRunStatus, type RoutineView } from "
 import { readSettingsFile } from "./settingsFile.ts";
 
 /**
- * Routines (ADR-033): saved instructions Raer runs on a schedule. The host keeps the definitions
+ * Routines (ADR-033): saved instructions the creating Bot runs on a schedule. The host keeps the definitions
  * and a run entry that is safe to call twice; the host's own clock (ADR-036) calls it on each
  * matching minute while the sandbox is awake. Each routine runs in its own ordinary conversation,
- * as Raer, with the host's default permission mode and the server's environment key, like an IM chat.
+ * as that same Bot, with the host's default permission mode and the server's environment key, like an IM chat.
  */
 
 export type Routine = Omit<RoutineView, "model"> & {
@@ -26,7 +27,7 @@ export type Routine = Omit<RoutineView, "model"> & {
 };
 
 export type RoutineRequest = { title: string; schedule: string; timezone: string; instructions: string };
-export type RoutineCreateInput = RoutineRequest & { fromConversationId: string; model?: ChannelModel; locale?: AppLocale };
+export type RoutineCreateInput = RoutineRequest & { fromConversationId: string; botId?: string; model?: ChannelModel; locale?: AppLocale };
 
 export class RoutineError extends Error {
   readonly status: number;
@@ -101,7 +102,7 @@ export class RoutineStore {
   constructor(file?: string) {
     this.file = file;
     const loaded = readSettingsFile<{ routines: Routine[] }>(file, data => Array.isArray(data.routines) && data.routines.every(routine =>
-      routine && typeof routine.id === "string" && typeof routine.title === "string" && typeof routine.instructions === "string"
+      routine && (routine.botId === undefined || typeof routine.botId === "string") && typeof routine.id === "string" && typeof routine.title === "string" && typeof routine.instructions === "string"
       && typeof routine.schedule === "string" && !cronProblem(routine.schedule)
       && typeof routine.timezone === "string" && !timezoneProblem(routine.timezone)
       && typeof routine.enabled === "boolean" && Number.isFinite(routine.createdAt) && Number.isFinite(routine.failures)
@@ -169,6 +170,7 @@ const CLOCK_LOOKBACK = 3;
 
 export function createRoutineService(options: {
   dataDir?: string;
+  bots?: BotConfigStore;
   runtime: Pick<PiRuntimeController, "runPrompt" | "configure" | "getConversation"> & Partial<Pick<PiRuntimeController, "awaitingUser">>;
   permissionMode: PiPermissionMode;
   log?(event: string, fields: Record<string, unknown>): void;
@@ -229,9 +231,11 @@ export function createRoutineService(options: {
       if (problem) throw new RoutineError(problem, 400);
       // Never fall back to another model: a routine runs only on the service it was made with.
       if (!input.model) throw new RoutineError("This conversation has no configured model service. Choose one in Settings → Model services, then ask again.", 400);
+      const botId = input.botId ?? "assistant";
+      options.bots?.require(botId);
       const id = randomUUID().slice(0, 8);
       // Created switched off: "clocks stay Disabled until I hit Enable".
-      const routine: Routine = { id, title, schedule: schedule!, timezone: timezone!, instructions, enabled: false,
+      const routine: Routine = { id, botId, title, schedule: schedule!, timezone: timezone!, instructions, enabled: false,
         createdAt: now().getTime(), conversationId: `routine-${id}`, failures: 0,
         model: input.model, ...(input.locale ? { locale: input.locale } : {}) };
       store.put(routine);
@@ -276,6 +280,8 @@ export function createRoutineService(options: {
       starting.add(id);
       let accepted = false;
       try {
+        const botId = routine.botId ?? "assistant";
+        const bot = options.bots?.require(botId);
         await options.runtime.configure({ conversationId: routine.conversationId, providerDefinition: model.definition,
           provider: model.definition.id, model: model.model });
         let status: RoutineRunStatus = "error", error: string | undefined;
@@ -296,7 +302,7 @@ export function createRoutineService(options: {
               error = String((event.payload as { message?: unknown }).message ?? "").trim() || undefined;
             }
           };
-          options.runtime.runPrompt({ conversationId: routine.conversationId, requestId: runId, agentPreset: "assistant",
+          options.runtime.runPrompt({ conversationId: routine.conversationId, requestId: runId, botId, agentPreset: bot?.presetId ?? "assistant",
             prompt: routinePrompt(routine, occurrenceId, now()), permissionMode: options.permissionMode,
             provider: model.definition.id, model: model.model,
             ...(routine.locale ? { locale: routine.locale } : {}) }, onEvent, { title: routine.title }).then(

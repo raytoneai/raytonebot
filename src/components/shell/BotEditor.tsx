@@ -11,13 +11,13 @@ import "../settings/settings.css";
 import "./botEditor.css";
 
 export type BotEditorState = {
-  draft: BotProfile; creating: boolean; error?: string;
+  draft: BotProfile; creating: boolean; error?: string; saving?: boolean; ready?: boolean;
   onChange: (draft: BotProfile) => void;
   onSave: () => void; onClose: () => void;
 };
 
 /** The former settings avatar editor, shared by the Logo and every Bot's edit action. */
-export function BotEditor({ draft, creating, error, onChange, onSave, onClose }: BotEditorState) {
+export function BotEditor({ draft, creating, error, saving = false, ready = true, onChange, onSave, onClose }: BotEditorState) {
   const { locale } = useLocale();
   const zh = locale === "zh";
   const kind = BOT_KINDS[draft.presetId];
@@ -29,7 +29,7 @@ export function BotEditor({ draft, creating, error, onChange, onSave, onClose }:
   };
   const optionNames: Record<string, string> = { round: "圆形", oval: "椭圆", "soft-square": "圆角方形", none: "无", quiff: "飞机头", bob: "波波头", pixie: "侧分短发", buns: "双丸子", long: "侧分长发", clip: "发夹", bow: "蝴蝶结", star: "星星", glasses: "圆眼镜", headphones: "头戴耳机", headset: "耳麦", cap: "棒球帽", beanie: "针织帽" };
   const title = creating ? (zh ? "创建 Bot" : "Create Bot") : (zh ? "编辑 Bot" : "Edit Bot");
-  return <Dialog.Root open onOpenChange={open => { if (!open) onClose(); }}>
+  return <Dialog.Root open onOpenChange={open => { if (!open && !saving) onClose(); }}>
     <Dialog.Portal>
       <Dialog.Overlay className="settings-overlay" />
       <Dialog.Content className="settings-dialog bot-editor-dialog"
@@ -41,7 +41,7 @@ export function BotEditor({ draft, creating, error, onChange, onSave, onClose }:
         </header>
         <form className="bot-editor-form" onSubmit={event => { event.preventDefault(); onSave(); }}>
           <div className="settings-body-scroll">
-            <Dialog.Description className="settings-intro">{zh ? "为 Bot 起个名字，搭配它的头像。配置保存在此浏览器。" : "Give your Bot a name and a face. Saved in this browser."}</Dialog.Description>
+            <Dialog.Description className="settings-intro">{zh ? "为 Bot 起个名字，搭配它的头像。名字和头像会同步到所有入口。" : "Give your Bot a name and a face. Names and avatars sync across all entry points."}</Dialog.Description>
             <div className="bot-creator">
               <div className="bot-creator-preview">
                 <AgentPersonaProvider persona={{ kind, name: draft.name, state: "idle" }}>
@@ -76,7 +76,7 @@ export function BotEditor({ draft, creating, error, onChange, onSave, onClose }:
           </div>
           <footer className="bot-editor-footer">
             {error ? <p role="alert">{error}</p> : null}
-            <div className="bot-actions"><Button type="button" variant="ghost" onClick={onClose}>{zh ? "取消" : "Cancel"}</Button><Button type="submit" disabled={!draft.name.trim()}>{creating ? title : (zh ? "保存" : "Save")}</Button></div>
+            <div className="bot-actions"><Button type="button" variant="ghost" disabled={saving} onClick={onClose}>{zh ? "取消" : "Cancel"}</Button><Button type="submit" disabled={!draft.name.trim() || saving || !ready}>{saving ? (zh ? "保存中…" : "Saving…") : creating ? title : (zh ? "保存" : "Save")}</Button></div>
           </footer>
         </form>
       </Dialog.Content>
