@@ -93,11 +93,27 @@ export async function readWorkspaceText(client, volumeId, path) {
 
 const domainRule = (domain) => (domain.startsWith("*.") ? { type: "wildcard_domain", domain } : { type: "domain", domain });
 
-export function networkPolicy(port = AM.port) {
+/**
+ * `outboundAllowlist` is false when the selected provider cannot enforce an
+ * allowlist (capabilities.network.outbound_allowlist). Such a provider only
+ * offers open or no egress, so the adapter records the weaker policy instead of
+ * silently claiming a narrow one.
+ */
+export function networkPolicy(port = AM.port, { outboundAllowlist = true } = {}) {
   return {
-    outbound: { default: "deny", allow: AM.outboundAllow.map(domainRule) },
+    outbound: outboundAllowlist
+      ? { default: "deny", allow: AM.outboundAllow.map(domainRule) }
+      : { default: "allow", allow: [] },
     public_access: { default: "deny", allow: [{ type: "port", protocol: "http", port }] },
   };
+}
+
+/** The provider-specific EnvironmentSpec body; container sandboxes nest the provider id. */
+export function runtimeConfig(provider) {
+  const id = provider.sandbox_provider_id;
+  return provider.runtime_kind === "container_sandbox"
+    ? { kind: "container", container: { sandbox_provider_id: id } }
+    : { sandbox_provider_id: id };
 }
 
 export async function ensureEnvironmentSpec(client, config, log = () => {}) {
@@ -120,17 +136,21 @@ export async function ensureEnvironmentSpec(client, config, log = () => {}) {
   }
 
   const providers = await client.sandboxProviders.list();
-  const provider = providers.data.find((row) => row.selectable && row.provider_kind === "e2b") ??
+  const provider = providers.data.find((row) => row.selectable && row.runtime_kind === "e2b_sandbox") ??
     providers.data.find((row) => row.selectable);
-  if (!provider) throw new Error("no selectable sandbox provider in this namespace; ask AM for an E2B provider profile");
+  if (!provider) throw new Error("no selectable sandbox provider in this namespace; ask AM for a provider profile");
+  const outboundAllowlist = provider.capabilities?.network?.outbound_allowlist !== false;
+  if (!outboundAllowlist) {
+    log("environment spec: provider cannot enforce an outbound allowlist; open egress is recorded as a known gap");
+  }
 
   const created = await client.environmentSpecs.create({
     name: AM.environmentSpecName,
-    description: "RaytoneBot host: Node HTTP app on 5188, preview allowed, narrow egress.",
+    description: "RaytoneBot host: Node HTTP app on 5188, preview allowed, narrow egress when the provider supports it.",
     runtime_kind: provider.runtime_kind,
-    runtime_config: { sandbox_provider_id: provider.sandbox_provider_id },
+    runtime_config: runtimeConfig(provider),
     ...(config.region ? { region: config.region } : {}),
-    network_policy: networkPolicy(config.port),
+    network_policy: networkPolicy(config.port, { outboundAllowlist }),
     default_env: { NODE_ENV: "production" },
   });
   log(`environment spec: created ${created.data.environment_spec_id} on ${provider.display_name}`);

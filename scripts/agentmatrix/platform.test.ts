@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { CHUNK_BYTES, lastAgentText, listAll, networkPolicy, previewOrigin } from "./platform.mjs";
+import { CHUNK_BYTES, lastAgentText, listAll, networkPolicy, previewOrigin, runtimeConfig } from "./platform.mjs";
 
 test("the environment spec opens exactly the app port and denies everything else", () => {
   const policy = networkPolicy(5188);
@@ -12,6 +12,19 @@ test("the environment spec opens exactly the app port and denies everything else
   ]);
   assert.equal(policy.public_access.default, "deny");
   assert.deepEqual(policy.public_access.allow, [{ type: "port", protocol: "http", port: 5188 }]);
+});
+
+test("a provider without allowlist support gets open egress instead of a false claim", () => {
+  const policy = networkPolicy(5188, { outboundAllowlist: false });
+  assert.deepEqual(policy.outbound, { default: "allow", allow: [] });
+  assert.deepEqual(policy.public_access.allow, [{ type: "port", protocol: "http", port: 5188 }]);
+});
+
+test("container sandboxes nest the provider id under runtime_config.container", () => {
+  assert.deepEqual(runtimeConfig({ runtime_kind: "container_sandbox", sandbox_provider_id: "sbp_1" }),
+    { kind: "container", container: { sandbox_provider_id: "sbp_1" } });
+  assert.deepEqual(runtimeConfig({ runtime_kind: "e2b_sandbox", sandbox_provider_id: "sbp_1" }),
+    { sandbox_provider_id: "sbp_1" });
 });
 
 test("the archive is chunked below the 1 MiB workspace file cap", () => {

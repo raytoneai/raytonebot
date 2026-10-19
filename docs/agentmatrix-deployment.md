@@ -49,8 +49,10 @@ npm run am:stop                     # 停应用、归档 Session、删除 Enviro
    `vendor/`，打包成 `raytonebot-<sha8>.tar.gz`，记录 SHA-256 和 SDK/合同版本。压缩后约 8.7 MB，
    低于 20 MiB 附件上限。`--clean` 在临时 worktree 里从 HEAD 构建并打包，未提交改动不会进入发布。
 2. **Workspace**：按名称复用或创建 `raytonebot` Workspace（一个逻辑部署一个卷）。
-3. **EnvironmentSpec**：复用或创建 `raytonebot-e2b`，出站 `deny` + 只放行 `api.deepseek.com`、
-   `registry.npmjs.org`，入站只开放 5188 端口给 PreviewProxy。
+3. **EnvironmentSpec**：复用或创建 `raytonebot-e2b`，入站只开放 5188 端口给 PreviewProxy；出站优先
+   `deny` + 只放行 `api.deepseek.com`、`registry.npmjs.org`。若所选 provider 的
+   `capabilities.network.outbound_allowlist` 为 false（当前租户的 container provider 就是），
+   适配层会退化为 `default: allow` 并明确记录，不假装已经限流。
 4. **Environment**：创建或复用独立的 Environment，创建时绑定 Workspace（绑定后不可换）。
 5. **发布**：`/v1/workspaces` 文件 API 按 1 MiB 分片写 `/workspace/am/release/part-*`，
    另写 `bootstrap.sh`、`release.sha256`、`secrets.env`（启动后移入私有 env 并删除）。
