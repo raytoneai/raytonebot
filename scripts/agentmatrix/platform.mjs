@@ -27,7 +27,10 @@ export function createClient(config) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
-const transient = (error) => error?.status === undefined || error?.status === 408 || error?.status === 429 || error?.status >= 500;
+// The gateway's identity check has been answering 401 "verified Gateway identity
+// required" for tens of seconds at a time; that is an upstream hiccup, not a bad key.
+const transient = (error) => error?.status === undefined || error?.status === 401 || error?.status === 408 ||
+  error?.status === 429 || error?.status >= 500;
 
 /** The local proxy occasionally drops a connect; writes are small and safe to re-issue. */
 export async function withRetry(action, { attempts = 6, log = () => {}, label = "request" } = {}) {
@@ -37,7 +40,7 @@ export async function withRetry(action, { attempts = 6, log = () => {}, label = 
     } catch (error) {
       if (attempt >= attempts || !transient(error)) throw error;
       log(`${label}: ${error.code ?? error.message}; retrying (${attempt}/${attempts})`);
-      await sleep(attempt * 2_000);
+      await sleep(attempt * 5_000);
     }
   }
 }
