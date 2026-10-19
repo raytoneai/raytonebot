@@ -57,6 +57,7 @@ KEEPER
 }
 
 health() {
+  [ -f "$ENV_FILE" ] || return 1
   # shellcheck disable=SC1090
   set -a; . "$ENV_FILE"; set +a
   curl -fsS -m 5 -u "raytonebot:${RAYTONEBOT_PASSWORD}" "$HEALTH_URL"
@@ -91,6 +92,7 @@ install_release() {
   [ -d "$APP_DIR" ] && mv "$APP_DIR" "$APP_DIR.previous"
   mv "$stage" "$APP_DIR"
   rm -rf "$APP_DIR.previous"
+  stop_app >/dev/null 2>&1 || true
   printf 'installed %s %s\n' "$(date -u +%FT%TZ)" "$expected" >"$AM_DIR/install.ok"
   log "AM_INSTALLED"
 }
@@ -99,7 +101,9 @@ start_app() {
   local origin=${1:?usage: bootstrap.sh start <public-origin>}
   case "$origin" in https://*) ;; *) fail "public origin must be https (got $origin)" ;; esac
   [ -f "$AM_DIR/install.ok" ] || fail "run install first"
-  [ -f "$AM_DIR/secrets.env" ] || fail "missing $AM_DIR/secrets.env"
+  if [ ! -f "$AM_DIR/secrets.env" ] && [ ! -f "$ENV_FILE" ]; then
+    fail "missing $AM_DIR/secrets.env (publish secrets first)"
+  fi
   if health >/dev/null 2>&1; then
     if grep -qsF " $origin" "$AM_DIR/listening.ok"; then
       log "already running on this origin"
@@ -113,21 +117,40 @@ start_app() {
   local umask_before
   umask_before=$(umask)
   umask 077
-  {
-    printf 'RAYTONEBOT_PUBLIC_ORIGIN=%s\n' "$origin"
-    printf 'RAYTONEBOT_DATA_DIR=%s\n' "$DATA_DIR"
-    printf 'RAYTONEBOT_WORKSPACE_ROOT=/workspace\n'
-    printf 'RAYTONEBOT_TRUST_PROXY_ORIGIN=1\n'
-    printf 'NODE_ENV=production\n'
-    cat "$AM_DIR/secrets.env"
-  } >"$ENV_FILE"
+  if [ -f "$AM_DIR/secrets.env" ]; then
+    {
+      printf 'RAYTONEBOT_PUBLIC_ORIGIN=%s\n' "$origin"
+      printf 'RAYTONEBOT_DATA_DIR=%s\n' "$DATA_DIR"
+      printf 'RAYTONEBOT_WORKSPACE_ROOT=/workspace\n'
+      printf 'RAYTONEBOT_TRUST_PROXY_ORIGIN=1\n'
+      printf 'NODE_ENV=production\n'
+      cat "$AM_DIR/secrets.env"
+    } >"$ENV_FILE"
+    rm -f "$AM_DIR/secrets.env"
+  else
+    # A redeploy only changes the entry origin; the private env stays as it was.
+    local rotated="$ENV_FILE.next"
+    grep -v '^RAYTONEBOT_PUBLIC_ORIGIN=' "$ENV_FILE" >"$rotated"
+    printf 'RAYTONEBOT_PUBLIC_ORIGIN=%s\n' "$origin" >>"$rotated"
+    mv "$rotated" "$ENV_FILE"
+  fi
   chmod 600 "$ENV_FILE"
-  rm -f "$AM_DIR/secrets.env"
   umask "$umask_before"
 
   rm -f "$STOP_FILE"
   write_keepalive
-  ( cd "$APP_DIR" && setsid nohup bash "$KEEPALIVE" >>"$LOG_DIR/keepalive.out" 2>&1 & echo $! >"$AM_DIR/keepalive.pid" )
+  set -a
+  # shellcheck disable=SC1090
+  . "$ENV_FILE"
+  set +a
+  cd "$APP_DIR"
+  if command -v setsid >/dev/null 2>&1; then
+    setsid nohup bash "$KEEPALIVE" >>"$LOG_DIR/keepalive.out" 2>&1 &
+  else
+    nohup bash "$KEEPALIVE" >>"$LOG_DIR/keepalive.out" 2>&1 &
+  fi
+  echo $! >"$AM_DIR/keepalive.pid"
+  cd - >/dev/null
   log "started keeper pid $(cat "$AM_DIR/keepalive.pid")"
 
   for _ in $(seq 1 90); do
