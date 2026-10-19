@@ -1399,16 +1399,10 @@ export function AgentApp() {
   };
   // Every agent with a conversation in flight shows it, not only the one on screen.
   const agentStatuses: Record<string, AgentRunStatus> = {};
-  let groupStatus: AgentRunStatus | undefined;
   for (const conversation of piConversations) {
     if (!runningConversationIds.has(conversation.id) || !isAgentPresetId(conversation.agentPreset)) continue;
-    // Group chat: a group's turn shows on the group row, not on one member's face.
-    if (isGroupConversation(conversation)) {
-      const groupWaiting = awaitingConversationIds.has(conversation.id) || Boolean(pendingUserInput(conversation.events))
-        || (conversation.id === activePiConversationId && Boolean(liveApprovalTool));
-      groupStatus = groupWaiting ? "needs-you" : groupStatus ?? "running";
-      continue;
-    }
+    // Group runs keep their status in conversation history, not on one member's face.
+    if (isGroupConversation(conversation)) continue;
     const waiting = awaitingConversationIds.has(conversation.id) || Boolean(pendingUserInput(conversation.events))
       || (conversation.id === activePiConversationId && Boolean(liveApprovalTool));
     const botId = conversationBotId(botStore, conversation) ?? conversation.agentPreset;
@@ -1479,9 +1473,7 @@ export function AgentApp() {
         statuses={agentStatuses}
         harnesses={piRuntimeState?.harnesses}
         onSelect={startConversationWith}
-        onNewGroup={() => { setDrawerOpen(false); void startNewSession(true); }}
         groupActive={isGroupConversation(activePiConversation)}
-        groupStatus={groupStatus}
       />
     ),
     groupHostId: isGroupConversation(activePiConversation) ? activePiConversation.groupHostId ?? "assistant" : undefined,

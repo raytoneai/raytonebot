@@ -150,9 +150,7 @@ export function AgentSwitcher({
   harnesses,
   disabled,
   onSelect,
-  onNewGroup,
   groupActive,
-  groupStatus,
   bots,
   activeBotId,
   onSelectBot,
@@ -162,9 +160,7 @@ export function AgentSwitcher({
   activeBotId?: string;
   onSelectBot?: (bot: BotProfile) => void;
   onEditBot?: (bot: BotProfile) => void;
-  onNewGroup?: () => void;
   groupActive?: boolean;
-  groupStatus?: AgentRunStatus;
   avatars: Record<AgentPresetId, AvatarKind>;
   activeId: AgentPresetId;
   statuses: Partial<Record<string, AgentRunStatus>>;
@@ -175,7 +171,6 @@ export function AgentSwitcher({
   const { locale } = useLocale();
   const t = settingsCopy[locale].shell;
   const roles = useCopy().composer.agentSettings.presets;
-  const botNames = useBotNames();
   const choices = bots ?? AGENT_PRESETS.map(preset => ({ ...preset, presetId: preset.id, name: roles[preset.id].name, appearance: undefined }));
   return (
     <section className="shell-agents" data-manage={bots ? "true" : undefined} aria-label={t.agents}>
@@ -220,20 +215,6 @@ export function AgentSwitcher({
           </div>
         );
       })}
-      {onNewGroup ? (
-        <button type="button" className="shell-agent" data-active={groupActive} aria-current={groupActive ? "true" : undefined}
-          disabled={disabled} title={`新建 Group：我、${AGENT_PRESETS.map(preset => botNames[preset.id]).join("、")}`} onClick={onNewGroup}>
-          {/* Align the group face with the larger agent portraits. */}
-          <span className="shell-agent-face" data-status={groupStatus ?? "idle"} style={{ width: 42, justifyContent: "center" }}>
-            <GroupFace size={42} kinds={[avatars.assistant, avatars.planner, avatars.builder]} />
-            {groupStatus ? <span className="shell-agent-dot" data-status={groupStatus} aria-hidden="true" /> : null}
-          </span>
-          <span className="shell-agent-text">
-            <span className="shell-agent-name">Group</span>
-            <span className="shell-agent-sub">{groupStatus === "running" ? t.running : groupStatus === "needs-you" ? t.needsYou : `我 · ${AGENT_PRESETS.map(preset => botNames[preset.id]).join(" · ")}`}</span>
-          </span>
-        </button>
-      ) : null}
     </section>
   );
 }

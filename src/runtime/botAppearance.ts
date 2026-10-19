@@ -13,10 +13,10 @@ export type BotKind = 'woman' | 'man' | 'boy';
 export const BOT_PALETTE = {
   face: '#FDE7B4', ink: '#0C2458', raytoneGold: '#E7AC26', claudeOrange: '#D97757', codexBlue: '#4779E6',
 } as const;
-/** New Bots start with the Raytone logo's plain navy face and gold eyes. */
+/** New Bots match the Raytone logo's plain gold face and navy eyes. */
 export const DEFAULT_NEW_BOT: Readonly<BotAppearance> = {
   face: 'round', eyes: 'capsule', hair: 'none', accessory: 'none',
-  faceColor: BOT_PALETTE.ink, eyeColor: BOT_PALETTE.raytoneGold,
+  faceColor: BOT_PALETTE.raytoneGold, eyeColor: BOT_PALETTE.ink,
   hairColor: BOT_PALETTE.ink, accessoryColor: BOT_PALETTE.raytoneGold,
 };
 const sharedFace = { faceColor: BOT_PALETTE.face, eyeColor: BOT_PALETTE.ink, eyes: 'capsule' } as const;
