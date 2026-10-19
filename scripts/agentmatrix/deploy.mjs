@@ -19,7 +19,7 @@ import { join } from "node:path";
 
 import { readConfig, requireConfig, secretLines } from "./config.mjs";
 import {
-  createClient, ensureEnvironment, ensureEnvironmentSpec, ensurePreview, ensureSession, ensureWorkspace,
+  createClient, ensureEnvironment, ensureEnvironmentSpec, ensurePreview, ensureRunning, ensureSession, ensureWorkspace,
   previewOrigin, probePreview, publishRelease, publishSecrets, readWorkspaceText, resolveAgentSpec, runBootstrapTurn,
   waitForMarker,
 } from "./platform.mjs";
@@ -70,6 +70,7 @@ async function deploy(config, state) {
     environmentSpecId, workspaceId, previousId: state.sandboxId, log,
   });
   writeState(root, { ...state, namespace: config.namespace, baseURL: config.baseURL, workspaceId, environmentSpecId, sandboxId });
+  await ensureRunning(client, sandboxId, log);
   const bootstrapScript = readFileSync(join(root, "scripts", "agentmatrix", "bootstrap.sh"), "utf8");
   await publishRelease(client, { volumeId: workspaceId, release, bootstrapScript, log });
 

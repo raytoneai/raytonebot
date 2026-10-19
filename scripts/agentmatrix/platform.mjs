@@ -27,6 +27,21 @@ export function createClient(config) {
 
 const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
 
+const transient = (error) => error?.status === undefined || error?.status === 408 || error?.status === 429 || error?.status >= 500;
+
+/** The local proxy occasionally drops a connect; writes are small and safe to re-issue. */
+export async function withRetry(action, { attempts = 4, log = () => {}, label = "request" } = {}) {
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      return await action();
+    } catch (error) {
+      if (attempt >= attempts || !transient(error)) throw error;
+      log(`${label}: ${error.code ?? error.message}; retrying (${attempt}/${attempts})`);
+      await sleep(attempt * 1_500);
+    }
+  }
+}
+
 /** Follows `next_page` while the envelope says `has_more`. */
 export async function listAll(list, query = {}) {
   const rows = [];
@@ -75,12 +90,14 @@ export async function publishRelease(client, { volumeId, release, bootstrapScrip
   for (let index = 0; index < parts; index += 1) {
     const slice = bytes.subarray(index * CHUNK_BYTES, (index + 1) * CHUNK_BYTES);
     const name = `${directory}/part-${String(index).padStart(3, "0")}`;
-    await client.workspaces.files.write(volumeId, name, new Uint8Array(slice));
+    await withRetry(() => client.workspaces.files.write(volumeId, name, new Uint8Array(slice)),
+      { log, label: `upload ${index + 1}/${parts}` });
   }
-  await client.workspaces.files.writeText(volumeId, "am/release-parts", String(parts));
-  await client.workspaces.files.writeText(volumeId, "am/release.dir", directory);
-  await client.workspaces.files.writeText(volumeId, "am/release.sha256", release.sha256);
-  await client.workspaces.files.writeText(volumeId, "am/bootstrap.sh", bootstrapScript);
+  const write = (path, body) => withRetry(() => client.workspaces.files.writeText(volumeId, path, body), { log, label: path });
+  await write("am/release-parts", String(parts));
+  await write("am/release.dir", directory);
+  await write("am/release.sha256", release.sha256);
+  await write("am/bootstrap.sh", bootstrapScript);
   log(`workspace: published ${parts} release part(s) (${release.bytes} bytes, sha256 ${release.sha256.slice(0, 12)}…)`);
 }
 
@@ -195,6 +212,17 @@ async function waitOperation(client, sandboxId, operation, log) {
     throw new Error(`sandbox ${current.type} ended ${current.outcome ?? "unknown"}${current.reason ? `: ${current.reason}` : ""}`);
   }
   return current;
+}
+
+/** A paused Environment resumes before any work; an accepted receipt is not a running machine. */
+export async function ensureRunning(client, sandboxId, log = () => {}) {
+  const { data } = await client.sandboxes.get(sandboxId);
+  if (data.state === "running") return sandboxId;
+  if (data.state !== "paused") throw new Error(`environment ${sandboxId} is ${data.state}; it cannot run the app`);
+  const resumed = await client.sandboxes.resume(sandboxId, { idempotencyKey: `raytonebot-resume-${randomBytes(12).toString("hex")}` });
+  await waitOperation(client, sandboxId, resumed.data.operation, log);
+  log(`environment: resumed ${sandboxId}`);
+  return sandboxId;
 }
 
 export async function ensureEnvironment(client, config, { environmentSpecId, workspaceId, previousId, log = () => {} }) {
