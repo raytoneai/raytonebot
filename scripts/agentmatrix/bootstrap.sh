@@ -208,7 +208,7 @@ start_now() {
       printf 'RAYTONEBOT_DATA_DIR=%s\n' "$DATA_DIR"
       printf 'RAYTONEBOT_WORKSPACE_ROOT=/workspace\n'
       printf 'RAYTONEBOT_TRUST_PROXY_ORIGIN=1\n'
-      printf 'RAYTONEBOT_HEADER_LOG=%s\n' "$LOG_DIR/headers.jsonl"
+      printf 'RAYTONEBOT_PREVIEW_INGRESS=1\n'
       printf 'NODE_ENV=production\n'
       cat "$AM_DIR/secrets.env"
     } >"$ENV_FILE"

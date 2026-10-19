@@ -20,7 +20,7 @@ const page = (title, body) => `<!doctype html><html lang="zh-CN"><head><meta cha
 // `trustProxy` is for a reverse proxy that terminates TLS and forwards the public Host in
 // x-forwarded-host (the AgentMatrix PreviewProxy). It is opt-in and only safe when the proxy
 // overwrites that header: a directly reachable server would let a caller forge it.
-function accessGate(publicOrigin, password, handoff, { trustProxy = false } = {}) {
+function accessGate(publicOrigin, password, handoff, { trustProxy = false, previewIngress = false } = {}) {
   const origin = new URL(publicOrigin);
   assert.equal(origin.protocol, 'https:', 'RAYTONEBOT_PUBLIC_ORIGIN must use HTTPS');
   assert.equal(origin.href, `${origin.origin}/`, 'Use a bare public origin');
@@ -63,6 +63,12 @@ function accessGate(publicOrigin, password, handoff, { trustProxy = false } = {}
     if (req.headers.host !== origin.host && forwardedHost !== origin.host && !proxiedLoopback) {
       return reject(403, 'Unexpected host');
     }
+    // The platform's PreviewProxy is the only ingress and strips Authorization, Cookie and
+    // custom headers. Its short-lived signed URL is then the credential: an explicit opt-in
+    // accepts a request that provably came through that proxy, while Basic Auth and direct
+    // requests keep working as before. Never enable this on a directly reachable server.
+    const viaPreviewIngress = previewIngress && trustProxy && Boolean(forwardedPort) &&
+      req.headers.host === new URL(localOrigin).host;
     const path = (req.url ?? '/').split('?')[0];
     if (path === HANDOFF_PATH) {
       if (!redeem || req.method !== 'GET') return reject(404, 'Not found');
@@ -75,7 +81,8 @@ function accessGate(publicOrigin, password, handoff, { trustProxy = false } = {}
     }
     const authorization = typeof req.headers.authorization === 'string' ? req.headers.authorization : '';
     const session = secret ? readCookie(req.headers.cookie, SESSION_COOKIE) : undefined;
-    if (!timingSafeEqual(digest(authorization), expected) && !(session && sessionValid(secret, session))) {
+    if (!viaPreviewIngress && !timingSafeEqual(digest(authorization), expected) &&
+        !(session && sessionValid(secret, session))) {
       if (!secret) {
         res.setHeader('www-authenticate', 'Basic realm="RaytoneBot", charset="UTF-8"');
         return reject(401, 'Authentication required');
@@ -123,6 +130,19 @@ if (process.argv.includes('--check')) {
   // PreviewProxy rewrites Host to the upstream and marks the original port instead.
   assert.equal(throughProxy({ authorization: auth, 'x-forwarded-port': '443' }).accepted, true);
   assert.equal(throughProxy({ authorization: auth, 'x-forwarded-port': '8080' }).res.statusCode, 403);
+  const previewGate = accessGate(origin, password, undefined, { trustProxy: true, previewIngress: true });
+  const viaPreview = (headers) => {
+    const req = { method: 'GET', url: '/', headers: { host: '127.0.0.1:5188', ...headers } };
+    const res = { statusCode: 200, setHeader() {}, end() {} };
+    let accepted = false;
+    previewGate(req, res, () => { accepted = true; });
+    return { req, res, accepted };
+  };
+  assert.equal(viaPreview({ 'x-forwarded-port': '443' }).accepted, true, 'signed preview URL is the credential');
+  assert.equal(viaPreview({}).res.statusCode, 403, 'a direct request with a rewritten host is rejected');
+  assert.equal(viaPreview({ host: new URL(origin).host }).res.statusCode, 401, 'a direct request still needs credentials');
+  assert.equal(viaPreview({ 'x-forwarded-port': '443', origin: 'https://attacker.example.com' }).res.statusCode, 403);
+  assert.equal(viaPreview({ 'x-forwarded-port': '443', 'sec-fetch-site': 'cross-site' }).res.statusCode, 403);
   assert.equal(check({ authorization: auth, host: 'attacker.example.com' }).res.statusCode, 403);
   for (const foreign of ['https://attacker.example.com', 'null', 'https://preview.example.com:444']) {
     assert.equal(check({ authorization: auth, origin: foreign }).res.statusCode, 403);
@@ -179,13 +199,15 @@ if (process.argv.includes('--check')) {
 } else {
   const handoffSecret = process.env.RAYTONEBOT_HANDOFF_SECRET || undefined;
   const trustProxy = process.env.RAYTONEBOT_TRUST_PROXY_ORIGIN === '1';
+  const previewIngress = process.env.RAYTONEBOT_PREVIEW_INGRESS === '1';
   const guard = accessGate(process.env.RAYTONEBOT_PUBLIC_ORIGIN, process.env.RAYTONEBOT_PASSWORD,
     handoffSecret ? { secret: handoffSecret, controlOrigin: process.env.RAYTONEBOT_CONTROL_ORIGIN || undefined } : undefined,
-    { trustProxy });
+    { trustProxy, previewIngress });
   // The gate holds the password and handoff secret now; agent tools inherit this process's environment.
   delete process.env.RAYTONEBOT_PASSWORD;
   delete process.env.RAYTONEBOT_HANDOFF_SECRET;
   delete process.env.RAYTONEBOT_TRUST_PROXY_ORIGIN;
+  delete process.env.RAYTONEBOT_PREVIEW_INGRESS;
   await preview({
     preview: {
       host: '0.0.0.0', port, strictPort: true, cors: false,
