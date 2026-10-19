@@ -69,11 +69,13 @@ async function deploy(config, state) {
   const sandboxId = await ensureEnvironment(client, config, {
     environmentSpecId, workspaceId, previousId: state.sandboxId, log,
   });
+  writeState(root, { ...state, namespace: config.namespace, baseURL: config.baseURL, workspaceId, environmentSpecId, sandboxId });
   const bootstrapScript = readFileSync(join(root, "scripts", "agentmatrix", "bootstrap.sh"), "utf8");
   await publishRelease(client, { volumeId: workspaceId, release, bootstrapScript, log });
 
   const agentSpec = await resolveAgentSpec(client, config, log);
   const sessionId = await ensureSession(client, config, { sandboxId, agentSpec, previous: state, log });
+  writeState(root, { ...readState(root), sessionId });
   const preview = await ensurePreview(client, sessionId, config.port, log);
   const origin = previewOrigin(preview);
   await publishSecrets(client, { volumeId: workspaceId, lines: secretLines(config, password), log });

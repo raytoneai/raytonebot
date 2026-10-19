@@ -212,6 +212,17 @@ export async function ensureEnvironment(client, config, { environmentSpecId, wor
   }
   if (config.sandboxId || previousId) {
     log("environment: recorded instance is gone; creating a replacement bound to the same Workspace");
+  } else {
+    // A previous run can fail before its state is written. Adopt the instance it
+    // created instead of taking a second (quota-limited) Environment slot.
+    const page = await client.sandboxes.list({ limit: 20 });
+    const adopted = page.data.find((row) => row.state !== "deleted" &&
+      (!row.environment_spec_id || row.environment_spec_id === environmentSpecId) &&
+      (!row.workspace_id || row.workspace_id === workspaceId));
+    if (adopted) {
+      log(`environment: adopted unattached ${adopted.sandbox_id} (${adopted.state})`);
+      return adopted.sandbox_id;
+    }
   }
   const created = await client.sandboxes.create(
     { environment_spec_id: environmentSpecId, workspace_id: workspaceId },
@@ -258,6 +269,14 @@ export async function ensureSession(client, config, { sandboxId, agentSpec, prev
     } catch (error) {
       if (error?.status !== 404) throw error;
     }
+  }
+  const page = await client.sessions.list({ limit: 100, archived: "all" });
+  const adopted = page.data
+    .filter((row) => row.sandbox_id === sandboxId && row.current_status !== "terminated")
+    .sort((a, b) => String(b.created_at).localeCompare(String(a.created_at)))[0];
+  if (adopted) {
+    log(`session: adopted ${adopted.session_id} (${adopted.current_status})`);
+    return adopted.session_id;
   }
   const created = await client.sessions.create({
     agent_spec_id: agentSpec.agentSpecId,
