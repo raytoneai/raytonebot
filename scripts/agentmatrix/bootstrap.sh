@@ -129,12 +129,17 @@ install_now() {
   [ -f "$stage/scripts/cloud-preview.mjs" ] || fail "archive has no scripts/cloud-preview.mjs"
   [ -f "$stage/dist/index.html" ] || fail "archive has no dist/index.html"
 
-  if [ -d "$APP_DIR/node_modules" ] && cmp -s "$APP_DIR/package-lock.json" "$stage/package-lock.json"; then
+  if [ -f "$APP_DIR/node_modules/.raytonebot-complete" ] && cmp -s "$APP_DIR/package-lock.json" "$stage/package-lock.json"; then
     log "reusing node_modules (lockfile unchanged)"
     mv "$APP_DIR/node_modules" "$stage/node_modules"
   else
     log "installing dependencies"
-    ( cd "$stage" && npm ci --no-audit --no-fund --loglevel=error ) || fail "npm ci failed; see $LOG_DIR/install.out"
+    # The EnvironmentSpec injects NODE_ENV=production, which would otherwise omit
+    # vite and the other build-time packages `vite preview` needs.
+    ( cd "$stage" && npm ci --include=dev --no-audit --no-fund --loglevel=error ) ||
+      fail "npm ci failed; see $LOG_DIR/install.out"
+    [ -f "$stage/node_modules/vite/package.json" ] || fail "npm ci finished without vite"
+    touch "$stage/node_modules/.raytonebot-complete"
   fi
 
   stop_app >/dev/null 2>&1 || true

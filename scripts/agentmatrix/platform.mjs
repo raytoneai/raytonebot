@@ -221,7 +221,6 @@ export async function ensureEnvironmentSpec(client, config, log = () => {}) {
     runtime_config: runtimeConfig(provider),
     ...(config.region ? { region: config.region } : {}),
     network_policy: networkPolicy(config.port, { outboundAllowlist }),
-    default_env: { NODE_ENV: "production" },
   });
   log(`environment spec: created ${created.data.environment_spec_id} on ${provider.display_name}`);
   return created.data.environment_spec_id;
