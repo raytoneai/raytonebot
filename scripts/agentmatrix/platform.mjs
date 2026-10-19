@@ -115,15 +115,35 @@ export async function readWorkspaceText(client, volumeId, path) {
  * Waits for one of the markers the detached bootstrap writes. The agent's shell
  * only starts the work, so the deployment never depends on the model's timeout.
  */
-export async function waitForMarker(client, volumeId, { ok, failed, match, timeoutMs, describe, log = () => {} }) {
+export async function waitForMarker(client, volumeId, { ok, failed, match, timeoutMs, describe, log = () => {}, wake }) {
   const deadline = Date.now() + timeoutMs;
-  const started = Date.now();
+  let lastReport = Date.now();
+  let lastWake = 0;
+  const read = async (path) => {
+    try {
+      return { text: (await readWorkspaceText(client, volumeId, path)).trim() };
+    } catch (error) {
+      return { text: "", error };
+    }
+  };
   while (Date.now() < deadline) {
-    const okText = await readWorkspaceText(client, volumeId, ok).catch(() => "");
-    if (okText.trim() && (!match || okText.includes(match))) return okText;
-    const failedText = await readWorkspaceText(client, volumeId, failed).catch(() => "");
-    if (failedText.trim()) throw new Error(`${describe} failed inside the Environment:\n${failedText.trim()}`);
-    if (Date.now() - started > 30_000) log(`${describe}: still running…`);
+    const okResult = await read(ok);
+    if (okResult.text && (!match || okResult.text.includes(match))) return okResult.text;
+    const failedResult = await read(failed);
+    if (failedResult.text) throw new Error(`${describe} failed inside the Environment:\n${failedResult.text}`);
+
+    // An idle-paused Environment detaches its Workspace, so reads answer 503 until
+    // it is resumed. Cheap GETs are harmless while it is already running.
+    const unavailable = [okResult.error, failedResult.error].some((error) => error && error.status !== 404);
+    if (unavailable && wake && Date.now() - lastWake > 15_000) {
+      lastWake = Date.now();
+      log(`${describe}: Workspace unavailable; resuming the Environment`);
+      await wake().catch((error) => log(`${describe}: resume failed: ${error.code ?? error.message}`));
+    }
+    if (Date.now() - lastReport > 30_000) {
+      lastReport = Date.now();
+      log(`${describe}: still running…`);
+    }
     await sleep(5_000);
   }
   throw new Error(`${describe} did not finish within ${Math.round(timeoutMs / 60_000)} minutes`);
@@ -214,15 +234,31 @@ async function waitOperation(client, sandboxId, operation, log) {
   return current;
 }
 
-/** A paused Environment resumes before any work; an accepted receipt is not a running machine. */
+/**
+ * A paused Environment resumes before any work; pausing/resuming is a settled
+ * state machine, so an in-flight transition is waited out rather than replayed.
+ */
 export async function ensureRunning(client, sandboxId, log = () => {}) {
-  const { data } = await client.sandboxes.get(sandboxId);
-  if (data.state === "running") return sandboxId;
-  if (data.state !== "paused") throw new Error(`environment ${sandboxId} is ${data.state}; it cannot run the app`);
-  const resumed = await client.sandboxes.resume(sandboxId, { idempotencyKey: `raytonebot-resume-${randomBytes(12).toString("hex")}` });
-  await waitOperation(client, sandboxId, resumed.data.operation, log);
-  log(`environment: resumed ${sandboxId}`);
-  return sandboxId;
+  for (let attempt = 0; attempt < 40; attempt += 1) {
+    const { data } = await client.sandboxes.get(sandboxId);
+    if (data.state === "running") return sandboxId;
+    if (data.state === "paused") {
+      try {
+        const resumed = await client.sandboxes.resume(sandboxId, {
+          idempotencyKey: `raytonebot-resume-${randomBytes(12).toString("hex")}`,
+        });
+        await waitOperation(client, sandboxId, resumed.data.operation, log);
+        log(`environment: resumed ${sandboxId}`);
+        return sandboxId;
+      } catch (error) {
+        log(`environment: resume not accepted yet (${error.code ?? error.message}); retrying`);
+      }
+    } else if (!["pausing", "resuming", "creating", "pending"].includes(data.state)) {
+      throw new Error(`environment ${sandboxId} is ${data.state}; it cannot run the app`);
+    }
+    await sleep(3_000);
+  }
+  throw new Error(`environment ${sandboxId} did not reach running`);
 }
 
 export async function ensureEnvironment(client, config, { environmentSpecId, workspaceId, previousId, log = () => {} }) {
@@ -341,11 +377,11 @@ export function lastAgentText(events) {
 export async function runBootstrapTurn(client, sessionId, command, { log = () => {}, timeoutMs = 15 * 60_000 } = {}) {
   const message = [
     "Run exactly this command with your shell tool and then report its output verbatim.",
-    "It schedules work in the background and returns immediately:",
+    "Set the shell tool's timeout to 600000 ms: it installs Node dependencies and can take several minutes.",
     "",
     `    ${command}`,
     "",
-    "Do not edit files, do not wait for the background work, and stop as soon as the command exits.",
+    "Do not edit files, do not run anything else, and stop as soon as the command exits.",
   ].join("\n");
   const context = await replyContext(client, sessionId);
   const deadline = Date.now() + timeoutMs;

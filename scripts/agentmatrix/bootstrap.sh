@@ -6,6 +6,7 @@
 # is detached here and reported through marker files in the Workspace, so the
 # agent's own tool timeout never decides whether the deployment succeeds.
 #
+#   bootstrap.sh deploy <origin>  install (if needed) + start, synchronously
 #   bootstrap.sh install          schedule install; prints AM_INSTALL_STARTED
 #   bootstrap.sh start <origin>   schedule start;   prints AM_START_STARTED
 #   bootstrap.sh stop             stop the keeper and the server
@@ -28,11 +29,16 @@ HEALTH_URL=http://127.0.0.1:5188/__agentcanvas/pi/health
 log() { printf '[raytonebot] %s\n' "$*"; }
 fail() { printf '[raytonebot] FAIL: %s\n' "$*" >&2; exit 1; }
 
-detach() {
+# Backgrounds a command with its output in one log and prints the PID. The log is
+# opened here, not by the caller, so `$(spawn ...)` captures the PID instead of
+# the command's output.
+spawn() {
+  local logfile=$1
+  shift
   if command -v setsid >/dev/null 2>&1; then
-    setsid nohup "$@" &
+    setsid nohup "$@" >>"$logfile" 2>&1 &
   else
-    nohup "$@" &
+    nohup "$@" >>"$logfile" 2>&1 &
   fi
   echo $!
 }
@@ -180,7 +186,7 @@ start_now() {
   set +a
   cd "$APP_DIR"
   local pid
-  pid=$(detach bash "$KEEPALIVE" >>"$LOG_DIR/keepalive.out" 2>&1)
+  pid=$(spawn "$LOG_DIR/keepalive.out" bash "$KEEPALIVE")
   echo "$pid" >"$AM_DIR/keepalive.pid"
   cd - >/dev/null
   log "started keeper pid $pid"
@@ -216,12 +222,28 @@ schedule() {
   mkdir -p "$AM_DIR" "$LOG_DIR"
   rm -f "$AM_DIR/$name.ok" "$AM_DIR/$name.failed"
   local pid
-  pid=$(detach bash "$0" "__$name" "$@" >>"$LOG_DIR/$name.out" 2>&1)
+  pid=$(spawn "$LOG_DIR/$name.out" bash "$0" "__$name" "$@")
   echo "$pid" >"$AM_DIR/$name.pid"
   log "AM_$(printf '%s' "$name" | tr '[:lower:]' '[:upper:]')_STARTED"
 }
 
+# One synchronous pass for the deployment turn: the Session stays busy for the
+# whole npm ci, which is what keeps an idle pause from freezing the machine.
+deploy_now() {
+  local origin=${1:?usage: bootstrap.sh deploy <public-origin>}
+  rm -f "$AM_DIR/install.failed" "$AM_DIR/start.failed"
+  local expected=""
+  [ -f "$AM_DIR/release.sha256" ] && expected=$(tr -d '[:space:]' <"$AM_DIR/release.sha256")
+  if [ -n "$expected" ] && [ -f "$AM_DIR/install.ok" ] && grep -qF "$expected" "$AM_DIR/install.ok"; then
+    log "release already installed"
+  else
+    install_now
+  fi
+  start_now "$origin"
+}
+
 case "${1:-}" in
+  deploy) deploy_now "${2:-}" ;;
   install) schedule install ;;
   start) schedule start "${2:-}" ;;
   __install) install_now ;;

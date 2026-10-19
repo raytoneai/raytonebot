@@ -15,6 +15,7 @@
     "am:deploy": "node scripts/agentmatrix/deploy.mjs deploy",
     "am:status": "node scripts/agentmatrix/deploy.mjs status",
     "am:preview": "node scripts/agentmatrix/deploy.mjs preview",
+    "am:wake": "node scripts/agentmatrix/deploy.mjs wake",
     "am:stop": "node scripts/agentmatrix/deploy.mjs stop",
     "typecheck": "tsc --noEmit",
     "check:local": "node scripts/check-local.mjs",

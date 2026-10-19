@@ -81,25 +81,21 @@ async function deploy(config, state) {
   const origin = previewOrigin(preview);
   await publishSecrets(client, { volumeId: workspaceId, lines: secretLines(config, password), log });
 
-  const installed = await readWorkspaceText(client, workspaceId, "am/install.ok").catch(() => "");
-  if (!installed.includes(release.sha256)) {
-    log("turn 1/2: install the release inside the Environment");
-    const output = await runBootstrapTurn(client, sessionId, "bash /workspace/am/bootstrap.sh install", { log });
-    if (!output.includes("AM_INSTALL_STARTED")) throw new Error(`install did not start:\n${output.slice(-1500)}`);
-    await waitForMarker(client, workspaceId, {
-      ok: "am/install.ok", failed: "am/install.failed", match: release.sha256, timeoutMs: 25 * 60_000, describe: "install", log,
-    });
-    log("install: AM_INSTALLED");
-  } else {
-    log("install: this release is already installed in the Workspace");
-  }
-
-  log(`turn 2/2: start the app on ${origin}`);
-  const output = await runBootstrapTurn(client, sessionId, `bash /workspace/am/bootstrap.sh start ${origin}`, { log });
-  if (!output.includes("AM_START_STARTED")) throw new Error(`start did not start:\n${output.slice(-1500)}`);
-  await waitForMarker(client, workspaceId, {
-    ok: "am/listening.ok", failed: "am/start.failed", match: origin, timeoutMs: 5 * 60_000, describe: "start", log,
+  log(`turn 1/1: install (if needed) and start on ${origin}`);
+  const output = await runBootstrapTurn(client, sessionId, `bash /workspace/am/bootstrap.sh deploy ${origin}`, {
+    log, timeoutMs: 14 * 60_000,
   });
+  const failed = (await Promise.all(["am/install.failed", "am/start.failed"].map((path) =>
+    readWorkspaceText(client, workspaceId, path).catch(() => "")))).filter(Boolean).join("\n");
+  if (failed.trim()) throw new Error(`deployment failed inside the Environment:\n${failed.trim()}`);
+  try {
+    await waitForMarker(client, workspaceId, {
+      ok: "am/listening.ok", failed: "am/start.failed", match: origin, timeoutMs: 90_000, describe: "start", log,
+      wake: () => ensureRunning(client, sandboxId, log),
+    });
+  } catch (error) {
+    throw new Error(`${error.message}\nagent output:\n${output.slice(-1200)}`);
+  }
 
   const probe = await probePreview(preview, password);
   writeState(root, {
@@ -169,6 +165,16 @@ async function preview(config) {
   }
 }
 
+async function wake(config) {
+  const state = readState(root);
+  if (!state.sandboxId) throw new Error("no deployment recorded");
+  const client = createClient(config);
+  await ensureRunning(client, state.sandboxId, log);
+  const fresh = await ensurePreview(client, state.sessionId, config.port, log);
+  writeState(root, { ...readState(root), publicOrigin: previewOrigin(fresh), entryUrl: fresh.url, entryUrlExpiresAt: fresh.url_expires_at });
+  console.log(fresh.url);
+}
+
 async function stop(config) {
   const state = readState(root);
   if (!state.sessionId) throw new Error("no deployment recorded");
@@ -192,6 +198,7 @@ if (command === "plan") {
   if (command === "deploy") await deploy(config, readState(root));
   else if (command === "status") await status(config);
   else if (command === "preview") await preview(config);
+  else if (command === "wake") await wake(config);
   else if (command === "stop") await stop(config);
   else throw new Error(`unknown command ${command}`);
 }
