@@ -34,7 +34,7 @@ const en = {
     usesProvider: "Uses the default model service",
   },
   providers: {
-    intro: "The default service powers Raer, and Tonny and Bob when they use a model service.",
+    intro: "The default service powers Pi Bots, and Claude Code and Codex Bots when they use a model service.",
     persistence: {
       "load-failed": "Saved model settings could not be restored. Project defaults are in use.",
       "save-failed": "Changes apply to this page but were not saved. Check browser storage and use an address without credentials, query parameters or a fragment.",
@@ -141,7 +141,7 @@ const en = {
     },
   },
   routines: {
-    intro: "Raer runs these on a schedule, each in its own conversation. To add one, ask Raer in chat, e.g. “Every weekday at 9, check …”. New routines start switched off.",
+    intro: "{assistant} runs these on a schedule, each in its own conversation. To add one, ask {assistant} in chat, e.g. “Every weekday at 9, check …”. New routines start switched off.",
     clockNote: "Routines run on time while the bot is awake. A run that falls while the sandbox is paused is skipped, not made up later.",
     empty: "No routines yet.",
     loadFailed: (detail: string) => `Could not load routines · ${detail}`,
@@ -266,7 +266,7 @@ const zh: typeof en = {
     usesProvider: "使用默认模型服务",
   },
   providers: {
-    intro: "默认服务供 Raer 使用；Tonny、Bob 选择模型服务时也用它。",
+    intro: "默认服务供 Pi Bot 使用；Claude Code、Codex Bot 选择模型服务时也用它。",
     persistence: {
       "load-failed": "无法恢复已保存的模型服务设置，当前使用项目默认值。",
       "save-failed": "更改仅在本页生效，尚未保存。请检查浏览器存储权限；服务地址不能包含账号密码、查询参数或片段。",
@@ -373,7 +373,7 @@ const zh: typeof en = {
     },
   },
   routines: {
-    intro: "Raer 按计划运行这些任务，每个任务有自己的对话。要新建，在聊天里对 Raer 说，例如「每个工作日 9 点帮我看一下……」。新任务默认关闭。",
+    intro: "{assistant} 按计划运行这些任务，每个任务有自己的对话。要新建，在聊天里对 {assistant} 说，例如「每个工作日 9 点帮我看一下……」。新任务默认关闭。",
     clockNote: "机器人运行期间按时执行；沙箱暂停期间错过的场次会跳过，之后不补跑。",
     empty: "还没有例行任务。",
     loadFailed: (detail: string) => `无法读取例行任务 · ${detail}`,
@@ -498,7 +498,7 @@ const ja: typeof en = {
     usesProvider: "既定のモデルサービスを使用",
   },
   providers: {
-    intro: "既定のサービスは Raer と、モデルサービスを選んだ Tonny・Bob が使います。",
+    intro: "既定のサービスは Pi Bot と、モデルサービスを選んだ Claude Code・Codex Bot が使います。",
     persistence: {
       "load-failed": "保存済みのモデル設定を復元できませんでした。プロジェクトの既定値を使用しています。",
       "save-failed": "変更はこのページでのみ有効で、未保存です。ブラウザーの保存権限を確認し、認証情報・クエリー・フラグメントを含まないアドレスを指定してください。",
@@ -605,7 +605,7 @@ const ja: typeof en = {
     },
   },
   routines: {
-    intro: "Raer がスケジュールどおりに実行します。ルーティンごとに専用の会話があります。追加するにはチャットで Raer に頼みます（例：「平日 9 時に…を確認して」）。新しいルーティンはオフで作成されます。",
+    intro: "{assistant} がスケジュールどおりに実行します。ルーティンごとに専用の会話があります。追加するにはチャットで {assistant} に頼みます（例：「平日 9 時に…を確認して」）。新しいルーティンはオフで作成されます。",
     clockNote: "ボットの起動中は定刻に実行します。サンドボックスの一時停止中に過ぎた回はスキップされ、後から実行されません。",
     empty: "ルーティンはまだありません。",
     loadFailed: (detail: string) => `ルーティンを読み込めません · ${detail}`,

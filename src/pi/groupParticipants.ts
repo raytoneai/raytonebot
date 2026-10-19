@@ -1,16 +1,13 @@
 import type { AgentUXEvent } from "@agent-ux/protocol";
-import { isAgentPresetId, type AgentPresetId } from "./harnessCatalog.ts";
+import { DEFAULT_BOT_NAMES, isAgentPresetId, type AgentPresetId } from "./harnessCatalog.ts";
 
 export type GroupParticipant = { id: string; name: string; presetId: AgentPresetId };
-export const DEFAULT_PARTICIPANTS: GroupParticipant[] = [
-  { id: "assistant", name: "Raer", presetId: "assistant" },
-  { id: "planner", name: "Tonny", presetId: "planner" },
-  { id: "builder", name: "Bob", presetId: "builder" },
-];
+export const DEFAULT_PARTICIPANTS: GroupParticipant[] = (["assistant", "planner", "builder"] as const)
+  .map(id => ({ id, name: DEFAULT_BOT_NAMES[id], presetId: id }));
 export const validParticipantId = (id: unknown): id is string => typeof id === "string"
   && (isAgentPresetId(id) || /^bot_[a-f0-9-]{36}$/.test(id));
 
-/** Names identify people in the room; presets select existing engines and permissions. */
+/** IDs identify Bots; names are mutable labels, presets select engines and permissions. */
 export function participantCatalog(value: unknown, previous: readonly GroupParticipant[] = DEFAULT_PARTICIPANTS): GroupParticipant[] {
   if (value === undefined) return [...previous];
   if (!Array.isArray(value) || value.length > 100) throw new Error("Invalid Bot catalog.");
@@ -60,9 +57,22 @@ export function invitedParticipants(text: string, catalog: readonly GroupPartici
 }
 
 export function namedParticipants(text: string, members: readonly GroupParticipant[], mentionOnly = false): string[] {
-  return members.map(bot => ({ id: bot.id, at: text.search(new RegExp(mentionOnly
-    ? `(?<![A-Za-z0-9._%+-])@${escapeName(bot.name)}(?![A-Za-z0-9_])` : namePattern(bot.name), "iu")) }))
-    .filter(item => item.at >= 0).sort((a, b) => a.at - b.at).map(item => item.id);
+  if (!members.length) return [];
+  // Match the longest label first: @Tony New must not also address a different Bot named Tony.
+  const names = [...members].sort((a, b) => b.name.length - a.name.length).map(bot => escapeName(bot.name)).join("|");
+  const prefix = mentionOnly ? "(?<![A-Za-z0-9._%+-])@" : "(?<![A-Za-z0-9_])@?";
+  const matches = [...text.matchAll(new RegExp(`${prefix}(${names})(?![A-Za-z0-9_])`, "giu"))];
+  return [...new Set(matches.flatMap(match => members.filter(bot => bot.name.toLocaleLowerCase() === match[1].toLocaleLowerCase()).map(bot => bot.id)))];
+}
+
+/** A saved conversation keeps its identity when the browser omits its catalog on a follow-up. */
+export function resolveBotIdentity(role: AgentPresetId, input: { botId?: string; availableBots?: GroupParticipant[] }, saved?: { botId?: string; availableBots?: GroupParticipant[] }) {
+  const availableBots = participantCatalog(input.availableBots, participantCatalog(saved?.availableBots));
+  const botId = input.botId ?? saved?.botId ?? role;
+  const bot = availableBots.find(bot => bot.id === botId);
+  if (!bot || bot.presetId !== role) throw new Error("Bot identity does not match its engine.");
+  if (saved?.botId && saved.botId !== botId) throw new Error("A conversation's Bot identity cannot change.");
+  return { botId, availableBots, bot };
 }
 
 /** Seed a promoted room from its real transcript; no native sessions or files are copied. */

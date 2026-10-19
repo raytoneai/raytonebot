@@ -1,10 +1,11 @@
+import { DEFAULT_BOT_NAMES } from "../pi/harnessCatalog";
 // Approved Raytone character study: warm contours, larger eyes and one gold accessory per role.
 const navy = '#0C2458', gold = '#E7AC26', blue = '#1B3971';
 const skin = '#F8E7CF', edge = '#C9A47E';
 export const characters = {
-  woman: { name: 'Raer', note: '助理 · 耳麦' },
-  man: { name: 'Tonny', note: '规划评审 · 方眼镜与铅笔' },
-  boy: { name: 'Bob', note: '动手实现 · 棒球帽' },
+  woman: { name: DEFAULT_BOT_NAMES.assistant, note: '助理 · 耳麦' },
+  man: { name: DEFAULT_BOT_NAMES.planner, note: '规划评审 · 方眼镜与铅笔' },
+  boy: { name: DEFAULT_BOT_NAMES.builder, note: '动手实现 · 棒球帽' },
 } as const;
 export type AvatarKind = keyof typeof characters;
 /** The gold half of the Raytone mark: rows of a circle, each starting where navy would end. */

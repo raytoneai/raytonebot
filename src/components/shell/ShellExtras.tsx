@@ -28,7 +28,7 @@ import { HarnessMark } from "./HarnessMark";
 import { Button } from "../ui/button";
 import "./shell.css";
 import { BotEditor, type BotEditorState } from "./BotEditor";
-import { type BotProfile } from "../../runtime/botProfiles";
+import { BOT_NAMES, type BotProfile } from "../../runtime/botProfiles";
 
 /**
  * Product chrome the exported layout has no slot for: the agent list in the sidebar, the
@@ -106,6 +106,7 @@ export type ShellExtras = {
   toolLog?: { targetId?: string; revision?: number; open(toolId: string): void };
   runActive?: ReadonlySet<string>;
   workspaceScope?: AgentPresetId;
+  workspaceBotName?: string;
   /** The shared browser's live view in the Output panel (ADR-040); absent when the host has none. */
   outputPanel?: { source: OutputPanelSource; select(source: OutputPanelSource): void; browserAvailable: boolean };
   /** Refresh the visible directory when a run starts or finishes. */
@@ -258,7 +259,7 @@ export function HeaderAgent({
   const t = settingsCopy[locale];
   const roleCopy = useCopy().composer.agentSettings;
   const preset = agentPreset(settings.presetId);
-  const name = bot?.name ?? (preset.id === "assistant" ? "Rae" : roleCopy.presets[preset.id].name);
+  const name = bot?.name ?? BOT_NAMES[preset.id];
   const sourceKey = preset.harness === "claude-code" ? "claudeCodeModelSource" : preset.harness === "codex" ? "codexModelSource" : undefined;
   const source: CliModelSource | undefined = sourceKey ? settings[sourceKey] : undefined;
   const model = !sourceKey || source === "provider" ? providerLabel : sourceKey === "claudeCodeModelSource" ? t.agents.sourceLocal : t.agents.sourceLocalCodex;
@@ -310,12 +311,12 @@ export function HeaderAgent({
 
 // ---------- Group chat: "+" menu, To: picker, group header with member panel ----------
 const GROUP_ROLE: Record<AgentPresetId, string> = { assistant: "助手", planner: "规划", builder: "实施" };
-const GROUP_NAME: Record<AgentPresetId, string> = { assistant: "Raer", planner: "Tonny", builder: "Bob" };
+const GROUP_NAME = BOT_NAMES;
 function useGroupBots() {
   const { bots } = useShellExtras();
   return bots ?? AGENT_PRESETS.map(preset => ({ id: preset.id, presetId: preset.id, name: GROUP_NAME[preset.id], appearance: undefined }));
 }
-function useBotNames(): Record<string, string> {
+export function useBotNames(): Record<string, string> {
   return Object.fromEntries(useGroupBots().map(bot => [bot.id, bot.name]));
 }
 

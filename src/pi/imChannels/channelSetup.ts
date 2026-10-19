@@ -52,7 +52,7 @@ export function createChannelSetup(manager: ChannelManager) {
       }
       // An IM chat cannot show the secure card, and a token typed there would reach the model.
       if (input.fromChannel) {
-        return Promise.resolve({ status: "open_in_browser", platform, message: "Credentials are never accepted in chat. Ask Raer in the RaytoneBot web app, or use Settings → IM channels." });
+        return Promise.resolve({ status: "open_in_browser", platform, message: "Credentials are never accepted in chat. Ask a Pi Bot in the RaytoneBot web app, or use Settings → IM channels." });
       }
       const requestId = randomUUID();
       return new Promise<ChannelSetupResult>((resolve) => {

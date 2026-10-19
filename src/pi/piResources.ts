@@ -16,9 +16,12 @@ export async function createHostResources(pi: typeof PiSdk, cwd: string, appendS
   const agentDir = pi.getAgentDir();
   const settingsManager = pi.SettingsManager.create(cwd, agentDir, { projectTrusted: false });
   const resourceLoader = new pi.DefaultResourceLoader({ cwd, agentDir, settingsManager, noExtensions: true, noSkills: true,
-    appendSystemPrompt,
+    appendSystemPrompt, appendSystemPromptOverride: () => appendSystemPrompt,
     ...(agentIsolationEnabled() ? { noContextFiles: true, noPromptTemplates: true, noThemes: true, systemPrompt: "" } : {}),
   });
   await resourceLoader.reload();
-  return { settingsManager, resourceLoader };
+  return { settingsManager, resourceLoader, setAppendSystemPrompt(text: string) {
+    // The loader and future reloads share this host-owned array.
+    appendSystemPrompt.splice(0, appendSystemPrompt.length, text);
+  } };
 }

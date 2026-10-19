@@ -30,6 +30,7 @@ import type { McpServerView } from "../../pi/mcpTypes";
 import type { MemoriesState } from "../../runtime/useMemories";
 import { MEMORY_COUNT_LIMIT, MEMORY_TEXT_LIMIT, type MemoryView } from "../../pi/memoryTypes";
 import { CHANNEL_FIELDS, type ChannelPatch, type ChannelView } from "../../pi/imChannels/types";
+import { useBotNames } from "../shell/ShellExtras";
 import "./settings.css";
 
 /**
@@ -430,7 +431,7 @@ function PermissionsSection({ t, runtime, permissionDefault, onPermissionDefault
 
 /** Tools each agent may run without asking, granted by "always allow"; each agent can be reset. */
 function AlwaysAllowedList({ t, runtime }: { t: SettingsCopy; runtime?: PiRuntimeState }) {
-  const roleCopy = useCopy().composer.agentSettings;
+  const botNames = useBotNames();
   const [granted, setGranted] = useState<Record<string, string[]>>(runtime?.alwaysAllowed ?? {});
   useEffect(() => setGranted(runtime?.alwaysAllowed ?? {}), [runtime?.alwaysAllowed]);
   const agents = AGENT_PRESETS.filter((preset) => granted[preset.id]?.length);
@@ -440,7 +441,7 @@ function AlwaysAllowedList({ t, runtime }: { t: SettingsCopy; runtime?: PiRuntim
       {agents.map((preset) => (
         <div className="settings-row" key={preset.id}>
           <span className="settings-row-main">
-            <span className="settings-row-title"><strong>{roleCopy.presets[preset.id].name}</strong></span>
+            <span className="settings-row-title"><strong>{botNames[preset.id]}</strong></span>
             <span className="settings-row-sub">{granted[preset.id].join(", ")}</span>
           </span>
           <Button size="sm" variant="ghost" onClick={() => void clearApprovalMemory(preset.id).then(setGranted).catch(() => undefined)}>
@@ -453,16 +454,16 @@ function AlwaysAllowedList({ t, runtime }: { t: SettingsCopy; runtime?: PiRuntim
 }
 
 function WorkspaceList({ t, runtime }: { t: SettingsCopy; runtime?: PiRuntimeState }) {
-  const roleCopy = useCopy().composer.agentSettings;
+  const botNames = useBotNames();
   const agents = runtime?.workspace?.agents ?? {};
-  const rows: [string, string][] = [
-    ...AGENT_PRESETS.map((preset): [string, string] => [roleCopy.presets[preset.id].name, agents[preset.id] ?? runtime?.cwd ?? "—"]),
-    ...(runtime?.workspace?.shared ? [[t.permissions.shared, runtime.workspace.shared] as [string, string]] : []),
+  const rows: [string, string, string][] = [
+    ...AGENT_PRESETS.map((preset): [string, string, string] => [preset.id, botNames[preset.id], agents[preset.id] ?? runtime?.cwd ?? "—"]),
+    ...(runtime?.workspace?.shared ? [["shared", t.permissions.shared, runtime.workspace.shared] as [string, string, string]] : []),
   ];
   return (
     <div className="settings-list">
-      {rows.map(([label, path]) => (
-        <div className="settings-row settings-about-row" key={label}>
+      {rows.map(([id, label, path]) => (
+        <div className="settings-row settings-about-row" key={id}>
           <span className="settings-about-label">{label}</span>
           <code>{path}</code>
           {path !== "—" ? <CopyButton t={t.about} value={path} /> : null}
@@ -503,7 +504,7 @@ function ChannelRow({ t, channel, state, open, onToggleOpen }: {
   onToggleOpen: () => void;
 }) {
   const c = t.channels;
-  const roleCopy = useCopy().composer.agentSettings;
+  const botNames = useBotNames();
   const name = c.names[channel.platform];
   const [fields, setFields] = useState<Record<string, string>>(channel.fields);
   const [allowText, setAllowText] = useState(channel.allowUsers.join(", "));
@@ -527,7 +528,7 @@ function ChannelRow({ t, channel, state, open, onToggleOpen }: {
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title"><strong>{name}</strong></span>
           <span className="settings-row-sub">
-            {channel.status.botName ? `${channel.status.botName} · ` : ""}{roleCopy.presets[channel.agentPreset].name} · {channel.access === "open" ? c.open : c.allowlist}
+            {channel.status.botName ? `${channel.status.botName} · ` : ""}{botNames[channel.agentPreset]} · {channel.access === "open" ? c.open : c.allowlist}
           </span>
         </button>
         <span className="settings-key-pill" data-tone={tone}><Dot />{c.state[channel.status.state]}</span>
@@ -569,7 +570,7 @@ function ChannelRow({ t, channel, state, open, onToggleOpen }: {
             <SelectMenu
               ariaLabel={c.role}
               value={channel.agentPreset}
-              options={AGENT_PRESETS.map((preset) => ({ value: preset.id, label: roleCopy.presets[preset.id].name }))}
+              options={AGENT_PRESETS.map((preset) => ({ value: preset.id, label: botNames[preset.id] }))}
               onValueChange={(value) => save({ agentPreset: value as ChannelView["agentPreset"] })}
             />
           </Field>
@@ -742,10 +743,11 @@ function CopyButton({ t, value }: { t: { copy: string; copied: string }; value: 
 }
 
 function RoutinesSection({ t, state, onOpenConversation }: { t: SettingsCopy; state: RoutinesState; onOpenConversation?: (id: string) => void }) {
+  const botNames = useBotNames();
   const [expanded, setExpanded] = useState<string | undefined>();
   return (
     <>
-      <p className="settings-intro">{t.routines.intro}</p>
+      <p className="settings-intro">{t.routines.intro.replaceAll("{assistant}", botNames.assistant)}</p>
       <p className="settings-note">{t.routines.clockNote}</p>
       {state.error ? <p className="settings-status" data-tone="error" role="status"><Dot />{t.routines.loadFailed(state.error)}</p> : null}
       {state.routines?.length === 0 ? <p className="settings-note">{t.routines.empty}</p> : null}
@@ -994,7 +996,7 @@ function MemorySection({ t, state }: { t: SettingsCopy; state: MemoriesState }) 
 function MemoryRow({ t, memory, state }: { t: SettingsCopy; memory: MemoryView; state: MemoriesState }) {
   const c = t.memory;
   const { locale } = useLocale();
-  const agents = useCopy().composer.agentSettings.presets;
+  const botNames = useBotNames();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(memory.text);
   const [confirming, setConfirming] = useState(false);
@@ -1012,7 +1014,7 @@ function MemoryRow({ t, memory, state }: { t: SettingsCopy; memory: MemoryView; 
               if (event.key === "Enter" && !event.nativeEvent.isComposing) void save();
             }} />
         ) : <span className="settings-row-title">{memory.text}</span>}
-        <span className="settings-row-sub">{memory.source ? c.savedBy(agents[memory.source.agent].name, when) : c.addedByYou(when)}</span>
+        <span className="settings-row-sub">{memory.source ? c.savedBy(botNames[memory.source.agent], when) : c.addedByYou(when)}</span>
         {failure ? <span className="settings-status" data-tone="error" role="status"><Dot />{c.failed(failure)}</span> : null}
       </span>
       {editing ? (

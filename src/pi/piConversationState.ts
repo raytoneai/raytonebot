@@ -1,6 +1,8 @@
 import type { AgentUXEvent } from "@agent-ux/protocol";
 
 export type EphemeralPiConversation = {
+  botId?: string;
+  availableBots?: import("./groupParticipants.ts").GroupParticipant[];
   id: string;
   title: string;
   events: readonly AgentUXEvent[];

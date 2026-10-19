@@ -164,8 +164,26 @@ test("roles describe strengths without task-specific mandates", () => {
   const layout = resolveWorkspaceLayout({ fallbackCwd: "/app" });
   for (const role of ["assistant", "planner", "builder"] as const) {
     const prompt = rolePrompt(role, layout);
-    assert.match(prompt, /All three are general-purpose assistants/);
+    assert.match(prompt, /These are general-purpose assistants/);
     assert.match(prompt, /especially good at/);
     assert.doesNotMatch(prompt, /fiction|End with a numbered plan:|front door to the team|at most 3 items/);
   }
+});
+
+test("system identity and seeded soul follow current Bot config without rewriting custom personas", () => {
+  const { layout, cleanup } = workspace();
+  const tony = { id: "planner", name: "tony", presetId: "planner" as const };
+  const guest = { id: "bot_11111111-1111-1111-1111-111111111111", name: "小审", presetId: "planner" as const };
+  try {
+    ensureWorkspaceLayout(layout);
+    const options = { botId: tony.id, availableBots: [tony, guest] };
+    const prompt = rolePrompt("planner", layout, options);
+    assert.match(prompt, /You are tony[\s\S]*# tony/);
+    assert.doesNotMatch(prompt, /Tonny/);
+    assert.match(rolePrompt("planner", layout, { ...options, botId: guest.id }), /You are 小审[\s\S]*# 小审/);
+    assert.match(readFileSync(join(layout.agents.planner, "SOUL.md"), "utf8"), /# Tonny/, "shared persona file is never overwritten by a Bot rename");
+    writeFileSync(join(layout.agents.planner, "SOUL.md"), "# My character\n\nKeep my carefully written voice.");
+    assert.match(rolePrompt("planner", layout, options), /# My character\n\nKeep my carefully written voice/);
+    assert.throws(() => rolePrompt("builder", layout, options), /identity.*engine/);
+  } finally { cleanup(); }
 });

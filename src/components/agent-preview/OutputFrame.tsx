@@ -55,7 +55,7 @@ export function OutputFrame({
   const [query, setQuery] = useState("");
   const [truncated, setTruncated] = useState(false);
   const c = copy.workspace.outputFrame;
-  const { workspaceScope, workspaceRevision, workspaceSharedAvailable, onOpenFile, outputPanel, toolLog } = useShellExtras();
+  const { workspaceScope, workspaceBotName, workspaceRevision, workspaceSharedAvailable, onOpenFile, outputPanel, toolLog } = useShellExtras();
   const [expandedState, setExpanded] = useState(false);
   const expanded = fullscreen || expandedState;
   const [localSource, setLocalSource] = useState<OutputPanelSource>(project.output.source);
@@ -191,7 +191,7 @@ export function OutputFrame({
         ) : (
           <div className="artifact-content workspace-files" aria-busy={loading}>
             <div className="workspace-files-toolbar">
-              <SelectMenu className="workspace-scope-select" size="md" value={shared ? "shared" : "agent"} onValueChange={(value) => { setPath(""); setShared(value === "shared"); }} ariaLabel={c.files} options={[{ value: "agent", label: copy.composer.agentSettings.presets[workspaceScope].name }, ...(workspaceSharedAvailable ? [{ value: "shared", label: c.sharedFiles }] : [])]} />
+              <SelectMenu className="workspace-scope-select" size="md" value={shared ? "shared" : "agent"} onValueChange={(value) => { setPath(""); setShared(value === "shared"); }} ariaLabel={c.files} options={[{ value: "agent", label: workspaceBotName ?? copy.composer.agentSettings.presets[workspaceScope].name }, ...(workspaceSharedAvailable ? [{ value: "shared", label: c.sharedFiles }] : [])]} />
               <label className="workspace-search-field">
                 <Search size={15} aria-hidden="true" />
                 <input className="workspace-document-search" type="search" maxLength={100} aria-label={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} placeholder={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} value={query} onChange={e => setQuery(e.target.value)} />

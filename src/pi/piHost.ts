@@ -25,6 +25,7 @@ import { lastClaudeTaskPlan } from "./claudeTaskPlan.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
 import { defaultProtectedPaths, defaultReadOnlyPaths, defaultSecretPaths } from "./permissionPolicy.ts";
 import { resolveWorkspaceLayout, type WorkspaceLayout } from "./workspaceLayout.ts";
+import { resolveBotIdentity } from "./groupParticipants.ts";
 import { rolePrompt, withReplyLanguage, withConversationContext, withUnseenPrompts } from "./rolePrompt.ts";
 import { isAppLocale } from "../i18n/locales.ts";
 import { listWorkspaceFiles, openWorkspaceFile, promptWithWorkspaceFiles, saveWorkspaceDownload, uploadWorkspaceFile, readWorkspaceDocument, replaceWorkspaceDocument, createWorkspaceDocument, searchWorkspaceDocuments, WorkspaceFileError } from "./workspaceFiles.ts";
@@ -93,6 +94,7 @@ export type { PiPermissionMode } from "./approvalGate.ts";
 export type PiSessionBridge = {
   subscribe(listener: (event: PiWireEvent) => void): () => void;
   prompt(text: string): Promise<void>;
+  setRolePrompt?(text: string): void;
   steer?(text: string): Promise<void>;
   abort(): Promise<void>;
   dispose(): void;
@@ -251,7 +253,7 @@ export function createPiRuntimeController(options: {
   const bridgeFactory = options.bridgeFactory ?? ((input) => {
     const id = decodeURIComponent(input.sessionDir!.split("/").pop()!);
     const saved = store.get(id);
-    return createDefaultPiBridge({ ...input, sandboxed, rolePrompt: rolePrompt("assistant", layout, { sandboxed }), sessionId: saved?.piSessionId,
+    return createDefaultPiBridge({ ...input, sandboxed, rolePrompt: rolePrompt(saved?.agentPreset ?? "assistant", layout, { sandboxed, botId: saved?.botId, availableBots: saved?.availableBots }), sessionId: saved?.piSessionId,
       branch: saved?.branch?.native?.harness === "pi" ? { ...saved.branch.native,
         sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(saved.branch.native.sourceId)) } : undefined,
       hasHistory: saved?.agentPreset === "assistant" && saved.events.length > 0,
@@ -522,6 +524,7 @@ export function createPiRuntimeController(options: {
     modelPrompt: string,
   ) => {
     const current = await bridge(conversationId);
+    current.setRolePrompt?.(rolePrompt(isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant", layout, { sandboxed, botId: input.botId, availableBots: input.availableBots }));
     const approvalGate = gateFor(conversationId);
     approvalGate.setCwd(cwd);
     approvalGate.setMode(input.permissionMode ?? "request");
@@ -666,7 +669,7 @@ export function createPiRuntimeController(options: {
           emit,
           onSessionId,
           provider,
-          appendSystemPrompt: rolePrompt(role, layout, { sandboxed }),
+          appendSystemPrompt: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots }),
           disallowedTools: agentPreset(role).disallowedTools,
           webTools,
           mcpTools: options.mcpTools?.(),
@@ -702,7 +705,7 @@ export function createPiRuntimeController(options: {
           cwd: runCwd,
           addDirs: sharedDirs,
           prompt: modelPrompt,
-          developerInstructions: rolePrompt(role, layout, { sandboxed }),
+          developerInstructions: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots }),
           permissionMode,
           resumeId,
           forkBeforeTurnId: branch?.harness === "codex" ? branch.beforeTurnId : undefined,
@@ -879,15 +882,19 @@ export function createPiRuntimeController(options: {
           if (op === resets.get(conversationId)) await op;
           else await op.catch(() => undefined);
         }
-        const fresh = !store.get(conversationId);
+        const saved = store.get(conversationId);
+        const identity = resolveBotIdentity(role, input, saved);
+        input = { ...input, botId: identity.botId, availableBots: identity.availableBots };
+        const fresh = !saved;
         const conversation = store.begin(conversationId, role, options?.title ?? prompt);
         opened = true;
+        store.setExtra(conversationId, { botId: identity.botId, availableBots: identity.availableBots });
         if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
         const workspacePrompt = await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]);
         const memoryNote = memory?.noteFor(conversationId);
         slot.memoryDelivered = memoryNote?.delivered;
         const browserNote = browser?.contextNote();
-        const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(workspacePrompt, options?.groupConversation), unseenPrompts(conversationId, harness))}${memoryNote?.text ? `\n\n${memoryNote.text}` : ""}${browserNote ? `\n\n${browserNote}` : ""}`, input.locale);
+        const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(workspacePrompt, options?.groupConversation), unseenPrompts(conversationId, harness))}\n\n[Current Bot identity from host configuration: ${JSON.stringify(identity.bot)}. Use this identity even if earlier messages use an old name.]${memoryNote?.text ? `\n\n${memoryNote.text}` : ""}${browserNote ? `\n\n${browserNote}` : ""}`, input.locale);
         store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt, ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}),
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, modelPrompt);
@@ -1581,7 +1588,7 @@ async function createDefaultPiBridge(input: {
     allowModelNetwork: false,
     credentials: new InMemoryCredentialStore(),
   });
-  const { settingsManager, resourceLoader } = await createHostResources(pi, input.cwd, input.rolePrompt ? [input.rolePrompt] : []);
+  const { settingsManager, resourceLoader, setAppendSystemPrompt } = await createHostResources(pi, input.cwd, input.rolePrompt ? [input.rolePrompt] : []);
   const definitions = new Map<string, PiProviderDefinition>();
   const keys = new Map<string, string>();
   let stopEpoch = 0;
@@ -1669,6 +1676,11 @@ async function createDefaultPiBridge(input: {
         else await modelRuntime.setRuntimeApiKey(definition.id, apiKey);
         await session.setModel(modelRuntime.getModel(definition.id, selected.id)!);
       }
+    },
+    setRolePrompt(text) {
+      setAppendSystemPrompt(text);
+      // Pi's public loadout API rebuilds the system prompt without resetting native history.
+      session.setActiveToolsByName(session.getActiveToolNames());
     },
     async steer(text) {
       if (session.isIdle) throw new Error("This run is no longer accepting input.");

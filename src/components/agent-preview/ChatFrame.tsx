@@ -1,9 +1,10 @@
+import { DEFAULT_BOT_NAMES } from "../../pi/harnessCatalog";
 import type { AgentUXTimelineItem, AgentUXToolTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
 import { AgentAvatar, AgentPersonaProvider, avatarBusy, useAgentPersona, type AvatarKind } from "../../avatars/AgentPersona";
 
 // Group chat: member items carry ids tagged "<role>~…" (see src/pi/groupChat.ts).
 const GROUP_AUTHORS: Record<string, { kind: AvatarKind; name: string }> = {
-  assistant: { kind: "woman", name: "Raer" }, planner: { kind: "man", name: "Tonny" }, builder: { kind: "boy", name: "Bob" },
+  assistant: { kind: "woman", name: DEFAULT_BOT_NAMES.assistant }, planner: { kind: "man", name: DEFAULT_BOT_NAMES.planner }, builder: { kind: "boy", name: DEFAULT_BOT_NAMES.builder },
 };
 // Tool and artifact ids are wrapped as JSON [runId, field, id] by replayIdentity, so match inside too.
 const itemAuthor = (item: AgentUXTimelineItem) => /(?:^|")(assistant|planner|builder|bot_[a-f0-9-]{36})~/.exec(String(item.id))?.[1];

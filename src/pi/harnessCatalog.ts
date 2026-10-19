@@ -10,6 +10,9 @@ export type AgentHarnessId = "pi" | "claude-code" | "codex";
 /** A preset agent: one harness plus the job it is best at. Labels live in i18n copy. */
 export type AgentPresetId = "assistant" | "planner" | "builder";
 
+/** Initial display names only. Runtime identity and permissions always use IDs. */
+export const DEFAULT_BOT_NAMES: Record<AgentPresetId, string> = { assistant: "Raer", planner: "Tonny", builder: "Bob" };
+
 export type AgentPreset = {
   id: AgentPresetId;
   harness: AgentHarnessId;

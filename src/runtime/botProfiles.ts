@@ -1,11 +1,11 @@
-import { isAgentPresetId, type AgentPresetId } from "../pi/harnessCatalog.ts";
+import { DEFAULT_BOT_NAMES, isAgentPresetId, type AgentPresetId } from "../pi/harnessCatalog.ts";
 import { DEFAULT_BOTS, parseBotAppearance, type BotAppearance, type BotAppearances, type BotKind } from "./botAppearance.ts";
 
 export type BotProfile = { id: string; presetId: AgentPresetId; name: string; appearance: BotAppearance };
 export type BotProfileStore = { profiles: BotProfile[]; conversations: Record<string, string> };
 export const BOT_PROFILES_KEY = "raytone.bot-profiles.v1";
 export const BOT_KINDS = { assistant: "woman", planner: "man", builder: "boy" } as const satisfies Record<AgentPresetId, BotKind>;
-export const BOT_NAMES = { assistant: "Raer", planner: "Tonny", builder: "Bob" };
+export const BOT_NAMES = DEFAULT_BOT_NAMES;
 export const BOT_NAME_LIMIT = 40;
 const customId = /^bot_[a-f0-9-]{36}$/;
 
@@ -15,7 +15,7 @@ export function parseBotProfile(value: unknown): BotProfile | undefined {
   const appearance = parseBotAppearance(data.appearance);
   if (typeof data.id !== "string" || (!isAgentPresetId(data.id) && !customId.test(data.id))
     || !isAgentPresetId(data.presetId) || (isAgentPresetId(data.id) && data.id !== data.presetId)
-    || typeof data.name !== "string" || !data.name.trim() || data.name.trim().length > BOT_NAME_LIMIT || !appearance) return;
+    || typeof data.name !== "string" || !data.name.trim() || data.name.trim().length > BOT_NAME_LIMIT || /[\r\n\u0000-\u001f]/.test(data.name) || !appearance) return;
   return { id: data.id, presetId: data.presetId, name: data.name.trim(), appearance };
 }
 
@@ -54,7 +54,7 @@ export function updateBotProfile(store: BotProfileStore, value: BotProfile): Bot
   return { ...store, profiles: previous ? store.profiles.map(entry => entry.id === bot.id ? bot : entry) : [...store.profiles, bot] };
 }
 
-export function conversationBotId(store: BotProfileStore, conversation: { id: string; agentPreset?: string }): string | undefined {
+export function conversationBotId(store: BotProfileStore, conversation: { id: string; botId?: string; agentPreset?: string }): string | undefined {
   if (conversation.id.startsWith("group_")) return;
-  return store.conversations[conversation.id] ?? (isAgentPresetId(conversation.agentPreset) ? conversation.agentPreset : undefined);
+  return conversation.botId ?? store.conversations[conversation.id] ?? (isAgentPresetId(conversation.agentPreset) ? conversation.agentPreset : undefined);
 }

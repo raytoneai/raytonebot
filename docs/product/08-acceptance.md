@@ -1080,3 +1080,11 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 新建与自建 Bot 恢复默认共用 DEFAULT_NEW_BOT，脸蛋 #E7AC26、眼睛 #0C2458，与品牌 SVG 的实际色值一致；不迁移已保存外观。侧栏 Agent 区不再有预设 Group，群聊历史分组保持。
 - 浏览器实测创建表单默认颜色、改变脸型后恢复圆脸/默认配色；取消未创建测试 Bot。历史 Group 仍可见，聊天顶部邀请菜单保留 Raer/Tonny/Bob。build、411/411 测试与 20 个内置场景检查通过，无浏览器 error/横向溢出。截图 `output/bot-brand-default/create.png`，场景记录 `fixtures.json`。
 - 本次仅前端默认值及入口收敛，未触发真实群聊运行、未调用模型、未部署或推送。
+
+## 2026-10-19 Bot 改名与群聊身份回归
+
+- `npm run build`、`npm test`（430/430）、`npm run check:local`、`git diff --check` 通过。构建仍有原有大 chunk 提示。
+- `groupParticipants` / `groupLifecycle`：tony 替换 Tonny 后 @、同伴、句首称呼、未发言提醒、追问及五种模型路由均可用；中文/空格/正则字符/重复名字/前缀重叠、非法 ID、旧群默认身份均覆盖。同引擎两个自建 Bot 实际经过 host/storage/adapter/gate，串行“开始”和单成员选项使用配置名字，任务和子会话保存各自 ID，重启后改名继续原身份。
+- `rolePrompt` / `piHost` / `piResources`：内置改名、自建角色、团队名单、SOUL 副本与自定义内容；缓存 session 下一轮刷新、重启快照、分支归属、错误身份拒绝；真实 Pi SDK 无模型调用验证提示刷新后 session ID/工具不变、资源 reload 不回退旧名。`taskPlan` 验证展示名变化不改持久化 owner ID。既有审批/停止/并发/历史回归通过。
+- 本机浏览器临时 Tonny → tony：侧栏与历史分组、旧对话标题/输入框、工作区下拉、设置工作目录标签均更新；完成后恢复检查浏览器的原名，未发送原草稿。20 个 devtools 场景依次切换，均渲染、无页面横向溢出、无 console error。截图与检查记录：`output/bot-identity/tony-workspace.png`、`fixtures.json`。
+- 边界：引擎使用受控替身，路由模型使用本地 JSON 响应；未调用真实外部模型或 CLI 服务、未部署。Bot 配置仍按浏览器保存，每轮与该会话同步，未新增 IM/例行任务的全局配置同步。

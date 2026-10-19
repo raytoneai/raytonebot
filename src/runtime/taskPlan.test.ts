@@ -114,3 +114,15 @@ test("group assignment snapshots use the existing artifact renderer with owners 
   assert.ok(displayed.includes(root.id) && displayed.includes(child.id));
   assert.match(artifact.content!, /native-run/);
 });
+
+test("restored group assignments show current configured names while retaining stable owner IDs", async () => {
+  const { groupTaskEvents, newGroupTask } = await import("../pi/groupTasks.ts");
+  const customId = "bot_66666666-6666-6666-6666-666666666666";
+  const events = groupTaskEvents("owners", [newGroupTask("owners", "planner", "Plan"), newGroupTask("owners", customId, "Review")]);
+  const view = createAgentUXViewModel(events.map(artifactEventForReplay));
+  const content = displayTaskPlans(view, events, "zh", { planner: "tony", [customId]: "Reviewer [A]" }).timeline.find(item => item.kind === "artifact")!.content!;
+  assert.match(content, /tony/);
+  assert.match(content, /Reviewer \\\[A\\\]/);
+  assert.doesNotMatch(content, /Tonny|bot_666/);
+  assert.ok(JSON.stringify(events).includes(customId), "persisted task ownership is not rewritten to a name");
+});

@@ -278,11 +278,14 @@ export function AgentApp() {
     () => piConversations.find((conversation) => conversation.id === activePiConversationId) ?? piConversations[0],
     [activePiConversationId, piConversations],
   );
-  const knownBots = [...bots];
-  for (const participant of piConversations.flatMap(conversation => conversation.groupParticipants ?? [])) {
-    if (!knownBots.some(bot => bot.id === participant.id)) knownBots.push({ ...bots.find(bot => bot.id === participant.presetId)!, ...participant });
-  }
-  const activeBot = bots.find(bot => bot.id === (activePiConversation.groupHostId ?? conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
+  const knownBots = useMemo(() => {
+    const knownBots = [...bots];
+    for (const participant of piConversations.flatMap(conversation => [...conversation.availableBots ?? [], ...conversation.groupParticipants ?? []])) {
+      if (!knownBots.some(bot => bot.id === participant.id)) knownBots.push({ ...bots.find(bot => bot.id === participant.presetId)!, ...participant });
+    }
+    return knownBots;
+  }, [bots, piConversations]);
+  const activeBot = knownBots.find(bot => bot.id === (activePiConversation.groupHostId ?? conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
     ?? bots.find(bot => bot.id === agentSettings.presetId)!;
   const presetBot = (id: string) => {
     const bot = knownBots.find(bot => bot.id === id);
@@ -355,7 +358,7 @@ export function AgentApp() {
       visibility: { show: "developer" },
     },
   }), [replayEvents, reasoningRenderPolicy, toolRenderPolicy]);
-  const displayViewModel = useMemo(() => displayTaskPlans(localizePreviewViewModel(viewModel, locale), events, locale), [locale, viewModel, events]);
+  const displayViewModel = useMemo(() => displayTaskPlans(localizePreviewViewModel(viewModel, locale), events, locale, Object.fromEntries(knownBots.map(bot => [bot.id, bot.name]))), [locale, viewModel, events, knownBots]);
   const liveOutputPanelItems = useMemo(() => refreshArtifactItems(outputPanelItems, displayViewModel.timeline), [outputPanelItems, displayViewModel]);
   const isWelcome = displayViewModel.timeline.length === 0;
 
@@ -881,7 +884,7 @@ export function AgentApp() {
         ...(isGroup ? { members: groupMembersOf(nextConversation) } : {}),
         conversationId: nextConversation.id,
         botId: conversationBotId(botStore, nextConversation) ?? activeBot.id,
-        availableBots: bots.map(({ id, name, presetId }) => ({ id, name, presetId })),
+        availableBots: knownBots.map(({ id, name, presetId }) => ({ id, name, presetId })),
         requestId: runId,
         artifactSubmission: queued?.artifactSubmission,
         prompt: normalizedPrompt,
@@ -1209,9 +1212,10 @@ export function AgentApp() {
   }
 
   // Group chat: members and the last message come with the host's summary of the conversation.
-  function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupParticipants" | "groupHostId" | "groupPreview"> {
+  function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupParticipants" | "groupHostId" | "groupPreview" | "botId" | "availableBots"> {
     const group = (entry as StoredConversationSummary).group;
-    return group ? { groupMembers: group.members, groupParticipants: group.participants, groupHostId: group.hostId, groupPreview: group.preview } : {};
+    const saved = entry as StoredConversationSummary;
+    return { ...(saved.botId ? { botId: saved.botId, availableBots: saved.availableBots } : {}), ...(group ? { groupMembers: group.members, groupParticipants: group.participants, groupHostId: group.hostId, groupPreview: group.preview } : {}) };
   }
   /** A saved conversation the sidebar lists before its transcript is opened. */
   function storedStub(entry: StoredConversationSummary): EphemeralPiConversation {
@@ -1556,6 +1560,7 @@ export function AgentApp() {
       onChange: changeComposerDraft,
     },
     workspaceScope: agentSettings.presetId,
+    workspaceBotName: activeBot.name,
     outputPanel: streamId ? undefined : { source: outputSource, browserAvailable, select: setOutputSource },
     workspaceRevision: piRunning,
     workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),

@@ -288,3 +288,9 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 单聊可以在原 ID 上增加 group metadata；前端历史分组和运行状态按 metadata 识别群聊，兼容旧 `group_` ID。原 transcript 保留，`group.lines` 从最近 20 条用户/助手消息初始化，每条限 4,000 字符；群内 `<conversation>.m.<botId>` 原生子会话从这个有界上下文开始，使用 Bot 的既有角色工作区和权限，不克隆原生 session。成员/署名/审批/任务负责人均用 Bot ID，执行时才映射到 preset。
 
 普通 prompt 和 group prompt 都接受可选 `availableBots`，普通 prompt 可附 `botId`。主机仅从顶层用户消息识别明确邀请；子轮、引用、工具结果不能改成员。邀请安排主持和新成员进行一轮只读讨论后收口；菜单只更新成员，不执行模型。成员变更沿现有同源边界，运行时拒绝修改，最多八个 Bot；不新增服务、数据库或独立面板。
+
+2026-10-19 身份统一：普通会话新增可选 `botId` / `availableBots` 快照，分支继承；浏览器每轮提交当前 Bot 配置，无新后端配置服务。无名单的后续调用使用该会话已保存快照，旧数据回退三个预置身份；未收到配置的后台入口仍使用预置默认值。`resolveBotIdentity` 拒绝同一会话切换 Bot 或 Bot/引擎不匹配。群子轮显式提交自己的 Bot ID 和当前名单，不继承父请求的 Bot 身份。
+
+`rolePrompt` 用当前名字生成身份与团队清单；角色只决定能力、工作区和限制。未编辑的 SOUL 模板在送给模型时替换标题，磁盘文件和用户自定义内容保留；当前配置身份优先于旧对话/人设称呼。Pi 通过 host-owned append prompt 与 SDK `setActiveToolsByName` 在下一轮刷新，保留 native session；CLI 每轮重建系统说明，模型副本附当前身份，用户原文不变。
+
+所有群成员共用一套路由，模型输出 `{mode,members:[稳定ID]}`；名字仅在用户输入边界解析，不决定可用模式。旧 router 的符号 route key 仅作兼容输入，映射固定内置 ID，不发入当前模型提示。重名点名拒绝猜测，前缀重叠按最长完整名字解析；PM 确认选项由计划成员生成，回答通过该轮选项表映射 ID，任务重试直接读取 owner ID。

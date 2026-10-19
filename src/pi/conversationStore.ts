@@ -18,6 +18,8 @@ import { createConversationCache } from "./conversationCache.ts";
  * conversation-wide `seq`, matching `appendPiConversationEvents`.
  */
 export type StoredConversation = {
+  botId?: string;
+  availableBots?: import("./groupParticipants.ts").GroupParticipant[];
   group?: import("./groupChat.ts").GroupMeta;
   id: string;
   title: string;
@@ -202,6 +204,7 @@ export function createConversationStore(dataDir = defaultDataDir()) {
       const { events, turns, branch, draft } = branchPrefix(source, beforeRunId);
       const now = Date.now();
       const conversation: StoredConversation = { id, title: `↳ ${source.title}`, agentPreset: source.agentPreset,
+        botId: source.botId, availableBots: source.availableBots ? structuredClone(source.availableBots) : undefined,
         createdAt: now, updatedAt: now, piSessionId: null, events: structuredClone(events), turns: structuredClone(turns), branch };
       write(conversation);
       return { conversation, draft };

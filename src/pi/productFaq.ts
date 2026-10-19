@@ -19,15 +19,15 @@ export function productFaq(input: { sandboxed: boolean; layout: WorkspaceLayout 
     : "the owner's computer (local development mode).";
   return [
     "## RaytoneBot facts (answer product questions from here, without tools; if not covered, say so)",
-    "- Product: single-user AI work assistant, used in the browser or chat apps. Switching agents starts a new conversation. Tonny's file writes are limited to the shared directory; tool permissions are enforced by the host.",
+    "- Product: single-user AI work assistant, used in the browser or chat apps. Switching agents starts a new conversation. Claude Code Bots' file writes are limited to the shared directory; tool permissions are enforced by the host.",
     `- Runs on ${where}${layout.shared ? ` Each agent has its own directory under ${layout.root}/agents.` : ""}`,
     `- Model: default service in ${menu("providers")} (DeepSeek by default). ${input.sandboxed ? "Its key is stored inside this sandbox, readable only by the bot process, never by agents" : "Its key is in the server environment"}; a key pasted in the browser stays in page memory. IM always uses the server key.`,
     `- Permissions (${menu("permissions")} or composer): ${mode.toolPermissionRequest} asks before changes; ${mode.toolPermissionAuto} asks only before outward actions; ${mode.toolPermissionAllowAll} never asks. Protected paths and secrets always ask or are refused.`,
     "- Files: attach in the composer; outputs and workspace files open in the right panel and download from there.",
     "- History: saved, searchable in the sidebar; edit or regenerate creates a branch.",
-    `- IM (${menu("channels")}): ${CHANNEL_PLATFORMS.map((platform) => ui.channels.names[platform]).join(", ")}. Outbound connections, no public URL. In the web app Raer connects Telegram from chat (connect_channel: secure token card, then the user's first message pairs them). Never ask anyone to paste tokens or user IDs into chat. Manual setup, then paste credentials and turn the channel on:`,
+    `- IM (${menu("channels")}): ${CHANNEL_PLATFORMS.map((platform) => ui.channels.names[platform]).join(", ")}. Outbound connections, no public URL. In the web app Pi Bots connect Telegram from chat (connect_channel: secure token card, then the user's first message pairs them). Never ask anyone to paste tokens or user IDs into chat. Manual setup, then paste credentials and turn the channel on:`,
     ...CHANNEL_PLATFORMS.map((platform) => `  - ${ui.channels.names[platform]}: ${settingsCopy.en.channels.setup[platform]}`),
     "  - Only allowlisted user IDs; a stranger gets their ID to give the owner. Groups: mention the bot. Chat: /new, /stop; approve with 同意/总是允许/拒绝. Text only.",
-    "- Personas: SOUL.md in each agent directory; user preferences in shared USER.md. Edits apply to new conversations.",
+    "- Personas: SOUL.md in each agent directory; user preferences in shared USER.md. Character and current Bot names are refreshed on each turn.",
   ].join("\n");
 }

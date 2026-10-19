@@ -1114,3 +1114,39 @@ test("browser input batches validate every event before dispatch and retain sing
     assert.equal((await post({ input: valid })).status, 409, "old clients use the same takeover check");
   } finally { host.dispose(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(dataDir, { recursive: true, force: true }); }
 });
+
+test("Bot identity refreshes cached sessions and survives restart and branches without changing engine or transcript", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-bot-identity-"));
+  const systems: string[] = [], prompts: string[] = [];
+  let creations = 0;
+  const factory: PiBridgeFactory = async () => {
+    creations++;
+    return { subscribe: () => () => {}, setRolePrompt(text) { systems.push(text); },
+      async prompt(text) { prompts.push(text); }, async abort() {}, dispose() {}, async configure() {},
+      async state() { return { models: [], tools: [] }; }, async newSession() {} };
+  };
+  let controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  const bot = { id: "bot_33333333-3333-3333-3333-333333333333", name: "First", presetId: "assistant" as const };
+  try {
+    await controller.runPrompt({ conversationId: "identity", requestId: "first", prompt: "Hello", botId: bot.id, availableBots: [bot] }, () => {});
+    await controller.runPrompt({ conversationId: "identity", requestId: "renamed", prompt: "Again", botId: bot.id, availableBots: [{ ...bot, name: "Current" }] }, () => {});
+    assert.equal(creations, 1);
+    assert.match(systems[0], /You are First/);
+    assert.match(systems[1], /You are Current/);
+    assert.doesNotMatch(systems[1], /You are First/);
+    assert.match(prompts[1], /"name":"Current"/);
+    assert.equal(controller.getConversation("identity")?.botId, bot.id);
+    assert.equal(controller.getConversation("identity")?.agentPreset, "assistant");
+    assert.ok(!JSON.stringify(controller.getConversation("identity")?.events).includes("Current Bot identity"));
+    controller.dispose();
+    controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+    await controller.runPrompt({ conversationId: "identity", prompt: "After restart" }, () => {});
+    assert.match(systems.at(-1)!, /You are Current/);
+    const { createConversationStore } = await import("./conversationStore.ts");
+    const branch = createConversationStore(dataDir).branch("identity-branch", "identity", "first");
+    assert.equal(branch.conversation.botId, bot.id);
+    assert.equal(branch.conversation.availableBots?.find(b => b.id === bot.id)?.name, "Current");
+    await assert.rejects(controller.runPrompt({ conversationId: "identity", prompt: "Wrong bot", botId: "assistant" }, () => {}), /identity cannot change/);
+    assert.equal(prompts.length, 3);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});

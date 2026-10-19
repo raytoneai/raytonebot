@@ -1,5 +1,6 @@
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import type { AgentUXViewModel } from "@agent-ux/render-core";
+import { DEFAULT_BOT_NAMES } from "../pi/harnessCatalog.ts";
 import type { AppLocale } from "../i18n/locales.ts";
 
 export type PlanStep = { step: string; status: "pending" | "in_progress" | "completed"; taskId?: string;
@@ -44,7 +45,7 @@ const details = {
 };
 
 /** Adapt stored data to the existing Markdown artifact view, including restart/stop events. */
-export function displayTaskPlans(view: AgentUXViewModel, events: readonly AgentUXEvent[], locale: string): AgentUXViewModel {
+export function displayTaskPlans(view: AgentUXViewModel, events: readonly AgentUXEvent[], locale: string, names: Record<string, string> = DEFAULT_BOT_NAMES): AgentUXViewModel {
   const endings = new Map<string, "success" | "cancelled" | "error">();
   for (const event of events) {
     if (!event.runId) continue;
@@ -57,11 +58,10 @@ export function displayTaskPlans(view: AgentUXViewModel, events: readonly AgentU
     if (item.kind !== "artifact" || !item.data || typeof item.data !== "object") return item;
     const data = item.data as Record<string, unknown>;
     if (data.kind === "group-tasks" && Array.isArray(data.tasks)) {
-      const names: Record<string, string> = { assistant: "Raer", planner: "Tonny", builder: "Bob" };
       const states: Record<string, string> = locale === "zh" ? { pending: "待开始", running: "进行中", completed: "已完成", cancelled: "已取消", failed: "失败", needs_review: "待核对" } : { pending: "Pending", running: "Running", completed: "Completed", cancelled: "Cancelled", failed: "Failed", needs_review: "Needs review" };
       const content = [locale === "zh" ? "# 群任务\n\n待核对任务：核对实际结果后发送 `/task 任务ID complete`、`cancel` 或 `retry`。" : "# Group assignments\n\nReview uncertain effects before using `/task ID complete`, `cancel` or `retry`.", ...data.tasks.map(t => {
         const task = t as Record<string, string>;
-        return `${task.parentId ? "  " : ""}- **${states[task.status] ?? task.status}** · ${names[task.owner] ?? literal(task.owner ?? "")} · ${literal(task.title ?? "")}\n  ${literal(task.id ?? "")} ${task.parentId ? `← ${literal(task.parentId)}` : ""}${task.runId ? ` · run: ${literal(task.runId)}` : ""}${task.result ? `\n  ${literal(task.result)}` : ""}`;
+        return `${task.parentId ? "  " : ""}- **${states[task.status] ?? task.status}** · ${literal(names[task.owner] ?? task.owner ?? "")} · ${literal(task.title ?? "")}\n  ${literal(task.id ?? "")} ${task.parentId ? `← ${literal(task.parentId)}` : ""}${task.runId ? ` · run: ${literal(task.runId)}` : ""}${task.result ? `\n  ${literal(task.result)}` : ""}`;
       })].join("\n\n");
       return { ...item, artifactKind: "markdown", content, data: undefined };
     }

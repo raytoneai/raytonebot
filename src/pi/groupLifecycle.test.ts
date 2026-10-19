@@ -1066,3 +1066,54 @@ test("HTTP membership changes preserve the source and require the existing same-
     assert.deepEqual((await (await fetch(`${base}/conversations/${body.conversationId}`)).json()).group.members, body.members);
   } finally { host.dispose(); await close(server); rmSync(dataDir, { recursive: true, force: true }); }
 });
+
+test("custom sequential members use current names in confirmation and stable IDs for child sessions and task owners", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-custom-sequence-"));
+  const bridge = controlledBridges();
+  const first = { id: "bot_44444444-4444-4444-4444-444444444444", name: "tony", presetId: "assistant" as const };
+  const second = { id: "bot_55555555-5555-5555-5555-555555555555", name: "实施助手", presetId: "assistant" as const };
+  const router = createServer((_req, res) => {
+    res.setHeader("content-type", "application/json");
+    res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ mode: "sequential", members: [first.id, second.id] }) } }] }));
+  });
+  const routerUrl = await listen(router);
+  let controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
+  try {
+    await controller.configure({ conversationId: "setup", provider: "router-fixture", model: "fixture",
+      providerDefinition: { id: "router-fixture", name: "Router fixture", protocol: "openai-compatible", baseUrl: `${routerUrl}/v1`, models: ["fixture"], authMode: "none" } });
+    controller.setGroupMembers(groupId, [first.id, second.id], [first, second], first.id);
+    const execute = async (requestId: string, choice: string) => {
+      let confirmed = false;
+      const events: AgentUXEvent[] = [];
+      await controller.runGroupPrompt({ conversationId: groupId, requestId, prompt: "先规划再实施", provider: "router-fixture", model: "fixture" }, event => {
+        events.push(event);
+        if (event.type === "run.awaiting_input") {
+          const card = JSON.stringify(event.payload.questions);
+          assert.match(card, /只交给 tony/);
+          assert.match(card, /只交给 实施助手/);
+          assert.doesNotMatch(card, /Tonny|Bob/);
+          confirmed = controller.resolveUserInput(groupId, event.payload.requestId, { plan: [choice] });
+        }
+      });
+      assert.equal(confirmed, true);
+      assert.equal(events.at(-1)?.payload.status, "success");
+    };
+    await execute("both", "开始");
+    assert.deepEqual(bridge.calls.map(call => call.id), [first.id, first.id, second.id, first.id].map(id => `${groupId}.m.${id}`));
+    assert.match(bridge.calls[2].prompt, /"id":"bot_55555555-5555-5555-5555-555555555555","name":"实施助手"/);
+    const tasks = controller.getConversation(groupId)?.group?.tasks ?? [];
+    assert.ok(tasks.some(task => task.owner === second.id && task.status === "completed"));
+    assert.equal(controller.getConversation(`${groupId}.m.${second.id}`)?.botId, second.id);
+    bridge.calls.length = 0;
+    await execute("one", "只交给 实施助手");
+    assert.deepEqual(bridge.calls.map(call => call.id), [first.id, second.id].map(id => `${groupId}.m.${id}`));
+    controller.dispose();
+    controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
+    bridge.calls.length = 0;
+    await controller.runGroupPrompt({ conversationId: groupId, requestId: "renamed", prompt: "@Tony New 看看", availableBots: [{ ...first, name: "Tony New" }] }, () => {});
+    assert.equal(bridge.calls.length, 1);
+    assert.equal(bridge.calls[0].id, `${groupId}.m.${first.id}`);
+    assert.match(bridge.calls[0].prompt, /"name":"Tony New"/);
+    assert.equal(controller.getConversation(groupId)?.group?.hostId, first.id);
+  } finally { controller.dispose(); await close(router); rmSync(dataDir, { recursive: true, force: true }); }
+});

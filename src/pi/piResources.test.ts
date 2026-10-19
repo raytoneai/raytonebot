@@ -79,3 +79,32 @@ test("sandbox resources cannot follow workspace symlinks into bot-private contex
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("Pi refreshes a host identity through its public loadout API without resetting session or tools", async () => {
+  const root = mkdtempSync(join(tmpdir(), "rtb-identity-resource-"));
+  const previousAgentDir = process.env.PI_CODING_AGENT_DIR;
+  process.env.PI_CODING_AGENT_DIR = join(root, "agent");
+  let session: Awaited<ReturnType<typeof pi.createAgentSession>>["session"] | undefined;
+  try {
+    const { resourceLoader, settingsManager, setAppendSystemPrompt } = await createHostResources(pi, root, ["You are Original Bot."]);
+    const { InMemoryCredentialStore } = await import("@earendil-works/pi-ai");
+    const modelRuntime = await pi.ModelRuntime.create({ allowModelNetwork: false, credentials: new InMemoryCredentialStore() });
+    ({ session } = await pi.createAgentSession({ cwd: root, resourceLoader, settingsManager, modelRuntime, sessionManager: pi.SessionManager.inMemory(), noTools: "all" }));
+    const id = session.sessionId;
+    const tools = session.getActiveToolNames();
+    assert.match(session.systemPrompt, /Original Bot/);
+    setAppendSystemPrompt("You are Renamed Bot.");
+    session.setActiveToolsByName(tools);
+    assert.match(session.systemPrompt, /Renamed Bot/);
+    assert.doesNotMatch(session.systemPrompt, /Original Bot/);
+    assert.equal(session.sessionId, id);
+    assert.deepEqual(session.getActiveToolNames(), tools);
+    await resourceLoader.reload();
+    assert.deepEqual(resourceLoader.getAppendSystemPrompt(), ["You are Renamed Bot."]);
+  } finally {
+    session?.dispose();
+    if (previousAgentDir === undefined) delete process.env.PI_CODING_AGENT_DIR;
+    else process.env.PI_CODING_AGENT_DIR = previousAgentDir;
+    rmSync(root, { recursive: true, force: true });
+  }
+});

@@ -153,6 +153,8 @@ export async function testProviderConnection(
 }
 
 export type StoredConversationSummary = {
+  botId?: string;
+  availableBots?: import("./groupParticipants.ts").GroupParticipant[];
   group?: { members: string[]; participants?: import("./groupParticipants.ts").GroupParticipant[]; hostId?: string; preview?: { author: string; text: string } };
   id: string;
   title: string;

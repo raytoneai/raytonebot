@@ -1,3 +1,4 @@
+import { DEFAULT_BOT_NAMES } from "../../pi/harnessCatalog.ts";
 // Composer domain copy: ComposerFrame, ProviderFloatingSettings, ProviderSettingsPanel.
 // en is the source of truth; every other locale must mirror its shape exactly — the
 // `satisfies` at the bottom is what enforces that.
@@ -72,9 +73,9 @@ const en = {
     agents: "Agent",
     modelService: "Model service",
     presets: {
-      assistant: { name: "Raer", description: "Default. Fastest replies for everyday tasks.", greeting: "What can I help you with today?" },
-      planner: { name: "Tonny", description: "Reads the workspace and writes a plan. Never edits files.", greeting: "What should we plan? I'll map out the steps." },
-      builder: { name: "Bob", description: "Implements changes and runs commands in the workspace.", greeting: "What are we building? I'll make it happen." },
+      assistant: { name: DEFAULT_BOT_NAMES.assistant, description: "Default. Fastest replies for everyday tasks.", greeting: "What can I help you with today?" },
+      planner: { name: DEFAULT_BOT_NAMES.planner, description: "Reads the workspace and writes a plan. Never edits files.", greeting: "What should we plan? I'll map out the steps." },
+      builder: { name: DEFAULT_BOT_NAMES.builder, description: "Implements changes and runs commands in the workspace.", greeting: "What are we building? I'll make it happen." },
     },
     checking: "Checking…",
     unavailable: "Not installed on this host",
@@ -176,9 +177,9 @@ const zh: typeof en = {
     agents: "Agent 角色",
     modelService: "模型服务",
     presets: {
-      assistant: { name: "Raer", description: "默认。日常任务响应最快。", greeting: "今天想让我帮你做些什么？" },
-      planner: { name: "Tonny", description: "阅读工作区并给出执行计划，不修改文件。", greeting: "想规划点什么？我来理清步骤。" },
-      builder: { name: "Bob", description: "在工作区里改代码、跑命令。", greeting: "要做点什么？交给我来动手。" },
+      assistant: { name: DEFAULT_BOT_NAMES.assistant, description: "默认。日常任务响应最快。", greeting: "今天想让我帮你做些什么？" },
+      planner: { name: DEFAULT_BOT_NAMES.planner, description: "阅读工作区并给出执行计划，不修改文件。", greeting: "想规划点什么？我来理清步骤。" },
+      builder: { name: DEFAULT_BOT_NAMES.builder, description: "在工作区里改代码、跑命令。", greeting: "要做点什么？交给我来动手。" },
     },
     checking: "检测中…",
     unavailable: "此主机未安装",
@@ -281,9 +282,9 @@ const ja: typeof en = {
     agents: "エージェント",
     modelService: "モデルサービス",
     presets: {
-      assistant: { name: "Raer", description: "既定。日常タスクに最速で応答します。", greeting: "今日は何をお手伝いしましょうか？" },
-      planner: { name: "Tonny", description: "ワークスペースを読み、計画を作成します。ファイルは編集しません。", greeting: "何を計画しましょう？手順を整理します。" },
-      builder: { name: "Bob", description: "ワークスペースで変更を実装し、コマンドを実行します。", greeting: "何を作りましょう？実装は任せてください。" },
+      assistant: { name: DEFAULT_BOT_NAMES.assistant, description: "既定。日常タスクに最速で応答します。", greeting: "今日は何をお手伝いしましょうか？" },
+      planner: { name: DEFAULT_BOT_NAMES.planner, description: "ワークスペースを読み、計画を作成します。ファイルは編集しません。", greeting: "何を計画しましょう？手順を整理します。" },
+      builder: { name: DEFAULT_BOT_NAMES.builder, description: "ワークスペースで変更を実装し、コマンドを実行します。", greeting: "何を作りましょう？実装は任せてください。" },
     },
     checking: "確認中…",
     unavailable: "このホストには未インストール",
