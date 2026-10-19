@@ -135,6 +135,44 @@ Workspace 里产品数据落在 `.raytonebot/data`，角色目录在 `agents/{as
 | 崩溃后自动恢复、稳定鉴权入口、独立备份 | 未实现（AM-01/03/04/05） |
 | UID/网络隔离（raytone-agent、raytone-browser、nft、ACL） | 未实现；AM Environment 是单一 OS 账号 |
 
+## 浏览器能力缺口（2026-10-19 实测）
+
+截图里 Raer 说“没有 Chromium/Firefox/Playwright”是准确的：`playwright-core` 已在
+`node_modules`，但没有浏览器二进制，而且系统库也不全。实测结论：
+
+| 项目 | 实测 |
+| --- | --- |
+| 身份 | `uid=1000(user)`；`sudo` 存在但被 `no_new_privs` 禁止，无法 apt 安装系统包 |
+| 浏览器 | PATH 无 Chromium/Chrome；`/opt/pw-browsers`、`~/.cache/ms-playwright` 不存在 |
+| Playwright 期望 | `chromium-headless-shell:1248`（`playwright-core@1.64`） |
+| 系统库 | libnss3、libnspr4、libatk-1.0、libatk-bridge-2.0、libcups2、libdrm2、libxkbcommon、libXcomposite、libXdamage、libXfixes、libXrandr、libgbm、libpango、libcairo、libasound 全部缺失 |
+| 资源 | `/workspace` 剩 97G；出站可用，下载不是瓶颈 |
+
+后果：浏览器接管/截图/点击等工具不可用；`web_search`、`web_fetch` 不受影响。应用会明确报
+“Chromium headless shell is not installed on this host.”，不是静默失败。
+
+两条处理路径：
+
+1. **平台侧（推荐，AM-01）**：在模板或受控初始化里安装 Chromium headless shell（revision 1248）
+   和上述运行时库，并提供 `PLAYWRIGHT_BROWSERS_PATH=/opt/pw-browsers`（或在
+   `/workspace/.raytonebot/browsers` 预置）。应用侧不需要改代码；验收命令：
+   `PLAYWRIGHT_BROWSERS_PATH=… node -e "…launch…"`，以及一次真实页面接管。
+2. **用户态 sysroot（仅演示）**：用 `playwright-core install --with-deps --dry-run` 的包清单
+   `apt-get download`，再 `dpkg-deb -x` 到 `/workspace/.raytonebot/sysroot`，运行时设置
+   `LD_LIBRARY_PATH` + `PLAYWRIGHT_BROWSERS_PATH`。没有 root 校验、升级和维护都脆，不进入
+   正式部署路径。
+
+## 下次继续时
+
+- 分支：`am-hosting`（基于 `raytone-1013-parity-pass`）。`main` 未改动、未合并、未推送。
+- 部署状态在本机 `.agentmatrix/deployment.json`（gitignored），资源 ID 见上文；换机器后
+  `am:deploy` 会按名称/Workspace 重新发现并接管。
+- 重新部署：`export ARIADRA_API_KEY=…`（Console → API Keys），
+  `npm run am:deploy -- --clean`；看状态 `npm run am:status`；刷新入口 `npm run am:preview`；
+  恢复暂停 `npm run am:wake`；下线 `npm run am:stop`。
+- 下一步优先级：AM-01 的浏览器/依赖模板 → AM-03 常驻策略 → AM-04 稳定鉴权入口 →
+  RT-02 数据归档与恢复。
+
 ## 与需求稿的对应
 
 - RT-01：发布包、摘要、启动/停止/health、最小部署适配 —— 本分支。
