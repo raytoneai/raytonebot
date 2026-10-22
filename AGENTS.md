@@ -1,9 +1,10 @@
 # AGENTS.md
 
-RaytoneBot: a single-user AI work assistant that runs in an AgentSphere cloud sandbox. Vite +
+RaytoneBot: a single-user AI work assistant that runs locally or in a cloud environment. Vite +
 React + TypeScript UI (forked from an AgentCanvas export, no longer synced upstream) with the
 AgentUX SDK vendored under `vendor/`, and a Node runtime in `src/pi/` that drives Pi, Claude
-Code and Codex.
+Code and Codex, plus an optional local-only DeepSeek Harness (DSH). AgentSphere and AgentMatrix
+have separate deployment paths and verification limits; see their runbooks below.
 
 **Read [docs/product/README.md](docs/product/README.md) first.** Roadmap and progress:
 `docs/product/03-roadmap.md`. AI working rules and definition of done:
@@ -62,7 +63,7 @@ How to extend:
 | Event mapping (Pi and CLI engines share it) | `src/harness/adapters/piAdapter.ts`; CLI output → Pi events in `src/pi/cliStreams.ts` |
 | Front-end state, conversation restore | `src/agent-shell.tsx` |
 | Brand, layout, panels, default model | `src/exported-project.ts` |
-| Deploy and sandbox lifecycle | `scripts/agentsphere/`, `scripts/cloud-preview.mjs` |
+| Deploy and sandbox lifecycle | `scripts/agentsphere/`, `scripts/agentmatrix/`, `scripts/cloud-preview.mjs`; runbooks in `docs/product/06-deployment-runbook.md` and `docs/agentmatrix-deployment.md` |
 
 ```
 Pi / CLI events -> piAdapter -> AgentUX StandardEvent -> view model -> existing components
@@ -89,13 +90,16 @@ permission model: `docs/product/10-agents-and-permissions.md`.
 
 ## Secrets
 
-Model keys live only in the sandbox `~/.raytonebot/env` or browser session memory; the E2B key
-only in this machine's shell environment. Never write either into source, the bundle, docs or
-the sandbox (E2B key). Agent child processes get secrets stripped (`src/pi/runtime/childEnv.ts`).
+Model keys come from the host environment/private env file or browser session memory. Private
+env paths differ by deployment; see the runbooks. Platform deployment credentials (`E2B_API_KEY`,
+`ARIADRA_API_KEY`) stay on trusted deployment hosts, never inside the bot sandbox or Agent
+environment. Never write keys into source, the bundle or docs. Agent child processes get secrets stripped
+(`src/pi/runtime/childEnv.ts`).
 
 ## How to verify a change
 
-Run the narrowest relevant checks from `docs/product/08-acceptance.md`: `npm run build`,
+Run the narrowest relevant checks from `docs/product/08-acceptance.md`. Documentation-only edits
+need source/command/link checks and `git diff --check`; runtime changes use `npm run build`,
 `npm test`, `npm run check:local` (server running), `node scripts/cloud-preview.mjs --check`.
 
 For event-mapping or component changes, add `?devtools=1` to reveal the fixture picker and step

@@ -44,11 +44,11 @@ node control/server.ts import --owner <用户 id>   # 把 .agentsphere/ 里现�
 - 备份在 `bots/<id>/backups/`，保留最近 7 份。恢复仍然手动执行：`sandbox.py --state-dir bots/<id> restore FILE`，然后再部署一次。
 - 交接密钥丢失或 control 数据目录丢失时，bot 只剩 Basic Auth 可用；重新 import 并部署即可恢复。
 
-## 当前实例
+## 实例定位
 
-- `id705on7k0a1ya1d90icj`（自动暂停），URL：<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>
-- 状态文件：`.agentsphere/deployment.json`（sandboxId、到期时间、PID；新部署记录 supervisorPid），`.agentsphere/verification.json`（最近检查结果）。以状态文件为准，本节可能滞后。
-- 旧实例 `i7ngpr2af8dxd2ttcy842` 不会暂停，2026-10-04 13:19（北京时间）到期后销毁。
+- 本机 `.agentsphere/deployment.json` 记录 sandboxId、到期时间、PID / supervisorPid；`.agentsphere/verification.json` 记录最近检查结果。两个文件都是本机记录，不代表此刻在线。
+- 运行 `~/.venvs/agentsphere/bin/python scripts/agentsphere/sandbox.py status` 查询实际状态；公网地址按上表由端口与 sandboxId 组成，暂停后的恢复见下文。
+- 历史实例与部署结果保留在进度和验收日志中，不再把固定 URL 当作当前入口。AgentMatrix 使用独立的 `.agentmatrix/deployment.json` 与 `npm run am:status`。
 
 ## 持久化（2026-10-03 实测）
 

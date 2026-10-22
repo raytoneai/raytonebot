@@ -164,7 +164,7 @@ Workspace 里产品数据落在 `.raytonebot/data`，角色目录在 `agents/{as
 
 ## 下次继续时
 
-- 分支：`am-hosting`（基于 `raytone-1013-parity-pass`）。`main` 未改动、未合并、未推送。
+- 实施分支：`am-hosting`（基于 `raytone-1013-parity-pass`）。分支是否已推送或合并以 Git 状态为准；本文记录的首次部署不代表后续提交已部署。
 - 部署状态在本机 `.agentmatrix/deployment.json`（gitignored），资源 ID 见上文；换机器后
   `am:deploy` 会按名称/Workspace 重新发现并接管。
 - 重新部署：`export ARIADRA_API_KEY=…`（Console → API Keys），

@@ -8,23 +8,23 @@
 
 所有 native/host 工具都先经过 RaytoneBot 的审批规则，拒绝不执行；停止先通知 DSH 取消，让长命令及子进程收尾。个人 `~/.dsh` 列为凭据私有路径。首版文本在模型提交后显示；暂不开放原生历史分支、PTC、自主子 Agent 和后台任务。仅供本地运行，云沙箱明确拒绝，未部署。细节见 ADR-050 与 [本地验收记录](../review-evidence/2026-10-19-dsh/README.md)。
 
-2026-10-04 工作树更新；旧验证记录保留在末尾，新 Linux 隔离与 app-server 的验收见 [08](08-acceptance.md)。生产实例尚未部署本轮变更。
+下文描述仓库行为；末尾保留带日期的历史验证记录。各环境的实际部署与验收范围见 [08](08-acceptance.md)、[AgentSphere 运维](06-deployment-runbook.md) 和 [AgentMatrix 部署记录](../agentmatrix-deployment.md)。
 
 ## 三个预置角色
 
-界面上的名字：助手 = **Raer**，规划 = **Tonny**，实施 = **Bob**（各语言相同；代码里的角色 id 仍是 `assistant` / `planner` / `builder`）。欢迎语按角色区分，文案在 `src/i18n/copy/composer.ts` 的 `presets.*.greeting`。引擎名旁的小图标在 `src/components/shell/HarnessMark.tsx`（Pi、Claude Code 小螃蟹、蓝色 Codex、黑色 DSH 鲸鱼；[来源与许可](../harness-icons.md)）。
+初始名字：助手 = **Raer**，规划 = **Tonny**，实施 = **Bob**（代码里的角色 id 为 `assistant` / `planner` / `builder`）。用户可改名、改头像或创建 Bot；稳定 Bot ID 与不可变引擎角色决定身份和权限，显示名字不承担路由身份。服务端数据目录的 `bots.json` 是网页、IM、例行任务和群编排的共同配置源（ADR-048/049），浏览器旧配置只用于迁移。引擎图标在 `src/components/shell/HarnessMark.tsx`，见 [来源与许可](../harness-icons.md)。
 
-| 角色 | 引擎 | 擅长 | 模型 | 头像 |
-| --- | --- | --- | --- | --- |
-| 助手（默认） | Pi，进程内 SDK | 日常任务，响应最快 | 设置里的模型服务（当前 DeepSeek `deepseek-flash`） | 圆眼镜女生 |
-| 规划 | Claude Code CLI | 读代码、出分步计划；禁用 Edit/Write 类工具 | 模型服务（DeepSeek Anthropic 兼容接口）或本机 Claude 登录 | 方眼镜男士 |
-| 实施 | Codex CLI | 改代码、跑命令 | 模型服务（DeepSeek `/v1/responses`，用 API key，**无需登录**）或本机 Codex 登录 | 短发少年 |
+| 角色 | 引擎 | 用途与限制 | 模型来源 |
+| --- | --- | --- | --- |
+| 助手（默认） | Pi，进程内 SDK | 日常任务 | 设置里的模型服务 |
+| 规划 | Claude Code CLI | 读代码、出计划；禁用 Edit 类工具，Write 仅允许已配置的共享目录 | 配置的 Anthropic 兼容服务或本机 Claude 登录 |
+| 实施 | Codex CLI | 改代码、跑命令 | 配置的 Responses 服务或本机 Codex 登录 |
 
-- 角色在**侧栏「Agent」区**切换（头像、名称、引擎、状态点：工作中 / 等你确认 / 未安装），保存在浏览器 `localStorage`（`raytonebot.agentSettings`）。点击 Agent 即开始与它的新对话（没有单独的「新建对话」按钮；当前对话为空时直接复用）：上下文存在各引擎自己的会话里，不能跨引擎继承；打开历史对话会切回它的角色。工作中的 Agent 头像外有转动的弧线，等你确认时为静止的琥珀色圆环。
-- 顶栏显示当前角色与引擎、模型；点击弹出该角色的模型来源（规划/实施：模型服务或本机登录）。设置（侧栏左下角）只含模型服务、权限、外观、关于。布局参考 OpenDots（侧栏列 Agent、底部设置）与 nightly openbot（状态点，仅借鉴思路）。
+- Bot 在侧栏切换；点击可开始与它的新对话，打开历史会恢复所属 Bot。上下文存在各引擎自己的会话里，不跨引擎继承。当前选择和 CLI 模型来源偏好保存在浏览器 `raytonebot.agentSettings`，不代替服务端 Bot 配置。
+- 点击侧栏 Logo 创建 Bot，右键 Bot 头像编辑名字和外观；聊天顶栏的 ＋ 邀请成员加入原对话，支持同一引擎的多个 Bot。设置包括模型服务、权限、IM 频道、例行任务、MCP、记忆、外观和关于；依赖主机的分区在无对应状态时隐藏。
 - 对话列表每行带角色小头像；输入框占位为「给<角色>发消息…」。
 - 输入框不再显示模型选择（`composer.modelSwitcher: false`）；模型在设置的「模型服务」里配置。
-- 定义在 `src/pi/harnessCatalog.ts`（浏览器可用）。新增角色 = 在 `AGENT_PRESETS` 加一项 + i18n 文案 + 头像映射（`agent-shell.tsx` 的 `PRESET_AVATARS`）。
+- 引擎角色定义在 `src/pi/harnessCatalog.ts`；Bot 显示配置在 `src/runtime/botProfiles.ts`。创建普通 Bot 复用已有引擎角色，不需要修改 `AGENT_PRESETS` 或增加内置角色。
 
 ## 工作区：各自目录 + 共享目录
 
@@ -56,7 +56,7 @@ Claude Code / Codex 的 JSON 输出
 | 启动 | `claude -p --output-format stream-json --include-partial-messages --input-format stream-json --permission-prompt-tool stdio --safe-mode --strict-mcp-config --permission-mode manual --settings {ask:[Bash,Edit,Write…]}` | `codex app-server --stdio`，`initialize → thread/start或resume → turn/start` |
 | 逐步审批 | 有：`can_use_tool` 控制请求在执行前到达，由 RaytoneBot 审批闸门回答 | 有：`commandExecution/requestApproval` 与 `fileChange/requestApproval`，仅授权当前动作；未知权限类型拒绝 |
 | 多轮续接 | `--resume <session_id>` | `thread/resume` 保留原 native thread id |
-| 会话丢失 | 尚未输出任何内容时冷启动重试一次 | 同左 |
+| 会话丢失 | 明确报错；不另建会话、不自动重发 | 同左 |
 | 停止 | 进程组 SIGTERM，1.5 s 后 SIGKILL（`src/pi/runtime/process.ts`） | 同左 |
 | 本机配置隔离 | `--safe-mode`；模型服务模式下 `--setting-sources ""` | 每轮临时 HOME/CODEX_HOME，不加载用户 config；只链接原生 sessions；本机登录模式单独复制 auth.json，云端禁用登录模式 |
 
@@ -66,7 +66,7 @@ Claude Code / Codex 的 JSON 输出
 
 ## 权限模型
 
-沙箱 microVM 是主要边界，因此工作区内可以放开；必须守住的是会逃出或活过 VM 的东西。分类在 `src/pi/permissionPolicy.ts`，闸门在 `src/pi/approvalGate.ts`，三个引擎共用。
+权限分类在 `src/pi/permissionPolicy.ts`，闸门在 `src/pi/approvalGate.ts`，各引擎共用。下列 Linux 硬隔离说明适用于配置完成的 AgentSphere 环境；首期 AgentMatrix 部署没有独立 UID/网络隔离，DSH 则主动拒绝沙箱模式。不要从“云端运行”推断具备 microVM 隔离。
 
 | 工具调用类别 | 例子 | 请求权限 | 替我批准 | 全部允许 |
 | --- | --- | --- | --- | --- |

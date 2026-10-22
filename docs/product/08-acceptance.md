@@ -7,9 +7,11 @@
 | 命令 | 覆盖 |
 | --- | --- |
 | `npm run build` | TypeScript + 生产构建 |
-| `npm test`（`node --test src/pi/*.test.ts src/harness/adapters/*.test.ts src/runtime/*.test.ts`） | piHost 接口、CLI 输出翻译、权限、会话存储、适配器与产物回放回归；完整事件映射快照待补 |
+| `npm test`（测试文件范围以 `package.json` 为准） | control、主机/CLI、浏览器、IM、事件映射、前端状态与 AgentMatrix 部署适配回归 |
 | `npm run check:local`（先启动服务） | Pi SDK 加载、工具注册、空 prompt 400、跨站拒绝 |
 | `node scripts/cloud-preview.mjs --check` | 密码、Host/Origin、CSRF、内部标准化 |
+
+纯文档改动检查命令与代码是否一致、相对链接是否有效，并运行 `git diff --check`；无需重跑应用、模型或云端验收。下方带日期的记录只证明当时版本与环境，不能据旧测试数量或部署状态判断当前版本。
 
 ## A 组：核心闭环（真实模型，本机先、云端后）
 

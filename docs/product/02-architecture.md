@@ -10,7 +10,9 @@
 
 原生会话持久化在 `<dataDir>/dsh/<conversationId>/sessions`，既有会话 JSON 的 `cliSession` 保存引擎及 id。续接失败直接报错，不换新会话；没有原生 fork checkpoint，历史分支明确拒绝。`dsh` 加入工作区、附件、文档和 Bot 配置校验；本机默认仍共用项目工作区。沙箱模式主动拒绝运行，需完成独立 Linux 隔离验收后再开放。
 
-## 当前架构（2026-10-04 工作树；生产实例尚未更新）
+## 运行架构
+
+以下描述仓库实现；部署版本和环境限制分别见 [AgentSphere 运维](06-deployment-runbook.md) 与 [AgentMatrix 部署记录](../agentmatrix-deployment.md)。带日期的补充保留其原始验证范围。
 
 2026-10-18 sandbox 内可靠性补充（本机工作树）：`settingsFile.ts` 统一区分 ENOENT 与不可读/结构错误。记忆、MCP、例行任务和 IM 的坏文件保留并拒绝保存，设置接口返回错误；不可用的工具/时钟/连接器停用，普通聊天主机仍可启动。用户修复后重启重新读取，不自动替换为默认配置。授权和 IM 配置、映射、Telegram 游标在文件成功替换后才更新内存。
 
@@ -22,18 +24,20 @@
 
 ```
 浏览器  React UI（AgentCanvas 导出组件 + AgentUX 渲染）
-   │  HTTPS + Basic Auth（仅云端）
+   │  同源 HTTP（本机）/ HTTPS（云端入口）
    ▼
-AgentSphere 沙箱 agentmatrix-v1（2C/4G, Linux x86_64, Node 24）
-   scripts/cloud-preview.mjs   鉴权、Host/Origin 校验，然后交给 Vite preview
-   vite preview + piRuntimePlugin   静态 dist + /__agentcanvas/pi/* 接口
-   src/pi/piHost.ts            HTTP 控制器 → 按 agentPreset 分流到 Pi 或 Claude Code / Codex CLI
+Node 主机（本机、AgentSphere 或 AgentMatrix）
+   scripts/cloud-preview.mjs   云端入口：鉴权、Host/Origin 校验，然后交给 Vite preview
+   vite dev/preview + piRuntimePlugin   前端 + /__agentcanvas/pi/* 接口
+   src/pi/piHost.ts            HTTP 控制器 → Bot 身份/引擎角色 → Pi 或 CLI（DSH 仅本机）
    @earendil-works/pi-coding-agent  模型循环 + 7 个工具 + 审批闸门
-   cwd = /home/user/workspace/agents/<角色>/（RAYTONEBOT_WORKSPACE_ROOT）
-   数据 = /home/user/.raytonebot/data/（对话 JSON + Pi 文件会话）
+   cwd = RAYTONEBOT_WORKSPACE_ROOT 下的角色目录；未设置时用 RAYTONEBOT_WORKSPACE 或应用目录
+   数据 = RAYTONEBOT_DATA_DIR；默认 ~/.raytonebot/data/
 ```
 
-沙箱外（ADR-041，原型）：
+AgentMatrix 通过 `scripts/agentmatrix/` 发布同一应用，将产品数据放在 `/workspace/.raytonebot/data`、角色目录放在 `/workspace/agents/`。首次部署仅验证应用响应与这些目录；Claude/Codex 原生会话仍在 HOME，完整恢复、浏览器依赖和 UID/网络隔离尚未补齐。入口使用 PreviewProxy 适配，不能套用 AgentSphere 的 Basic Auth 与 microVM 隔离结论。
+
+AgentSphere 沙箱外（ADR-041，control 原型，未常驻部署）：
 
 ```
 Raytone 登录 → control/（Node，常驻主机，持有 E2B key）
@@ -148,7 +152,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 | --- | --- | --- |
 | 本机开发未设 `RAYTONEBOT_WORKSPACE(_ROOT)` 时 cwd = 应用目录 | `piVitePlugin.ts` | 本机 Agent 能改/删应用自身 |
 | 会话 LRU 上限 12（运行中的不淘汰），并行运行上限 3 | `piHost.ts` | 单用户可接受；多用户前必须重做 |
-| 外部唤醒/调度服务未接入 | `scripts/agentsphere/sandbox.py wake` | 仅有唤醒入口；调度入口待外部服务接入时再加（ADR-016），见 `issue.md` |
+| 无常驻外部唤醒保障 | `src/pi/routines.ts`、`control/keeper.ts`、部署脚本 | 主机已内置计时与手动/外部运行接口；control keeper 只是原型，环境休眠期间不运行，见 ADR-036/041 与部署手册 |
 
 ## 多引擎与权限（2026-10-03 新增）
 
@@ -166,7 +170,9 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 | `src/pi/piResources.ts` | Node | Pi 会话的资源加载：禁用扩展、项目不受信任 |
 | `src/pi/providerProbe.ts` | Node | `POST /provider/test`：带密钥请求服务商 `/models`，返回延迟与模型列表 |
 
-## 目标架构（M1–M3 完成后）
+## AgentSphere 数据布局与持久化
+
+下图为 AgentSphere 部署路径；本机和 AgentMatrix 的路径及隔离条件不同，不是尚待实现的目标架构。
 
 ```
 浏览器（不变的 React UI）
@@ -195,7 +201,7 @@ AgentSphere 沙箱
 
 要点：
 
-- **持久化用 Pi 自带的文件会话**，不引入数据库（ADR-004、ADR-012）。对话列表与历史经 `GET /conversations`、`GET /conversations/:id` 恢复。只有出现任务队列、定时任务等需求时，才考虑 `node:sqlite`（Node 22.19+ 内置，零依赖）。
+- **持久化用 Pi 自带的文件会话**，不引入数据库（ADR-004、ADR-012）。对话列表与历史经 `GET /conversations`、`GET /conversations/:id` 恢复；例行任务、Bot、记忆等配置也使用数据目录内的文件。队列或例行任务的存在不自动构成引入数据库的理由。
 - **原生上下文身份**：产品记录的 `piSessionId` 在 SDK preflight 确认 started、调用模型前写入；新记录为 null，配置失败可重试，字段缺省表示旧记录。`nativeSession.ts` 按 id 找原生文件并校验 JSONL 后打开，缺失不另起上下文；旧记录先校验目录中的原生文件，再按 SDK 列表选取最近会话，首次运行保存绑定。缓存中的 Pi 会话在配置/发送前也核对文件；这不是跨文件事务或完整语义校验。Claude/Codex 的已保存 CLI session 恢复失败同样明确报错，不自动重发到新 session。显式新建保留为独立操作。
 - **保存回执**：`conversationRecorder.ts` 单独处理每轮事件写入；完整用户消息、终态与交互等待先写盘再广播，普通增量按 40 条批量写。`conversationStore.ts` 仅将 ENOENT 当作缺失；损坏记录不可覆盖，写入失败清掉未提交缓存。提交前失败保留草稿，执行中失败向已连接读者发 `history_save_failed` 并请求停止；失败回执本身不能保证落盘。刷新通过 `incomplete` 显示缺少终态，保持原事件/游标不变；重启时补中断标记失败也不阻止读取其他历史。单文件 rename 不构成跨文件事务或断电保证，见 `issue.md`。
 - **凭据在服务端**：启动命令 source `~/.raytonebot/env`，模型配置用 `envVar`（默认 `DEEPSEEK_API_KEY`）取 key。浏览器设置面板保留作临时覆盖。
@@ -225,11 +231,11 @@ AgentSphere 沙箱
 
 ## 安全边界
 
-- 公网入口唯一保护是 Basic Auth（≥24 字符随机密码）+ 严格 Host/Origin。不要关掉任何一层来“方便调试”。
-- 审批是 UX 闸门，不是安全边界；真正的隔离来自 microVM。`auto` 模式的风险命令判断是保守的提示，不是沙箱。
-- 浏览器 bundle 里不得出现任何 key；`E2B_API_KEY` 只由受信任的沙箱外脚本/服务持有（当前为本机，未来可接已有登录 Web server）。
+- AgentSphere 公网入口使用 Basic Auth 或 control handoff cookie，加严格 Host/Origin 校验。AgentMatrix 首期使用 PreviewProxy 入口适配，已知鉴权偏离见 [部署记录](../agentmatrix-deployment.md)；不能把它视为稳定生产鉴权已完成。
+- 审批是 UX 闸门，不是操作系统隔离。AgentSphere 的 microVM、UID 与网络规则承担隔离；本机和首期 AgentMatrix 部署不具备同等边界。
+- 浏览器 bundle 里不得出现任何 key；`E2B_API_KEY` / `ARIADRA_API_KEY` 只由受信任的部署脚本/服务持有。
 
-部署脚本现在安装独立的 `raytone-agent` UID，应用 root 所有且 Agent 不可写，bot 数据/凭据由文件权限隔离。
+AgentSphere 部署脚本安装独立的 `raytone-agent` UID，应用 root 所有且 Agent 不可写，bot 数据/凭据由文件权限隔离。
 Pi 模型循环仍在 bot 内，但全部 7 个工具在该 UID 的短命 worker 中执行；CLI 也用同一受限启动器。
 模型代理位于 bot 进程内，不新增独立服务或数据库；每轮凭证限制上游、模型、次数和有效期，结束即撤销。
 nftables ip/ip6 + meta skuid 按 UID 禁止直连，只开放 loopback gateway；包仓库 CONNECT 校验域名、TLS SNI 与公网 IP。

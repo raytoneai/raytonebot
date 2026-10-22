@@ -1,35 +1,32 @@
 # RaytoneBot 产品文档
 
-RaytoneBot 是运行在 AgentSphere 云沙箱上的单用户 AI 工作助手：在浏览器里下达任务，查看流式执行过程，审批修改操作，检查和取回产物。所有开发由 AI 编程工具（Codex / Claude Code）完成，因此本目录同时是 AI 的工作说明书。
+RaytoneBot 是一个支持本机与云端部署的单用户 AI 工作助手。运行方法见根目录 [README](../../README.md)；本目录维护产品范围、工程约束和验证依据。
 
-## 阅读顺序
+## 按任务阅读
 
 | 文档 | 内容 | 何时读 |
 | --- | --- | --- |
-| [01-product-brief.md](01-product-brief.md) | 定位、用户、功能范围、非目标 | 理解“要做什么” |
-| [02-architecture.md](02-architecture.md) | 当前与目标架构、模块所有权、数据位置 | 改服务端、接口、存储前 |
-| [03-roadmap.md](03-roadmap.md) | 最快路径、里程碑、任务卡、当前进度 | **每次开始工作先读** |
-| [04-dependency-exit.md](04-dependency-exit.md) | 如何脱离 AgentCanvas 与各参考仓库 | 动 `vendor/`、导出残留代码前 |
-| [05-ai-workflow.md](05-ai-workflow.md) | AI 开发规则、任务模板、完成标准 | 每次派任务给 AI |
-| [06-deployment-runbook.md](06-deployment-runbook.md) | AgentSphere 部署、续期、备份、销毁 | 部署或排查云端 |
-| [07-decisions.md](07-decisions.md) | 架构决策记录（ADR） | 想改技术路线前 |
-| [08-acceptance.md](08-acceptance.md) | 验收清单与检查命令 | 宣布完成前 |
-| [09-lessons.md](09-lessons.md) | 踩坑记录，按主题检索 | 排障时 |
-| [10-agents-and-permissions.md](10-agents-and-permissions.md) | 三个预置角色、多引擎接入、权限模型 | 改引擎、审批、权限前 |
-| [11-parity.md](11-parity.md) | 参考项目源码基线、功能/UX 差距与模块验收 | 继续对齐 OpenBot / OpenMuse 时 |
+| [01 产品定义](01-product-brief.md) | 用户、核心闭环、产品范围与非目标 | 理解要做什么 |
+| [02 架构](02-architecture.md) | 运行链路、模块所有权、接口与数据位置 | 改服务端、接口、存储前 |
+| [03 路线图与进度](03-roadmap.md) | 近期进展、未完成任务与历史日志 | 继续非平凡工作前 |
+| [04 依赖说明](04-dependency-exit.md) | AgentCanvas 来源、vendor 与参考项目边界 | 动依赖或导出残留前 |
+| [05 AI 开发工作流](05-ai-workflow.md) | 开发约束、任务模板与完成标准 | 开始开发和提交前 |
+| [06 AgentSphere 运维](06-deployment-runbook.md) | 部署、续期、备份与恢复 | 操作 AgentSphere 环境时 |
+| [07 决策记录](07-decisions.md) | 已采纳的技术取舍与条件 | 改技术路线前 |
+| [08 验收清单与记录](08-acceptance.md) | 检查命令、验证方法、证据与限制 | 验证和判断完成范围时 |
+| [09 踩坑记录](09-lessons.md) | 已知故障与用户纠正 | 按主题排障时 |
+| [10 引擎与权限](10-agents-and-permissions.md) | Bot 身份、Pi/Claude/Codex/DSH、审批与隔离 | 改引擎、Bot 或权限时 |
+| [11 参考项目对齐](11-parity.md) | 固定版本的历史对照与后续补证 | 回查竞品研究依据时 |
 
-## 当前状态（2026-10-13，证据截至 2026-10-12）
+## 部署文档
 
-更新入口：最新全仓能力对照见 [2026-10-17 评审](../repository-review-2026-10-17.md)，2026-10-18 已修 sandbox 内下载/配置/授权/记忆缺陷，验证见 [08](08-acceptance.md)，第一批 T5.1–T5.4 的 sandbox 代码与本机验收也已补齐，真实外部模型/目标环境及浏览器附件上传视觉复验仍未完成；第二批 T5.5–T5.7 的群任务回收、结构化表单和本地文档最小版也已实现，验证与限制见 [第二批证据](../review-evidence/2026-10-18-batch-2/README.md)；未部署。后续顺序见 [03 M5](03-roadmap.md)。以下为历史摘要；例行任务已支持沙箱运行期间按时触发，MCP/记忆的后续真实模型证据见 08 的 BS/BU 组，不能再按旧摘要判断当前缺失。外部 Web 唤醒与平台保留权限保持外部分工。
+- **AgentSphere**：[运维手册](06-deployment-runbook.md) 维护操作步骤，实例定位以本机部署状态文件为准。
+- **AgentMatrix**：[部署记录](../agentmatrix-deployment.md) 维护 `am-hosting` 分支的已实现路径、首次部署证据和待补能力；[最小改造需求](../agentmatrix-hosting-minimal-requirements-2026-10-19.md) 保留平台与应用的完整验收目标，[可行性评估](../agentmatrix-platform-research-2026-10-19.md) 保留研究依据。首个部署已完成，不等于正式迁移或功能验收完成。
 
-- 代码：AgentCanvas 导出的 React/Vite 前端 + 内置 Pi 运行时，本机与云端均可启动。
-- 云端：<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>（Basic Auth，凭据见本机 `.agentsphere/access.json`）。超时自动暂停；返回 502 时执行 `scripts/agentsphere/sandbox.py wake`。
-- 已验证（本机）：真实模型任务（DeepSeek）、三个角色（Pi / Claude Code / Codex）、执行前审批、权限分级、设置面板与头像的浏览器验收。
-- 已验证（云端）：Pi / Claude Code 真实任务、跨 Agent 协作、会话持久化（暂停/唤醒、进程重启）。Codex 用 DeepSeek key 运行，无需登录。平台限制与待决事项见根目录 [issue.md](../../issue.md)。
+## 如何判断文档是否仍适用
 
-- 后续能力：可见追问队列、全文消息搜索、删除/分支、群聊、IM、例行任务与交互 HTML 已有实现；完整度与验收边界见 [11-parity.md](11-parity.md)。
-- 部署边界：IM 与例行任务已有部署记录，10 月 10 日联网搜索/抓取已云端三引擎实测；最新 HTML 与思考档位尚未部署，群聊缺完整云端复验。例行任务未接外部调度，开启后不会按时自动运行。此处不代表 10 月 13 日重新检查了线上状态。
+根 README 只介绍项目和使用入口；当前工作进度集中在 [03](03-roadmap.md)，验收证据集中在 [08](08-acceptance.md) 及其链接的记录。接口、命令和默认值应与代码核对。新增进展时直接修正对应的现行说明，避免只在页首追加更正、让正文继续给出相反指引。
 
-## 与旧文档的关系
+带日期的进度日志、验收记录、ADR 和调研报告描述当时的结果。后续实现应链接到新证据，不把过去的“未部署”当作当前状态，也不把本机实现或 HTTP 200 当作线上功能已验证。本文不维护重复的能力完成率、测试数量或在线地址。
 
-`docs/` 根目录下的 `feasibility.md`、`openagentcore-assessment.md`、`nightly-openbot-assessment.md`、`agentsphere-deployment.md` 是调研与实验记录，保留作为证据，不再作为开发依据。结论已收敛进 [07-decisions.md](07-decisions.md)。
+`docs/` 根目录的可行性、竞品、浏览器和工具调研保留为历史依据；其中的建议不是自动生效的开发要求。已采纳的决策见 [07](07-decisions.md)，后续任务见 [03](03-roadmap.md)。
