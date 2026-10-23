@@ -52,7 +52,7 @@
   height: 14px;
   border-radius: var(--radius-full);
   background: var(--surface-panel);
-  border: 1px solid var(--border-strong);
+  border: var(--border-width) solid var(--border-strong);
   box-shadow: var(--shadow-sm);
   cursor: grab;
   transition: transform var(--motion-fast) var(--ease-out),

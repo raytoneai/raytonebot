@@ -13,7 +13,7 @@
   z-index: var(--z-dropdown);
   padding: var(--space-3);
   background: var(--surface-panel);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   color: var(--text-primary);

@@ -1510,7 +1510,8 @@ export function AgentApp() {
         settings={agentSettings}
         bot={streamId ? undefined : activeBot}
         onEditBot={streamId ? undefined : editBot}
-        providerLabel={`${defaultProvider.label} · ${defaultProvider.defaultModel}`}
+        providerName={defaultProvider.label}
+        providerLabel={`${defaultProvider.label} (${defaultProvider.defaultModel})`}
         onChange={changeAgentSettings}
         onManageProviders={() => openSettings("providers")}
       />

@@ -9,7 +9,7 @@
   line-height: var(--leading-tight);
   color: var(--text-secondary);
   background: var(--surface-inset);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
   border-bottom-width: 2px;
   border-radius: var(--radius-sm);
 }

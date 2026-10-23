@@ -52,7 +52,7 @@ export function useUserInput(request: PendingUserInput | undefined, conversation
     }
   };
   return {
-    ariaLabel: copy.title, kicker: `${copy.title} · ${draft.index + 1}/${questions.length} · ${question.header}`,
+    ariaLabel: copy.title, kicker: `${question.header} (${draft.index + 1}/${questions.length})`,
     question: question.question, pending: draft.pending,
     hint: draft.error ?? [question.multiSelect ? copy.multiple : copy.single,
       draft.saved === false ? copy.draftFailed : draft.saved ? copy.draftSaved : ""].filter(Boolean).join(" "),

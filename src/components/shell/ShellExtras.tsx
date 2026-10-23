@@ -239,6 +239,7 @@ export function HeaderAgent({
   avatars,
   settings,
   providerLabel,
+  providerName,
   disabled,
   onChange,
   onManageProviders,
@@ -249,8 +250,9 @@ export function HeaderAgent({
   onEditBot?: (bot: BotProfile) => void;
   avatars: Record<AgentPresetId, AvatarKind>;
   settings: AgentSettings;
-  /** e.g. "DeepSeek · deepseek-flash" */
+  /** Display label; never parse UI punctuation to obtain the provider name. */
   providerLabel: string;
+  providerName?: string;
   disabled?: boolean;
   onChange: (settings: AgentSettings) => void;
   onManageProviders: () => void;
@@ -294,7 +296,7 @@ export function HeaderAgent({
                     onClick={() => onChange({ ...settings, [sourceKey]: value })}
                   >
                     {value === "provider"
-                      ? `${t.agents.sourceProvider} · ${providerLabel.split(" · ")[0]}`
+                      ? `${t.agents.sourceProvider} (${providerName ?? providerLabel})`
                       : sourceKey === "claudeCodeModelSource" ? t.agents.sourceLocal : t.agents.sourceLocalCodex}
                   </button>
                 ))}
@@ -439,7 +441,7 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
             return (
               <button key={preset.id} type="button" className="shell-member-row" aria-pressed={on} disabled={pending || preset.id === hostId} onClick={() => void toggle(preset.id)}>
                 <AgentAvatar size={24} kind={avatars[preset.presetId]} appearance={preset.appearance} />
-                <span>{botNames[preset.id]} · {GROUP_ROLE[preset.presetId]}</span>
+                <span>{botNames[preset.id]} <span className="shell-member-meta">{GROUP_ROLE[preset.presetId]}</span></span>
                 <span className="shell-member-meta shell-member-role">
                   <HarnessMark harness={agentPreset(preset.presetId).harness} />{on ? "在群里" : "已移出"}
                 </span>

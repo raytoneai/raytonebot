@@ -61,7 +61,7 @@ export function displayTaskPlans(view: AgentUXViewModel, events: readonly AgentU
       const states: Record<string, string> = locale === "zh" ? { pending: "待开始", running: "进行中", completed: "已完成", cancelled: "已取消", failed: "失败", needs_review: "待核对" } : { pending: "Pending", running: "Running", completed: "Completed", cancelled: "Cancelled", failed: "Failed", needs_review: "Needs review" };
       const content = [locale === "zh" ? "# 群任务\n\n待核对任务：核对实际结果后发送 `/task 任务ID complete`、`cancel` 或 `retry`。" : "# Group assignments\n\nReview uncertain effects before using `/task ID complete`, `cancel` or `retry`.", ...data.tasks.map(t => {
         const task = t as Record<string, string>;
-        return `${task.parentId ? "  " : ""}- **${states[task.status] ?? task.status}** · ${literal(names[task.owner] ?? task.owner ?? "")} · ${literal(task.title ?? "")}\n  ${literal(task.id ?? "")} ${task.parentId ? `← ${literal(task.parentId)}` : ""}${task.runId ? ` · run: ${literal(task.runId)}` : ""}${task.result ? `\n  ${literal(task.result)}` : ""}`;
+        return `${task.parentId ? "  " : ""}- **${states[task.status] ?? task.status}**, ${literal(names[task.owner] ?? task.owner ?? "")}, ${literal(task.title ?? "")}\n  ${literal(task.id ?? "")} ${task.parentId ? `← ${literal(task.parentId)}` : ""}${task.runId ? `, run: ${literal(task.runId)}` : ""}${task.result ? `\n  ${literal(task.result)}` : ""}`;
       })].join("\n\n");
       return { ...item, artifactKind: "markdown", content, data: undefined };
     }
@@ -70,14 +70,14 @@ export function displayTaskPlans(view: AgentUXViewModel, events: readonly AgentU
     if (!plan) return item;
     const ending = endings.get(plan.runId);
     const count = `${plan.steps.filter((step) => step.status === "completed").length}／${plan.steps.length}`;
-    const content = [`# ${c.title}`, `${c.completed} ${count} · ${c[ending ?? "running"]}`,
+    const content = [`# ${c.title}`, `${c.completed} ${count}, ${c[ending ?? "running"]}`,
       ...(plan.explanation ? [singleLine(plan.explanation)] : []),
       plan.steps.map(({ step, status, taskId, owner, blockedBy, dependenciesPending }) => {
         const waiting = (blockedBy ?? []).filter(id => plan.steps.find(task => task.taskId === id)?.status !== "completed");
         const metadata = [owner && `${d.owner}：${literal(owner)}`,
           status !== "completed" && waiting.length && `${d.waiting}：${waiting.map(id => `#${literal(id)}`).join(", ")}`,
           dependenciesPending && d.pending].filter(Boolean);
-        return `- **${ending && status === "in_progress" ? c.unfinished : c[status]}** — ${taskId ? `#${literal(taskId)} ` : ""}${singleLine(step)}${metadata.length ? `（${metadata.join(" · ")}）` : ""}`;
+        return `- **${ending && status === "in_progress" ? c.unfinished : c[status]}** — ${taskId ? `#${literal(taskId)} ` : ""}${singleLine(step)}${metadata.length ? `（${metadata.join(", ")}）` : ""}`;
       }).join("\n") || c.empty,
     ].join("\n\n");
     return { ...item, artifactKind: "markdown", title: `${c.title} ${count}.md`, content, data: undefined };

@@ -10,7 +10,7 @@
   -webkit-appearance: none;
   width: 100%;
   min-width: 0;
-  border: 1px solid var(--border-strong);
+  border: var(--border-width) solid var(--border-strong);
   background: var(--surface-panel);
   border-radius: var(--radius-sm);
   color: var(--text-primary);

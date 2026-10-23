@@ -71,7 +71,7 @@ test("Claude TodoWrite publishes only successful parent results; legacy Codex to
   const legacy = createPiEventAdapter({ runId: "old" });
   createCodexStreamTranslator(legacy.apply).push({ type: "item.updated", item: { type: "todo_list", id: "todo", items: [{ text: "done", completed: true }, { text: "next", completed: false }] } });
   legacy.finish("success");
-  assert.match(render(legacy).timeline.find((item) => item.kind === "artifact")!.content!, /已完成 1／2 · 本轮已结束/);
+  assert.match(render(legacy).timeline.find((item) => item.kind === "artifact")!.content!, /已完成 1／2, 本轮已结束/);
 });
 
 test("plan validation is bounded and multiline steps remain in their own list row", () => {

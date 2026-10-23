@@ -22,7 +22,7 @@ export function OutputSourceSwitch({
     <div className="output-source-switch" role="group" aria-label={copy.sourceLabel}>
       <button
         type="button"
-        aria-label={copy.titleArtifactPrefix}
+        aria-label={copy.sourceArtifact}
         aria-pressed={current === "artifact"}
         data-active={current === "artifact"}
         title={copy.subtitleArtifactPreview}

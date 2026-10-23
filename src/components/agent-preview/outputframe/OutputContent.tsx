@@ -91,8 +91,7 @@ export function OutputContent({
   }
 
   if (artifacts.length) {
-    return <div className="artifact-content"><div className="artifact-title"><FileText size={16} /><span>{copy.sourceArtifact}</span></div>
-      {artifactList}</div>;
+    return <div className="artifact-content">{artifactList}</div>;
   }
 
   if (!artifact) {

@@ -566,7 +566,7 @@ export function ComposerFrame({
                   onClick={() => pickMention(member.handle ?? member.name)}
                 >
                   <AgentAvatar size={20} kind={member.kind} />
-                  <span className="composer-mention-name">{member.name}{member.handle && member.handle !== member.name ? ` · @${member.handle}` : ""}</span>
+                  <span className="composer-mention-name">{member.name}{member.handle && member.handle !== member.name ? ` (@${member.handle})` : ""}</span>
                   <span className="composer-mention-role">{member.presetId ? copy.composer.frame.mentionRoles[member.presetId] : ""}</span>
                 </li>
               ))}

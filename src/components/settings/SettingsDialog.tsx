@@ -122,6 +122,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                 type="button"
                 key={id}
                 className="settings-rail-item"
+                data-group-start={id === "channels" || id === "appearance" || undefined}
                 aria-current={section === id ? "page" : undefined}
                 onClick={() => setSection(id)}
               >
@@ -168,7 +169,6 @@ function ProvidersSection({
 
   return (
     <>
-      <p className="settings-intro">{t.providers.intro}</p>
       {providerSettingsStatus === "load-failed" || providerSettingsStatus === "save-failed" ? <p className="settings-status" data-tone="error" role="status">
         {t.providers.persistence[providerSettingsStatus]}
       </p> : null}
@@ -288,7 +288,9 @@ function ProviderRow({
             <strong>{provider.label}</strong>
             {isDefault ? <span className="settings-chip" data-tone="accent">{t.providers.default}</span> : null}
           </span>
-          <span className="settings-row-sub">{hostOf(provider.baseUrl)} · {t.providers.models(models.length)} · {provider.defaultModel}</span>
+          <span className="settings-row-sub settings-row-meta">
+            <span>{hostOf(provider.baseUrl)}</span><span>{provider.defaultModel}</span>
+          </span>
         </button>
         <span className="settings-key-pill" data-tone={keyState.tone}><Dot />{keyState.label}</span>
         <Switch
@@ -402,7 +404,7 @@ function PermissionsSection({ t, runtime, permissionDefault, onPermissionDefault
             />
             <span className="settings-row-main">
               <span className="settings-row-title"><strong>{mode === "host" ? t.permissions.hostDefault(label(hostMode)) : label(mode)}</strong></span>
-              <span className="settings-row-sub">{hint(mode === "host" ? hostMode : mode)}</span>
+              <span className="settings-row-sub">{mode === "host" ? t.permissions.hostHint : hint(mode)}</span>
               {mode === "allow-all" ? <span className="settings-status" data-tone="error"><Dot />{t.permissions.allowAllWarning}</span> : null}
             </span>
           </label>
@@ -536,14 +538,16 @@ function ChannelRow({ t, channel, state, open, onToggleOpen }: {
         </span>
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title"><strong>{name}</strong></span>
-          <span className="settings-row-sub">
-            {channel.status.botName ? `${channel.status.botName} · ` : ""}{botNames[channel.botId ?? channel.agentPreset] ?? channel.botId} · {channel.access === "open" ? c.open : c.allowlist}
+          <span className="settings-row-sub settings-row-meta">
+            {channel.status.botName ? <span>{channel.status.botName}</span> : null}
+            <span>{botNames[channel.botId ?? channel.agentPreset] ?? channel.botId}</span>
+            <span>{channel.access === "open" ? c.open : c.allowlist}</span>
           </span>
         </button>
         <span className="settings-key-pill" data-tone={tone}><Dot />{c.state[channel.status.state]}</span>
         <Switch
           size="sm"
-          aria-label={`${name} ${c.state.connected}`}
+          aria-label={`${t.providers.enabled} ${name}`}
           checked={channel.enabled}
           disabled={saving || (!channel.enabled && !complete)}
           title={!channel.enabled && !complete ? c.fillFirst : undefined}
@@ -801,7 +805,10 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation 
         <ProviderMark label={routine.title} />
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title"><strong>{routine.title}</strong></span>
-          <span className="settings-row-sub">{botNames[routine.botId ?? "assistant"] ?? routine.botId} · <code>{routine.schedule}</code> · {routine.timezone}{when ? ` · ${when}` : ""}</span>
+          <span className="settings-row-sub settings-row-meta">
+            <span>{botNames[routine.botId ?? "assistant"] ?? routine.botId}</span>
+            <code>{routine.schedule}</code><span>{routine.timezone}</span>{when ? <span>{when}</span> : null}
+          </span>
         </button>
         <span className="settings-key-pill" data-tone={last?.waiting ? "warn" : tone}><Dot />{last?.waiting ? c.waiting : last ? c.status[last.status] : c.neverRun}</span>
         <Switch
@@ -902,7 +909,7 @@ function McpRow({ t, server, state, open, onToggleOpen, onAdded }: {
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title"><strong>{title}</strong></span>
           {server ? (
-            <span className="settings-row-sub">{host} · {server.status === "ready" ? c.tools(server.tools.length) : server.error ?? c.state[server.status]}</span>
+            <span className="settings-row-sub settings-row-meta"><span>{host}</span><span>{server.status === "ready" ? c.tools(server.tools.length) : server.error ?? c.state[server.status]}</span></span>
           ) : null}
         </button>
         {server ? (

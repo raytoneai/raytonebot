@@ -3,7 +3,7 @@
   place-items: center;
   flex: none;
   padding: 0;
-  border: 1px solid transparent;
+  border: var(--border-width) solid transparent;
   border-radius: var(--radius-md);
   color: var(--text-secondary);
   background: transparent;

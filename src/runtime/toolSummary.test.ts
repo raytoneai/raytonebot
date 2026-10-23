@@ -25,18 +25,18 @@ test("consecutive quiet tools fold into one segment; edits and messages break th
   assert.deepEqual(segments.map((s) => s.kind === "tools" ? `[${s.tools.map((t) => t.id).join("")}]` : s.item.id), ["r1", "[ab]", "r2", "c", "[d]", "m"]);
 });
 
-test("the summary counts each kind once, in order, and the failures", () => {
-  assert.equal(toolRunSummary([tool("a", "bash"), tool("b", "read"), tool("c", "bash", "error")], "zh"), "运行了 2 条命令 · 读取了 1 个文件 · 1 个失败");
-  assert.equal(toolRunSummary([tool("a", "read"), tool("b", "grep")], "en"), "Read 1 file, searched 1 time");
-  assert.equal(toolRunSummary([tool("a", "bash")], "en"), "Ran 1 command");
-  assert.equal(toolRunSummary([tool("a", "ls"), tool("b", "WebFetch"), tool("c", "Glob")], "zh"), "搜索了 2 次 · 查阅了 1 次网页");
+test("the compact summary counts all operations and retains failures", () => {
+  assert.equal(toolRunSummary([tool("a", "bash"), tool("b", "read"), tool("c", "bash", "error")], "zh"), "3 项操作，1 项失败");
+  assert.equal(toolRunSummary([tool("a", "read"), tool("b", "grep")], "en"), "2 operations");
+  assert.equal(toolRunSummary([tool("a", "bash")], "en"), "1 operation");
+  assert.equal(toolRunSummary([tool("a", "ls"), tool("b", "WebFetch"), tool("c", "Glob")], "zh"), "3 项操作");
 });
 
 test("console folding includes browser, edit and unknown tools but preserves active approvals", () => {
   const items = [tool("a", "browser_tabs"), tool("b", "write"), tool("c", "mcp_custom"), tool("d", "ask_user", "awaiting_approval"), message("m")];
   const segments = foldQuietTools(items, () => false, true);
   assert.deepEqual(segments.map((s) => s.kind === "tools" ? s.tools.map((t) => t.id) : s.item.id), [["a", "b", "c"], "d", "m"]);
-  assert.equal(toolRunSummary([tool("a", "browser_open"), tool("b", "browser_wait_for", "error")], "zh"), "执行了 2 项操作 · 1 个失败");
+  assert.equal(toolRunSummary([tool("a", "browser_open"), tool("b", "browser_wait_for", "error")], "zh"), "2 项操作，1 项失败");
 });
 
 test("console folding collects steps separated by prose or artifacts into one entry", () => {
@@ -45,5 +45,5 @@ test("console folding collects steps separated by prose or artifacts into one en
 });
 
 test("cancelled tools remain visible in the execution summary", () => {
-  assert.equal(toolRunSummary([tool("a", "browser_open", "cancelled")], "zh"), "执行了 1 项操作 · 1 个已取消");
+  assert.equal(toolRunSummary([tool("a", "browser_open", "cancelled")], "zh"), "1 项操作，1 项已取消");
 });

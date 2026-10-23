@@ -1,3 +1,5 @@
+import { slate, slateDark, amberDark, green, greenDark, amber, red, redDark, blue, blueDark } from "@radix-ui/colors";
+
 export type ThemeTokens = {
   id: ThemePresetId;
   name: string;
@@ -14,6 +16,7 @@ export type ThemeTokens = {
     raised: string;
     inset: string;
     hover: string;
+    active: string;
     disabled: string;
   };
   text: {
@@ -25,6 +28,7 @@ export type ThemeTokens = {
   border: {
     subtle: string;
     strong: string;
+    focus: string;
   };
   accent: {
     action: string;
@@ -50,86 +54,35 @@ const NATIVE_FONT: ThemeTokens["font"] = {
   mono: "\"IBM Plex Mono\", \"SFMono-Regular\", Consolas, monospace",
 };
 
-// Status colors are semantic (not derivable from a single accent), so they use
-// one shared ramp per appearance.
-const DARK_STATUS = { success: "#7FC8A0", warning: "#DDB25A", danger: "#E8837A", info: "#7FB2E8" };
-const LIGHT_STATUS = { success: "#2E9E6E", warning: "#B37518", danger: "#C24436", info: "#2E6FB0" };
-
-/** Seed colors supplied per scheme; every other token is derived from these. */
-type Seed = { canvas: string; panel: string; inset: string; accent: string };
-
-const mix = (a: string, pct: number, b: string) => `color-mix(in srgb, ${a} ${pct}%, ${b})`;
-
-function darkScheme(id: ThemePresetId, name: string, font: ThemeTokens["font"], s: Seed): ThemeTokens {
-  const { canvas: C, panel: P, inset: I, accent: A } = s;
-  return {
-    id,
-    name,
-    appearance: "dark",
-    font,
-    surface: {
-      canvas: C,
-      panel: P,
-      raised: mix(P, 72, I),
-      inset: I,
-      hover: mix(I, 85, "#fff"),
-      disabled: mix(I, 68, "#fff"),
-    },
-    text: {
-      primary: mix("#fff", 92, C),
-      secondary: mix("#fff", 68, C),
-      muted: mix("#fff", 52, C),
-      inverse: mix(C, 72, "#000"),
-    },
-    border: {
-      subtle: mix(P, 82, "#fff"),
-      strong: mix(P, 62, "#fff"),
-    },
-    accent: {
-      action: A,
-      hover: mix(A, 82, "#fff"),
-      soft: mix(A, 18, P),
-      text: A,
-    },
-    status: { ...DARK_STATUS },
-  };
-}
-
+// Radix scale roles: 1–2 surfaces, 3–5 interaction backgrounds, 6–8 borders,
+// 9–10 solid fills and 11–12 readable text. Keep persisted theme IDs stable.
 export const themeTokens: Record<ThemeTokens["id"], ThemeTokens> = {
   "soft-glass": {
-    id: "soft-glass",
-    name: "Light",
-    appearance: "light",
-    font: NATIVE_FONT,
+    id: "soft-glass", name: "Light", appearance: "light", font: NATIVE_FONT,
     surface: {
-      canvas: "#F4F6FA",
-      panel: "#FFFFFF",
-      raised: "#FFFFFF",
-      inset: "#F4F6FA",
-      hover: "#E6E9F0",
-      disabled: "#BFC5D2",
+      canvas: slate.slate2, panel: slate.slate1, raised: slate.slate1,
+      inset: slate.slate3, hover: slate.slate4, active: slate.slate5, disabled: slate.slate6,
     },
     text: {
-      primary: "#111E36",
-      secondary: mix("#111E36", 72, "#F4F6FA"),
-      muted: mix("#111E36", 55, "#F4F6FA"),
-      inverse: "#FFFFFF",
+      primary: slate.slate12, secondary: slate.slate11, muted: slate.slate11, inverse: slate.slate1,
     },
-    border: {
-      subtle: "#E6E9F0",
-      strong: "#E6E9F0",
-    },
-    accent: {
-      action: "#111E36",
-      hover: mix("#111E36", 86, "#000"),
-      soft: mix("#111E36", 10, "#FFFFFF"),
-      text: "#111E36",
-    },
-    status: { ...LIGHT_STATUS },
+    border: { subtle: slate.slate6, strong: slate.slate7, focus: slate.slate8 },
+    accent: { action: slate.slate12, hover: slate.slate11, soft: slate.slate3, text: slate.slate12 },
+    status: { success: green.green11, warning: amber.amber11, danger: red.red11, info: blue.blue11 },
   },
-  "warm-graphite": darkScheme("warm-graphite", "Dark", NATIVE_FONT, {
-    canvas: "#11100E", panel: "#1B1916", inset: "#2A251F", accent: "#D69A3A",
-  }),
+  "warm-graphite": {
+    id: "warm-graphite", name: "Dark", appearance: "dark", font: NATIVE_FONT,
+    surface: {
+      canvas: slateDark.slate1, panel: slateDark.slate2, raised: slateDark.slate3,
+      inset: slateDark.slate3, hover: slateDark.slate4, active: slateDark.slate5, disabled: slateDark.slate6,
+    },
+    text: {
+      primary: slateDark.slate12, secondary: slateDark.slate11, muted: slateDark.slate11, inverse: slateDark.slate1,
+    },
+    border: { subtle: slateDark.slate6, strong: slateDark.slate7, focus: slateDark.slate8 },
+    accent: { action: amberDark.amber9, hover: amberDark.amber10, soft: amberDark.amber3, text: amberDark.amber11 },
+    status: { success: greenDark.green11, warning: amberDark.amber11, danger: redDark.red11, info: blueDark.blue11 },
+  },
 };
 
 /** Retired palettes retain their light/dark preference; invalid data uses the project default. */

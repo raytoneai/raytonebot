@@ -3,7 +3,7 @@
   min-width: 180px;
   padding: var(--space-1);
   background: var(--surface-panel);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-md);
   color: var(--text-primary);

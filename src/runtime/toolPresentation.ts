@@ -29,5 +29,5 @@ export function toolHeaderTitle(tool: AgentUXToolTimelineItem, locale: AppLocale
     || /^(正在|取消|Reading\b|Modifying\b|Editing\b|Validating\b|Searching\b|Running\b|Cancelled\b)/.test(tool.title));
   const label = action ? copy.action[actionKeys[action]] : staleTitle ? tool.name : tool.title || tool.name;
   const status = copy.state[tool.status as keyof typeof copy.state];
-  return status ? `${label} · ${status}` : label;
+  return status ? `${label}${locale === "en" ? ": " : "："}${status}` : label;
 }

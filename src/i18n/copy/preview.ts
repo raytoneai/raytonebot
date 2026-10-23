@@ -121,7 +121,7 @@ const en = {
       reasoningSummary:
         "During loading, preserve the centered silhouette, warm fabric backdrop, and soft light before revealing the complete product hero visual.",
       toolTitle: "Generating image GeneratedMoodboard.png",
-      resultPreview: "4 candidates · animated loading",
+      resultPreview: "4 candidates, animated loading",
     },
     audio: {
       runTitle: "Audio generation event-flow preview",
@@ -131,7 +131,7 @@ const en = {
       reasoningSummary:
         "Audio generation keeps two modes: skeleton loading and animated waveform, then resolves into a wider, shorter playback control.",
       toolTitle: "Generating audio NarrationMix.wav",
-      resultPreview: "18s audio · playback demo",
+      resultPreview: "18s audio, playback demo",
     },
     video: {
       runTitle: "Video generation event-flow preview",
@@ -141,7 +141,7 @@ const en = {
       reasoningSummary:
         "Video generation keeps loader visuals consistent, then resolves into a video frame with play and progress affordances.",
       toolTitle: "Generating video LaunchTeaser.mp4",
-      resultPreview: "8s video · playback demo",
+      resultPreview: "8s video, playback demo",
     },
   },
 
@@ -242,7 +242,7 @@ const zh: PreviewCopy = {
       reasoningDelta: "识别到白色便携投影仪是视觉中心，镜头高光和金色提手建立产品记忆点。",
       reasoningSummary: "加载阶段保留居中产品轮廓、米金布料背景和柔和光线，完成后显影为完整产品主视觉。",
       toolTitle: "正在生成图片 GeneratedMoodboard.png",
-      resultPreview: "4 张候选图 · 动态加载",
+      resultPreview: "4 张候选图，动态加载",
     },
     audio: {
       runTitle: "音频生成事件流预览",
@@ -250,7 +250,7 @@ const zh: PreviewCopy = {
       reasoningDelta: "为「{prompt}」生成音频时，先展示音频骨架或波形加载，再进入音频播放 demo。",
       reasoningSummary: "音频生成场景保留骨架加载和动态波形两种模式，完成后呈现更宽更矮的播放控件。",
       toolTitle: "正在生成音频 NarrationMix.wav",
-      resultPreview: "18 秒音频 · 播放 demo",
+      resultPreview: "18 秒音频，播放 demo",
     },
     video: {
       runTitle: "视频生成事件流预览",
@@ -258,7 +258,7 @@ const zh: PreviewCopy = {
       reasoningDelta: "为「{prompt}」生成视频时，先复用图片加载视觉，再进入视频播放 demo。",
       reasoningSummary: "视频生成场景保持加载器一致性，完成后呈现带播放按钮和进度条的视频画面。",
       toolTitle: "正在生成视频 LaunchTeaser.mp4",
-      resultPreview: "8 秒视频 · 播放 demo",
+      resultPreview: "8 秒视频，播放 demo",
     },
   },
 
@@ -359,7 +359,7 @@ const ja: PreviewCopy = {
       reasoningSummary:
         "読み込み中は中央の製品シルエット、暖色の布の背景、柔らかな光を保ち、完了後に製品のメインビジュアル全体を表示します。",
       toolTitle: "画像 GeneratedMoodboard.png を生成中",
-      resultPreview: "候補 4 枚 · アニメーション付き読み込み",
+      resultPreview: "候補 4 枚、アニメーション付き読み込み",
     },
     audio: {
       runTitle: "音声生成イベントフローのプレビュー",
@@ -369,7 +369,7 @@ const ja: PreviewCopy = {
       reasoningSummary:
         "音声生成ではスケルトン読み込みとアニメーション波形の 2 つのモードを保ち、完了後は横に広く高さの低い再生コントロールになります。",
       toolTitle: "音声 NarrationMix.wav を生成中",
-      resultPreview: "18 秒の音声 · 再生デモ",
+      resultPreview: "18 秒の音声、再生デモ",
     },
     video: {
       runTitle: "動画生成イベントフローのプレビュー",
@@ -379,7 +379,7 @@ const ja: PreviewCopy = {
       reasoningSummary:
         "動画生成ではローダーの見た目を揃えたまま、完了後に再生ボタンと進行バーを備えた動画フレームになります。",
       toolTitle: "動画 LaunchTeaser.mp4 を生成中",
-      resultPreview: "8 秒の動画 · 再生デモ",
+      resultPreview: "8 秒の動画、再生デモ",
     },
   },
 

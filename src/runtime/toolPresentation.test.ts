@@ -31,10 +31,10 @@ test("native tool lifecycle renders honest titles and preserves failures instead
   adapter.apply({ type: "tool_execution_end", toolCallId: "read", toolName: "read", result: { content: [{ type: "text", text: "export const actual = 42;" }] } });
   const completed = { ...toolFrom(adapter), title: "正在读取文件 image-test.ts" };
   const html = render(completed);
-  assert.match(html, /读取文件 · 已完成/);
+  assert.match(html, /读取文件：已完成/);
   assert.doesNotMatch(html, /正在|data-running-title="true"|data-active="true"/);
   assert.deepEqual(buildToolDisplaySpec(completed).outputBlock, { kind: "code", lang: "typescript", code: "export const actual = 42;" });
-  for (const [locale, label] of [["en", "Read file · Completed"], ["ja", "ファイルの読み取り · 完了"]]) {
+  for (const [locale, label] of [["en", "Read file: Completed"], ["ja", "ファイルの読み取り：完了"]]) {
     assert.ok(render(completed, locale).includes(label));
   }
 
@@ -44,13 +44,13 @@ test("native tool lifecycle renders honest titles and preserves failures instead
     if (status === "error") failed.apply({ type: "tool_execution_end", toolCallId: status, toolName: "edit", isError: true, result: { content: [{ type: "text", text: "Original text not found" }] } });
     else failed.finish("cancelled");
     const markup = render(toolFrom(failed));
-    assert.match(markup, status === "error" ? /编辑文件 · 失败/ : /编辑文件 · 已取消/);
+    assert.match(markup, status === "error" ? /编辑文件：失败/ : /编辑文件：已取消/);
     assert.doesNotMatch(markup, /已编辑|已修改|正在|data-artifact-ref=/);
     if (status === "error") assert.match(markup, /Original text not found/);
   }
   const approval = createPiEventAdapter({ runId: "approval", requiresApproval: () => true });
   approval.apply({ type: "tool_execution_start", toolCallId: "write", toolName: "write", args: { path: "file.ts", content: "proposal" } });
-  assert.match(render(toolFrom(approval)), /修改文件 · 等待审批/);
+  assert.match(render(toolFrom(approval)), /修改文件：等待审批/);
   assert.match(render(toolFrom(approval)), /class="tool-preview">file.ts/);
   assert.doesNotMatch(render(toolFrom(approval)), /data-artifact-ref=|正在|已修改/);
   approval.resolveApproval("write", "no");
@@ -70,7 +70,7 @@ test("Claude edits show their requested diff separately from results, including 
   const unknown = { ...toolFrom(adapter), name: "report_metrics", title: "Reading image-test.ts", status: "success" };
   const markup = render(unknown);
   assert.doesNotMatch(markup, /data-action=|data-artifact-ref=|正在|data-running-title="true"/);
-  assert.match(markup, /report_metrics · 已完成/);
+  assert.match(markup, /report_metrics：已完成/);
 });
 
 test("image rows and validation aliases stop animating at completion, and partial arguments stay preparatory", () => {
@@ -79,9 +79,9 @@ test("image rows and validation aliases stop animating at completion, and partia
   assert.match(render(image), /data-active="true"/);
   const completed = render({ ...image, status: "success" });
   assert.doesNotMatch(completed, /data-active="true"|data-running-title="true"|正在/);
-  assert.match(completed, /读取图片 · 已完成/);
+  assert.match(completed, /读取图片：已完成/);
   for (const name of ["run_tests", "run_checks"]) {
-    assert.match(render({ kind: "tool", id: name, name, status: "success" }), /验证 · 已完成/);
+    assert.match(render({ kind: "tool", id: name, name, status: "success" }), /验证：已完成/);
   }
   assert.match(render({ kind: "tool", id: "partial", name: "bash", status: "args_streaming", argsText: '{"command":' }), /准备参数/);
   const edits = { path: "app.ts", edits: [{ oldText: "a", newText: "b" }, { oldText: "c", newText: "d" }] };

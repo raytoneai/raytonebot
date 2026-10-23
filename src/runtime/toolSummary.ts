@@ -57,23 +57,15 @@ export function foldQuietTools(items: readonly AgentUXTimelineItem[], invisible:
   return out;
 }
 
-/** "运行了 2 条命令 · 读取了 1 个文件 · 1 个失败", in the order the kinds first appeared. */
+/** A compact total with explicit failures and cancellations; individual steps remain in details. */
 export function toolRunSummary(tools: readonly AgentUXToolTimelineItem[], locale: AppLocale): string {
   const copy = chatCopy[locale].toolCard.summary;
-  const counts = new Map<QuietKind, number>();
-  for (const tool of tools) {
-    const kind = quietKind(tool);
-    if (kind) counts.set(kind, (counts.get(kind) ?? 0) + 1);
-  }
-  const label: Record<QuietKind, (n: number) => string> = { "run-command": copy.runCommand, "read-file": copy.readFile,
-    "read-image": copy.readImage, search: copy.search, validate: copy.validate, fetch: copy.fetch };
-  const parts = [...counts].map(([kind, n]) => label[kind](n));
+  if (!tools.length) return "";
+  const count = tools.length;
+  const parts = [locale === "zh" ? `${count} 项操作` : locale === "ja" ? `${count} 件の操作` : `${count} operation${count === 1 ? "" : "s"}`];
   const failed = tools.filter((tool) => tool.status === "error").length;
   if (failed) parts.push(copy.failed(failed));
-  const other = tools.filter((tool) => !quietKind(tool)).length;
-  if (other) parts.unshift(locale === "zh" ? `执行了 ${other} 项操作` : locale === "ja" ? `${other} 件の操作` : `${other} operation${other === 1 ? "" : "s"}`);
   const cancelled = tools.filter((tool) => tool.status === "cancelled").length;
-  if (cancelled) parts.push(locale === "zh" ? `${cancelled} 个已取消` : locale === "ja" ? `${cancelled} 件キャンセル` : `${cancelled} cancelled`);
-  const text = parts.join(copy.separator);
-  return text.charAt(0).toUpperCase() + text.slice(1);
+  if (cancelled) parts.push(locale === "zh" ? `${cancelled} 项已取消` : locale === "ja" ? `${cancelled} 件キャンセル` : `${cancelled} cancelled`);
+  return parts.join(copy.separator);
 }

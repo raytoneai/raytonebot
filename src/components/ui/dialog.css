@@ -22,7 +22,7 @@
   position: fixed;
   inset: 0;
   z-index: var(--z-overlay);
-  background: color-mix(in srgb, var(--text-primary) 32%, transparent);
+  background: var(--overlay);
   animation: ui-dialog-overlay-in var(--motion-base) var(--ease-out);
 }
 
@@ -37,7 +37,7 @@
   overflow: auto;
   padding: var(--space-5);
   background: var(--surface-panel);
-  border: 1px solid var(--border-subtle);
+  border: var(--border-width) solid var(--border-subtle);
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-lg);
   color: var(--text-primary);
@@ -81,7 +81,7 @@
   height: 26px;
   padding: 0;
   background: transparent;
-  border: 1px solid transparent;
+  border: var(--border-width) solid transparent;
   border-radius: var(--radius-sm);
   color: var(--text-muted);
   transition: background var(--motion-fast) var(--ease-out),

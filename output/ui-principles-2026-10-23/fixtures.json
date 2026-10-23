@@ -1,0 +1,142 @@
+[
+  {
+    "name": "欢迎页(无事件)",
+    "articles": 0,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 3007
+  },
+  {
+    "name": "Built-in demo",
+    "articles": 2,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2914
+  },
+  {
+    "name": "Group chat",
+    "articles": 4,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2808
+  },
+  {
+    "name": "Coding agent",
+    "articles": 1,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2760
+  },
+  {
+    "name": "Reasoning kinds",
+    "articles": 0,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2379
+  },
+  {
+    "name": "Tool approval",
+    "articles": 0,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2678
+  },
+  {
+    "name": "Error block",
+    "articles": 1,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2314
+  },
+  {
+    "name": "Artifact action",
+    "articles": 0,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2306
+  },
+  {
+    "name": "Capability tray",
+    "articles": 1,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2302
+  },
+  {
+    "name": "HTML artifact stream",
+    "articles": 1,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2494
+  },
+  {
+    "name": "Basic text",
+    "articles": 1,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2332
+  },
+  {
+    "name": "Normal turn",
+    "articles": 2,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2521
+  },
+  {
+    "name": "Streaming thinking + message",
+    "articles": 2,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2551
+  },
+  {
+    "name": "Tool approval + completion",
+    "articles": 2,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2680
+  },
+  {
+    "name": "MCP success + interrupt",
+    "articles": 2,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2956
+  },
+  {
+    "name": "Runtime boot + sync",
+    "articles": 6,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2724
+  },
+  {
+    "name": "Retrying incident",
+    "articles": 4,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2661
+  },
+  {
+    "name": "Exhausted incident",
+    "articles": 3,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2573
+  },
+  {
+    "name": "Terminal incident",
+    "articles": 2,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2405
+  },
+  {
+    "name": "Config, spans, deletion",
+    "articles": 4,
+    "scrollWidth": 1280,
+    "width": 1280,
+    "snapshotLength": 2570
+  }
+]

@@ -581,7 +581,7 @@ function SessionGroup({
               ) : avatars?.[id] ? (
                 <span className="session-item-avatar" aria-hidden="true" onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.stopPropagation(); onEditBot(bot); } }}><AgentAvatar size={18} kind={avatars[id]} appearance={bot?.appearance} /></span>
               ) : null}
-              <span className="session-item-label">{preview || title}{role ? <span className="session-search-author"> · {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
+              <span className="session-item-label">{preview || title}{role ? <span className="session-search-author"> {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
                 match ? <>{snippet.slice(0, match.index)}<mark>{match[0]}</mark>{snippet.slice(match.index + match[0].length)}</> : snippet
               }</span> : null}</span>
             </button>

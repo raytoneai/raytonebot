@@ -81,7 +81,7 @@ export function ChatFrame({
         {headerAgent ?? (
           <div>
             <h2>{copy.chat.frame.title}</h2>
-            <p>{viewModel.title ?? copy.chat.frame.fallbackConversationTitle} · {copy.chat.frame.subtitleSuffix}</p>
+            <p>{viewModel.title ?? copy.chat.frame.fallbackConversationTitle}</p>
           </div>
         )}
       </header>
