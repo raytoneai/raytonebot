@@ -81,6 +81,7 @@ const en = {
     },
   },
   approval: {
+    once: "Allow once",
     externalLabel: "External tool approval",
     /**
      * Asked when the backend supplies no prompt of its own — which is the normal case for a real
@@ -122,6 +123,7 @@ const en = {
   toolCard: {
     fallbackTitle: "Tool call",
     inputTitle: "Input",
+    inputDiffTitle: "Requested edit: snippet line numbers",
     outputTitle: "Output",
     /** Titles the card generates while a tool is mid-flight, keyed by action. */
     runningAction: {
@@ -239,6 +241,7 @@ const zh: typeof en = {
     },
   },
   approval: {
+    once: "允许一次",
     externalLabel: "外部工具审批",
     promptFallback: "批准此工具调用？",
     actionsLabel: "工具审批操作",
@@ -274,6 +277,7 @@ const zh: typeof en = {
   toolCard: {
     fallbackTitle: "工具调用",
     inputTitle: "输入",
+    inputDiffTitle: "请求修改：片段内行号",
     outputTitle: "输出",
     runningAction: {
       readFile: "正在读取文件",
@@ -389,6 +393,7 @@ const ja: typeof en = {
     },
   },
   approval: {
+    once: "今回のみ許可",
     externalLabel: "外部ツールの承認",
     promptFallback: "このツール呼び出しを承認しますか？",
     actionsLabel: "ツール承認の操作",
@@ -424,6 +429,7 @@ const ja: typeof en = {
   toolCard: {
     fallbackTitle: "ツール呼び出し",
     inputTitle: "入力",
+    inputDiffTitle: "変更リクエスト：断片内の行番号",
     outputTitle: "出力",
     runningAction: {
       readFile: "ファイルを読み取り中",

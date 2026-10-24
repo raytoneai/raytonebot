@@ -1,5 +1,5 @@
 import type { AgentUXToolTimelineItem } from "@agent-ux/render-core";
-import { useLayoutEffect, useRef, useState } from "react";
+import { useId, useLayoutEffect, useRef, useState } from "react";
 
 import { StateIcon, type IconSlot } from "../../../agentmatrix";
 import { useCopy } from "../../../i18n/LocaleContext";
@@ -35,13 +35,14 @@ export function InlineApprovalPrompt({
   primaryDisabled = false,
   answer: controlledAnswer,
   onAnswerChange,
+  singleChoice = false,
 }: {
   ariaLabel: string;
   kicker: string;
   question: string;
   options: readonly InlineApprovalPromptOption[];
-  hint: string;
-  secondaryLabel: string;
+  hint?: string;
+  secondaryLabel?: string;
   primaryLabel: string;
   pending?: boolean;
   approvalSurface?: "inline";
@@ -50,7 +51,9 @@ export function InlineApprovalPrompt({
   primaryDisabled?: boolean;
   answer?: string;
   onAnswerChange?: (answer: string) => void;
+  singleChoice?: boolean;
 }) {
+  const choiceName = useId();
   const [localAnswer, setAnswer] = useState("");
   const answer = controlledAnswer ?? localAnswer;
   const panel = usePromptFocus(pending);
@@ -80,15 +83,23 @@ export function InlineApprovalPrompt({
         </div>
       </div>
 
-      <ol className="inline-approval-options">
+      <ol className="inline-approval-options" data-single-choice={singleChoice || undefined}
+        role={singleChoice ? "radiogroup" : undefined} aria-label={singleChoice ? ariaLabel : undefined}>
         {options.map((option, index) => (
           <li
             key={option.id}
             data-placeholder={option.answerPlaceholder ? "true" : undefined}
             data-interactive={option.onSelect ? "true" : undefined}
+            role={singleChoice ? "none" : undefined}
           >
-            <span className="inline-approval-option-index">{index + 1}.</span>
-            {option.answerPlaceholder ? (
+            {!singleChoice ? <span className="inline-approval-option-index">{index + 1}.</span> : null}
+            {singleChoice ? (
+              <label className="inline-approval-choice" data-selected={option.selected || undefined}>
+                <input type="radio" name={choiceName} value={option.id} checked={Boolean(option.selected)}
+                  disabled={pending || option.disabled} onChange={option.onSelect} />
+                <strong>{option.title}</strong>
+              </label>
+            ) : option.answerPlaceholder ? (
               <input
                 className="inline-approval-answer"
                 type={option.secret ? "password" : "text"}
@@ -130,19 +141,19 @@ export function InlineApprovalPrompt({
       </ol>
 
       <footer className="inline-approval-footer">
-        <span role="status">
+        {hint ? <span role="status">
           <span className="inline-approval-info" aria-hidden="true">i</span>
           {hint}
-        </span>
+        </span> : null}
         <div>
-          <button
+          {secondaryLabel ? <button
             type="button"
             className="inline-approval-secondary"
             disabled={pending}
             onClick={secondary}
           >
             {secondaryLabel}
-          </button>
+          </button> : null}
           <button
             type="button"
             className="inline-approval-primary"
@@ -165,6 +176,7 @@ export function InlineApprovalSurface({
   onConfirm?: (decision: ApprovalDecision) => void | Promise<void>;
 }) {
   const copy = useCopy();
+  const [selected, setSelected] = useState<ApprovalChoice>("yes");
   const { pending, failed, submit: confirm } = useApprovalSubmission(onConfirm);
   const choices = approvalChoices(copy);
   const prompt = tool.approval?.prompt ?? copy.chat.approval.promptFallback;
@@ -174,19 +186,19 @@ export function InlineApprovalSurface({
       ariaLabel={copy.chat.approval.actionsLabel}
       kicker={copy.chat.approval.permissionRequired}
       question={prompt}
+      singleChoice
       options={choices.map((choice) => ({
         id: choice.id,
-        title: choice.label,
-        body: choice.hint,
-        onSelect: () => void confirm(choice.id),
+        title: choice.id === "yes" ? copy.chat.approval.once : choice.label,
+        selected: selected === choice.id,
+        onSelect: () => setSelected(choice.id),
       }))}
-      hint={pending ? copy.chat.approval.sending : failed ? copy.chat.approval.failed : copy.chat.approval.chooseHint}
-      secondaryLabel={copy.chat.approval.no}
-      primaryLabel={copy.chat.approval.yes}
+      hint={pending ? copy.chat.approval.sending : failed ? copy.chat.approval.failed
+        : selected === "always" ? copy.chat.approval.hints.always : undefined}
+      primaryLabel={copy.chat.approval.confirm}
       pending={pending}
       approvalSurface="inline"
-      onSecondary={() => void confirm("no")}
-      onPrimary={() => void confirm("yes")}
+      onPrimary={() => void confirm(selected)}
     />
   );
 }

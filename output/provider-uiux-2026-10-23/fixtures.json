@@ -1,0 +1,125 @@
+{
+  "checks": [
+    {
+      "scenario": "欢迎页(无事件)",
+      "selected": "欢迎页(无事件)",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Built-in demo",
+      "selected": "Built-in demo",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Group chat",
+      "selected": "Group chat",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Coding agent",
+      "selected": "Coding agent",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Reasoning kinds",
+      "selected": "Reasoning kinds",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Tool approval",
+      "selected": "Tool approval",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Error block",
+      "selected": "Error block",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Artifact action",
+      "selected": "Artifact action",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Capability tray",
+      "selected": "Capability tray",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "HTML artifact stream",
+      "selected": "HTML artifact stream",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Basic text",
+      "selected": "Basic text",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Normal turn",
+      "selected": "Normal turn",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Streaming thinking + message",
+      "selected": "Streaming thinking + message",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Tool approval + completion",
+      "selected": "Tool approval + completion",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "MCP success + interrupt",
+      "selected": "MCP success + interrupt",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Runtime boot + sync",
+      "selected": "Runtime boot + sync",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Retrying incident",
+      "selected": "Retrying incident",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Exhausted incident",
+      "selected": "Exhausted incident",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Terminal incident",
+      "selected": "Terminal incident",
+      "viewport": 1280,
+      "width": 1280
+    },
+    {
+      "scenario": "Config, spans, deletion",
+      "selected": "Config, spans, deletion",
+      "viewport": 1280,
+      "width": 1280
+    }
+  ],
+  "errors": []
+}

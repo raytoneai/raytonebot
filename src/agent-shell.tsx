@@ -217,7 +217,9 @@ export function AgentApp() {
   const [outputSource, setOutputSource] = useState<OutputPanelSource>(project.output.source);
   const [browserAvailable, setBrowserAvailable] = useState(false);
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
-  const { project: configuredProject, setProject: setConfiguredProject, status: providerSettingsStatus } = useProviderSettings(project);
+  const [providerSelectionError, setProviderSelectionError] = useState<string>();
+  const providerSelectionPending = useRef(false);
+  const { project: configuredProject, setProject: setConfiguredProject, status: providerSettingsStatus, saveProviders, saved: savedProviderSettings } = useProviderSettings(project);
   const [piEvents, setPiEvents] = useState<AgentUXEvent[] | undefined>(undefined);
   const [piConversations, setPiConversations] = useState<readonly EphemeralPiConversation[]>(() => [
     createEphemeralPiConversation(),
@@ -1134,36 +1136,31 @@ export function AgentApp() {
     composer.resumeQueue(conversation.id, lastRunOutcome(events)?.runId);
   }
 
-  async function selectProvider(id: ProviderConnectionId) {
+  async function selectProvider(id: ProviderConnectionId, model?: string) {
     const provider = activeProject.providers.connections.find((entry) => entry.id === id && entry.enabled);
-    if (!provider) return;
-    const nextProject = {
-      ...activeProject,
-      providers: { ...activeProject.providers, defaultProviderId: id },
-    };
-    setConfiguredProject((current) => ({
-      ...current,
-      providers: { ...current.providers, defaultProviderId: id },
-    }));
-    await synchronizePiRuntime(nextProject);
-  }
-
-  async function selectModel(model: string) {
-    const provider = defaultProviderConnection(activeProject);
+    if (!provider || providerSelectionPending.current) return;
+    const selectedModel = model ?? provider.defaultModel;
     const nextProvider = {
       ...provider,
-      defaultModel: model,
-      models: provider.models.includes(model) ? provider.models : [model, ...provider.models],
+      defaultModel: selectedModel,
+      models: provider.models.includes(selectedModel) ? provider.models : [selectedModel, ...provider.models],
     };
     const nextProject = {
       ...activeProject,
       providers: {
         ...activeProject.providers,
+        defaultProviderId: id,
         connections: activeProject.providers.connections.map((entry) => entry.id === provider.id ? nextProvider : entry),
       },
     };
-    updateProvider(provider.id, { defaultModel: model });
-    await synchronizePiRuntime(nextProject);
+    providerSelectionPending.current = true;
+    setProviderSelectionError(undefined);
+    try {
+      await saveProviders(nextProject.providers);
+      await synchronizePiRuntime(nextProject);
+    } catch (error) {
+      setProviderSelectionError(error instanceof Error ? error.message : String(error));
+    } finally { providerSelectionPending.current = false; }
   }
 
   function updateProvider(id: ProviderConnectionId, patch: Partial<ProviderConnection> & { authEnvVar?: string }) {
@@ -1372,7 +1369,7 @@ export function AgentApp() {
     onExport: noop,
     onGitCommit: noop,
     onProviderChange: (id) => void selectProvider(id),
-    onModelChange: (model) => void selectModel(model),
+    onModelChange: (model) => void selectProvider(defaultProviderConnection(activeProject).id, model),
     onApprovalDecision: approveLive,
     onCollapseLeft: () => setLeftCollapsed(true),
     onCollapseRight: () => setRightCollapsed(true),
@@ -1440,6 +1437,7 @@ export function AgentApp() {
     },
   } : undefined;
   const shellExtras: ShellExtras = {
+    providerSelection: { onChange: (id, model) => void selectProvider(id, model), error: providerSelectionError },
     bots: streamId ? undefined : knownBots,
     sessionBotIds: streamId ? undefined : botStore.conversations,
     onCreateBot: streamId ? undefined : () => {
@@ -1806,6 +1804,8 @@ export function AgentApp() {
             runtime={piRuntimeState}
             isRunning={piRunning}
             sessionKeys={sessionKeys}
+            savedProviderSettings={savedProviderSettings}
+            onSaveProviders={async (providers, keys, removeKeys) => { await saveProviders(providers, keys, removeKeys); setSessionKeys({}); void refreshPiRuntime().catch(() => undefined); }}
             onSessionKeyChange={(id, value) => setSessionKeys((current) => ({ ...current, [id]: value }))}
             onUpdateProvider={updateProvider}
             // The model service may still lack a key; picking it as default must not throw.

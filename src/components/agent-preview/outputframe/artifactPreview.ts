@@ -4,6 +4,7 @@ import type { AgentFrontendProject, ArtifactRenderer } from "../../../schema/age
 import type { ConcreteArtifactRenderer, OutputFrameCopy } from "./types";
 import { languageFromFileName } from "./panelItem";
 import { languageFromTitle, outputItemRenderKind } from "./renderKind";
+import { looksLikeUnifiedDiff } from "../../../runtime/unifiedDiff";
 import { artifactBody } from "../../../runtime/artifactContent";
 
 export function resolveArtifactRenderer(
@@ -24,7 +25,7 @@ export function resolveArtifactRenderer(
 
   if (artifact.data !== undefined) return "data";
 
-  if (kind.includes("diff") || mimeType.includes("patch") || text.startsWith("--- ")) {
+  if (kind.includes("diff") || mimeType.includes("patch") || /\.(diff|patch)$/.test(title) || looksLikeUnifiedDiff(text)) {
     return "diff";
   }
   if (mimeType.includes("markdown") || title.endsWith(".md") || text.startsWith("# ")) {

@@ -28,3 +28,36 @@ test("probe: models, auth header per protocol, HTTP errors", async () => {
   assert.equal(failed.ok, false);
   assert.equal(failed.status, 401);
 });
+
+test("probe rejects malformed model responses instead of reporting a successful connection", async () => {
+  for (const body of ["<html>login</html>", "null", "{}", '{"error":"invalid key"}', '{"data":[{"id":42}]}']) {
+    const result = await probeProvider({ baseUrl: "https://model.example/v1", protocol: "openai-compatible" }, "key",
+      (async () => new Response(body)) as typeof fetch);
+    assert.equal(result.ok, false, body);
+    assert.deepEqual(result.models, []);
+  }
+});
+
+test("probe normalizes and deduplicates model IDs to the settings storage limits", async () => {
+  const ids = [" model-a ", "model-a", "", "  ", "bad\nmodel", "x".repeat(257), "model-b"];
+  const result = await probeProvider({ baseUrl: "https://model.example/v1", protocol: "openai-compatible" }, undefined,
+    (async () => new Response(JSON.stringify({ data: ids.map(id => ({ id })) }))) as typeof fetch);
+  assert.deepEqual(result.models, ["model-a", "model-b"]);
+  const empty = await probeProvider({ baseUrl: "https://model.example/v1", protocol: "openai-compatible" }, undefined,
+    (async () => new Response('{"data":[]}')) as typeof fetch);
+  assert.equal(empty.ok, true);
+});
+
+test("probe disables credential-bearing redirects and accepts IPv6 loopback", async () => {
+  assert.equal(modelsUrl("http://[::1]:11434/v1").href, "http://[::1]:11434/v1/models");
+  for (const url of ["https://user:pass@model.example/v1", "https://model.example/v1?key=secret", "https://model.example/v1#secret"]) {
+    assert.throws(() => modelsUrl(url));
+  }
+  const result = await probeProvider({ baseUrl: "https://model.example/v1", protocol: "anthropic" }, "secret",
+    (async (_url, init) => {
+      assert.equal(init?.redirect, "manual");
+      return new Response(null, { status: 302, headers: { location: "https://other.example" } });
+    }) as typeof fetch);
+  assert.equal(result.ok, false);
+  assert.equal(result.status, 302);
+});

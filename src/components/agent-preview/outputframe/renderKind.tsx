@@ -4,7 +4,7 @@ import type { ReactNode } from "react";
 import type { ConcreteArtifactRenderer } from "./types";
 import type { OutputPanelItem } from "./panelItem";
 
-export type OpenedOutputRenderKind = "image" | "audio" | "video" | "pdf" | "html" | "markdown" | "data" | "code";
+export type OpenedOutputRenderKind = "image" | "audio" | "video" | "pdf" | "html" | "markdown" | "data" | "code" | "diff";
 
 export function languageFromTitle(title: string): string {
   const ext = title.split(".").pop()?.toLowerCase();
@@ -21,6 +21,7 @@ export function outputItemRenderKind(item: OutputPanelItem): OpenedOutputRenderK
   if (item.kind === "review") return "code";
   const language = (item.language ?? languageFromTitle(item.title)).toLowerCase();
   const title = item.title.toLowerCase();
+  if (/\.(diff|patch)$/.test(title) || language === "diff" || language === "patch") return "diff";
   if (title.endsWith(".pdf") || language === "pdf") return "pdf";
   if (/\.(png|jpe?g|gif|webp|avif|svg)$/.test(title) || ["png", "jpg", "jpeg", "gif", "webp", "avif", "svg", "image"].includes(language)) {
     return "image";
@@ -68,6 +69,7 @@ export function outputItemIcon(item: OutputPanelItem, size = 13): ReactNode {
 
 export function outputItemModalRenderer(item: OutputPanelItem): ConcreteArtifactRenderer {
   const kind = outputItemRenderKind(item);
+  if (kind === "diff") return "diff";
   if (kind === "markdown") {
     return "markdown";
   }

@@ -217,8 +217,8 @@ export const project = {
       "bottom-dock",
       "overlay"
     ],
-    "mainSize": 68,
-    "rightPanelSize": 32,
+    "mainSize": 56,
+    "rightPanelSize": 44,
     "bottomDockSize": 28,
     "slots": [
       {

@@ -7,12 +7,9 @@ import { APP_LOCALES, type AppLocale } from "../../i18n/locales";
 import { settingsCopy, type SettingsCopy } from "../../i18n/copy/settings";
 import { appVersionLabel } from "../../appVersion";
 import { AGENT_PRESETS, type AgentHarnessId } from "../../pi/harnessCatalog";
-import { clearApprovalMemory, testProviderConnection, type PiRuntimeState, type ProviderTestResult } from "../../pi/piClient";
-import { piRuntimeConfigurationForProvider } from "../../pi/piProviderSync";
+import { clearApprovalMemory, type PiRuntimeState } from "../../pi/piClient";
 import {
   defaultProviderConnection,
-  isSafeProviderEnvVarName,
-  safeProviderEnvVarName,
   type AgentFrontendProject,
   type ProviderConnection,
   type ProviderConnectionId,
@@ -21,7 +18,9 @@ import { themeTokens, type ThemePresetId } from "../../theme/themeTokens";
 import { Button, Input, SelectMenu, Switch } from "../ui";
 import { useClipboardFeedback } from "../../runtime/useClipboardFeedback";
 import type { ProviderSettingsStatus } from "../../runtime/useProviderSettings";
-import type { ProviderPatch } from "../../runtime/providerSettings";
+import { providerIsAdded, providerValidationIssue, type ProviderPatch } from "../../runtime/providerSettings";
+import { useProviderProbe } from "../../runtime/useProviderProbe";
+import { useProviderEditor } from "../../runtime/useProviderEditor";
 import type { ImChannelsState } from "../../runtime/useImChannels";
 import type { RoutinesState } from "../../runtime/useRoutines";
 import type { RoutineView } from "../../pi/routineTypes";
@@ -37,8 +36,8 @@ import "./settings.css";
  * Settings, as one dialog with a section rail. Layout and row patterns follow magpie
  * (name + muted sub-line + control on the right, masked key pill, inline test result) and
  * CC Switch (provider presets that only need a key, CLI status cards, latency colours).
- * Every change applies at once; there is no Save button, except for IM channel credentials,
- * which connect to an outside service and are sent together once complete.
+ * Model service edits stay in a dialog draft until Save. Secrets remain session-only until
+ * the host credential store is implemented; the UI states that boundary explicitly.
  */
 
 export type PermissionMode = "request" | "auto" | "allow-all";
@@ -72,10 +71,13 @@ export type SettingsDialogProps = {
   providerSettingsStatus?: ProviderSettingsStatus;
   runtime?: PiRuntimeState;
   isRunning: boolean;
+  savedProviderSettings?: import("../../pi/piClient").ProviderSettingsView;
   sessionKeys: Record<string, string>;
   onSessionKeyChange: (id: ProviderConnectionId, value: string) => void;
   onUpdateProvider: (id: ProviderConnectionId, patch: ProviderPatch) => void;
   onSetDefaultProvider: (id: ProviderConnectionId) => void;
+  /** Persist configuration and explicit credential changes on the host before applying. */
+  onSaveProviders?: (providers: AgentFrontendProject["providers"], keys: Record<string, string>, removeKeys: string[]) => void | Promise<void>;
   permissionDefault?: PermissionMode;
   onPermissionDefaultChange: (mode: PermissionMode | undefined) => void;
   themePreset: ThemePresetId;
@@ -96,8 +98,28 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const { locale } = useLocale();
   const t = settingsCopy[locale];
   const [section, setSection] = useState<SectionId>(props.initialSection ?? "providers");
+  const [confirmClose, setConfirmClose] = useState(false);
+  const editor = useProviderEditor(props.project.providers, props.sessionKeys, async (providers, keys, removeKeys) => {
+    if (props.onSaveProviders) return props.onSaveProviders(providers, keys, removeKeys);
+    // Optional callback keeps standalone fixtures and older hosts compatible.
+    for (const provider of providers.connections) {
+      const original = props.project.providers.connections.find(item => item.id === provider.id);
+      if (JSON.stringify(provider) !== JSON.stringify(original)) props.onUpdateProvider(provider.id, {
+        baseUrl: provider.baseUrl, defaultModel: provider.defaultModel, models: provider.models,
+        enabled: provider.enabled, added: provider.added, authEnvVar: provider.auth.envVar,
+      });
+      if (keys[provider.id] !== props.sessionKeys[provider.id]) props.onSessionKeyChange(provider.id, keys[provider.id] ?? "");
+    }
+    if (providers.defaultProviderId !== props.project.providers.defaultProviderId) props.onSetDefaultProvider(providers.defaultProviderId);
+  });
+  const saving = editor.status === "saving";
+  const requestOpenChange = (open: boolean) => {
+    if (!open && saving) return;
+    if (!open && editor.dirty) { setSection("providers"); setConfirmClose(true); return; }
+    props.onOpenChange(open);
+  };
   useEffect(() => {
-    if (props.open) setSection(props.initialSection ?? "providers");
+    if (props.open) { setSection(props.initialSection ?? "providers"); setConfirmClose(false); }
   }, [props.open, props.initialSection]);
   const nav: { id: SectionId; label: string; Icon: typeof Server }[] = [
     { id: "providers", label: t.nav.providers, Icon: Server },
@@ -111,7 +133,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   ];
 
   return (
-    <RadixDialog.Root open={props.open} onOpenChange={props.onOpenChange}>
+    <RadixDialog.Root open={props.open} onOpenChange={requestOpenChange}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="settings-overlay" />
         <RadixDialog.Content className="settings-dialog" aria-describedby={undefined}>
@@ -140,7 +162,11 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </RadixDialog.Close>
             </header>
             <div className="settings-body-scroll">
-              {section === "providers" ? <ProvidersSection {...props} t={t} /> : null}
+              {section === "providers" ? <fieldset className="settings-provider-fields" disabled={saving} aria-label={t.nav.providers}>
+                <ProvidersSection {...props} t={t} project={{ ...props.project, providers: editor.providers }} sessionKeys={editor.keys}
+                  probeRevision={editor.revision} removeKeys={editor.removeKeys} onToggleRemoveKey={editor.toggleRemoveKey}
+                  onUpdateProvider={editor.update} onSessionKeyChange={editor.setKey} onSetDefaultProvider={editor.setDefault} />
+              </fieldset> : null}
               {section === "permissions" ? <PermissionsSection {...props} t={t} /> : null}
               {section === "channels" && props.imChannels ? <ChannelsSection t={t} state={props.imChannels} /> : null}
               {section === "routines" && props.routines ? <RoutinesSection t={t} state={props.routines} onOpenConversation={props.onOpenConversation} /> : null}
@@ -149,6 +175,25 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {section === "appearance" ? <AppearanceSection {...props} t={t} /> : null}
               {section === "about" ? <AboutSection {...props} t={t} /> : null}
             </div>
+            {section === "providers" ? <footer className="settings-save-footer">
+              <p className="settings-note">{t.providers.saveScope}</p>
+              <div className="settings-save-actions">
+                <span className="settings-status" role="status" data-tone={editor.invalid || editor.status === "failed" || editor.status === "conflict" ? "error" : editor.status === "saved" ? "ok" : "muted"}>
+                  {editor.invalid ? `${editor.invalid.provider.label}：${t.providers.validation[editor.invalid.field!]}`
+                    : editor.status === "failed" ? t.providers.saveFailed : editor.status === "conflict" ? t.providers.saveConflict
+                    : saving ? t.providers.saving : confirmClose ? t.providers.unsavedClose : props.isRunning ? t.providers.runningHint
+                    : editor.dirty ? t.providers.unsaved : editor.status === "saved" ? t.providers.saved : ""}
+                </span>
+                <span className="settings-spacer" />
+                {confirmClose ? <Button size="sm" variant="ghost" autoFocus disabled={saving} onClick={() => setConfirmClose(false)}>{t.providers.keepEditing}</Button> : null}
+                <Button size="sm" variant="ghost" disabled={!editor.dirty || saving} onClick={() => {
+                  editor.reset(); if (confirmClose) { setConfirmClose(false); props.onOpenChange(false); }
+                }}>{confirmClose ? t.providers.discardClose : t.providers.discard}</Button>
+                <Button size="sm" variant="primary" disabled={!editor.dirty || Boolean(editor.invalid) || props.isRunning} loading={saving} onClick={async () => {
+                  if (await editor.save() && confirmClose) { setConfirmClose(false); props.onOpenChange(false); }
+                }}>{confirmClose ? t.providers.saveClose : t.providers.save}</Button>
+              </div>
+            </footer> : null}
           </section>
         </RadixDialog.Content>
       </RadixDialog.Portal>
@@ -156,15 +201,16 @@ export function SettingsDialog(props: SettingsDialogProps) {
   );
 }
 
-type SectionProps = SettingsDialogProps & { t: SettingsCopy };
+type SectionProps = SettingsDialogProps & { t: SettingsCopy; probeRevision?: number };
 
 function ProvidersSection({
-  t, project, runtime, sessionKeys, onSessionKeyChange, onUpdateProvider, onSetDefaultProvider, isRunning, providerSettingsStatus = "idle",
-}: SectionProps) {
+  t, project, runtime, sessionKeys, onSessionKeyChange, onUpdateProvider, onSetDefaultProvider, isRunning, providerSettingsStatus = "idle", probeRevision, savedProviderSettings, removeKeys = [], onToggleRemoveKey,
+}: SectionProps & { removeKeys?: string[]; onToggleRemoveKey?: (id: string) => void }) {
   const [expanded, setExpanded] = useState<string | undefined>();
   const [adding, setAdding] = useState(false);
   const enabled = project.providers.connections.filter((provider) => provider.enabled);
-  const available = project.providers.connections.filter((provider) => !provider.enabled);
+  const added = project.providers.connections.filter(providerIsAdded);
+  const available = project.providers.connections.filter((provider) => !providerIsAdded(provider));
   const defaultId = defaultProviderConnection(project).id;
 
   return (
@@ -173,7 +219,7 @@ function ProvidersSection({
         {t.providers.persistence[providerSettingsStatus]}
       </p> : null}
       <div className="settings-list">
-        {enabled.map((provider) => (
+        {added.map((provider) => (
           <ProviderRow
             key={provider.id}
             t={t}
@@ -183,8 +229,12 @@ function ProvidersSection({
             open={expanded === provider.id}
             onToggleOpen={() => setExpanded((current) => (current === provider.id ? undefined : provider.id))}
             sessionKey={sessionKeys[provider.id] ?? ""}
+            savedKey={Boolean(savedProviderSettings?.credentials[provider.id] && savedProviderSettings.providers?.connections.some(p => p.id === provider.id && p.baseUrl.replace(/\/+$/, "") === provider.baseUrl.replace(/\/+$/, "") && p.protocol === provider.protocol && p.auth.mode === provider.auth.mode))}
+            removingKey={removeKeys.includes(provider.id)}
+            onToggleRemoveKey={onToggleRemoveKey ? () => onToggleRemoveKey(provider.id) : undefined}
             runtime={runtime}
             isRunning={isRunning}
+            probeRevision={probeRevision}
             onSessionKeyChange={(value) => onSessionKeyChange(provider.id, value)}
             onUpdate={(patch) => onUpdateProvider(provider.id, patch)}
             onSetDefault={() => onSetDefaultProvider(provider.id)}
@@ -201,14 +251,14 @@ function ProvidersSection({
             <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>{t.providers.cancel}</Button>
           </div>
           <div className="settings-tiles">
-            {project.providers.connections.map((provider) => (
+            {available.map((provider) => (
               <button
                 type="button"
                 key={provider.id}
                 className="settings-tile"
                 disabled={provider.enabled}
                 onClick={() => {
-                  onUpdateProvider(provider.id, { enabled: true });
+                  onUpdateProvider(provider.id, { enabled: true, added: true });
                   setExpanded(provider.id);
                   setAdding(false);
                 }}
@@ -231,7 +281,7 @@ function ProvidersSection({
 }
 
 function ProviderRow({
-  t, provider, isDefault, onlyOne, open, onToggleOpen, sessionKey, runtime, isRunning, onSessionKeyChange, onUpdate, onSetDefault,
+  t, provider, isDefault, onlyOne, open, onToggleOpen, sessionKey, runtime, isRunning, onSessionKeyChange, onUpdate, onSetDefault, probeRevision, savedKey, removingKey, onToggleRemoveKey,
 }: {
   t: SettingsCopy;
   provider: ProviderConnection;
@@ -239,45 +289,35 @@ function ProviderRow({
   onlyOne: boolean;
   open: boolean;
   onToggleOpen: () => void;
+  savedKey?: boolean;
+  removingKey?: boolean;
+  onToggleRemoveKey?: () => void;
   sessionKey: string;
   runtime?: PiRuntimeState;
   isRunning: boolean;
   onSessionKeyChange: (value: string) => void;
   onUpdate: (patch: ProviderPatch) => void;
   onSetDefault: () => void;
+  probeRevision?: number;
 }) {
   const [revealed, setRevealed] = useState(false);
-  const [test, setTest] = useState<ProviderTestResult | "running" | undefined>();
+  const [manualModel, setManualModel] = useState(false);
+  const invalid = providerValidationIssue(provider);
+  const { test, runTest } = useProviderProbe(provider, sessionKey, onUpdate, probeRevision);
   const envVar = provider.auth.mode === "env" ? provider.auth.envVar : "";
   const envSet = Boolean(envVar && runtime?.envKeys?.includes(envVar));
   const keyState = provider.auth.mode === "none"
     ? { tone: "muted", label: t.providers.keyNone }
     : sessionKey
-      ? { tone: "ok", label: maskKey(sessionKey) }
+      ? { tone: "ok", label: t.providers.keyPending }
+      : removingKey
+        ? { tone: "warn", label: t.providers.keyRemovePending }
+      : savedKey
+        ? { tone: "ok", label: t.providers.keySaved }
       : envSet
         ? { tone: "ok", label: `${MASK.slice(0, 4)} ${t.providers.keyEnv}` }
         : { tone: "warn", label: t.providers.keyMissing };
-  const models = provider.models.length > 0 ? provider.models : [provider.defaultModel];
-
-  useEffect(() => setTest(undefined), [provider.baseUrl, sessionKey]);
-
-  const runTest = async () => {
-    setTest("running");
-    try {
-      const definition = piRuntimeConfigurationForProvider(provider).providerDefinition;
-      if (!definition) throw new Error("No provider definition.");
-      const result = await testProviderConnection(definition, sessionKey || undefined);
-      setTest(result);
-      if (result.ok && result.models.length > 0) {
-        onUpdate({
-          models: result.models,
-          ...(result.models.includes(provider.defaultModel) ? {} : { defaultModel: result.models[0] }),
-        });
-      }
-    } catch (error) {
-      setTest({ ok: false, models: [], error: error instanceof Error ? error.message : String(error) });
-    }
-  };
+  const models = [...new Set([provider.defaultModel, ...provider.models])];
 
   return (
     <div className="settings-provider" data-open={open}>
@@ -287,6 +327,7 @@ function ProviderRow({
           <span className="settings-row-title">
             <strong>{provider.label}</strong>
             {isDefault ? <span className="settings-chip" data-tone="accent">{t.providers.default}</span> : null}
+            {!provider.enabled ? <span className="settings-chip">{t.providers.disabled}</span> : null}
           </span>
           <span className="settings-row-sub settings-row-meta">
             <span>{hostOf(provider.baseUrl)}</span><span>{provider.defaultModel}</span>
@@ -296,12 +337,10 @@ function ProviderRow({
         <Switch
           size="sm"
           aria-label={`${t.providers.enabled} ${provider.label}`}
-          checked
-          disabled={onlyOne || isDefault || isRunning}
-          title={onlyOne || isDefault ? t.providers.keepOne : undefined}
-          onCheckedChange={(checked) => {
-            if (!checked) onUpdate({ enabled: false });
-          }}
+          checked={provider.enabled}
+          disabled={(provider.enabled && (onlyOne || isDefault)) || isRunning}
+          title={isRunning ? t.providers.runningHint : isDefault ? t.providers.defaultHint : onlyOne && provider.enabled ? t.providers.keepOne : undefined}
+          onCheckedChange={(checked) => onUpdate({ enabled: checked, added: true })}
         />
         <button type="button" className="settings-chevron" aria-label={provider.label} aria-expanded={open} onClick={onToggleOpen}>
           <ChevronDown size={16} aria-hidden="true" />
@@ -310,7 +349,7 @@ function ProviderRow({
       {open ? (
         <div className="settings-provider-editor">
           <Field label={t.providers.baseUrl}>
-            <Input value={provider.baseUrl} onChange={(event) => onUpdate({ baseUrl: event.target.value })} />
+            <Input value={provider.baseUrl} invalid={invalid === "baseUrl"} spellCheck={false} autoComplete="off" onChange={(event) => onUpdate({ baseUrl: event.target.value })} />
           </Field>
           {provider.auth.mode !== "none" ? (
             <>
@@ -318,30 +357,28 @@ function ProviderRow({
                 <div className="settings-field-row">
                   <Input
                     value={envVar}
+                    invalid={invalid === "authEnvVar"}
+                    spellCheck={false}
                     onChange={(event) => onUpdate({ authEnvVar: event.target.value })}
-                    onBlur={(event) => {
-                      if (!isSafeProviderEnvVarName(event.currentTarget.value)) {
-                        onUpdate({ authEnvVar: safeProviderEnvVarName(provider) });
-                      }
-                    }}
                   />
                   <span className="settings-status" data-tone={envSet ? "ok" : "muted"}>
                     <Dot />{envSet ? t.providers.envFound : t.providers.envMissing}
                   </span>
                 </div>
               </Field>
-              <Field label={t.providers.sessionKey} hint={envSet && !sessionKey ? t.providers.envKeyHint : t.providers.sessionKeyHint}>
+              <Field label={t.providers.sessionKey} hint={removingKey ? t.providers.keyRemoving : savedKey ? t.providers.keySavedHint : envSet && !sessionKey ? t.providers.envKeyHint : t.providers.sessionKeyHint}>
                 <div className="settings-field-row">
                   <Input
                     type={revealed ? "text" : "password"}
                     autoComplete="off"
                     spellCheck={false}
-                    placeholder={envSet ? MASK : t.providers.sessionKeyPlaceholder}
+                    placeholder={savedKey && !removingKey ? t.providers.keySaved : t.providers.sessionKeyPlaceholder}
                     value={sessionKey}
                     onChange={(event) => onSessionKeyChange(event.target.value.trim())}
                   />
                   {envSet && !sessionKey ? <span className="settings-status" data-tone="ok"><Dot />{t.providers.envKeySet}</span> : null}
-                  <Button size="sm" variant="ghost" onClick={() => setRevealed((value) => !value)}>
+                  {savedKey && onToggleRemoveKey ? <Button size="sm" variant="ghost" onClick={onToggleRemoveKey}>{removingKey ? t.providers.keyUndoRemove : t.providers.keyRemove}</Button> : null}
+                  <Button size="sm" variant="ghost" disabled={!sessionKey} onClick={() => setRevealed((value) => !value)}>
                     {revealed ? t.providers.hide : t.providers.show}
                   </Button>
                 </div>
@@ -350,23 +387,25 @@ function ProviderRow({
           ) : null}
           <Field label={t.providers.defaultModel}>
             <div className="settings-field-row">
-              <SelectMenu
+              {manualModel ? <Input value={provider.defaultModel} aria-label={t.providers.defaultModel} maxLength={256} invalid={invalid === "defaultModel"}
+                spellCheck={false} onChange={(event) => onUpdate({ defaultModel: event.target.value })} /> : <SelectMenu
                 ariaLabel={t.providers.defaultModel}
                 value={provider.defaultModel}
                 options={models.map((model) => ({ value: model, label: model }))}
                 onValueChange={(value) => onUpdate({ defaultModel: value })}
-              />
-              <Button size="sm" variant="ghost" disabled={test === "running"} onClick={() => void runTest()}>
+              />}
+              <Button size="sm" variant="ghost" onClick={() => setManualModel(value => !value)}>{manualModel ? t.providers.chooseModel : t.providers.manualModel}</Button>
+              <Button size="sm" variant="ghost" disabled={test === "running" || Boolean(invalid)} onClick={() => void runTest()}>
                 {t.providers.fetchModels}
               </Button>
             </div>
           </Field>
           <div className="settings-provider-actions">
-            <Button size="sm" disabled={test === "running"} onClick={() => void runTest()}>
+            <Button size="sm" disabled={test === "running" || Boolean(invalid)} onClick={() => void runTest(false)}>
               {test === "running" ? t.providers.testing : t.providers.test}
             </Button>
             {test && test !== "running" ? (
-              <span className="settings-status" data-tone={test.ok ? latencyTone(test.latencyMs) : "error"} role="status">
+              <span className="settings-status" data-tone={test.ok ? "ok" : "error"} role="status">
                 <Dot />
                 {test.ok
                   ? t.providers.testOk(test.latencyMs ?? 0, test.models.length)
@@ -374,8 +413,9 @@ function ProviderRow({
               </span>
             ) : null}
             <span className="settings-spacer" />
-            {!isDefault ? <Button size="sm" variant="ghost" onClick={onSetDefault}>{t.providers.setDefault}</Button> : null}
+            {!isDefault ? <Button size="sm" variant="ghost" disabled={!provider.enabled || isRunning || Boolean(invalid)} title={!provider.enabled ? t.providers.enableFirst : undefined} onClick={onSetDefault}>{t.providers.setDefault}</Button> : null}
           </div>
+          <p className="settings-note settings-provider-help">{!provider.enabled ? t.providers.disabledHint : isDefault ? t.providers.defaultHint : t.providers.probeHint}</p>
         </div>
       ) : null}
     </div>
@@ -1066,15 +1106,4 @@ function hostOf(baseUrl: string): string {
   } catch {
     return baseUrl;
   }
-}
-
-function maskKey(key: string): string {
-  return key.length <= 8 ? "••••" : `${key.slice(0, 4)}…${key.slice(-4)}`;
-}
-
-/** CC Switch's latency bands. */
-function latencyTone(ms = 0): "ok" | "warn" | "error" {
-  if (ms < 500) return "ok";
-  if (ms < 800) return "warn";
-  return "error";
 }

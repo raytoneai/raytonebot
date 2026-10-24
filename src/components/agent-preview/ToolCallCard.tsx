@@ -1,3 +1,5 @@
+import { looksLikeUnifiedDiff, replacementDiff } from "../../runtime/unifiedDiff";
+import { renderDiffPreview } from "./outputframe/diffPreview";
 import { AnimatePresence, motion } from "motion/react";
 import { ChevronDown } from "lucide-react";
 import { useEffect, useMemo, useRef, useState, type MouseEvent } from "react";
@@ -42,7 +44,7 @@ export function ToolCallCard({
   const fileAction = resolveToolFileAction(tool, titleParts);
   const fileReferences = fileAction ? buildToolFileReferences(tool, fileAction, locale, titleParts) : [];
   const hasFileReferences = fileReferences.length > 0;
-  const inputBlock = !hasFileReferences && detailMode === "full" ? spec.inputBlock : undefined;
+  const inputBlock = (!hasFileReferences || spec.inputBlock?.kind === "diff") && detailMode === "full" ? spec.inputBlock : undefined;
   const outputBlock = !hasFileReferences && (detailMode === "full" || detailMode === "output-only") ? spec.outputBlock : undefined;
   const shouldForceOpen = forceOpen || toolStyle === "expanded" || hasTimelineRail;
   const hideDisclosure = toolStyle === "expanded";
@@ -164,7 +166,7 @@ export function ToolCallCard({
                 onOpenArtifact={(event, file) => openArtifact(event, file)}
               />
             ) : null}
-            {inputBlock ? <DisplayBlockView title={copy.chat.toolCard.inputTitle} block={inputBlock} /> : null}
+            {inputBlock ? <DisplayBlockView title={inputBlock.kind === "diff" ? copy.chat.toolCard.inputDiffTitle : copy.chat.toolCard.inputTitle} block={inputBlock} /> : null}
             {outputBlock ? <DisplayBlockView title={copy.chat.toolCard.outputTitle} block={outputBlock} tail={project.blocks.toolLogTail} /> : null}
           </motion.div>
         ) : null}
@@ -529,11 +531,15 @@ function DisplayBlockView({ title, block, tail = false }: { title: string; block
     return (
       <div className="display-block">
         <span>{title}</span>
-        <pre>{`--- ${block.path ?? "before"}\n+++ ${block.path ?? "after"}\n${block.oldCode}\n---\n${block.newCode}`}</pre>
+        {renderDiffPreview(replacementDiff(block.oldCode, block.newCode, block.path))}
       </div>
     );
   }
 
+  const text = block.kind === "code" ? block.code : block.text;
+  if (looksLikeUnifiedDiff(text)) {
+    return <div className="display-block"><span>{title}</span>{renderDiffPreview(text)}</div>;
+  }
   return (
     <div className="display-block">
       <span>{title}</span>

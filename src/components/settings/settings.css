@@ -85,7 +85,7 @@
 
 .settings-body {
   display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
+  grid-template-rows: auto minmax(0, 1fr) auto;
   min-width: 0;
 }
 
@@ -367,6 +367,16 @@
 .settings-copy:hover { background: var(--surface-inset); color: var(--text-primary); }
 
 /* Providers */
+.settings-provider-fields { min-width: 0; border: 0; padding: 0; margin: 0; }
+.settings-save-footer { border-top: var(--border-width) solid var(--border-subtle); padding: 12px 28px 16px; background: var(--surface-panel); }
+.settings-save-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-top: 10px; }
+.settings-save-actions > .settings-status { flex: 1 1 160px; }
+.settings-model-row .ui-switch:disabled { opacity: 1; }
+.settings-model-row .ui-switch[data-state="checked"]:disabled { background: var(--accent); }
+.settings-model-row .ui-switch[data-state="unchecked"] .ui-switch-thumb { background: #fff; }
+.settings-model-row .ui-switch::before { content: ""; position: absolute; inset: -14px -7px; }
+.settings-provider-help { padding-left: 122px; }
+
 .settings-provider-editor {
   display: grid;
   gap: 12px;
@@ -545,6 +555,11 @@
   .settings-provider-editor { padding-left: 14px; }
   .settings-field { grid-template-columns: 1fr; gap: 4px; }
   .settings-provider-actions { padding-left: 0; }
+  .settings-provider-help { padding-left: 0; }
+  .settings-save-footer { padding-inline: 16px; }
+  .settings-save-actions > .settings-status { flex-basis: 100%; }
+  .settings-provider-editor .settings-field-row { flex-wrap: wrap; }
+  .settings-provider-editor .settings-field-row > .ui-select-wrap { flex-basis: 100%; }
   .settings-key-pill { width: auto; }
   /* Provider rows: the key state drops under the name (aligned past the 32px mark) instead of
      squeezing the host and model into a three-line column. */

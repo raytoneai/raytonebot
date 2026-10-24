@@ -1,0 +1,32 @@
+✔ provider JSON errors retain actionable details without credentials or unrelated fields (9.749084ms)
+✔ provider errors reject HTML, oversized and stalled bodies and hide auth details (17.352542ms)
+✔ model gateway forwards sanitized upstream reasons with the original HTTP status (16.783667ms)
+✖ Google OpenAI compatibility array errors retain the upstream diagnostic (0.359041ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 3
+ℹ fail 1
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 102.581417
+
+✖ failing tests:
+
+test at src/pi/providerError.test.ts:45:1
+✖ Google OpenAI compatibility array errors retain the upstream diagnostic (0.359041ms)
+  AssertionError [ERR_ASSERTION]: The input did not match the regular expression /Missing or invalid Authorization header/. Input:
+
+  'Model provider returned HTTP 400.'
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/providerError.test.ts:47:10)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1125:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:787:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'Model provider returned HTTP 400.',
+    expected: /Missing or invalid Authorization header/,
+    operator: 'match',
+    diff: 'simple'
+  }

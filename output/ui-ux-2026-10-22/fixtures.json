@@ -1,0 +1,162 @@
+[
+  {
+    "name": "欢迎页(无事件)",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 929,
+    "tools": 0
+  },
+  {
+    "name": "Built-in demo",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 1202,
+    "tools": 0
+  },
+  {
+    "name": "Group chat",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 1065,
+    "tools": 0
+  },
+  {
+    "name": "Coding agent",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 1138,
+    "tools": 0
+  },
+  {
+    "name": "Reasoning kinds",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 942,
+    "tools": 0
+  },
+  {
+    "name": "Tool approval",
+    "approval": 1,
+    "frame": true,
+    "overflow": false,
+    "textLength": 1018,
+    "tools": 0
+  },
+  {
+    "name": "Error block",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 945,
+    "tools": 0
+  },
+  {
+    "name": "Artifact action",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 899,
+    "tools": 0
+  },
+  {
+    "name": "Capability tray",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 984,
+    "tools": 0
+  },
+  {
+    "name": "HTML artifact stream",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 973,
+    "tools": 0
+  },
+  {
+    "name": "Basic text",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 892,
+    "tools": 0
+  },
+  {
+    "name": "Normal turn",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 963,
+    "tools": 0
+  },
+  {
+    "name": "Streaming thinking + message",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 930,
+    "tools": 0
+  },
+  {
+    "name": "Tool approval + completion",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 992,
+    "tools": 0
+  },
+  {
+    "name": "MCP success + interrupt",
+    "approval": 1,
+    "frame": true,
+    "overflow": false,
+    "textLength": 1083,
+    "tools": 0
+  },
+  {
+    "name": "Runtime boot + sync",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 1081,
+    "tools": 0
+  },
+  {
+    "name": "Retrying incident",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 1019,
+    "tools": 0
+  },
+  {
+    "name": "Exhausted incident",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 1042,
+    "tools": 0
+  },
+  {
+    "name": "Terminal incident",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 992,
+    "tools": 0
+  },
+  {
+    "name": "Config, spans, deletion",
+    "approval": 0,
+    "frame": true,
+    "overflow": false,
+    "textLength": 1031,
+    "tools": 0
+  }
+]

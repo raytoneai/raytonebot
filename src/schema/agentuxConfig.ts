@@ -73,6 +73,8 @@ export type ProviderConnection = {
   defaultModel: string;
   models: string[];
   enabled: boolean;
+  /** Listed in settings even while disabled; absent on untouched catalog presets. */
+  added?: boolean;
 };
 
 export const providerCatalog = [

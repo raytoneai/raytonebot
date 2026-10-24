@@ -1,0 +1,85 @@
+{
+  "results": [
+    {
+      "label": "欢迎页(无事件)",
+      "overflow": false
+    },
+    {
+      "label": "Built-in demo",
+      "overflow": false
+    },
+    {
+      "label": "Group chat",
+      "overflow": false
+    },
+    {
+      "label": "Coding agent",
+      "overflow": false
+    },
+    {
+      "label": "Reasoning kinds",
+      "overflow": false
+    },
+    {
+      "label": "Tool approval",
+      "overflow": false
+    },
+    {
+      "label": "Error block",
+      "overflow": false
+    },
+    {
+      "label": "Artifact action",
+      "overflow": false
+    },
+    {
+      "label": "Capability tray",
+      "overflow": false
+    },
+    {
+      "label": "HTML artifact stream",
+      "overflow": false
+    },
+    {
+      "label": "Basic text",
+      "overflow": false
+    },
+    {
+      "label": "Normal turn",
+      "overflow": false
+    },
+    {
+      "label": "Streaming thinking + message",
+      "overflow": false
+    },
+    {
+      "label": "Tool approval + completion",
+      "overflow": false
+    },
+    {
+      "label": "MCP success + interrupt",
+      "overflow": false
+    },
+    {
+      "label": "Runtime boot + sync",
+      "overflow": false
+    },
+    {
+      "label": "Retrying incident",
+      "overflow": false
+    },
+    {
+      "label": "Exhausted incident",
+      "overflow": false
+    },
+    {
+      "label": "Terminal incident",
+      "overflow": false
+    },
+    {
+      "label": "Config, spans, deletion",
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

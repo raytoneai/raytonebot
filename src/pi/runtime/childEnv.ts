@@ -8,7 +8,7 @@
 const SECRET_KEY_PATTERN = /(^|_)(API_KEY|TOKEN|SECRET|SECRET_KEY|SECRET_ACCESS_KEY|PASSWORD|PASSWD|PRIVATE_KEY|CREDENTIALS)$/i;
 
 export function isSecretEnvKey(key: string): boolean {
-  return key.startsWith("E2B_") || key.startsWith("RAYTONEBOT_PASSWORD") || SECRET_KEY_PATTERN.test(key);
+  return key === "RAYTONEBOT_CREDENTIAL_MASTER_KEY" || key.startsWith("E2B_") || key.startsWith("RAYTONEBOT_PASSWORD") || SECRET_KEY_PATTERN.test(key);
 }
 
 /** A copy of `env` without secrets, except the names in `keep`. */

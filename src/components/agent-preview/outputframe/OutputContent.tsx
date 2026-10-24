@@ -11,6 +11,8 @@ import type { OutputPanelItem } from "./panelItem";
 import { outputItemRenderKind } from "./renderKind";
 import { renderMarkdownPreview } from "./openedItemBody";
 import { OpenedOutputItem, OutputTabs } from "./OutputTabs";
+import { renderDiffPreview } from "./diffPreview";
+import { looksLikeUnifiedDiff } from "../../../runtime/unifiedDiff";
 import { HtmlStreamPreview } from "./HtmlStreamPreview";
 import type { LiveHtmlWrite } from "../../../runtime/liveHtmlWrite";
 import { useClipboardFeedback } from "../../../runtime/useClipboardFeedback";
@@ -85,7 +87,7 @@ export function OutputContent({
           />
         ) : null}
         {artifactList}
-        <OpenedOutputItem item={active} copy={copy} />
+        <OpenedOutputItem item={active} copy={copy} onClose={openItems.length === 1 ? onCloseOpenItem : undefined} />
       </div>
     );
   }
@@ -117,7 +119,7 @@ export function OutputContent({
           </button>
         </div>
         {feedback ? <span className="clipboard-feedback" role="status">{feedback}</span> : null}
-        <pre data-language={code.lang}>{code.code}</pre>
+        {code.lang === "diff" || code.lang === "patch" || looksLikeUnifiedDiff(code.code) ? renderDiffPreview(code.code) : <pre data-language={code.lang}>{code.code}</pre>}
       </div>
     );
   }
@@ -180,7 +182,7 @@ export function OutputContent({
         <span>{artifact.title ?? artifact.id}{copy.diffSuffix}</span>
         <code>{copy.rendererLabels.diff}</code>
       </div>
-      <pre>{artifactDiffPreview(artifact, copy)}</pre>
+      {renderDiffPreview(artifactDiffPreview(artifact, copy))}
     </div>
   );
 }

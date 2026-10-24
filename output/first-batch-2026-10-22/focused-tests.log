@@ -1,0 +1,17 @@
+✔ patch files, explicit languages and real patch bodies render as escaped colored text (455.966125ms)
+✔ inline and expanded previews expose close for a single file without adding a tab row (6.037458ms)
+WebSocket server error: Port 24678 is already in use
+✔ native tool lifecycle renders honest titles and preserves failures instead of completed file rows (281.551917ms)
+✔ Claude edits show their requested diff separately from results, including failure receipts (3.294ms)
+✔ image rows and validation aliases stop animating at completion, and partial arguments stay preparatory (3.645291ms)
+✔ diff detection requires headers and a hunk, not prose or Markdown rules (0.421583ms)
+✔ multiple files, zero-length hunks and header-like source lines retain their meaning and exact text (0.653209ms)
+✔ replacement snippets preserve unchanged edges, empty files and final-newline differences (0.240667ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 646.940375

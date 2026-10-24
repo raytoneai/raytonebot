@@ -1,0 +1,12 @@
+✔ provider JSON errors retain actionable details without credentials or unrelated fields (10.58425ms)
+✔ provider errors reject HTML, oversized and stalled bodies and hide auth details (17.56525ms)
+✔ model gateway forwards sanitized upstream reasons with the original HTTP status (17.363291ms)
+✔ Google OpenAI compatibility array errors retain the upstream diagnostic (0.222375ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 103.414542

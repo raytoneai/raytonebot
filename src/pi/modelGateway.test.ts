@@ -154,3 +154,29 @@ test("Pi retains DeepSeek thinking capabilities behind its loopback model lease"
   registerEditorProvider(runtime as any, definition, 'deepseek', 'deepseek-flash');
   assert.equal(registered.models[0].reasoning, false);
 });
+
+test("installed Pi SDK omits store for official Gemini behind a lease without changing other providers", async () => {
+  const { ModelRuntime } = await import('@earendil-works/pi-coding-agent');
+  const { InMemoryCredentialStore } = await import('@earendil-works/pi-ai');
+  const { registerEditorProvider } = await import('./piHost.ts');
+  const calls: Record<string, unknown>[] = [];
+  const gateway = await createModelGateway({port:0, fetcher: (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response(`data: ${JSON.stringify({id:'check',object:'chat.completion.chunk',choices:[{index:0,delta:{role:'assistant',content:'Hello'},finish_reason:'stop'}]})}\n\ndata: [DONE]\n\n`, {headers:{'content-type':'text/event-stream'}});
+  }) as typeof fetch});
+  const runtime = await ModelRuntime.create({allowModelNetwork:false,credentials:new InMemoryCredentialStore()});
+  try {
+    for (const upstream of ['https://generativelanguage.googleapis.com/v1beta/openai/', 'https://other.example/v1', 'https://generativelanguage.googleapis.com.other.example/v1beta/openai/']) {
+      const lease = gateway.issue({baseUrl:upstream,apiKey:'test-only',model:'gemini-3.8-flash',protocol:'openai'});
+      const definition = {id:'gemini-check',name:'Gemini check',baseUrl:lease.baseUrl,protocol:'openai-compatible' as const,
+        models:['gemini-3.8-flash'],authMode:'required' as const};
+      registerEditorProvider(runtime,definition,definition.id,'gemini-3.8-flash',upstream);
+      await runtime.setRuntimeApiKey(definition.id,lease.apiKey);
+      const answer = await runtime.completeSimple(runtime.getModel(definition.id,'gemini-3.8-flash')!,{messages:[{role:'user',content:'hello',timestamp:1}]});
+      assert.equal(answer.stopReason,'stop');
+      assert.equal(calls.at(-1)?.model,'gemini-3.8-flash');
+      assert.equal(Object.hasOwn(calls.at(-1)!, 'store'), new URL(upstream).hostname !== 'generativelanguage.googleapis.com');
+      lease.revoke();
+    }
+  } finally { await gateway.close(); }
+});

@@ -101,7 +101,9 @@
 }
 /* Keep long option lists inside the viewport. Eight compact rows are visible
    before the menu scrolls, so controls below the trigger remain reachable. */
-.ui-select-menu-content {
+.ui-dropdown-menu.ui-select-menu-content {
+  /* Portal menus must sit above their modal trigger (Settings / expanded Output). */
+  z-index: calc(var(--z-modal, 110) + 1);
   width: max-content;
   min-width: var(--radix-dropdown-menu-trigger-width);
   max-width: calc(100vw - (var(--space-3) * 2));

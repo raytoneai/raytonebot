@@ -66,7 +66,14 @@ test("Claude edits show their requested diff separately from results, including 
   const spec = buildToolDisplaySpec(toolFrom(adapter));
   assert.deepEqual(spec.inputBlock, { kind: "diff", oldCode: "before", newCode: "after", lang: "typescript", path: "app.ts" });
   assert.deepEqual(spec.outputBlock, { kind: "plain", text: "permission denied" });
-  assert.match(render(toolFrom(adapter)), /permission denied/);
+  const failedEdit = render(toolFrom(adapter));
+  assert.match(failedEdit, /permission denied/);
+  assert.match(failedEdit, /请求修改：片段内行号/);
+  assert.match(failedEdit, /data-diff-kind="delete"/);
+  assert.match(failedEdit, /data-diff-kind="add"/);
+  const successfulEdit = render({ ...toolFrom(adapter), status: "success", result: "Edited app.ts" });
+  assert.match(successfulEdit, /请求修改：片段内行号/);
+  assert.match(successfulEdit, /data-diff-kind="add"/);
   const unknown = { ...toolFrom(adapter), name: "report_metrics", title: "Reading image-test.ts", status: "success" };
   const markup = render(unknown);
   assert.doesNotMatch(markup, /data-action=|data-artifact-ref=|正在|data-running-title="true"/);

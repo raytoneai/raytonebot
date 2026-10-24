@@ -90,7 +90,9 @@ permission model: `docs/product/10-agents-and-permissions.md`.
 
 ## Secrets
 
-Model keys come from the host environment/private env file or browser session memory. Private
+Model keys come from the host environment/private env file or the host encrypted provider store
+(`<dataDir>.provider-secrets/`, see `docs/product/12-provider-credentials-proposal.md`). Browser inputs are
+unsubmitted drafts; never persist keys in browser storage. Private
 env paths differ by deployment; see the runbooks. Platform deployment credentials (`E2B_API_KEY`,
 `ARIADRA_API_KEY`) stay on trusted deployment hosts, never inside the bot sandbox or Agent
 environment. Never write keys into source, the bundle or docs. Agent child processes get secrets stripped

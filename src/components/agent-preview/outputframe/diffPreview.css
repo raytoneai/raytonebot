@@ -1,0 +1,23 @@
+.unified-diff .unified-diff-line {
+  display: block;
+  min-height: 1lh;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.unified-diff .unified-diff-line[data-diff-kind="add"] {
+  background: color-mix(in srgb, var(--success) 14%, transparent);
+}
+
+.unified-diff .unified-diff-line[data-diff-kind="delete"] {
+  background: color-mix(in srgb, var(--danger) 14%, transparent);
+}
+
+.unified-diff .unified-diff-line[data-diff-kind="header"] {
+  color: var(--text-muted);
+}
+
+.unified-diff .unified-diff-line[data-diff-kind="hunk"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 8%, transparent);
+}

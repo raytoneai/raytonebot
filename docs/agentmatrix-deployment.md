@@ -186,3 +186,8 @@ Workspace 里产品数据落在 `.raytonebot/data`，角色目录在 `agents/{as
 
 不把托管 Session 换成 RaytoneBot 的运行时，不接 Event Bus，不做多实例、自动扩缩容、图形化恢复，
 也不在没有独立备份的情况下声称整机可恢复。
+
+
+## 模型配置持久化代码（2026-10-23，未部署验证）
+
+现有数据目录对应的私密存储是 `/workspace/.raytonebot/data.provider-secrets/`，设置页保存配置与加密密钥，重启或仅替换应用目录会保留。保存功能在 sandbox 模式下要求现有 Linux 隔离检查通过；本环境尚未完成独立 Agent UID/网络隔离，不能据本机回归宣称安全云端保存已验收。新建环境仍需持久卷或受信任的独立秘密恢复；普通数据备份不含这个目录。详见 [Provider 存储边界](product/12-provider-credentials-proposal.md)。

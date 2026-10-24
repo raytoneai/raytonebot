@@ -5,6 +5,7 @@ import { connect, isIP } from "node:net";
 import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { gatewayPort } from "./agentProcess.ts";
+import { providerErrorMessage } from "./providerError.ts";
 
 // The limits are a safety net, not a verdict on the task: say how to continue.
 const BUDGET_MESSAGE = "This turn reached its model request limit (RAYTONEBOT_RUN_MODEL_REQUESTS). Work so far is kept; send \"continue\" to resume.";
@@ -158,8 +159,7 @@ export async function createModelGateway(options: {
       // Never follow a provider redirect with the bot's key or send upstream cookies to an agent.
       if (upstream.status >= 300 && upstream.status < 400) { await upstream.body?.cancel(); return reply(res, 502, "Model provider redirects are disabled."); }
       if (upstream.status >= 400) {
-        await upstream.body?.cancel();
-        return reply(res, upstream.status, `Model provider returned HTTP ${upstream.status}.`);
+        return reply(res, upstream.status, await providerErrorMessage(upstream, [lease.apiKey, token]));
       }
       res.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") ?? "application/json", "cache-control": "no-store" });
       if (upstream.body) await pipeline(Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream), res);

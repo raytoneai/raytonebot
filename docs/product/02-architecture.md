@@ -126,7 +126,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 
 同一记录还保存用户手选的权限模式与思考预算；接收消息后保留选项，纯选项记录不构成待发送消息。已完成历史的纯选项记录不抢占启动导航，未发送会话则可从侧栏恢复。权限优先级为会话手选、设置默认、主机默认；未手选预算为中等。恢复期间现有选项按钮暂禁用；非法权限收紧为 request。编辑／重新生成分支保存来源的有效选项，仍用原有版本检查，不另建偏好存储。
 
-模型服务设置独立保存在当前 origin 的 localStorage `raytonebot.providerSettings`。63 行 `providerSettings.ts` 校验并保存已知服务相对项目默认值的修改，25 行 `useProviderSettings.ts` 在初始化时恢复，主机首次配置也使用恢复后的服务。仅包含地址、启用状态、模型列表/选择、默认服务与凭据环境变量名称；会话 key、协议和任意额外字段不保存，含账号密码、查询参数或片段的地址拒绝持久保存。读取失败使用项目默认值并提示，初始化不覆盖旧记录；写入失败保留当前页修改并提示未保存。其他标签页不自动切换模型，最后一次完整保存生效；不跨设备、不属于沙箱备份，见 ADR-023 与 `issue.md`。
+模型服务设置独立保存在当前 origin 的 localStorage `raytonebot.providerSettings`。`providerSettings.ts` 校验并保存已知服务相对项目默认值的修改，`useProviderSettings.ts` 初始化时恢复，主机首次配置也使用恢复后的服务。仅包含地址、已添加/启用状态、模型列表/选择、默认服务与凭据环境变量名称；会话 key、协议和任意额外字段不保存，含账号密码、查询参数或片段的地址拒绝持久保存。SettingsDialog 通过 `useProviderEditor.ts` 管理未提交草稿，显式保存先写浏览器再应用配置，下次发送同步主机；失败保留草稿，关闭时可保存或放弃。`added` 与 `enabled` 分开，停用不移除行；旧版已编辑记录恢复为已添加。读取失败使用项目默认值并提示，初始化不覆盖旧记录。其他标签页不自动切换模型，最后一次完整保存生效；不跨设备、不属于沙箱备份，见 ADR-023 与 `issue.md`。
 
 会话列表和详情读取均有 15 秒超时；读取失败由 `historyFeedback.ts` 生成仅供显示的错误事件，复用现有错误视图，不写入会话历史、不改变重接游标。重新选择会话成功后清除提示。只有本浏览器保存的未接受草稿可把服务端 404 当作尚未创建；已保存会话的 404 明确提示历史缺失。
 
@@ -204,7 +204,7 @@ AgentSphere 沙箱
 - **持久化用 Pi 自带的文件会话**，不引入数据库（ADR-004、ADR-012）。对话列表与历史经 `GET /conversations`、`GET /conversations/:id` 恢复；例行任务、Bot、记忆等配置也使用数据目录内的文件。队列或例行任务的存在不自动构成引入数据库的理由。
 - **原生上下文身份**：产品记录的 `piSessionId` 在 SDK preflight 确认 started、调用模型前写入；新记录为 null，配置失败可重试，字段缺省表示旧记录。`nativeSession.ts` 按 id 找原生文件并校验 JSONL 后打开，缺失不另起上下文；旧记录先校验目录中的原生文件，再按 SDK 列表选取最近会话，首次运行保存绑定。缓存中的 Pi 会话在配置/发送前也核对文件；这不是跨文件事务或完整语义校验。Claude/Codex 的已保存 CLI session 恢复失败同样明确报错，不自动重发到新 session。显式新建保留为独立操作。
 - **保存回执**：`conversationRecorder.ts` 单独处理每轮事件写入；完整用户消息、终态与交互等待先写盘再广播，普通增量按 40 条批量写。`conversationStore.ts` 仅将 ENOENT 当作缺失；损坏记录不可覆盖，写入失败清掉未提交缓存。提交前失败保留草稿，执行中失败向已连接读者发 `history_save_failed` 并请求停止；失败回执本身不能保证落盘。刷新通过 `incomplete` 显示缺少终态，保持原事件/游标不变；重启时补中断标记失败也不阻止读取其他历史。单文件 rename 不构成跨文件事务或断电保证，见 `issue.md`。
-- **凭据在服务端**：启动命令 source `~/.raytonebot/env`，模型配置用 `envVar`（默认 `DEEPSEEK_API_KEY`）取 key。浏览器设置面板保留作临时覆盖。
+- **凭据在服务端**：启动命令 source `~/.raytonebot/env`，模型配置用 `envVar`（默认 `DEEPSEEK_API_KEY`）取 key。设置页通过 `/__agentcanvas/pi/providers` 保存主机配置和加密凭据；浏览器仅持未提交草稿，见 [12](12-provider-credentials-proposal.md)。
 - **工作区分离**：云端用 `RAYTONEBOT_WORKSPACE_ROOT` 生成角色目录（见 [10](10-agents-and-permissions.md)）；本机未设置时 cwd 仍为项目目录。
 - **沙箱可丢弃**：重建 = 部署脚本 + 恢复最近备份。沙箱内不放 `E2B_API_KEY`。
 - **历史保留**：服务端不再以 200 个会话为界静默删历史，客户端更新也不再截断为 100 条；保留全部列表元数据，正文按需加载。只有显式删除/重置才移除产品记录；备份保留期限与外部存储策略尚未设置。
@@ -318,3 +318,10 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 `POST /__agentcanvas/pi/bots/import` 接收旧 `{profiles,conversations}`，只补缺失配置和未绑定且引擎一致的旧对话；不覆盖服务器保存的改名或已有 botId。`useBotProfiles` 首次导入旧名字/头像，之后读服务器，localStorage 仅为带 `source:server` 的显示缓存和未提交对话归属缓存。发送前完成同步，保存失败保留草稿；一页所有头像共享一个轮询器，前台 3 秒、聚焦及跨标签页通知刷新，未变化不重新发布状态。
 
 HTTP host 共用一个 BotConfigStore，网页、IM、例行任务和群聊运行都按其名单解析 Bot ID。会话/群保存的 availableBots/participants 是历史快照，不再覆盖当前配置。群创建同时保存主持 botId，IM 检查已绑定会话身份以区分改名与更换 Bot。IM 设置新增可选 botId（旧 agentPreset 回退到内置 ID），频道 picker 可选全部配置 Bot；聊天配对沿用发起 Bot。Routine 新增 botId，来自创建工具所处轮次，不由模型指定；旧任务回退 assistant。每次调度都重新查当前配置，UI 用同一名字表显示所属 Bot，原有模型配置和调度行为保持。
+
+
+### Provider 主机存储（2026-10-23）
+
+保存接口在读取请求体后、同步落盘与缓存失效前再次检查活跃任务，避免请求期间启动的新任务被销毁 bridge。Composer 的可选模型菜单经 `ShellExtras.providerSelection` 一次提交 Provider ID 和模型；原 slot registry 和独立预览回调保持兼容。
+
+`src/pi/providerStore.ts` 在 `<dataDir>.provider-secrets/` 持有加密的配置与 endpoint 绑定凭据；主机 GET/POST `/__agentcanvas/pi/providers` 返回 revision 与非秘密状态，POST 显式更新/删除，运行中拒绝保存。主机持久化先于页面应用，所有引擎共享解析。IM/例行任务通过 `credentialSource: "host"` 排除网页临时 key。此目录位于 data 备份之外，同时加入 Agent 工具与工作区读取排除；本地 master.key 或外部 RAYTONEBOT_CREDENTIAL_MASTER_KEY 的恢复边界见 [12](12-provider-credentials-proposal.md)。

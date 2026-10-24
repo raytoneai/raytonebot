@@ -87,7 +87,7 @@ export function OutputPanelModal({
               onCloseOpenItem={onCloseItem}
             />
           ) : null}
-          <OpenedOutputItem item={activeItem} copy={c} />
+          <OpenedOutputItem item={activeItem} copy={c} onClose={items.length === 1 ? onCloseItem : undefined} />
         </div>
       </section>
     </>

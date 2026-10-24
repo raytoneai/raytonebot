@@ -1,0 +1,2 @@
+{"responses":[200],"provider":"openai","model":"review-selected-model","oldModel":"deepseek-flash","errors":[]}
+PASS: cross-provider choice, same-provider choice, refresh, rejected-save feedback

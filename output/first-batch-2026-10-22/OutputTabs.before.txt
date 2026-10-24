@@ -1,0 +1,101 @@
+import { DocumentActions } from "./DocumentActions";
+import { StructuredArtifact } from "./StructuredArtifact";
+import { parseArtifactForm } from "../../../runtime/artifactForm";
+import { Download, RefreshCw, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+
+import type { OutputFrameCopy } from "./types";
+import type { OutputPanelItem } from "./panelItem";
+import { languageFromTitle, outputItemIcon, outputItemRenderKind } from "./renderKind";
+import { renderOpenedOutputBody } from "./openedItemBody";
+import { useFilePreview } from "./useFilePreview";
+import { workspaceFileUrl } from "../../../runtime/filePreview";
+import { useShellExtras } from "../../shell/ShellExtras";
+
+export function OutputTabs({
+  items,
+  activeId,
+  onSelectOpenItem,
+  onCloseOpenItem,
+}: {
+  items: readonly OutputPanelItem[];
+  activeId: string;
+  onSelectOpenItem?: (id: string) => void;
+  onCloseOpenItem?: (id: string) => void;
+}) {
+  const activeTabRef = useRef<HTMLDivElement | null>(null);
+
+  useEffect(() => {
+    activeTabRef.current?.scrollIntoView({
+      behavior: "smooth",
+      block: "nearest",
+      inline: "center",
+    });
+  }, [activeId]);
+
+  return (
+    <div className="output-tabs" role="tablist" aria-label="Opened output">
+      {items.map((item) => {
+        const active = item.id === activeId;
+        return (
+          <div
+            key={item.id}
+            ref={active ? activeTabRef : undefined}
+            className="output-tab"
+            data-active={active}
+          >
+            <button
+              className="output-tab-main"
+              type="button"
+              role="tab"
+              aria-selected={active}
+              onClick={() => onSelectOpenItem?.(item.id)}
+            >
+              {outputItemIcon(item)}
+              <span className="output-tab-title">{item.title}</span>
+            </button>
+            {onCloseOpenItem ? (
+              <button
+                className="output-tab-close"
+                type="button"
+                aria-label={`Close ${item.title}`}
+                onClick={(event) => {
+                  event.stopPropagation();
+                  onCloseOpenItem(item.id);
+                }}
+              >
+                <X size={12} />
+              </button>
+            ) : null}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+export function OpenedOutputItem({ item, copy }: { item: OutputPanelItem; copy: OutputFrameCopy }) {
+  const { workspace, workspaceScope, artifactForms } = useShellExtras();
+  const downloadUrl = item.downloadUrl ?? (item.workspacePath && workspaceScope ? workspaceFileUrl(item.workspacePath, workspaceScope, workspace) : undefined);
+  const preview = useFilePreview(item, downloadUrl);
+  const [failedKey, setFailedKey] = useState<object>();
+  const failed = failedKey === preview.key || Boolean(preview.error);
+  const language = item.language ?? languageFromTitle(item.title);
+  const renderKind = outputItemRenderKind(item);
+  let form, formError;
+  try { form = preview.body ? parseArtifactForm(preview.body) : undefined; } catch (error) { formError = error instanceof Error ? error.message : String(error); }
+  return (
+    <div className="opened-output-item" data-kind={item.kind} data-render-kind={renderKind}>
+      <div className="artifact-title">
+        {outputItemIcon(item, 16)}
+        <span title={item.subtitle ?? item.workspacePath ?? item.title}>{item.title}</span>
+        {item.kind !== "file" && item.subtitle ? <em>{item.subtitle}</em> : null}
+        {!/\.[a-z0-9]+$/i.test(item.title) ? <code>{language}</code> : null}
+        {downloadUrl || preview.contentUrl ? <a className="rail-icon-btn" href={downloadUrl ?? preview.contentUrl} download={item.title} aria-label={copy.download}><Download size={16} /></a> : null}
+        {downloadUrl || failed ? <button className="rail-icon-btn" type="button" aria-label={copy.retryPreview} onClick={preview.retry}><RefreshCw size={16} /></button> : null}
+      </div>
+      {!preview.loading && !failed && preview.body !== undefined && (/\.(md|txt)$/i.test(item.title) || !downloadUrl && ["markdown", "text"].includes(language)) ? <DocumentActions key={item.id} item={item} body={preview.body} downloadUrl={downloadUrl} /> : null}
+      {preview.loading ? <p role="status">{copy.loadingFiles}</p> : failed ? <p role="alert">{preview.error === "too-large" ? copy.previewTooLarge : copy.previewFailed}</p> : formError ? <p role="alert">{formError}</p> : form ? <StructuredArtifact key={JSON.stringify([artifactForms?.conversationId, item.artifactId ?? item.id, item.revision, preview.body])} artifactId={item.artifactId ?? item.id} source={preview.body!} form={form} /> : renderOpenedOutputBody({ ...item, body: preview.body, mediaSrc: preview.mediaSrc }, renderKind, language, copy, () => setFailedKey(preview.key))}
+    </div>
+  );
+}

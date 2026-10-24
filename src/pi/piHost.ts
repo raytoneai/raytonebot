@@ -1,3 +1,5 @@
+import { ProviderStore, ProviderStoreError, providerBinding } from "./providerStore.ts";
+import { piRuntimeConfigurationForProvider } from "./piProviderSync.ts";
 import { BotConfigStore, BotConfigError } from "./botConfig.ts";
 import { realpathSync } from "node:fs";
 import type { IncomingMessage, ServerResponse } from "node:http";
@@ -133,6 +135,7 @@ export type PiRuntimeController = {
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   steer(conversationId: string, runId: string, requestId: string, text: string): Promise<boolean>;
   testProvider(definition: PiProviderDefinition, apiKey?: string): Promise<ProviderProbeResult>;
+  refreshProviders?(): void;
   /** Saved conversations; `running` marks those with a turn in flight right now, `awaitingUser`
    *  those whose turn holds an approval or a question for the user. */
   listConversations(query?: string): (ConversationSummary & { running: boolean; activeRunId?: string; awaitingUser?: boolean })[];
@@ -172,6 +175,7 @@ export function createPiRuntimeController(options: {
   dataDir?: string;
   store?: ConversationStore;
   bots?: BotConfigStore;
+  providers?: ProviderStore;
   bridgeFactory?: PiBridgeFactory;
   limits?: RunLimits;
   /** Connecting an IM channel from chat; the host binds it to its channel manager. */
@@ -213,7 +217,7 @@ export function createPiRuntimeController(options: {
   const defaultPermissionMode: PiPermissionMode = sandboxed ? "auto" : "request";
   const workspaces = [...new Set([cwd, ...Object.values(layout.agents), ...(layout.shared ? [layout.shared] : [])])];
   const appRoot = options.appRoot ?? process.cwd();
-  const secretPaths = defaultSecretPaths();
+  const secretPaths = [...defaultSecretPaths(), `${dataDir}.provider-secrets`];
   // In the sandbox agents run as their own user with their own home; locally it is the developer's.
   const protectedPaths = defaultProtectedPaths({ workspaces, agentHome: process.env.RAYTONEBOT_AGENT_HOME?.trim() || undefined });
   /** The bot's own code: agents may read it (reviewing it is a normal task), never change it. */
@@ -323,14 +327,14 @@ export function createPiRuntimeController(options: {
   };
   /** remember / forget and the browser for one conversation's agent; downloads land in its own workspace. */
   const hostToolsFor = (conversationId: string, agent: AgentPresetId) => mergeHostTools(
-    artifactTools(layout, agent, [dataDir], (file) => {
+    artifactTools(layout, agent, [dataDir, `${dataDir}.provider-secrets`], (file) => {
       const slot = runs.get(conversationId);
       if (!slot?.adapter || slot.stopRequested) throw new Error("The artifact run is no longer active.");
       slot.adapter.apply({ type: "artifact_published", ...file });
     }),
     options.memory?.toolsFor({ conversationId, agent }),
     options.browser?.toolsFor({ conversationId, agent,
-      saveDownload: (name, bytes) => saveWorkspaceDownload(layout, agent, name, bytes, [dataDir]),
+      saveDownload: (name, bytes) => saveWorkspaceDownload(layout, agent, name, bytes, [dataDir, `${dataDir}.provider-secrets`]),
       ask: (questions, signal) => askUser(conversationId, { toolCallId: `browser_takeover_${randomUUID()}`, questions, signal: signal ?? new AbortController().signal }) }),
   );
   const askUser = async (conversationId: string, { toolCallId, questions, signal }: UserInputRequest) => {
@@ -376,8 +380,13 @@ export function createPiRuntimeController(options: {
   };
   let activeConversationId = defaultConversationId;
   /** Provider definitions and session keys from settings, for CLI harnesses that need them. */
+  const providerStore = options.providers ?? new ProviderStore();
   const providerDefinitions = new Map<string, PiProviderDefinition>();
+  try { for (const p of providerStore.view().providers?.connections ?? []) providerDefinitions.set(p.id, piRuntimeConfigurationForProvider(p).providerDefinition!); } catch { /* Exposed by the settings endpoint; do not overwrite damaged storage. */ }
   const providerKeys = new Map<string, string>();
+  const hostCredentialConversations = new Set<string>();
+  const resolveProviderKey = (definition: PiProviderDefinition, conversationId?: string) => definition.authMode === "none" ? undefined
+    : (conversationId && hostCredentialConversations.has(conversationId) ? undefined : providerKeys.get(providerBinding(definition))) ?? providerStore.resolve(definition) ?? providerStore.environmentKey(definition);
   /** Product conversation → the CLI's own session id, so follow-up turns resume it. */
   const cliSessions = new Map<string, { harness: AgentHarnessId; id: string }>();
   /**
@@ -430,7 +439,7 @@ export function createPiRuntimeController(options: {
     alwaysAllowed: approvalMemory.list(),
     workspace: layout,
     envKeys: Object.keys(process.env).filter((key) => /(_API_KEY|_AUTH_TOKEN)$/.test(key) && Boolean(process.env[key])).sort(),
-    sessionKeyProviders: [...providerKeys.keys()],
+    sessionKeyProviders: [...providerDefinitions.values()].filter(d => providerKeys.has(providerBinding(d))).map(d => d.id),
   });
 
   const state = async (conversationId = activeConversationId): Promise<PiRuntimeState> => {
@@ -462,11 +471,10 @@ export function createPiRuntimeController(options: {
   };
 
   /** A provider definition plus the key to reach it: the session key, else the host's env var. */
-  const providerCredentials = (providerId?: string) => {
+  const providerCredentials = (providerId?: string, conversationId?: string) => {
     const definition = providerId ? providerDefinitions.get(providerId) : undefined;
     if (!definition) return undefined;
-    const apiKey = providerKeys.get(definition.id)
-      ?? (definition.apiKeyEnvVar ? process.env[definition.apiKeyEnvVar]?.trim() : undefined);
+    const apiKey = resolveProviderKey(definition, conversationId);
     return { definition, apiKey };
   };
 
@@ -480,7 +488,7 @@ export function createPiRuntimeController(options: {
   };
   /** Summarizes a new conversation's first prompt with the turn's own model service. */
   const titleConversation = async (id: string, createdAt: number, input: PiPromptInput, prompt: string) => {
-    const credentials = providerCredentials(input.provider);
+    const credentials = providerCredentials(input.provider, id);
     if (!credentials || (credentials.definition.authMode !== "none" && !credentials.apiKey)) return;
     try {
       const title = await summarizeConversationTitle(credentials.definition, credentials.apiKey,
@@ -490,8 +498,8 @@ export function createPiRuntimeController(options: {
     } catch { log("conversation.title_failed", { conversationId: id, status: "request" }); }
   };
 
-  const codexProvider = (providerId?: string, model?: string) => {
-    const credentials = providerCredentials(providerId);
+  const codexProvider = (providerId?: string, model?: string, conversationId?: string) => {
+    const credentials = providerCredentials(providerId, conversationId);
     if (!credentials) {
       throw new Error("Codex has no model service configured. Save the model service in settings, or switch Codex to its local login.");
     }
@@ -505,15 +513,14 @@ export function createPiRuntimeController(options: {
     return { name: definition.name, baseUrl: definition.baseUrl, apiKey, model: model ?? definition.models[0] };
   };
 
-  const claudeProvider = (providerId?: string, model?: string, engine = "Claude Code") => {
+  const claudeProvider = (providerId?: string, model?: string, engine = "Claude Code", conversationId?: string) => {
     const definition = providerId ? providerDefinitions.get(providerId) : undefined;
     if (!definition) {
       throw new Error(`${engine} has no model service configured. Save the model service in settings.`);
     }
     const baseUrl = anthropicBaseUrlForProvider(definition);
     if (!baseUrl) throw new Error(`${definition.name} has no Anthropic-compatible endpoint, which ${engine} needs.`);
-    const apiKey = providerKeys.get(definition.id)
-      ?? (definition.apiKeyEnvVar ? process.env[definition.apiKeyEnvVar]?.trim() : undefined);
+    const apiKey = resolveProviderKey(definition, conversationId);
     if (!apiKey) {
       throw new Error(`${definition.name} API key is not set. Enter it in settings, or set ${definition.apiKeyEnvVar ?? "its key"} on the server.`);
     }
@@ -534,7 +541,10 @@ export function createPiRuntimeController(options: {
     approvalGate.setMode(input.permissionMode ?? "request");
     approvalGate.setAgent(isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant");
     if (input.provider || input.model || input.thinkingLevel) {
-      await current.configure({ provider: input.provider, model: input.model, thinkingLevel: input.thinkingLevel });
+      const definition = input.provider ? providerDefinitions.get(input.provider) : undefined;
+      const apiKey = definition ? resolveProviderKey(definition, conversationId) : undefined;
+      await current.configure({ provider: input.provider, model: input.model, thinkingLevel: input.thinkingLevel,
+        ...(definition ? { providerDefinition: { ...definition, apiKeyEnvVar: undefined }, apiKey, clearApiKey: !apiKey } : {}) });
     }
 
     const adapter = createPiEventAdapter({
@@ -657,7 +667,7 @@ export function createPiRuntimeController(options: {
       if (sandboxed) requireAgentIsolation();
       if (harness === "dsh") {
         if (sandboxed) throw new Error("DSH is currently available for local testing only.");
-        const provider = await modelLease(claudeProvider(input.provider, input.model, "DeepSeek Harness"), "anthropic", conversationId, input.thinkingLevel);
+        const provider = await modelLease(claudeProvider(input.provider, input.model, "DeepSeek Harness", conversationId), "anthropic", conversationId, input.thinkingLevel);
         lease = provider;
         await runDsh({
           cwd: runCwd, home: join(dataDir, "dsh", encodeURIComponent(conversationId)), prompt: modelPrompt,
@@ -676,7 +686,7 @@ export function createPiRuntimeController(options: {
       } else if (harness === "claude-code") {
         if (sandboxed && input.claudeCodeModelSource === "local-login") throw new Error("Sandbox agents require a configured model service; local login is disabled.");
         const provider = input.claudeCodeModelSource === "local-login" ? undefined
-          : await modelLease(claudeProvider(input.provider, input.model), "anthropic", conversationId, input.thinkingLevel);
+          : await modelLease(claudeProvider(input.provider, input.model, "Claude Code", conversationId), "anthropic", conversationId, input.thinkingLevel);
         lease = provider;
         await runClaudeCode({
           cwd: runCwd,
@@ -720,7 +730,7 @@ export function createPiRuntimeController(options: {
         });
       } else {
         if (sandboxed && input.codexModelSource === "local-login") throw new Error("Sandbox agents require a configured model service; local login is disabled.");
-        const configured = input.codexModelSource === "local-login" ? undefined : codexProvider(input.provider, input.model);
+        const configured = input.codexModelSource === "local-login" ? undefined : codexProvider(input.provider, input.model, conversationId);
         const provider = configured ? { ...configured, ...await modelLease(configured, "openai", conversationId, input.thinkingLevel) } : undefined;
         lease = provider;
         await runCodex({
@@ -797,8 +807,16 @@ export function createPiRuntimeController(options: {
       idle();
       await track(configuring, conversationId, (async () => {
         if (input.providerDefinition) providerDefinitions.set(input.providerDefinition.id, input.providerDefinition);
-        if (input.provider && input.apiKey) providerKeys.set(input.provider, input.apiKey);
-        else if (input.provider && input.clearApiKey) providerKeys.delete(input.provider);
+        if (input.credentialSource === "host") hostCredentialConversations.add(conversationId);
+        else if (input.apiKey) hostCredentialConversations.delete(conversationId);
+        const definition = input.provider ? providerDefinitions.get(input.provider) : undefined;
+        if (definition) {
+          const binding = providerBinding(definition);
+          if (input.apiKey) providerKeys.set(binding, input.apiKey);
+          else if (input.clearApiKey) providerKeys.delete(binding);
+          const apiKey = resolveProviderKey(definition, conversationId);
+          input = { ...input, providerDefinition: { ...definition, apiKeyEnvVar: undefined }, apiKey, clearApiKey: !apiKey };
+        }
         const current = await bridge(conversationId);
         await current.configure(input);
       })());
@@ -915,7 +933,7 @@ export function createPiRuntimeController(options: {
         opened = true;
         store.setExtra(conversationId, { botId: identity.botId, availableBots: identity.availableBots });
         if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
-        const workspacePrompt = await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir]);
+        const workspacePrompt = await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir, `${dataDir}.provider-secrets`]);
         const memoryNote = memory?.noteFor(conversationId);
         slot.memoryDelivered = memoryNote?.delivered;
         const browserNote = browser?.contextNote();
@@ -998,10 +1016,14 @@ export function createPiRuntimeController(options: {
       if (runs.has(sourceId)) throw new ConversationBranchError("Stop this conversation's run before creating a branch.");
       return store.branch(`branch_${randomUUID()}`, sourceId, beforeRunId);
     },
+    refreshProviders() {
+      providerKeys.clear();
+      providerDefinitions.clear();
+      for (const p of providerStore.view().providers?.connections ?? []) providerDefinitions.set(p.id, piRuntimeConfigurationForProvider(p).providerDefinition!);
+      for (const id of bridgePromises.keys()) dropBridge(id);
+    },
     async testProvider(definition, apiKey) {
-      const key = apiKey?.trim()
-        || providerKeys.get(definition.id)
-        || (definition.apiKeyEnvVar ? process.env[definition.apiKeyEnvVar]?.trim() : undefined);
+      const key = apiKey?.trim() || resolveProviderKey(definition);
       return probeProvider(definition, definition.authMode === "none" ? undefined : key);
     },
     async steer(conversationId, runId, requestId, text) {
@@ -1066,10 +1088,10 @@ export function createPiRuntimeController(options: {
   // Group chat wraps the controller (groupChat.ts, ADR-032).
   return attachGroupChat(api, { store, userInputGate,
     bots: options.bots,
-    validateAttachments: (attachments, role) => promptWithWorkspaceFiles("", attachments, role, layout, [dataDir]).then(() => {}),
+    validateAttachments: (attachments, role) => promptWithWorkspaceFiles("", attachments, role, layout, [dataDir, `${dataDir}.provider-secrets`]).then(() => {}),
     credentials: providerCredentials,
     providerDefinition: (id) => id ? providerDefinitions.get(id) : undefined,
-    providerKey: (id) => id ? providerKeys.get(id) : undefined, log, providerIds: () => [...providerDefinitions.keys()],
+    providerKey: (id) => providerCredentials(id)?.apiKey, log, providerIds: () => [...providerDefinitions.keys()],
     titleGroup: async (id, input, prompt) => {
       const conversation = store.get(id);
       if (conversation) await titleConversation(id, conversation.createdAt, input, prompt);
@@ -1091,17 +1113,18 @@ export function createPiHttpHost(options: {
   browser?: false | BrowserService;
 }) {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: options.cwd });
-  const privatePaths = [options.dataDir ?? defaultDataDir()];
+  const privatePaths = [options.dataDir ?? defaultDataDir(), `${options.dataDir ?? defaultDataDir()}.provider-secrets`];
   // Bound below: the setup needs the channel manager, which needs the controller.
   let channelSetup: ReturnType<typeof createChannelSetup> | undefined;
   let routines: RoutineService | undefined;
   const dataDir = options.dataDir ?? defaultDataDir();
+  const providers = new ProviderStore(join(`${dataDir}.provider-secrets`, "providers.enc"));
   const bots = new BotConfigStore(join(dataDir, "bots.json"));
   const store = createConversationStore(dataDir);
   const mcp = createMcpService({ dataDir, log: runtimeLogger(dataDir) });
   const memory = createMemoryService({ dataDir, log: runtimeLogger(dataDir) });
   const browser = options.browser === false ? undefined : options.browser ?? createBrowserService({ dataDir, log: runtimeLogger(dataDir) });
-  const controller = createPiRuntimeController({ ...options, layout, store, bots, channelSetup: (run) => channelSetup!.run(run),
+  const controller = createPiRuntimeController({ ...options, layout, store, bots, providers, channelSetup: (run) => channelSetup!.run(run),
     createRoutine: (input) => routines!.create(input), mcpTools: () => mcp.toolkit(), memory, browser });
   routines = createRoutineService({ dataDir, bots, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
   const stopClock = options.routineClock === false ? undefined : routines.startClock();
@@ -1128,6 +1151,22 @@ export function createPiHttpHost(options: {
       }
 
       try {
+        if (url.pathname === `${PI_API_PREFIX}/providers`) {
+          if (req.method === "GET") sendJson(res, 200, providers.view());
+          else if (req.method === "POST") {
+            if (controller.health().activeRuns) throw new ProviderStoreError("Stop running tasks before saving model services.", 409);
+            if (options.sandboxed ?? process.env.RAYTONEBOT_SANDBOX === "1") requireAgentIsolation({ ...process.env, RAYTONEBOT_SANDBOX: "1" });
+            let body: Record<string, unknown>;
+            try { body = await readJson(req); } catch { throw new ProviderStoreError("Invalid provider save request."); }
+            // A turn may have started while the body was arriving. Keep this guard adjacent
+            // to the synchronous save/cache invalidation so no running bridge is disposed.
+            if (controller.health().activeRuns) throw new ProviderStoreError("Stop running tasks before saving model services.", 409);
+            const saved = providers.save(body.providers, body.keys ?? {}, body.removeKeys ?? [], body.revision);
+            controller.refreshProviders?.();
+            sendJson(res, 200, saved);
+          } else sendJson(res, 405, { error: "Unsupported provider operation." });
+          return true;
+        }
         if (url.pathname === `${PI_API_PREFIX}/bots` || url.pathname === `${PI_API_PREFIX}/bots/import`) {
           try {
             if (req.method === "GET" && url.pathname.endsWith("/bots")) sendJson(res, 200, bots.view());
@@ -1585,7 +1624,7 @@ export function createPiHttpHost(options: {
         }
         sendJson(res, 404, { error: "Unknown Pi endpoint." });
       } catch (error) {
-        if (!res.headersSent) sendJson(res, error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
+        if (!res.headersSent) sendJson(res, error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
         else if (!res.destroyed) res.end();
       }
       return true;
@@ -1862,6 +1901,9 @@ export function registerEditorProvider(
   }
   if (!baseUrl) throw new Error(`Pi base URL is required for ${definition.name || id}.`);
   const parsedUrl = new URL(baseUrl);
+  // The lease URL is loopback, so use the original endpoint for provider capabilities.
+  const geminiOpenAI = definition.protocol === "openai-compatible"
+    && new URL(upstreamBaseUrl).hostname === "generativelanguage.googleapis.com";
   if (parsedUrl.protocol !== "http:" && parsedUrl.protocol !== "https:") {
     throw new Error(`Pi provider URL must use HTTP or HTTPS: ${baseUrl}`);
   }
@@ -1886,6 +1928,7 @@ export function registerEditorProvider(
       id: model,
       name: model,
       reasoning: deepSeekThinking(upstreamBaseUrl, model),
+      ...(geminiOpenAI ? { compat: { supportsStore: false } } : {}),
       ...(deepSeekThinking(upstreamBaseUrl, model) ? { compat: { thinkingFormat: "deepseek" as const, supportsReasoningEffort: true, supportsDeveloperRole: false,
         supportsStore: false, maxTokensField: "max_tokens" as const, requiresReasoningContentOnAssistantMessages: true } } : {}),
       input: ["text", "image"],

@@ -198,7 +198,7 @@ export class ChannelBridge {
       stream = message.reply.stream ? await message.reply.stream("思考中…").catch(() => undefined) : undefined;
       const model = settings.model;
       if (model) {
-        await this.options.runtime.configure({ conversationId, providerDefinition: model.definition, provider: model.definition.id, model: model.model });
+        await this.options.runtime.configure({ conversationId, credentialSource: "host", providerDefinition: model.definition, provider: model.definition.id, model: model.model });
       }
       // A /stop that arrived while the reply and model were being prepared.
       if (pending.stopped) cancelled = true;

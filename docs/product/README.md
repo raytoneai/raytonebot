@@ -17,6 +17,7 @@ RaytoneBot 是一个支持本机与云端部署的单用户 AI 工作助手。�
 | [09 踩坑记录](09-lessons.md) | 已知故障与用户纠正 | 按主题排障时 |
 | [10 引擎与权限](10-agents-and-permissions.md) | Bot 身份、Pi/Claude/Codex/DSH、审批与隔离 | 改引擎、Bot 或权限时 |
 | [11 参考项目对齐](11-parity.md) | 固定版本的历史对照与后续补证 | 回查竞品研究依据时 |
+| [12 Provider 凭据方案](12-provider-credentials-proposal.md) | 模块问题清单、主机密钥持久化与恢复边界 | 接续模型服务与凭据保存工作时 |
 
 ## 部署文档
 

@@ -15,6 +15,7 @@ import type { ComposerDraft, ComposerRunOptions } from "../agent-preview/Compose
 import type { OutputPanelOpenRequest } from "../agent-preview/outputframe/panelItem";
 import type { OutputPanelSource } from "../agent-preview/outputframe/types";
 import type { PiRuntimeState } from "../../pi/piClient";
+import type { ProviderConnectionId } from "../../schema/agentuxConfig";
 import {
   AGENT_PRESETS,
   agentPreset,
@@ -77,6 +78,8 @@ export type ShellExtras = {
   transcriptTarget?: { textId: string; nonce: string };
   /** Composer placeholder naming the current agent. */
   composerPlaceholder?: string;
+  /** One model-menu choice is one host transaction; legacy previews keep their callbacks. */
+  providerSelection?: { onChange: (providerId: ProviderConnectionId, model: string) => void; error?: string };
   /** Live work above the input; an empty persona leaves a stable, quiet gap after completion. */
   composerActivity?: { scope: string; persona?: AgentPersona };
   /** Group chat: members the composer offers after "@", in group order. */

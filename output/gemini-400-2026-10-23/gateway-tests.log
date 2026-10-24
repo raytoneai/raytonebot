@@ -1,0 +1,20 @@
+✔ model leases fix the provider/model, keep upstream keys private, cap calls, and revoke (20.876333ms)
+✔ Anthropic leases use the fixed endpoint and reject redirects and elapsed duration (12.354625ms)
+✔ package proxy excludes private addresses and sandbox execution has no unconfigured fallback (0.290542ms)
+✔ package tunnels inspect the real TLS ClientHello hostname before connecting upstream (2.517958ms)
+✔ revoking a lease while a client uploads its body prevents any upstream call (1.933625ms)
+✔ DeepSeek UI thinking levels reach every wire protocol and leave other providers untouched (7.360833ms)
+✔ Pi retains DeepSeek thinking capabilities behind its loopback model lease (441.165458ms)
+✔ installed Pi SDK omits store for official Gemini behind a lease without changing other providers (84.304833ms)
+✔ provider JSON errors retain actionable details without credentials or unrelated fields (10.286084ms)
+✔ provider errors reject HTML, oversized and stalled bodies and hide auth details (17.306291ms)
+✔ model gateway forwards sanitized upstream reasons with the original HTTP status (17.546667ms)
+✔ Google OpenAI compatibility array errors retain the upstream diagnostic (0.204416ms)
+ℹ tests 12
+ℹ suites 0
+ℹ pass 12
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 655.601708

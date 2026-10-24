@@ -153,7 +153,7 @@ const zh: typeof en = {
     stopFailed: "未确认主机已停止；任务可能仍在运行，请重试停止。",
     send: "发送",
     draftStatus: { loading: "正在恢复草稿和运行选项…", unavailable: "草稿或运行选项未保存，请保留此页面", conflict: "其他标签页已更新草稿或运行选项；刷新前请先复制这里的修改。" },
-    queue: { label: "待发送的追问", title: (count: number) => `${count} 条待发送`, waiting: "当前回复结束后依次发送", sending: "正在发送下一条…", paused: { stopped: "已停止，队列已暂停", failed: "上一轮失败或连接中断，队列已暂停", restored: "页面刷新后已暂停；继续前会先核对哪些已发送" }, resume: "继续发送", add: "排队", edit: "编辑", editBlocked: "先清空输入框再编辑此条", remove: "移除", files: (count: number) => `${count} 个附件` },
+    queue: { label: "待发送的追问", title: (count: number) => `${count} 条待发送`, waiting: "当前回复结束后依次发送", sending: "正在发送下一条…", paused: { stopped: "已停止，队列已暂停", failed: "上一轮失败或连接中断，队列已暂停", restored: "页面刷新后已暂停；继续前会先核对哪些已发送" }, resume: "继续发送", add: "排队发送", edit: "编辑", editBlocked: "先清空输入框再编辑此条", remove: "移除", files: (count: number) => `${count} 个附件` },
   },
   floatingSettings: {
     settings: "提供方设置",

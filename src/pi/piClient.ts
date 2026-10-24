@@ -104,6 +104,8 @@ export type PiProviderDefinition = {
 };
 
 export type PiRuntimeConfiguration = {
+  /** Unattended callers use persisted host/environment keys, never a browser temporary key. */
+  credentialSource?: "host";
   conversationId?: string;
   provider?: string;
   model?: string;
@@ -149,8 +151,11 @@ export async function testProviderConnection(
   provider: PiProviderDefinition,
   apiKey?: string,
   fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<ProviderTestResult> {
-  return requestJson<ProviderTestResult>(fetcher, `${PI_API_PREFIX}/provider/test`, { provider, apiKey });
+  const timeout = AbortSignal.timeout(15_000);
+  return requestJson<ProviderTestResult>(fetcher, `${PI_API_PREFIX}/provider/test`, { provider, apiKey },
+    signal ? AbortSignal.any([signal, timeout]) : timeout);
 }
 
 export type StoredConversationSummary = {
@@ -573,4 +578,17 @@ export function importBotConfig(profiles: BotProfile[], conversations: Record<st
 }
 export function putBotConfig(bot: BotProfile, revision: number): Promise<BotConfigView> {
   return requestJson(fetch, `${PI_API_PREFIX}/bots`, { bot, revision }, AbortSignal.timeout(15_000));
+}
+
+/** Host-owned settings; this response never contains API keys or key fragments. */
+export type ProviderSettingsView = {
+  revision: number;
+  providers?: import("../schema/agentuxConfig").AgentFrontendProject["providers"];
+  credentials: Record<string, boolean>;
+};
+export async function getProviderSettings(fetcher: typeof fetch = fetch): Promise<ProviderSettingsView> {
+  return requestJson<ProviderSettingsView>(fetcher, `${PI_API_PREFIX}/providers`);
+}
+export async function saveProviderSettings(input: { providers: NonNullable<ProviderSettingsView["providers"]>; keys: Record<string, string>; removeKeys: string[]; revision: number }, fetcher: typeof fetch = fetch): Promise<ProviderSettingsView> {
+  return requestJson<ProviderSettingsView>(fetcher, `${PI_API_PREFIX}/providers`, input);
 }

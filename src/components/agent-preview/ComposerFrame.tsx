@@ -138,7 +138,7 @@ export function ComposerFrame({
   const copy = useCopy();
   const { locale } = useLocale();
   const steerLabel = locale === "zh" ? "调整当前任务" : locale === "ja" ? "現在のタスクを調整" : "Adjust current task";
-  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity, onBrowseWorkspace } = useShellExtras();
+  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity, onBrowseWorkspace, providerSelection } = useShellExtras();
   const reduceMotion = useReducedMotion();
   const workingPersona = composerActivity?.persona;
   const activityCopy = composerActivityCopy[locale];
@@ -228,8 +228,8 @@ export function ComposerFrame({
   const stopFeedback = stopStatus === "pending" ? copy.composer.frame.stopping : stopStatus === "failed" ? copy.composer.frame.stopFailed : undefined;
   const draftStatus = composerDraft?.status;
   // Autosave is silent; restoration and failures still explain blocked or unsafe navigation.
-  const draftFeedback = draftStatus && draftStatus !== "saving" && draftStatus !== "saved"
-    ? copy.composer.frame.draftStatus[draftStatus] : undefined;
+  const draftFeedback = providerSelection?.error ?? (draftStatus && draftStatus !== "saving" && draftStatus !== "saved"
+    ? copy.composer.frame.draftStatus[draftStatus] : undefined);
   const canSubmit = !restoringDrafts && (promptValue.trim().length > 0 || attachedFiles.length > 0);
   // While a turn runs, a new message joins the queue instead of turning Send into Stop.
   const canQueue = isRunning && canSubmit && Boolean(composerQueue?.canEnqueue);
@@ -344,6 +344,10 @@ export function ComposerFrame({
     }
     const [providerId, model] = value.split("::");
     if (!providerId || !model) {
+      return;
+    }
+    if (providerSelection) {
+      providerSelection.onChange(providerId as ProviderConnectionId, model);
       return;
     }
     if (providerId !== defaultProvider.id) {
@@ -808,11 +812,11 @@ export function ComposerFrame({
               </IconButton>
             ) : null}
             {canQueue && composerQueue?.onSteer && attachedFiles.length === 0 ? (
-              <Button variant="primary" type="button" disabled={steering} aria-label={steerLabel} title={locale === "zh" ? "在下一次模型调用前接收补充，不会立即停止当前输出" : "Applies before the next model call; does not stop current output"} onClick={() => void submitSteering(promptValue)}>{locale === "zh" ? "插话" : locale === "ja" ? "補足" : "Adjust"}</Button>
+              <Button className="composer-steer" variant="ghost" size="sm" type="button" disabled={steering} aria-label={steerLabel} title={locale === "zh" ? "在下一次模型调用前接收补充，不会立即停止当前输出" : "Applies before the next model call; does not stop current output"} onClick={() => void submitSteering(promptValue)}>{locale === "zh" ? "插话" : locale === "ja" ? "補足" : "Adjust"}</Button>
             ) : null}
             {canQueue ? (
-              <Button className="send-button composer-queue-add" variant="primary" type="submit" disabled={steering}>
-                <ListPlus size={16} />
+              <Button className="composer-queue-add" variant="primary" size="sm" type="submit" disabled={steering}>
+                <ListPlus size={16} aria-hidden="true" />
                 {copy.composer.frame.queue.add}
               </Button>
             ) : null}

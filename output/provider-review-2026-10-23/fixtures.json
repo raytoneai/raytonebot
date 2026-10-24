@@ -1,0 +1,142 @@
+[
+  {
+    "name": "欢迎页(无事件)",
+    "scrollWidth": 462,
+    "selected": "欢迎页(无事件)",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Built-in demo",
+    "scrollWidth": 462,
+    "selected": "Built-in demo",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Group chat",
+    "scrollWidth": 462,
+    "selected": "Group chat",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Coding agent",
+    "scrollWidth": 462,
+    "selected": "Coding agent",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Reasoning kinds",
+    "scrollWidth": 462,
+    "selected": "Reasoning kinds",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Tool approval",
+    "scrollWidth": 462,
+    "selected": "Tool approval",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Error block",
+    "scrollWidth": 462,
+    "selected": "Error block",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Artifact action",
+    "scrollWidth": 462,
+    "selected": "Artifact action",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Capability tray",
+    "scrollWidth": 462,
+    "selected": "Capability tray",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "HTML artifact stream",
+    "scrollWidth": 462,
+    "selected": "HTML artifact stream",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Basic text",
+    "scrollWidth": 462,
+    "selected": "Basic text",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Normal turn",
+    "scrollWidth": 462,
+    "selected": "Normal turn",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Streaming thinking + message",
+    "scrollWidth": 462,
+    "selected": "Streaming thinking + message",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Tool approval + completion",
+    "scrollWidth": 462,
+    "selected": "Tool approval + completion",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "MCP success + interrupt",
+    "scrollWidth": 462,
+    "selected": "MCP success + interrupt",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Runtime boot + sync",
+    "scrollWidth": 462,
+    "selected": "Runtime boot + sync",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Retrying incident",
+    "scrollWidth": 462,
+    "selected": "Retrying incident",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Exhausted incident",
+    "scrollWidth": 462,
+    "selected": "Exhausted incident",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Terminal incident",
+    "scrollWidth": 462,
+    "selected": "Terminal incident",
+    "width": 462,
+    "rendered": true
+  },
+  {
+    "name": "Config, spans, deletion",
+    "scrollWidth": 462,
+    "selected": "Config, spans, deletion",
+    "width": 462,
+    "rendered": true
+  }
+]

@@ -1,0 +1,33 @@
+{
+  "approval": {
+    "selectionDoesNotSubmit": true,
+    "doubleClickRequests": 1,
+    "pendingDisabled": true,
+    "failedRetainsSelection": true,
+    "retryDecision": "no",
+    "successDismissed": true,
+    "keyboardSelection": true
+  },
+  "composer": {
+    "isolated": true,
+    "actions": [
+      "queue",
+      "steer",
+      "stop"
+    ],
+    "draftRetainedAfterStop": true,
+    "queuePausedAfterStop": true,
+    "jaDark390Overflow": false
+  },
+  "output": {
+    "defaultWidth": 436.0390625,
+    "previousWidth": 316,
+    "resizedWidth": 386.4921875,
+    "restoredWidth": 386.4921875,
+    "refreshRestored": true,
+    "searchNoMatches": true,
+    "clearRefocuses": true
+  },
+  "fixtures": 20,
+  "consoleErrors": 0
+}

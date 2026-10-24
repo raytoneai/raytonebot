@@ -1,3 +1,5 @@
+import { looksLikeUnifiedDiff } from "../../../runtime/unifiedDiff";
+import { renderDiffPreview } from "./diffPreview";
 import type { ReactNode } from "react";
 
 import type { OutputFrameCopy } from "./types";
@@ -42,6 +44,7 @@ export function renderOpenedOutputBody(item: OutputPanelItem, kind: OpenedOutput
   if (kind === "data") {
     return <pre data-language="json">{normalizeJsonPreview(body)}</pre>;
   }
+  if (kind === "diff" || kind === "code" && looksLikeUnifiedDiff(body)) return renderDiffPreview(body);
   return <pre data-language={language}>{body}</pre>;
 }
 

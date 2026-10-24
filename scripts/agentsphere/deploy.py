@@ -288,7 +288,7 @@ def main() -> None:
     # Model keys: a value in this machine's environment wins; otherwise keep the sandbox's current
     # one, so a redeploy from a shell without the key does not silently disable the models.
     # TAVILY_API_KEY backs web_search; the bot uses it, agents never see it (ADR-034).
-    for key in ("DEEPSEEK_API_KEY", "TAVILY_API_KEY"):
+    for key in ("DEEPSEEK_API_KEY", "TAVILY_API_KEY", "RAYTONEBOT_CREDENTIAL_MASTER_KEY"):
         if os.environ.get(key):
             env[key] = os.environ[key]
         elif previous.get(key):

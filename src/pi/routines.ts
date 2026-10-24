@@ -282,7 +282,7 @@ export function createRoutineService(options: {
       try {
         const botId = routine.botId ?? "assistant";
         const bot = options.bots?.require(botId);
-        await options.runtime.configure({ conversationId: routine.conversationId, providerDefinition: model.definition,
+        await options.runtime.configure({ conversationId: routine.conversationId, credentialSource: "host", providerDefinition: model.definition,
           provider: model.definition.id, model: model.model });
         let status: RoutineRunStatus = "error", error: string | undefined;
         await new Promise<void>((resolve, reject) => {
