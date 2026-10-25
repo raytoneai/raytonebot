@@ -1,0 +1,6 @@
+{
+  "sandboxId": "ic62vgn5jrfwv4g9voz6o",
+  "exitCode": 0,
+  "stdout": "{\n  \"sizeMiB\": [\n    \"1671\\t/home/user/lcu-trial/app-root\",\n    \"37\\t/home/user/lcu-trial/installed\",\n    \"612\\t/home/user/lcu-trial/pw-browsers\",\n    \"4\\t/home/user/lcu-trial/extension\"\n  ],\n  \"remainingActiveProcesses\": [],\n  \"zombieCount\": 0\n}\n",
+  "stderr": ""
+}

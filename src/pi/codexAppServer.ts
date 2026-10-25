@@ -1,4 +1,5 @@
 import { resolve } from "node:path";
+import type { HostToolResult } from "./mcpServers.ts";
 import type { PiWireEvent } from "../harness/adapters/piAdapter.ts";
 import { createCodexStreamTranslator, displayCommand, type NormalizedTool } from "./cliStreams.ts";
 import { userQuestions, type UserAnswers, type UserQuestion } from "../runtime/userInput.ts";
@@ -106,7 +107,7 @@ export function createCodexAppServer(options: {
   const callWebTool = async (line: Json, send: Send) => {
     const params = record(line.params);
     const name = sharedToolName(String(params.tool));
-    let result: { text: string; isError: boolean };
+    let result: HostToolResult;
     if (!threadId || params.threadId !== threadId || params.namespace != null) result = { text: "Unknown dynamic tool.", isError: true };
     else if ((name.startsWith(MCP_TOOL_PREFIX) && options.mcpTools) || options.hostTools?.specs.some((spec) => spec.name === name)) {
       const gated = name.startsWith(MCP_TOOL_PREFIX) ? options.mcpTools! : options.hostTools!;
@@ -123,7 +124,8 @@ export function createCodexAppServer(options: {
       catch (error) { result = { text: error instanceof Error ? error.message : "Web tool failed.", isError: true }; }
     }
     if (options.signal.aborted || finished) return;
-    send({ id: line.id, result: { contentItems: [{ type: "inputText", text: result.text }], success: !result.isError } });
+    send({ id: line.id, result: { contentItems: [{ type: "inputText", text: result.text },
+      ...(result.isError ? [] : result.images ?? []).map(image => ({ type: "inputImage", imageUrl: `data:${image.mimeType};base64,${image.data}` }))], success: !result.isError } });
   };
 
   return {

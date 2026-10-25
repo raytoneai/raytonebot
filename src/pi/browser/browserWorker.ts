@@ -5,11 +5,14 @@
 import { spawn, type ChildProcess } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import { createServer } from "node:net";
+import { mkdirSync, readFileSync, writeFileSync } from "node:fs";
+import { join } from "node:path";
 
-import { chromium, errors, type Browser, type BrowserContext, type CDPSession, type Page } from "playwright-core";
+import { chromium, errors, type Browser, type BrowserContext, type CDPSession, type ElementHandle, type Frame, type JSHandle, type Page } from "playwright-core";
 
 import type { BrowserElement, BrowserRequest, BrowserWorkerMessage, BrowserLaunch } from "./browserProtocol.ts";
 import { elementSubmitFacts, enrichmentPlan, secretElement } from "./browserPolicy.ts";
+import { createBrowserRedactor } from "./browserRedaction.ts";
 
 const VIEWPORT = { width: 1280, height: 800 };
 const ACTION_TIMEOUT = 10_000;
@@ -17,7 +20,7 @@ const NAVIGATION_TIMEOUT = 30_000;
 const FRAME_INTERVAL_MS = 160;
 const FILE_LIMIT = 100 * 1024 * 1024;
 const KEYS = new Set(["Enter", "Escape", "Tab", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", "Space"]);
-const INTERACTIVE = new Set(["link", "button", "textbox", "searchbox", "combobox", "spinbutton", "checkbox", "radio", "switch", "slider", "menuitem", "menuitemcheckbox", "menuitemradio", "option", "tab", "treeitem"]);
+const INTERACTIVE = new Set(["link", "button", "textbox", "searchbox", "combobox", "spinbutton", "checkbox", "radio", "switch", "slider", "menuitem", "menuitemcheckbox", "menuitemradio", "option", "tab", "treeitem", "iframe"]);
 const STALE = "The page or target changed since approval. Take a new browser_snapshot before acting; the action was not repeated.";
 
 let launchOptions: BrowserLaunch;
@@ -52,12 +55,36 @@ const pages = new Map<Page, string>();
 const pageOwners = new Map<Page, string>();
 const framePages = new Map<string, Page>();
 const frameObservers = new Map<Page, Promise<CDPSession | undefined>>();
-const downloads = new Map<string, { url: string; name: string; owner?: string }>();
+const downloads = new Map<string, { url: string; name: string; owner?: string; blocked?: boolean }>();
 const pendingPopups = new Set<Promise<unknown>>();
 const dialogs: string[] = [];
 let settleNote: string | undefined;
-type Shot = { id: string; page: Page; revision: number; elements: Record<string, BrowserElement> };
+const frameRevisions = new WeakMap<Frame, number>();
+type Shot = { id: string; page: Page; revision: number; elements: Record<string, BrowserElement>; frames: Map<Frame, number> };
+function checkFrame(shot: Shot, frame: Frame) {
+  if (frame.isDetached() || shot.frames.get(frame) !== (frameRevisions.get(frame) ?? 0)) throw new Error(STALE);
+}
 let lastSnapshot: Shot | undefined;
+type VaultCapture = { token: string; shot: Shot; origin: string; password: ElementHandle; username?: ElementHandle; filled: Set<string> };
+let vaultCapture: VaultCapture | undefined;
+const vaultSecrets = new Set<string>();
+const sensitivePages = new Map<Page, JSHandle>();
+async function isSensitive(current: Page): Promise<boolean> {
+  const document = sensitivePages.get(current);
+  if (!document) return false;
+  if (await document.evaluate(doc => doc === window.document).catch(() => false)) return true;
+  sensitivePages.delete(current);
+  void document.dispose().catch(() => {});
+  return false;
+}
+const redact = createBrowserRedactor(vaultSecrets);
+function releaseVaultCapture() {
+  const previous = vaultCapture;
+  vaultCapture = undefined;
+  void previous?.password.dispose().catch(() => {});
+  void previous?.username?.dispose().catch(() => {});
+}
+
 
 const send = (message: BrowserWorkerMessage) => { process.send?.(message); };
 /** Keep callbacks only while a page or an in-flight GUID can still use them. */
@@ -82,6 +109,17 @@ async function observeFrames(current: Page): Promise<CDPSession | undefined> {
   await session.send("Page.enable").catch(() => {});
   const tree = await session.send("Page.getFrameTree").catch(() => undefined);
   if (!current.isClosed() && tree) {
+    // A navigation request invalidates an approved login before its response commits. In
+    // particular, a username input handler must not navigate then receive the password
+    // during a slow response. Child-frame navigation does not invalidate top-level refs.
+    const mainFrameId = tree.frameTree.frame.id;
+    const navigationStarted = ({ frameId }: { frameId: string }) => {
+      if (page === current && frameId === mainFrameId && vaultCapture?.shot.page === current) {
+        invalidate(); void reportState();
+      }
+    };
+    session.on("Page.frameRequestedNavigation", navigationStarted);
+    session.on("Page.frameStartedNavigating", navigationStarted);
     const bind = (node: { frame: { id: string }; childFrames?: typeof node[] }) => {
       framePages.set(node.frame.id, current);
       for (const child of node.childFrames ?? []) bind(child);
@@ -90,7 +128,7 @@ async function observeFrames(current: Page): Promise<CDPSession | undefined> {
   }
   return session;
 }
-function invalidate() { revision += 1; lastSnapshot = undefined; }
+function invalidate() { revision += 1; lastSnapshot = undefined; releaseVaultCapture(); }
 function freePort(): Promise<number> {
   return new Promise((resolve, reject) => {
     const server = createServer();
@@ -199,6 +237,7 @@ function register(current: Page) {
     void dialog.dismiss().catch(() => {});
   });
   current.on("framenavigated", (frame) => {
+    frameRevisions.set(frame, (frameRevisions.get(frame) ?? 0) + 1);
     if (page === current && frame === current.mainFrame()) { invalidate(); void reportState(); }
   });
   current.on("load", () => void reportState());
@@ -207,7 +246,7 @@ function register(current: Page) {
     if (owner) setPageOwner(popup, owner);
   });
   current.on("close", () => {
-    pages.delete(current); pageTitles.delete(current); titleReads.delete(current); pressedKeys.delete(current); pressedButtons.delete(current);
+    void sensitivePages.get(current)?.dispose().catch(() => {}); sensitivePages.delete(current); pages.delete(current); pageTitles.delete(current); titleReads.delete(current); pressedKeys.delete(current); pressedButtons.delete(current);
     setPageOwner(current);
     void frameObservers.get(current)?.then(session => session?.detach().catch(() => {}));
     frameObservers.delete(current);
@@ -253,13 +292,35 @@ function waitForPopup(targetId: string) {
 }
 
 async function launch(): Promise<Page> {
+  // Merge existing preferences; never replace saved profile settings. Unreadable profiles
+  // are left intact (sandbox deployments provision the preferences as the browser UID).
+  const preferences = join(launchOptions.profileDir, "Default", "Preferences");
+  const patch = (source: string) => {
+    const prefs = JSON.parse(source || "{}") as Record<string, any>;
+    prefs.credentials_enable_service = false;
+    prefs.profile = { ...prefs.profile, password_manager_enabled: false };
+    prefs.autofill = { ...prefs.autofill, credit_card_enabled: false };
+    return JSON.stringify(prefs);
+  };
+  try {
+    mkdirSync(join(launchOptions.profileDir, "Default"), { recursive: true, mode: 0o700 });
+    let source = "{}";
+    try { source = readFileSync(preferences, "utf8"); } catch (error) { if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error; }
+    writeFileSync(preferences, patch(source), { mode: 0o600 });
+  } catch {
+    // Do not overwrite unreadable/malformed existing preferences. Chrome flags below also
+    // disable autofill UI; sandbox deployments should provision these profile preferences.
+  }
+
   const port = launchOptions.cdpPort ?? await freePort();
   const args = [
+    ...(launchOptions.testOnlyCertificateSpki && /^[A-Za-z0-9+/]{43}=$/.test(launchOptions.testOnlyCertificateSpki) ? [`--ignore-certificate-errors-spki-list=${launchOptions.testOnlyCertificateSpki}`] : []),
     `--remote-debugging-port=${port}`, "--remote-debugging-address=127.0.0.1", `--user-data-dir=${launchOptions.profileDir}`,
     `--proxy-server=http://127.0.0.1:${launchOptions.proxyPort}`, "--proxy-bypass-list=<-loopback>",
     "--disable-quic", "--force-webrtc-ip-handling-policy=disable_non_proxied_udp",
     "--password-store=basic", "--no-first-run", "--no-default-browser-check",
-    "--disable-background-networking", "--disable-component-update", "--disable-sync", "--disable-features=Translate,OptimizationHints,MediaRouter",
+    "--disable-background-networking", "--disable-component-update", "--disable-sync", "--disable-features=Translate,OptimizationHints,MediaRouter,PasswordManagerOnboarding,AutofillServerCommunication,AutofillEnableAccountWalletStorage",
+    "--disable-save-password-bubble",
     `--window-size=${VIEWPORT.width},${VIEWPORT.height}`, "about:blank",
   ];
   const [command, ...prefix] = launchOptions.launcher ?? [launchOptions.executable];
@@ -293,6 +354,13 @@ async function launch(): Promise<Page> {
   await browserCdp.send("Browser.setDownloadBehavior", { behavior: "allowAndName", downloadPath: launchOptions.downloadDir, eventsEnabled: true });
   browserCdp.on("Browser.downloadWillBegin", ({ guid, url, suggestedFilename, frameId }) => {
     const source = framePages.get(frameId);
+    // Credential-bearing documents cannot turn an input event into a workspace artifact.
+    // Keep the GUID until Chromium finishes cancellation so the staging file is discarded.
+    if (source && sensitivePages.has(source)) {
+      downloads.set(guid, { url: "", name: "Login Vault page download", blocked: true });
+      void browserCdp?.send("Browser.cancelDownload", { guid }).catch(() => {});
+      return;
+    }
     const download = { url, name: suggestedFilename, owner: source ? pageOwners.get(source) : undefined };
     downloads.set(guid, download);
     send({ event: "download", guid, ...download, size: 0, state: "started" });
@@ -300,6 +368,13 @@ async function launch(): Promise<Page> {
   browserCdp.on("Browser.downloadProgress", ({ guid, receivedBytes, totalBytes, state }) => {
     const download = downloads.get(guid);
     if (!download) return;
+    if (download.blocked) {
+      if (state === "completed" || state === "canceled") {
+        downloads.delete(guid);
+        send({ event: "download", guid, url: "", name: "Login Vault page download", size: receivedBytes, state: "canceled" });
+      }
+      return;
+    }
     if (state === "inProgress" && Math.max(receivedBytes, totalBytes) > FILE_LIMIT) {
       void browserCdp?.send("Browser.cancelDownload", { guid }).catch(() => {});
       downloads.delete(guid);
@@ -341,14 +416,36 @@ function parseElements(text: string): Record<string, BrowserElement> {
   return elements;
 }
 
-async function summary(options: { scope?: string; mode?: "full" | "interactive" | "content" } = {}) {
+async function summary(options: { scope?: string; frameRef?: string; snapshotId?: string; mode?: "full" | "interactive" | "content" } = {}) {
   const current = await start();
   const atRevision = revision;
-  const frameScopeError = "Frame-scoped snapshots are not supported. Open the frame URL as a tab or ask the user to take over.";
+  const frames = new Map(current.frames().map(frame => [frame, frameRevisions.get(frame) ?? 0]));
+  if (await isSensitive(current)) {
+    await reportState();
+    if (page !== current || revision !== atRevision || current.isClosed()) throw new Error(STALE);
+    const id = randomUUID();
+    lastSnapshot = { id, page: current, revision, elements: {}, frames };
+    dialogs.splice(0);
+    return { url: new URL(current.url()).origin, title: "[Login Vault page hidden]", pageId: pages.get(current)!, snapshotId: id, snapshot: "Page content is hidden after Login Vault fill. Ask the user to take over to review and submit the login.", elements: {}, notes: [] };
+  }
+  const frameScopeError = "Frame-scoped snapshots require frameRef from the latest snapshot, not a frame selector in scope.";
   if (options.scope && /(?:^|>>)\s*internal:control\s*=\s*enter-frame(?:\s*(?:>>|$))/i.test(options.scope)) throw new Error(frameScopeError);
-  const region = options.scope ? current.locator(options.scope) : current.locator("body");
+  let selectedFrame = current.mainFrame();
+  if (options.frameRef) {
+    const shot = approvedSnapshot(current, options.snapshotId);
+    if (shot.elements[options.frameRef]?.role !== "iframe") throw new Error("frameRef must identify an iframe in the latest snapshot.");
+    const handle = await current.getByRef(options.frameRef).elementHandle();
+    try {
+      const frame = await handle?.contentFrame();
+      if (!frame || frame.isDetached()) throw new Error(STALE);
+      checkFrame(shot, frame);
+      selectedFrame = frame;
+      approvedSnapshot(current, options.snapshotId);
+    } finally { await handle?.dispose(); }
+  }
+  const region = selectedFrame.locator(options.scope || "body");
   if (options.scope && await region.evaluate(el => /^(IFRAME|FRAME)$/.test(el.tagName))) throw new Error(frameScopeError);
-  let text = options.scope ? await region.ariaSnapshot({ mode: "ai" }) : await current.ariaSnapshot({ mode: "ai" });
+  let text = options.scope || options.frameRef ? await region.ariaSnapshot({ mode: "ai" }) : await current.ariaSnapshot({ mode: "ai" });
   if (options.mode === "interactive" || options.mode === "content") {
     let keepLink = false;
     text = text.split("\n").filter((line) => {
@@ -392,11 +489,17 @@ async function summary(options: { scope?: string; mode?: "full" | "interactive" 
   await reportState();
   if (page !== current || current.isClosed() || revision !== atRevision) throw new Error(STALE);
   const id = randomUUID();
-  lastSnapshot = { id, page: current, revision, elements };
+  const shot = { id, page: current, revision, elements, frames };
+  for (const frame of frames.keys()) checkFrame(shot, frame);
+  if (current.frames().some(frame => !frames.has(frame))) throw new Error(STALE);
+  lastSnapshot = shot;
   const notes = dialogs.splice(0).map((dialog) => dialog.startsWith("page answered") ? `The ${dialog}.` : `A ${dialog} (dismissed)`);
   if (settleNote) { notes.push(settleNote); settleNote = undefined; }
-  if (current.frames().length > 1) notes.push("Embedded frames are not supported by agent refs in this version. Open the frame URL as a tab or request user takeover; never guess a parent-page target.");
+  if (current.frames().length > 1) notes.push("Embedded frames use their own refs. Use browser_snapshot with frameRef to focus inside an iframe; never substitute a parent-page target.");
+  if (selectedFrame !== current.mainFrame()) notes.push(`Frame URL: ${selectedFrame.url()}`);
   notes.push("Asynchronous content may arrive later; use browser_wait_for for specific text.");
+  // The trusted host retains credential history across worker restarts and redacts the
+  // model response. Keep internal URLs and element facts intact for binding and approval.
   return { url: current.url(), title, pageId: pages.get(current)!, snapshotId: id, snapshot: text, ...(content !== undefined ? { content } : {}), elements, notes };
 }
 
@@ -427,25 +530,154 @@ function approvedSnapshot(current: Page, id: string | undefined): Shot {
   return shot;
 }
 
-async function verifyTarget(current: Page, ref: string, approved: BrowserElement | undefined) {
+async function verifyTarget(current: Page, ref: string, approved: BrowserElement | undefined, shot: Shot) {
   if (!approved || approved.unresolved) throw new Error(STALE);
   const locator = current.getByRef(ref);
   // Role/name matching uses Playwright's accessible-name algorithm without rebuilding its ref map.
   const sameTarget = locator.and(current.getByRole(approved.role as Parameters<Page["getByRole"]>[0], { name: approved.name, exact: true }));
   if (await sameTarget.count().catch(() => 0) !== 1) throw new Error(STALE);
-  const facts = await locator.evaluate(elementSubmitFacts, undefined, { timeout: 2000 }).catch(() => undefined);
+  const handle = await locator.elementHandle({ timeout: 2000 });
+  const frame = await handle?.ownerFrame();
+  if (!handle || !frame) throw new Error(STALE);
+  let facts;
+  try {
+    checkFrame(shot, frame);
+    facts = await handle.evaluate(elementSubmitFacts).catch(() => undefined);
+    checkFrame(shot, frame);
+  } finally { await handle.dispose(); }
   if (!facts) throw new Error(STALE);
   if (secretElement(facts as BrowserElement)) throw new Error("This field takes a password, code or card number. Agents never type into it; ask the user to take over the browser.");
-  for (const key of ["inputType", "autocomplete", "submits", "formMethod"] as const) {
+  for (const key of ["inputType", "autocomplete", "submits", "formMethod", "origin"] as const) {
     if (key in approved && approved[key] !== facts[key]) throw new Error(STALE);
   }
 }
 
 async function target(current: Page, id: string | undefined, ref: string) {
   const shot = approvedSnapshot(current, id);
-  await verifyTarget(current, ref, shot.elements[ref]);
+  await verifyTarget(current, ref, shot.elements[ref], shot);
   approvedSnapshot(current, id);
   return shot;
+}
+
+/** Follow the browser's actual focus chain, including cross-origin nested frames. */
+async function focusedFrame(current: Page): Promise<Frame> {
+  let frame = current.mainFrame();
+  for (;;) {
+    const handle = await frame.evaluateHandle(() => document.activeElement);
+    try {
+      const child = await handle.asElement()?.contentFrame();
+      if (!child) return frame;
+      frame = child;
+    } finally { await handle.dispose(); }
+  }
+}
+
+/** Runs in the top-level document. Validation and assignment share a JS turn so a
+ * ref cannot be rebound between checking it and filling. Page event handlers still see input;
+ * a user-approved website is necessarily trusted with the credential being entered. */
+function loginField(node: Element, args: { field: "username" | "password"; origin: string; value?: string }) {
+  const input = node as HTMLInputElement;
+  if (window !== window.top || input.ownerDocument !== document || !input.isConnected || location.origin !== args.origin || input.tagName !== "INPUT" || input.disabled || input.readOnly || !input.getClientRects().length) return false;
+  const autocomplete = (input.getAttribute("autocomplete") ?? "").toLowerCase().split(/\s+/);
+  if (args.field === "password") {
+    if (input.type !== "password" || !autocomplete.includes("current-password") || autocomplete.some(part => part === "new-password" || part === "one-time-code" || part.startsWith("cc-"))) return false;
+  } else if (!["text", "email"].includes(input.type) || autocomplete.some(part => /password|one-time-code|^cc-/.test(part))) return false;
+  if (args.value !== undefined) {
+    const setter = Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value")?.set;
+    if (!setter) return false;
+    setter.call(input, args.value);
+    input.dispatchEvent(new Event("input", { bubbles: true }));
+    input.dispatchEvent(new Event("change", { bubbles: true }));
+  }
+  return true;
+}
+
+async function captureLogin(request: Extract<BrowserRequest, { op: "vault-capture" }>) {
+  const current = await start();
+  const shot = approvedSnapshot(current, request.snapshotId);
+  const url = new URL(current.url());
+  const localTest = launchOptions.testOnlyAllowHttpLoopbackVault === true && url.protocol === "http:" && ["localhost", "127.0.0.1", "[::1]"].includes(url.hostname);
+  if ((url.protocol !== "https:" && !localTest) || url.origin !== request.origin || pages.get(current) !== request.pageId) throw new Error(STALE);
+  releaseVaultCapture();
+  const handles: ElementHandle[] = [];
+  try {
+    const field = async (ref: string, kind: "username" | "password") => {
+      const approved = shot.elements[ref];
+      if (!approved || approved.unresolved) throw new Error(STALE);
+      const locator = current.getByRef(ref);
+      if (await locator.and(current.getByRole(approved.role as Parameters<Page["getByRole"]>[0], { name: approved.name, exact: true })).count() !== 1) throw new Error(STALE);
+      const handle = await locator.elementHandle();
+      if (!handle) throw new Error(STALE);
+      handles.push(handle);
+      if (!await handle.evaluate(loginField, { field: kind, origin: request.origin })) throw new Error("Login Vault requires an ordinary username and an explicit current-password field.");
+      return handle;
+    };
+    const password = await field(request.passwordRef, "password");
+    const username = request.usernameRef ? await field(request.usernameRef, "username") : undefined;
+    approvedSnapshot(current, request.snapshotId);
+    vaultCapture = { token: randomUUID(), shot, origin: request.origin, password, username, filled: new Set() };
+    return { token: vaultCapture.token };
+  } catch (error) {
+    for (const handle of handles) void handle.dispose().catch(() => {});
+    throw error;
+  }
+}
+
+/** Recheck the original captured nodes without recapturing refs or entering any values. */
+async function validateLogin(token: string) {
+  const captured = vaultCapture;
+  if (!captured || captured.token !== token || captured.filled.size) throw new Error(STALE);
+  approvedSnapshot(captured.shot.page, captured.shot.id);
+  if (new URL(captured.shot.page.url()).origin !== captured.origin) throw new Error(STALE);
+  for (const field of ["username", "password"] as const) {
+    const handle = captured[field];
+    if (handle && !await handle.evaluate(loginField, { field, origin: captured.origin })) throw new Error(STALE);
+  }
+  approvedSnapshot(captured.shot.page, captured.shot.id);
+  return {};
+}
+
+async function fillLoginField(request: Extract<BrowserRequest, { op: "vault-fill-field" }>) {
+  const captured = vaultCapture;
+  if (!captured || captured.token !== request.token || captured.filled.has(request.field)) throw new Error(STALE);
+  approvedSnapshot(captured.shot.page, captured.shot.id);
+  if (new URL(captured.shot.page.url()).origin !== captured.origin) throw new Error(STALE);
+  const handle = captured[request.field];
+  if (!handle) throw new Error(STALE);
+  if (request.value) vaultSecrets.add(request.value);
+  setPageOwner(captured.shot.page);
+  if (!await isSensitive(captured.shot.page)) sensitivePages.set(captured.shot.page, await captured.shot.page.evaluateHandle(() => document));
+  approvedSnapshot(captured.shot.page, captured.shot.id);
+  if (!await handle.evaluate(loginField, { field: request.field, origin: captured.origin, value: request.value })) throw new Error(STALE);
+  captured.filled.add(request.field);
+  approvedSnapshot(captured.shot.page, captured.shot.id);
+  return {};
+}
+
+/** User-facing screencast is separate: model images must not expose a filled login document. */
+async function modelScreenshot(id: string) {
+  const current = await start();
+  approvedSnapshot(current, id);
+  const secretSelector = 'input[type="password"],[autocomplete*="one-time-code" i],[autocomplete*="cc-" i],[autocomplete*="password" i]';
+  const check = async () => {
+    const shot = approvedSnapshot(current, id);
+    for (const frame of shot.frames.keys()) checkFrame(shot, frame);
+    if (current.frames().some(frame => !shot.frames.has(frame))) throw new Error(STALE);
+    if (await isSensitive(current)) throw new Error("Screenshots are hidden after Login Vault fill. Ask the user to take over.");
+    for (const frame of current.frames()) {
+      const filled = await frame.locator(secretSelector).evaluateAll(nodes => nodes.some(node => Boolean((node as HTMLInputElement).value || (node as HTMLElement).isContentEditable && node.textContent))).catch(() => true);
+      if (filled) throw new Error("Screenshots are unavailable while secret fields contain values. Use a text snapshot or user takeover.");
+    }
+    for (const frame of shot.frames.keys()) checkFrame(shot, frame);
+    if (current.frames().some(frame => !shot.frames.has(frame))) throw new Error(STALE);
+    approvedSnapshot(current, id);
+  };
+  await check();
+  const bytes = await current.screenshot({ type: "jpeg", quality: 70, fullPage: false, timeout: 5000,
+    mask: current.frames().map(frame => frame.locator(secretSelector)) });
+  await check();
+  if (bytes.length > 2 * 1024 * 1024) throw new Error("Browser screenshot exceeds the 2 MiB image limit.");
+  return { mimeType: "image/jpeg", data: bytes.toString("base64") };
 }
 
 async function handle(request: BrowserRequest): Promise<unknown> {
@@ -453,6 +685,10 @@ async function handle(request: BrowserRequest): Promise<unknown> {
     setPageOwner(current, request.downloadOwner);
   };
   switch (request.op) {
+    case "vault-capture": return captureLogin(request);
+    case "vault-validate": return validateLogin(request.token);
+    case "vault-fill-field": return fillLoginField(request);
+    case "vault-finish": if (vaultCapture?.token === request.token) invalidate(); return {};
     case "reset-input": await resetInput(); return {};
     case "launch": launchOptions = request.options; return {};
     case "clear-download-owners": for (const current of pageOwners.keys()) setPageOwner(current); return {};
@@ -469,9 +705,14 @@ async function handle(request: BrowserRequest): Promise<unknown> {
       return summary();
     }
     case "snapshot": return summary(request);
+    case "screenshot": return modelScreenshot(request.snapshotId);
     case "tabs": {
       await start();
-      if (!request.pageId) return { pageId: pages.get(page!)!, tabs: await tabs() };
+      if (!request.pageId) return { pageId: pages.get(page!)!, tabs: await Promise.all((await tabs()).map(async tab => {
+        const current = [...pages].find(([, id]) => id === tab.id)?.[0];
+        const hidden = current ? await isSensitive(current) : true;
+        return { ...tab, title: hidden ? "[Login Vault page hidden]" : tab.title, url: hidden ? new URL(tab.url).origin : tab.url };
+      })) };
       const selected = [...pages].find(([, id]) => id === request.pageId)?.[0];
       if (!selected || selected.isClosed()) throw new Error("That browser tab is closed or unknown.");
       await activate(selected);
@@ -506,7 +747,7 @@ async function handle(request: BrowserRequest): Promise<unknown> {
       const actionRevision = revision;
       await current.getByRef(request.ref).fill(request.text);
       if (request.submit) {
-        await verifyTarget(current, request.ref, shot.elements[request.ref]);
+        await verifyTarget(current, request.ref, shot.elements[request.ref], shot);
         if (page !== current || revision !== actionRevision) throw new Error(STALE);
         await current.getByRef(request.ref).press("Enter");
       }
@@ -516,16 +757,18 @@ async function handle(request: BrowserRequest): Promise<unknown> {
     case "press": {
       const current = await start();
       if (!KEYS.has(request.key)) throw new Error(`Key not allowed: ${request.key}.`);
-      approvedSnapshot(current, request.snapshotId);
-      if (request.key === "Enter" || request.key === "Space") {
+      const shot = approvedSnapshot(current, request.snapshotId);
+      if (["Enter", "Space", "Backspace", "Delete"].includes(request.key)) {
         if (!request.expectRef) throw new Error(STALE);
         await target(current, request.snapshotId, request.expectRef);
+        const focus = await focusedFrame(current);
+        checkFrame(shot, focus);
+        const handle = await current.getByRef(request.expectRef).elementHandle();
+        try { if (await handle?.ownerFrame() !== focus) throw new Error(STALE); }
+        finally { await handle?.dispose(); }
         if (!await current.getByRef(request.expectRef).evaluate((node) => node === document.activeElement || node.contains(document.activeElement), undefined, { timeout: 2000 }).catch(() => false)) {
           throw new Error("Focus moved since the last snapshot. Take a new snapshot before pressing this key.");
         }
-      } else if (request.key === "Backspace" || request.key === "Delete") {
-        const facts = await current.locator(":focus").evaluate(elementSubmitFacts, undefined, { timeout: 1000 }).catch(() => undefined);
-        if (!facts || secretElement(facts as BrowserElement)) throw new Error("Agents never type into secret fields; ask the user to take over the browser.");
       }
       approvedSnapshot(current, request.snapshotId);
       ownDownloads(current);
@@ -608,7 +851,7 @@ let manualRequests = Promise.resolve();
 process.on("message", (message: { id: number; request: BrowserRequest }) => {
   const answer = () => handle(message.request).finally(() => releaseDownloadOwner(message.request.downloadOwner)).then(
     (result) => send({ id: message.id, ok: true, result }),
-    (error: unknown) => send({ id: message.id, ok: false, error: error instanceof Error ? error.message.split("\n")[0].slice(0, 500) : String(error) }),
+    (error: unknown) => send({ id: message.id, ok: false, error: message.request.op.startsWith("vault-") ? "Login Vault target is invalid or fill failed. Take a new snapshot and approve again." : redact(error instanceof Error ? error.message.split("\n")[0].slice(0, 500) : String(error)) }),
   );
   if (message.request.op === "close") void answer();
   else if (["input", "tabs", "screencast", "reset-input"].includes(message.request.op)) manualRequests = manualRequests.then(answer, answer);

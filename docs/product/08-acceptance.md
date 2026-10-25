@@ -2,6 +2,18 @@
 
 每条写明怎么验。结果记到 [03-roadmap.md](03-roadmap.md) 进度日志，写“通过 / 失败 + 输出摘要 / 未验证”。不能用演示事件代替真实行为。
 
+## 2026-10-26 Vault 脱敏审查修复
+
+- `vaultFill.test.ts` 新增真实 Chromium 回归：用户名 `a` / `e` 的用例先因返回的 Snapshot ID 被改写而失败，修复后通过。覆盖填充后和浏览器重启后的截图、ref 输入/点击、按键、标签选择、分页、账户状态结构，以及标题/正文/带引号名称/占位符/URL/错误回显过滤；`Pay` 的对外操作审批分类保持有效。
+- `npm test`：510/510 通过，无失败、无跳过；`npm run build`、临时数据及工作目录下的 `check:local`、`node scripts/cloud-preview.mjs --check`、全工作区 `git diff HEAD --check` 通过。头像临时文件的 4 处尾随空白一并清理。
+- 本次没有 UI/事件映射改动，未重复视觉场景走查；未调用真实模型、使用真实凭据或部署。
+
+## 2026-10-25 登录 Vault（本机）
+
+后续安全输入卡（ADR-053）：Agent 可主动请求已保存登录或新输入，用户可选保存，沿用现有审批 UI。503 项测试与 build/本机/云入口检查通过；实际页面验证输入→授权→保存/不保存→真实 Chromium 填充和持久结果回执，亮暗主题/分栏实看。受控 bridge，不代表真实模型自主选工具或真实账号验收。见[安全输入记录](../../output/vault-secure-input-2026-10-25/README.md)。
+
+Settings 管理 → 一次性授权卡 → 真实 Chromium HTTPS 填充闭环已验。487 项测试、build、check:local、cloud-preview --check 通过；Settings 保存/编辑/刷新与内置场景走查通过。只用虚拟账号、受控 bridge 和临时 HTTPS 站点，未调用真实模型/账号、未部署；云端隔离、备份恢复与实际站点兼容性仍待验。完整范围、命令、截图与限制见[验收记录](../../output/vault-2026-10-25/README.md)。
+
 ## 自动检查（不调用模型）
 
 | 命令 | 覆盖 |
@@ -1125,3 +1137,22 @@ Claude Code 复跑本机为 309 项 / 308 通过 / 1 跳过，认可六项修复
 - 截图和场景记录：`output/harness-icons/`；来源与许可证：`docs/harness-icons.md`。
 
 - 2026-10-19 提交前复验：撤回全部鲸鱼头像配饰，既有配饰选项恢复；build、444/444 测试、check:local、实际 DSH 可控端点的批准/拒绝/宿主工具/停止子进程/重启续接通过。20 个界面场景无 error/横向溢出。界面记录 `output/dsh-local-check/commit/`；本次未调用真实模型，未部署。
+
+### 2026-10-25 LCU 独立 sandbox 验证
+
+- 相同 `agentmatrix-v1` 模板、独立新实例实测；没有修改现有实例、个人 Chrome 或产品运行时代码。模板自带 Codex CLI 0.154.0；单独安装 LCU 因缺官方 app 失败，补入公开官方 runtime 及桌面依赖后成功。
+- doctor 的 JS 沙箱、窗口及截图通过；MCP 初始化/JS/reset、Chromium AX/中文输入/点击、跨 origin iframe 保存、JPEG 截图与显式 turn-end 后拒绝旧 tab 均通过。Chromium 沙箱启用。
+- 原生 Codex CLI 实际调用 LCU，截图作为 `input_image` 到达本地脚本 Responses 端点，图片字节 SHA-256 一致、CLI exit 0。没有真实模型推理，不代表 RaytoneBot app-server/HostTools、审批/Vault/Output 已接入，也没有性能或成功率对测。
+- 测试脚本 Python AST / shell 语法、本地链接及变更空白检查通过；产品代码未变，本轮未重跑 npm build/test。测试进程收尾、实例状态 `paused` 已确认。版本、脚本、数据和边界见 [LCU 验证记录](../../output/lcu-sandbox-2026-10-25/README.md)。
+
+### 2026-10-25 LCU 完整替换检查
+
+- 用户附加条件为完全可替代才替换。已检查现有浏览器调用方、Vault、审批和四种引擎通道；当前原生 LCU 接入不能直接保留全部产品行为，保留既有 runtime/默认/部署。差异细分为上游依赖、待实现的宿主适配及未验收项目，详见[替换检查](../lcu-browser-use-comparison-2026-10-25.md#完整替换检查2026-10-25按用户附加条件)。
+- 本机现有浏览器定向回归 18/18 通过、0 跳过，覆盖真实 Chromium 的虚拟 Vault 填充/节点失效/敏感输出、接管、停止及异步下载归属。没有将现有实现通过写成 LCU 通过；无产品代码/依赖/配置变更，未做真实模型或新的 UI/云端验收。[命令与结果](../../output/lcu-replacement-audit-2026-10-25/README.md)
+
+### 2026-10-25 原生浏览器截图与 iframe（T6.3 / ADR-054）
+
+- 完整测试 508/508，无失败、无跳过；build、独立临时数据的 check:local、cloud-preview --check 通过。最后的截图帧版本复核补充后，视觉/Vault 定向回归再次通过。新改动未涉及 UI/事件映射，因此没有重复场景视觉巡检。
+- 实际 Chromium 验证跨域与嵌套 iframe 的区域快照/输入/按键、所属站点审批、POST 分类、导航后旧引用及旧截图拒绝、父页面引用保留。截图验证对话/快照归属、接管/取消、子帧秘密字段与 Vault 填后拒绝。
+- 实际 Pi SDK、Claude、Codex app-server 与 DSH 进程连接本地脚本模型接口；前三者收到的截图哈希一致，DSH 自带 JPEG 规范化后尺寸一致、像素平均绝对误差 0.0513/255。没有调用真实模型推理或检验理解准确率；远程用户 MCP 图片解析与云端部署不在本轮范围。
+- 本次文件空白检查通过；全工作区既存 avatar 临时文件尾随空白保留。版本、复现脚本、逐引擎报告与截图见[完整记录](../../output/browser-vision-frames-2026-10-25/README.md)。

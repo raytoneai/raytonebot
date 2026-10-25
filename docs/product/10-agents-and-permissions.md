@@ -78,6 +78,7 @@ Claude Code / Codex 的 JSON 输出
 | 只读 | read/grep/find/ls 等；读取应用自身代码、Agent 配置与人设文件 | 直接执行 | 直接执行 | 直接执行 |
 
 - 默认模式：`RAYTONEBOT_SANDBOX=1`（云端沙箱）时为「替我批准」，本机为「请求权限」。主机通过 `/state` 的 `defaultPermissionMode` 告诉前端；用户手动选择后不再跟随。
+- 登录 Vault（设置 → Vault，ADR-052）：`vault_request_use` 在主机内部通过现有提问卡逐次授权，三种模式均不跳过。只允许网页单聊、精确 HTTPS origin、当前页面与条目版本；120 秒过期，停止/导航/接管/条目变化失效。秘密通过设置或专用安全输入卡交给主机，可选保存默认关闭；普通问答与 browser_type 不收秘密；填充后用户接管提交。本机同 UID 仅供虚拟账号功能测试，云端隔离与真实登录尚未验收。
 - Codex 原生策略固定为 `untrusted` + `read-only`，写动作进入现有审批闸门；安全只读命令可由 Codex 自动执行。`auto` / `allow-all` 由闸门对单次动作作决定，不改为整轮全权限。补丁的每个路径（含重命名目标）都检查，命令按实际 cwd 分类。
 - 密钥隔离（`src/pi/runtime/childEnv.ts`）：子进程剥离继承的密钥、E2B 与访问凭据。配置模型服务的任务只拿 bot 模型代理的单轮 token，真实 key 不进入 Agent 环境；Codex 的工具环境进一步仅保留基础变量。云入口读取访问密码后即从进程环境删除。
 - 工作区：`RAYTONEBOT_WORKSPACE` 设定 Agent 工作目录；与应用目录不同时，应用代码自动成为受保护路径。

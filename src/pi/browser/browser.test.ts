@@ -172,10 +172,9 @@ test("interactive elements past the read limit are treated as unknown, not as or
   for (let index = 1; index <= 205; index += 1) elements[`b${index}`] = { role: "button", name: "Go" };
   const plan = enrichmentPlan(elements as never);
   assert.equal(plan.read.length, ENRICH_LIMIT);
-  assert.equal(plan.unknown.length, 205 + 1 - ENRICH_LIMIT, "every interactive element past the limit is left unread");
-  assert.equal(plan.unknown[0][0], "b200", "the first unread button is the one right after the limit");
-  // A link needs no facts, so it is neither read nor treated as unknown (an unknown link would ask).
-  assert.ok(!plan.read.some(([ref]) => ref === "l1") && !plan.unknown.some(([ref]) => ref === "l1"));
+  assert.equal(plan.unknown.length, 205 + 2 - ENRICH_LIMIT, "every interactive element past the limit is left unread");
+  assert.equal(plan.unknown[0][0], "b199", "the first unread button is the one right after the limit");
+  assert.ok(plan.read.some(([ref]) => ref === "l1"), "links also need their document origin for site approval");
   // The worker marks the unread ones `unresolved`, and that is what makes approval ask.
   const element = { ...plan.unknown[0][1], unresolved: true };
   assert.equal(classifyBrowserCall("browser_click", { ref: "b200" }, context({ b200: element }))?.kind, "outward");

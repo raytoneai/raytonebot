@@ -1,3 +1,4 @@
+import { useVault } from "./runtime/useVault";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { createAgentUXViewModel, type AgentUXToolTimelineItem } from "@agent-ux/render-core";
@@ -72,6 +73,8 @@ import { pendingUserInput, userInputEventsForReplay } from "./runtime/userInput"
 import { useUserInput } from "./runtime/useUserInput";
 import { pendingChannelSetup } from "./runtime/channelSetup";
 import { useChannelSetup } from "./runtime/useChannelSetup";
+import { pendingVaultRequest } from "./runtime/vaultRequest";
+import { useVaultRequest } from "./runtime/useVaultRequest";
 import { finishedHtmlEdits } from "./runtime/liveHtmlWrite";
 import { approvalRequestKey } from "./runtime/approvalSubmission";
 import { approvalForReplay, identityEventForReplay } from "./runtime/replayIdentity";
@@ -333,6 +336,8 @@ export function AgentApp() {
   const questionProps = useUserInput(pendingQuestion, activePiConversationId, locale, isGroupConversation(activePiConversation));
   const pendingSetup = useMemo(() => pendingChannelSetup(events), [events]);
   const setupProps = useChannelSetup(pendingSetup, activePiConversationId, locale);
+  const pendingVault = useMemo(() => pendingVaultRequest(events), [events]);
+  const vaultRequestProps = useVaultRequest(pendingVault, activePiConversationId, locale);
   // Group chat: a group's routing is a debug event; only ?devtools=1 shows it in the chat.
   const visibleEvents = useMemo(() => isGroupConversation(activePiConversation) && !devtoolsRequested()
     ? events.filter((event) => event.visibility !== "debug") : events, [events, activePiConversationId]);
@@ -385,6 +390,7 @@ export function AgentApp() {
   const routines = useRoutines(settingsOpen && Boolean(piRuntimeState));
   const mcpServers = useMcpServers(settingsOpen && Boolean(piRuntimeState));
   const memories = useMemories(settingsOpen && Boolean(piRuntimeState));
+  const vault = useVault(settingsOpen && Boolean(piRuntimeState));
   /** A routine's conversation opened from settings before this page has listed it. */
   const [pendingOpen, setPendingOpen] = useState<string>();
   // Both approval modes answer above the composer, exactly where the configurator previewed
@@ -441,7 +447,11 @@ export function AgentApp() {
       />
     </div>
   ) : null;
-  const userInputOverlay = questionProps ? (
+  const userInputOverlay = vaultRequestProps ? (
+    <div className="preview-approval-overlay" data-preview-region="approval-overlay" data-approval-kind="vault-input">
+      <InlineApprovalPrompt key={JSON.stringify([activePiConversationId, pendingVault?.requestId])} {...vaultRequestProps} />
+    </div>
+  ) : questionProps ? (
     <div className="preview-approval-overlay" data-preview-region="approval-overlay" data-approval-kind="user-input">
       <InlineApprovalPrompt key={JSON.stringify([activePiConversationId, pendingQuestion?.requestId])} {...questionProps} />
     </div>
@@ -1821,6 +1831,7 @@ export function AgentApp() {
             routines={piRuntimeState ? routines : undefined}
             mcpServers={piRuntimeState ? mcpServers : undefined}
             memories={piRuntimeState ? memories : undefined}
+            vault={piRuntimeState ? vault : undefined}
             onOpenConversation={openStoredConversation}
             />
           </Suspense>

@@ -15,9 +15,9 @@ import type { BrowserElement } from "./browserProtocol.ts";
  * - secret: typing into a password, one-time-code or card field. Refused; the user types it.
  */
 
-export const BROWSER_TOOL_NAMES = ["browser_accounts", "browser_tabs", "browser_wait_for", "browser_open", "browser_snapshot", "browser_click", "browser_type", "browser_press", "browser_scroll", "browser_back", "browser_request_takeover"] as const;
+export const BROWSER_TOOL_NAMES = ["browser_accounts", "browser_tabs", "browser_wait_for", "browser_open", "browser_snapshot", "browser_screenshot", "browser_click", "browser_type", "browser_press", "browser_scroll", "browser_back", "browser_request_takeover"] as const;
 
-const READ = new Set(["browser_accounts", "browser_tabs", "browser_wait_for", "browser_open", "browser_snapshot", "browser_scroll", "browser_back", "browser_request_takeover"]);
+const READ = new Set(["browser_accounts", "browser_tabs", "browser_wait_for", "browser_open", "browser_snapshot", "browser_screenshot", "browser_scroll", "browser_back", "browser_request_takeover"]);
 const LASTING = /\b(send|pay|buy|purchase|order|checkout|delete|remove|agree|accept|confirm|subscribe|unsubscribe|publish|post|transfer|donate|sign ?up|register|book|reserve)\b|发送|支付|付款|购买|下单|结算|删除|移除|同意|接受|确认|订阅|发布|转账|注册|预订|预约|提交订单/i;
 const COOKIES = /cookie|cookies|全部接受|接受全部|接受所有/i;
 
@@ -33,9 +33,9 @@ export type BrowserCallContext = {
 };
 
 const TEXT_ROLES = new Set(["textbox", "searchbox", "combobox", "spinbutton"]);
-/** Roles the worker reads submit facts for: what they submit, and whether they take a secret. */
-const ENRICHED = new Set(["textbox", "searchbox", "combobox", "button", "spinbutton"]);
-/** Facts are read for at most this many interactive elements per snapshot. */
+/** Controls take priority over prose when reading origin, submit and secret facts. */
+const ENRICHED = new Set(["textbox", "searchbox", "combobox", "button", "spinbutton", "link", "checkbox", "radio", "switch", "slider", "menuitem", "menuitemcheckbox", "menuitemradio", "option", "tab", "treeitem", "iframe"]);
+/** Facts are read for at most this many elements per snapshot. */
 export const ENRICH_LIMIT = 200;
 
 /**
@@ -46,8 +46,10 @@ export const ENRICH_LIMIT = 200;
  */
 export function enrichmentPlan(elements: Readonly<Record<string, BrowserElement>>, limit = ENRICH_LIMIT):
   { read: [string, BrowserElement][]; unknown: [string, BrowserElement][] } {
-  const interactive = Object.entries(elements).filter(([, element]) => ENRICHED.has(element.role));
-  return { read: interactive.slice(0, limit), unknown: interactive.slice(limit) };
+  const entries = Object.entries(elements);
+  const ordered = [...entries.filter(([, element]) => ENRICHED.has(element.role)),
+    ...entries.filter(([, element]) => !ENRICHED.has(element.role))];
+  return { read: ordered.slice(0, limit), unknown: ordered.slice(limit) };
 }
 
 /**
@@ -84,7 +86,9 @@ export function elementSubmitFacts(node: Element) {
     }
     effective = defaultButton ? methodOf(defaultButton) : formMethod;
   }
-  return { inputType: type || tag.toLowerCase(), autocomplete, submits, formMethod: effective };
+  return { inputType: type || tag.toLowerCase(), autocomplete, submits, formMethod: effective,
+    // Window.origin is configurable by page scripts; Location.origin is unforgeable.
+    ...(node.ownerDocument ? { origin: node.ownerDocument.location?.origin ?? "null" } : {}) };
 }
 
 /** A click on `element`, or Enter/Space on it while it has focus. */
@@ -130,8 +134,12 @@ export function classifyBrowserCall(name: string, args: unknown, context: Browse
     else kind = activation(focused);
   } else kind = "outward";
   // Writes on a site the user signed into act as them there: ask, and remember per site.
-  if (kind === "mutating" && context.origin && hasRelatedLogin(context.origin, context.loggedIn)) {
-    return { kind: "connector", key: `${name}@${context.origin}` };
+  const origin = (name === "browser_press" ? context.focused : element)?.origin ?? context.origin;
+  if (kind === "mutating" && origin) {
+    if (!browserAccountScope(origin)) return { kind: "outward", key: name };
+    if (hasRelatedLogin(origin, context.loggedIn) || context.origin && hasRelatedLogin(context.origin, context.loggedIn)) {
+      return { kind: "connector", key: `${name}@${origin}` };
+    }
   }
   return { kind, key: name };
 }
@@ -190,6 +198,8 @@ export function browserLoginUrl(site: unknown, address?: unknown): string {
     google: "https://accounts.google.com/", github: "https://github.com/login",
     reddit: "https://www.reddit.com/login/", x: "https://x.com/i/flow/login",
     apple: "https://account.apple.com/sign-in",
+    xiaohongshu: "https://www.xiaohongshu.com/explore", weibo: "https://weibo.com/login.php",
+    instagram: "https://www.instagram.com/accounts/login/", facebook: "https://www.facebook.com/login/",
   };
   if (typeof site !== "string") throw new Error("Unknown login site.");
   if (Object.hasOwn(sites, site)) return sites[site];

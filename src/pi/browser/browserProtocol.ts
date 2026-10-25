@@ -10,6 +10,10 @@ export type BrowserLaunch = {
   /** Fixed in the sandbox so the firewall can let only its replies out. */
   cdpPort?: number;
   env?: Record<string, string>;
+  /** Explicit local Chromium test hook; never enabled by the host in production. */
+  testOnlyAllowHttpLoopbackVault?: boolean;
+  /** Test-only exact SHA256 SPKI certificate pin; never a general TLS bypass. */
+  testOnlyCertificateSpki?: string;
 };
 
 /** What the host knows about a ref from the last snapshot, to judge an action before it runs. */
@@ -25,6 +29,8 @@ export type BrowserElement = {
   unresolved?: boolean;
   /** Focused in the snapshot (`[active]`): what Enter or Space would act on. */
   active?: boolean;
+  /** Actual document origin, including cross-origin frames; used for site-scoped approval. */
+  origin?: string;
 };
 
 export type BrowserInput =
@@ -32,11 +38,22 @@ export type BrowserInput =
   | { kind: "key"; type: "down" | "up"; key: string }
   | { kind: "text"; text: string };
 
+/** Host-only approval target. The opaque token binds the actual DOM nodes in the worker. */
+export type BrowserVaultTarget = {
+  conversationId: string; pageId: string; snapshotId: string; origin: string;
+  usernameRef?: string; passwordRef: string; controlEpoch: number; token: string;
+};
+
 export type BrowserRequest =
   (
   | { op: "launch"; options: BrowserLaunch }
   | { op: "open"; url: string }
-  | { op: "snapshot"; scope?: string; mode?: "full" | "interactive" | "content" }
+  | { op: "vault-capture"; snapshotId: string; pageId: string; origin: string; passwordRef: string; usernameRef?: string }
+  | { op: "vault-validate"; token: string }
+  | { op: "vault-fill-field"; token: string; field: "username" | "password"; value: string }
+  | { op: "vault-finish"; token: string }
+  | { op: "snapshot"; scope?: string; frameRef?: string; snapshotId?: string; mode?: "full" | "interactive" | "content" }
+  | { op: "screenshot"; snapshotId: string }
   | { op: "tabs"; pageId?: string }
   | { op: "wait"; text: string; hidden: boolean; timeout: number }
   | { op: "click"; ref: string; snapshotId?: string }

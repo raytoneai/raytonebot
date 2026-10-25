@@ -1,0 +1,69 @@
+{
+  "source": "codex app-server generate-json-schema, local CLI 0.162.1",
+  "definitions": {
+    "DynamicToolCallOutputContentItem": {
+      "oneOf": [
+        {
+          "properties": {
+            "text": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "inputText"
+              ],
+              "title": "InputTextDynamicToolCallOutputContentItemType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "text",
+            "type"
+          ],
+          "title": "InputTextDynamicToolCallOutputContentItem",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "imageUrl": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "inputImage"
+              ],
+              "title": "InputImageDynamicToolCallOutputContentItemType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "imageUrl",
+            "type"
+          ],
+          "title": "InputImageDynamicToolCallOutputContentItem",
+          "type": "object"
+        },
+        {
+          "properties": {
+            "audioUrl": {
+              "type": "string"
+            },
+            "type": {
+              "enum": [
+                "inputAudio"
+              ],
+              "title": "InputAudioDynamicToolCallOutputContentItemType",
+              "type": "string"
+            }
+          },
+          "required": [
+            "audioUrl",
+            "type"
+          ],
+          "title": "InputAudioDynamicToolCallOutputContentItem",
+          "type": "object"
+        }
+      ]
+    }
+  }
+}

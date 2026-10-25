@@ -384,6 +384,17 @@ export function createPiEventAdapter(options: PiEventAdapterOptions = {}): PiEve
         break;
       // Connecting an IM channel from chat (`connect_channel`): each stage replaces the last.
       // Only non-secret state travels here; credentials go to the host's channel API directly.
+      case "vault_input_required":
+        push(agentUXEventBuilders.runAwaitingInput(meta("vault_input"), {
+          requestId: stringField(asRecord(event.request), "requestId"), toolCallId: event.toolCallId, vaultRequest: event.request,
+        }), next);
+        break;
+      case "vault_input_resolved":
+        if (typeof event.message === "string") inputMessage(String(event.requestId), "assistant", event.message, next);
+        push(agentUXEventBuilders.toolCallProgress(meta("vault_input_resolved"), {
+          toolCallId: event.toolCallId, inputRequestId: event.requestId,
+        }), next);
+        break;
       case "channel_setup":
         push(agentUXEventBuilders.runAwaitingInput(meta("channel_setup"), {
           requestId: event.requestId, toolCallId: event.toolCallId, channelSetup: event.state,

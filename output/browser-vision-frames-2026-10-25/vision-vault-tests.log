@@ -1,0 +1,25 @@
+✔ browser actions are judged from the host's snapshot, never the model's label (1.862375ms)
+✔ a submit button's own formmethod decides, for clicks and for Enter in a field (0.383875ms)
+✔ an element whose facts never arrived is asked about, not assumed to be an ordinary click (0.097542ms)
+✔ interactive elements past the read limit are treated as unknown, not as ordinary clicks (0.279ms)
+✔ the egress proxy refuses private addresses, other ports and names that resolve privately (19.396666ms)
+✔ a download never follows a link out of the workspace, and only a folder the bot made gets its mode (5.254208ms)
+✔ account discovery groups related sites without claiming an active login or revealing URL data (5.922ms)
+✔ account discovery reads current host records without starting Chrome, and clears immediately (1.700167ms)
+✔ a stopped turn never runs the browser action it queued (0.417209ms)
+✔ a real browser: snapshot refs, secret fields refused, takeover, per-site sign-in and downloads (5611.178666ms)
+✔ login shortcuts accept Apple and custom web URLs, reject invalid destinations (0.400292ms)
+✔ related login domains ask in auto mode, but always-allow stays on the exact origin (0.606ms)
+✔ model screenshots return image bytes, bind the conversation, and respect takeover and cancellation (1250.731875ms)
+✔ cross-origin iframe refs act inside their frame and keep submission approval (1506.678125ms)
+✔ frame navigation expires child refs even when the replacement has identical controls (1556.944125ms)
+✔ Login Vault binds exact live fields, never submits, and hides model output (4800.898458ms)
+✔ Login Vault refuses HTTP without its explicit loopback test hook (675.341166ms)
+ℹ tests 17
+ℹ suites 0
+ℹ pass 17
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5746.203083

@@ -24,6 +24,12 @@ export class UserInputGate {
     }
   }
 
+  /** Includes receipts so retries retain the same browser-origin requirement. */
+  hasQuestion(conversationId: string, requestId: string, questionId: string): boolean {
+    const entry = this.pending.get(requestId) ?? this.receipts.get(requestId);
+    return entry?.conversationId === conversationId && entry.questions.some(question => question.id === questionId);
+  }
+
   /** A question in this conversation waits for the user right now. */
   waitingIn(conversationId: string): boolean {
     return [...this.pending.values()].some((entry) => entry.conversationId === conversationId);

@@ -8,7 +8,7 @@ import type { PiWireEvent } from "../harness/adapters/piAdapter.ts";
 import type { AgentHarnessId, AgentHarnessStatus } from "./harnessCatalog.ts";
 import { createClaudeStreamTranslator, normalizeClaudeTool, type NormalizedTool } from "./cliStreams.ts";
 import { createCodexAppServer, type CodexPermissionRequest } from "./codexAppServer.ts";
-import type { HostToolResult, HostToolSpec, McpToolkit } from "./mcpServers.ts";
+import { hostToolContent, type HostToolResult, type HostToolSpec, type McpToolkit } from "./mcpServers.ts";
 import type { HostTools } from "./memories.ts";
 import { WEB_TOOL_SPECS, type WebTools } from "./webAccess.ts";
 import { runLimits } from "./hostOperations.ts";
@@ -547,9 +547,9 @@ export async function sdkMcpResponse(message: Record<string, unknown>, server: {
     case "tools/list":
       return result({ tools: server.tools });
     case "tools/call": {
-      const { text, isError } = await server.run(String(params.name), params.arguments, signal)
+      const output = await server.run(String(params.name), params.arguments, signal)
         .catch((error) => ({ text: error instanceof Error ? error.message : "Tool failed.", isError: true }));
-      return result({ content: [{ type: "text", text }], isError });
+      return result({ content: hostToolContent(output), isError: output.isError });
     }
     default:
       // Notifications get an empty result; anything else is not part of this server.

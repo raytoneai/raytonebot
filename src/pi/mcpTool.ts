@@ -1,6 +1,6 @@
 import { defineTool } from "@earendil-works/pi-coding-agent";
 
-import type { McpToolkit } from "./mcpServers.ts";
+import { hostToolContent, type McpToolkit } from "./mcpServers.ts";
 
 /** Host tools as Pi tools: the user's MCP tools (ADR-037) and remember / forget (ADR-038).
  *  The bot process makes the call, after the gate. */
@@ -14,7 +14,7 @@ export function mcpPiTools(toolkit: Pick<McpToolkit, "specs" | "run">) {
     async execute(_id, params, signal) {
       const result = await toolkit.run(spec.name, params, signal);
       if (result.isError) throw new Error(result.text);
-      return { content: [{ type: "text", text: result.text }], details: {} };
+      return { content: hostToolContent(result), details: {} };
     },
   }));
 }

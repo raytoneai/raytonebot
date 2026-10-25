@@ -1,0 +1,6 @@
+{
+  "sandboxId": "ic62vgn5jrfwv4g9voz6o",
+  "exitCode": 0,
+  "stdout": "update-alternatives: using /usr/share/icons/Adwaita/cursor.theme to provide /usr/share/icons/default/index.theme (x-cursor-theme) in auto mode\r\nSetting up libgtk-3-0:amd64 (3.24.33-1ubuntu2.2) ...\r\nSetting up humanity-icon-theme (0.6.16) ...\r\nSetting up ubuntu-mono (20.10-0ubuntu2) ...\r\nProcessing triggers for dbus (1.12.20-2ubuntu4.1) ...\r\nProcessing triggers for libc-bin (2.35-0ubuntu3.13) ...\r\n{\n  \"nativeModulesChecked\": 3,\n  \"unresolved\": []\n}\n",
+  "stderr": ""
+}

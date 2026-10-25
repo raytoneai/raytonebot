@@ -6,12 +6,14 @@ import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import type { HostTools } from "../memories.ts";
+import type { HostToolImage } from "../mcpServers.ts";
 import { agentIsolationEnabled, requireAgentIsolation } from "../runtime/agentProcess.ts";
 import type { UserQuestion } from "../../runtime/userInput.ts";
 import type { AgentPresetId } from "../harnessCatalog.ts";
 import { BROWSER_TOOL_SPECS, browserAccountNote, browserAccountHint } from "./browserTools.ts";
 import { classifyBrowserCall } from "./browserPolicy.ts";
-import type { BrowserElement, BrowserInput, BrowserLaunch, BrowserPageSummary, BrowserRequest, BrowserViewState, BrowserWorkerMessage } from "./browserProtocol.ts";
+import { createBrowserRedactor, redactBrowserSnapshot } from "./browserRedaction.ts";
+import type { BrowserElement, BrowserInput, BrowserLaunch, BrowserPageSummary, BrowserRequest, BrowserViewState, BrowserWorkerMessage, BrowserVaultTarget } from "./browserProtocol.ts";
 import { startEgressProxy, type EgressProxy } from "./egressProxy.ts";
 
 /**
@@ -86,9 +88,14 @@ function safeName(name: string): string {
 export function createBrowserService(options: { dataDir: string; log?(event: string, fields: Record<string, unknown>): void;
   /** Tests only: treat this path as the installed headless shell instead of searching for one. */
   executable?: string;
+  /** Explicit local test hook; not exposed by production host configuration. */
+  testOnlyAllowHttpLoopbackVault?: boolean;
+  /** Exact SHA256 SPKI pin for an ephemeral local HTTPS test certificate. */
+  testOnlyCertificateSpki?: string;
   /** Tests only: let the proxy reach a local test server. */
   allowAddress?: (address: string) => boolean; allowPort?: (port: number) => boolean }) {
   const sandboxed = agentIsolationEnabled();
+  if (!sandboxed && options.testOnlyCertificateSpki !== undefined && !/^[A-Za-z0-9+/]{43}=$/.test(options.testOnlyCertificateSpki)) throw new Error("Invalid test certificate SPKI pin.");
   const executable = options.executable ?? findHeadlessShell();
   const stateFile = join(options.dataDir, "browser.json");
   const localDir = join(options.dataDir, "browser");
@@ -121,6 +128,9 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
   const downloadOwners = new Map<string, { save: BrowserToolContext["saveDownload"]; signal?: AbortSignal }>();
   const watchers = new Set<(event: { type: "state"; state: BrowserViewState } | { type: "frame"; data: string; width: number; height: number; seq: number; capturedAt: number; pageId: string; inputId?: string }) => void>();
   const notes: string[] = [];
+  // Retained across browser restarts: page-controlled errors can echo an earlier credential.
+  const vaultSecrets = new Set<string>();
+  const redact = createBrowserRedactor(vaultSecrets);
   const invalidate = () => { elements = {}; snapshotText = ""; snapshotId = undefined; snapshotOwner = undefined; };
 
   /** The innermost focused element of the latest snapshot (a page with nothing focused marks its root). */
@@ -238,6 +248,8 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
           profileDir: join(SANDBOX.home, "profile"), downloadDir: staging, proxyPort: proxy.port, cdpPort: SANDBOX.cdpPort }
         : { executable, profileDir: join(localDir, "profile"), downloadDir: staging, proxyPort: proxy.port,
           env: { PATH: process.env.PATH ?? "", HOME: homedir() } };
+      launch.testOnlyAllowHttpLoopbackVault = !sandboxed && options.testOnlyAllowHttpLoopbackVault === true;
+      if (!sandboxed) launch.testOnlyCertificateSpki = options.testOnlyCertificateSpki;
       if (!sandboxed) { mkdirSync(launch.profileDir, { recursive: true, mode: 0o700 }); mkdirSync(staging, { recursive: true, mode: 0o700 }); }
       const child = fork(fileURLToPath(new URL("./browserWorker.ts", import.meta.url)), [], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: { PATH: process.env.PATH ?? "", HOME: homedir() } });
       worker = child;
@@ -343,8 +355,8 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       // Model refs are snapshot-specific even when Playwright keeps a surviving DOM ref stable.
       refPrefix = `s${refSession}${(++refVersion).toString(36)}x`;
       elements = Object.fromEntries(Object.entries(summary.elements).map(([ref, el]) => [refPrefix + ref, el]));
-      snapshotText = summary.snapshot.replace(/\[ref=([a-z0-9]+)\]/g, (_, ref: string) => `[ref=${refPrefix}${ref}]`);
-      if (summary.content !== undefined) snapshotText = `${summary.content}\n\nLinks:\n${snapshotText}`;
+      snapshotText = redactBrowserSnapshot(summary.snapshot, redact).replace(/\[ref=([a-z0-9]+)\]/g, (_, ref: string) => `[ref=${refPrefix}${ref}]`);
+      if (summary.content !== undefined) snapshotText = `${redact(summary.content)}\n\nLinks:\n${snapshotText}`;
     }
     state.url = summary.url; state.title = summary.title;
     const end = Math.min(snapshotText.length, offset + limit);
@@ -352,15 +364,73 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     const cut = end < snapshotText.length && lineEnd > offset ? lineEnd + 1 : end;
     const part = snapshotText.slice(offset, cut);
     const more = cut < snapshotText.length ? `\n[Snapshot characters ${offset}–${cut} of ${snapshotText.length}. Call browser_snapshot with offset=${cut} for more.]` : "";
-    return [`URL: ${summary.url}`, `Title: ${summary.title}`, `Page: ${summary.pageId}`, `Snapshot: ${snapshotId}`, ...summary.notes, ...notes.splice(0), "", part + more].join("\n");
+    return [`URL: ${redact(summary.url)}`, `Title: ${redact(summary.title)}`, `Page: ${summary.pageId}`, `Snapshot: ${snapshotId}`, ...summary.notes.map(redact), ...notes.splice(0).map(redact), "", part + more].join("\n");
   };
 
-  const accountNote = () => browserAccountNote(loggedIn, { controller: state.controller, clearing });
+  const accountNote = () => browserAccountNote(loggedIn, { controller: state.controller, clearing }, redact);
 
   return {
+    /** Captures only current refs owned by this conversation; never accepts a model-supplied origin. */
+    async captureLoginTarget(conversationId: string, input: { snapshotId: string; passwordRef: string; usernameRef?: string }): Promise<BrowserVaultTarget> {
+      const run = queue.then(async () => {
+        if (stopping || clearing || changingControl || state.controller !== "agent" || !state.running || !snapshotId || input.snapshotId !== snapshotId || snapshotOwner !== conversationId) throw new Error("Browser login target expired. Take a new snapshot.");
+        if (!elements[input.passwordRef] || (input.usernameRef && !elements[input.usernameRef])) throw new Error("Browser login fields are not in the current snapshot.");
+        const site = new URL(state.url!);
+        const localTest = !sandboxed && options.testOnlyAllowHttpLoopbackVault === true && site.protocol === "http:" && ["127.0.0.1", "[::1]", "localhost"].includes(site.hostname);
+        if (site.protocol !== "https:" && !localTest) throw new Error("Login Vault requires an HTTPS origin.");
+        const captured = { conversationId, pageId: state.pageId!, snapshotId, origin: site.origin, passwordRef: input.passwordRef, usernameRef: input.usernameRef, controlEpoch: state.controlEpoch! };
+        const result = await request({ op: "vault-capture", snapshotId, pageId: captured.pageId, origin: captured.origin, passwordRef: input.passwordRef.slice(refPrefix.length), ...(input.usernameRef ? { usernameRef: input.usernameRef.slice(refPrefix.length) } : {}) }) as { token: string };
+        if (stopping || clearing || changingControl || state.controller !== "agent" || captured.controlEpoch !== state.controlEpoch || captured.snapshotId !== snapshotId || snapshotOwner !== conversationId) throw new Error("Browser login target expired. Take a new snapshot.");
+        return Object.freeze({ ...captured, token: result.token });
+      });
+      queue = run.catch(() => undefined);
+      return run;
+    },
+    /** Rechecks the captured nodes before optional saving, retaining their original identity. */
+    async validateLoginTarget(target: BrowserVaultTarget, signal?: AbortSignal): Promise<void> {
+      const run = queue.then(async () => {
+        const check = () => {
+          if (signal?.aborted || stopping || clearing || changingControl || state.controller !== "agent" || !state.running || target.controlEpoch !== state.controlEpoch || target.pageId !== state.pageId || target.origin !== origin() || target.snapshotId !== snapshotId || target.conversationId !== snapshotOwner) throw new Error("Browser login target expired.");
+        };
+        check();
+        await request({ op: "vault-validate", token: target.token });
+        check();
+      });
+      queue = run.catch(() => undefined);
+      await run;
+    },
+    /** Host-only operation. Credentials never enter a model tool call or its result. */
+    async fillLogin(target: BrowserVaultTarget, credentials: { username: string; password: string }, signal?: AbortSignal, validate?: () => void): Promise<void> {
+      const run = queue.then(async () => {
+        const check = () => {
+          validate?.();
+          if (signal?.aborted || stopping || clearing || changingControl || state.controller !== "agent" || !state.running || target.controlEpoch !== state.controlEpoch || target.pageId !== state.pageId || target.origin !== origin() || target.snapshotId !== snapshotId || target.conversationId !== snapshotOwner) throw new Error("Browser login target expired or was cancelled. Take a new snapshot.");
+        };
+        try {
+          check();
+          if (!credentials.password) throw new Error("A login password is required.");
+          for (const value of [credentials.username, credentials.password]) if (value) vaultSecrets.add(value);
+          touch();
+          if (target.usernameRef) {
+            await request({ op: "vault-fill-field", token: target.token, field: "username", value: credentials.username });
+            check();
+          }
+          await request({ op: "vault-fill-field", token: target.token, field: "password", value: credentials.password });
+          check();
+        } catch {
+          // Playwright/page errors can contain text being filled; never return them to callers.
+          throw new Error("Login Vault fill failed or its target expired. Take a new snapshot and approve again.");
+        } finally {
+          invalidate();
+          if (worker?.connected) await request({ op: "vault-finish", token: target.token }).catch(() => {});
+        }
+      });
+      queue = run.catch(() => undefined);
+      await run;
+    },
     view: (): BrowserViewState => ({ ...state }),
     /** Fresh host context for every engine/turn; never includes cookie values or account identities. */
-    contextNote: () => executable ? browserAccountHint(loggedIn, { controller: state.controller, clearing }) : "",
+    contextNote: () => executable ? browserAccountHint(loggedIn, { controller: state.controller, clearing }, redact) : "",
 
     /** The approval class of a browser call from the host's own snapshot (policy hook). */
     classify: (name: string, args: unknown) => classifyBrowserCall(name, args, { elements, origin: origin(), loggedIn, focused: elements[focusedRef() ?? ""] }),
@@ -385,6 +455,13 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
                 return { text: accountNote(), isError: false };
               }
               case "browser_open": return { text: describeResult(await actFor({ op: "open", url: String(input.url ?? "") })), isError: false };
+              case "browser_screenshot": {
+                if (typeof input.snapshotId !== "string" || input.snapshotId !== snapshotId) throw new Error("The snapshot changed. Pass the Snapshot ID from a new browser_snapshot.");
+                const image = await actFor({ op: "screenshot", snapshotId: target().snapshotId }) as HostToolImage;
+                signal?.throwIfAborted();
+                if (state.controller !== "agent" || stopping || clearing || changingControl || input.snapshotId !== snapshotId || snapshotOwner !== context.conversationId) throw new Error("Browser control or snapshot changed during capture. Take a new snapshot.");
+                return { text: `Browser viewport (1280×800). Page: ${state.pageId}. Snapshot: ${snapshotId}. Use snapshot refs for actions.`, images: [image], isError: false };
+              }
               case "browser_snapshot": {
                 const offset = Number.isInteger(input.offset) && (input.offset as number) > 0 ? input.offset as number : 0;
                 if (offset) {
@@ -395,12 +472,14 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
                 const scope = typeof input.scope === "string" ? input.scope.trim() : undefined;
                 if (scope && scope.length > 512) throw new Error("Snapshot scope is too long.");
                 const mode = input.mode === "interactive" || input.mode === "content" ? input.mode : "full";
-                return { text: describeResult(await actFor({ op: "snapshot", scope, mode }), PAGE_CHARS), isError: false };
+                if (input.frameRef !== undefined && (typeof input.frameRef !== "string" || !input.frameRef)) throw new Error("Use an iframe ref from the latest snapshot.");
+                const frame = typeof input.frameRef === "string" ? target(input.frameRef) : undefined;
+                return { text: describeResult(await actFor({ op: "snapshot", scope, mode, ...(frame ? { frameRef: frame.ref!, snapshotId: frame.snapshotId } : {}) }), PAGE_CHARS), isError: false };
               }
               case "browser_tabs": {
                 const pageId = typeof input.pageId === "string" ? input.pageId : undefined;
                 const result = await actFor({ op: "tabs", pageId });
-                return { text: pageId ? describeResult(result) : JSON.stringify(result), isError: false };
+                return { text: pageId ? describeResult(result) : JSON.stringify(result, (key, value: unknown) => (key === "url" || key === "title") && typeof value === "string" ? redact(value) : value), isError: false };
               }
               case "browser_wait_for": {
                 const text = String(input.text ?? "").trim();
@@ -416,7 +495,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
                 const key = String(input.key ?? "");
                 if (typeof input.snapshotId !== "string" || input.snapshotId !== snapshotId) throw new Error("The page or snapshot changed. Pass the Snapshot ID from a new browser_snapshot before pressing a key.");
                 // The same focused element the approval was judged on, or the worker refuses.
-                const expectRef = key === "Enter" || key === "Space" ? focusedRef() : undefined;
+                const expectRef = ["Enter", "Space", "Backspace", "Delete"].includes(key) ? focusedRef() : undefined;
                 return { text: describeResult(await actFor({ op: "press", key, ...target(), ...(expectRef ? { expectRef: expectRef.slice(refPrefix.length) } : {}) })), isError: false };
               }
               case "browser_scroll": return { text: describeResult(await actFor({ op: "scroll", direction: input.direction === "up" ? "up" : "down" })), isError: false };
@@ -433,12 +512,12 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
                 // Answering also hands the browser back.
                 await release();
                 const done = answer?.browser_takeover?.[0] === labels.done;
-                return { text: done ? `The user finished and handed the browser back. Take a new snapshot before acting. ${notes.splice(0).join(" ")}`.trim() : "The user skipped taking over. Continue without it, or explain what you need.", isError: false };
+                return { text: done ? `The user finished and handed the browser back. Take a new snapshot before acting. ${notes.splice(0).map(redact).join(" ")}`.trim() : "The user skipped taking over. Continue without it, or explain what you need.", isError: false };
               }
             }
-            return { text: `Unknown browser tool: ${name}.`, isError: true };
+            return { text: redact(`Unknown browser tool: ${name}.`), isError: true };
           } catch (error) {
-            return { text: error instanceof Error ? error.message : String(error), isError: true };
+            return { text: redact(error instanceof Error ? error.message : String(error)), isError: true };
           }
         },
       };

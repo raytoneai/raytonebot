@@ -20,6 +20,16 @@ export type InlineApprovalPromptOption = {
   onSelect?: () => void;
 };
 
+export type InlineApprovalPromptField = {
+  id: string;
+  label: string;
+  value: string;
+  onChange: (value: string) => void;
+  secret?: boolean;
+  maxLength?: number;
+  placeholder?: string;
+};
+
 export function InlineApprovalPrompt({
   ariaLabel,
   kicker,
@@ -36,6 +46,9 @@ export function InlineApprovalPrompt({
   answer: controlledAnswer,
   onAnswerChange,
   singleChoice = false,
+  fields = [],
+  checkbox,
+  form = false,
 }: {
   ariaLabel: string;
   kicker: string;
@@ -52,6 +65,9 @@ export function InlineApprovalPrompt({
   answer?: string;
   onAnswerChange?: (answer: string) => void;
   singleChoice?: boolean;
+  fields?: readonly InlineApprovalPromptField[];
+  checkbox?: { label: string; checked: boolean; onChange: (checked: boolean) => void };
+  form?: boolean;
 }) {
   const choiceName = useId();
   const [localAnswer, setAnswer] = useState("");
@@ -72,6 +88,7 @@ export function InlineApprovalPrompt({
       ref={panel}
       className="inline-approval-panel"
       data-approval-surface={approvalSurface}
+      data-approval-form={form || undefined}
       data-preview-anchor="external-approval"
       aria-label={ariaLabel}
       aria-busy={pending}
@@ -139,6 +156,26 @@ export function InlineApprovalPrompt({
           </li>
         ))}
       </ol>
+
+      {fields.length ? <div className="inline-approval-fields">
+        {fields.map((field) => <label key={field.id} className="inline-approval-field">
+          <span>{field.label}</span>
+          <input type={field.secret ? "password" : "text"} value={field.value}
+            autoComplete="off" autoCapitalize="none" spellCheck={false}
+            maxLength={field.maxLength} placeholder={field.placeholder} disabled={pending}
+            onChange={(event) => field.onChange(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key === "Enter" && !event.nativeEvent.isComposing && !pending && !primaryDisabled) {
+                event.preventDefault(); primary();
+              }
+            }} />
+        </label>)}
+      </div> : null}
+      {checkbox ? <label className="inline-approval-checkbox">
+        <input type="checkbox" checked={checkbox.checked} disabled={pending}
+          onChange={(event) => checkbox.onChange(event.target.checked)} />
+        <span>{checkbox.label}</span>
+      </label> : null}
 
       <footer className="inline-approval-footer">
         {hint ? <span role="status">

@@ -1,5 +1,21 @@
 # 02 架构
 
+## 登录 Vault（2026-10-25，本机实现）
+
+`SettingsDialog` 的 Vault 分区 → `useVault` → `GET/POST/DELETE /__agentcanvas/pi/vault` → `VaultStore`。读接口仅返回条目 ID、版本、名称、精确 HTTPS origin、固定用户名掩码和启用状态；用户名/密码只接受写入，编辑留空保留，更改 origin 必须重新输入两者。保存/删除带全局 revision，冲突返回 409。浏览器输入只在表单内存中，关闭或切换分区清空。
+
+默认文件是 `<dataDir>.vault/logins.enc`，AES-256-GCM；独立 `master.key` 或主机环境 `RAYTONEBOT_VAULT_MASTER_KEY`（64 位 hex）提供主密钥。目录 0700、文件 0600，检查所有者与链接，锁与原子替换，损坏不覆盖。本机可用 `RAYTONEBOT_VAULT_DIR` 指定测试目录；沙箱忽略该覆盖，固定使用数据目录的 sibling。普通数据备份不含该目录，恢复必须另外保管密文和匹配主密钥。工作区文件/产物/附件接口排除 Vault，子进程环境剥离主密钥；本机同 UID 不是强隔离。
+
+`vault_request_use` 经所有引擎已有 HostTools 通道，仅接收 snapshot/ref/可选条目 ID。主机从实际页面筛选同 origin 的条目，经 `VaultRequestGate` 与现有审批卡选择已保存登录或安全输入新账号（ADR-053），任何权限模式都必须答复。秘密通过 `POST /__agentcanvas/pi/vault/requests/:requestId/answer` 直达主机；请求体为 conversationId/runId/answer，严格区分 cancel、use、fill，后者含用户选择的 save。普通 UserInputGate、问答草稿和 `/input` 不接触秘密。
+
+120 秒一次性请求绑定 conversation/run/bot、条目版本、页面/快照/控制 epoch 和原 DOM 元素；停止、过期、编辑/停用/删除、导航/接管使其失效，保存前和执行队列内再次校验。未保存值只在本次内存路径中使用；勾选保存先原子落入 Vault 再填，后续失败报告已保存/填充未确认；落盘结果未知时不给自动重放机会。重复 POST 返回有界、只含状态的回执。事件仅含公开请求元数据与固定文案的最终回执；结果在卡片消失后仍留在聊天中。
+
+主机直接通过私有 IPC 填入浏览器，不把值放进工具参数/结果、事件或历史。`/vault` 与专用 answer 要求自定义请求头和现有来源校验，answer 额外要求携带同源 Origin；这些是 CSRF 约束，不能抵御同 UID 本机进程伪造。设置保留永久管理入口，聊天卡片的双字段独立受控、可选保存默认关闭，草稿仅在内存；切换请求/会话、取消、成功、超时、卸载清空，迟到响应不能恢复旧输入。
+
+首版只支持网页单聊、顶层 HTTPS 页面、普通用户名框和显式 `autocomplete=current-password` 的密码框，不支持 IM/群聊、卡号、验证码、新密码或 iframe。只填不提交；填后该文档对模型的快照/正文/标题被隐藏，下载被阻止，用户通过原有 Output 浏览器接管检查与提交。实际站点脚本必然能读到填入的值；不承诺防恶意目标站点或被攻陷主机。实现/验证边界见 [ADR-052](07-decisions.md#adr-052登录-vault-由主机保存与逐次授权填充2026-10-25) 与[验收](../../output/vault-2026-10-25/README.md)。
+
+网页回显的秘密子串由 `browserRedaction.ts` 在主机输出边界过滤，凭据集合跨浏览器 worker 重启保留；错误文本可重复脱敏而不改坏替换标记。主机内部 URL 与元素事实保持原值供页面绑定、权限分类使用；模型结果只过滤网页名称、值、URL、标题等内容，保留生成的 snapshot/page ID、ref、角色/状态与分页协议。
+
 ## DSH 本地接入补充（2026-10-19）
 
 创建 Bot 的现有表单可选择 `dsh`（DeepSeek Harness），原三个内置 Bot 与默认模型不变。`piHost.runCliPrompt` → `dshHarness.ts` 启动已安装的固定版本 `@deepseek-ai/dsh@0.2.1-rc.2`；`dshProtocol.ts` 将 ACP 的文本、思考、工具、审批转换成 Pi wire events，继续使用 `piAdapter` 和现有界面。ACP 此版本只推送已提交文本。
@@ -261,7 +277,7 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 
 `AgentAvatar` 优先使用已保存配置并调用 `botAvatarSVG`，其他入口与动画层保持共用；编辑器显式传入草稿。Shell 使用当前 `streamId` 隔离示例回放，不能使用 `isFixtureMode`：产品 `runtime.transport` 按规定保持 replay，真实对话仍通过 Pi client。
 
-浏览器登录快捷入口（2026-10-17）：Output 内现有 `BrowserView` 在空闲/用户接管时提供 Google / GitHub / Reddit / Apple / X 及「其他」入口。`POST /browser/control` 增加 `{action:"login",site:"google"|"github"|"reddit"|"apple"|"x"|"other",url?:string}`，服务端白名单映射登录 URL；other 校验 HTTP(S) URL 并拒绝内嵌凭据，出站仍经原代理，复用 takeover 与 worker open；用户直接导航无需模型审批，成员工具仍受原审批与接管互斥约束。profile 与备份路径不变。
+浏览器登录快捷入口（2026-10-25 更新）：Output 内现有 `BrowserView` 在浏览器未运行时提供 Google / GitHub / Reddit / Apple / X / 小红书 / 微博 / Instagram / Facebook 及「其他」入口。`POST /browser/control` 接受 `{action:"login",site:"google"|"github"|"reddit"|"apple"|"x"|"xiaohongshu"|"weibo"|"instagram"|"facebook"|"other",url?:string}`，服务端白名单映射登录 URL；other 校验 HTTP(S) URL 并拒绝内嵌凭据，出站仍经原代理，复用 takeover 与 worker open；用户直接导航无需模型审批，成员工具仍受原审批与接管互斥约束。小红书使用 `/explore` 的站内登录入口，微博使用 `/login.php`；平台风控或验证码由用户接管处理。profile 与备份路径不变，四个新增站点同时进入 `browser_accounts` 的名称与用途说明。
 
 浏览器全局清理（2026-10-17）：`POST /browser/control` 的 `clear-logins` 操作在清理期间拒绝新的浏览器动作，等待启动/排队动作结束，关闭 Chromium 后删除当前 profile（sandbox 使用浏览器 UID）并重置 `browser.json` 的登录站点记录、快照与页面标题。现有 BrowserView 底部提供二次确认；普通关闭保留 profile。旧备份与网站端会话不受影响。
 
@@ -283,7 +299,8 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 - IndexedDB 的现有 conversation draft metadata 增加可选 groupMembers；只有尚无历史的新群允许仅成员名单的空记录保留。正常单聊及接受后的空记录行为不变，权限仍不恢复 allow-all。
 - `src/pi/artifactTool.ts` 提供 `publish_artifact`，主机验证后调用当前 adapter，走既有 artifact 事件和 OutputFrame。`resolveFilePath` 是 adapter 的可选主机回调，默认保持旧 fixture 行为；主机按各引擎 cwd 生成绝对 URI。参考 ADR-044。
 - 浏览器既有 `/browser/input` 可选 inputId（仅标识符，最多64字符），SSE frame 可选同名关联。开发诊断在输入批次执行并让页面渲染后截一帧；BrowserView 解码并经过绘制帧后才记录浏览器单调时钟的 send→display 延迟，最多200样本，不保留输入内容/不落盘，普通入口不请求额外截图。capturedAt 来自 CDP 帧时间；界面不显示跨机器相减的帧年龄。
-- 仅主 frame 导航使整页 ref 失效；iframe scope 明确不支持、提示独立打开或接管。切换标签不阻塞在旧 CDP detach 上，旧帧仍由 page/session/version 检查拒绝；标题读取250ms后用缓存回退。交还/最后观看连接关闭/换页清理按键，鼠标移出再释放，防止清理本身点中原按钮。
+- 仅主 frame 导航使整页 ref 失效；子帧导航拒绝该帧旧目标及旧 frameRef，父页面引用保留。`browser_snapshot(frameRef, scope)` 使用快照中的 iframe 引用进入嵌套/跨域 frame；scope 不接受穿帧语法。动作按目标文档 origin 判定站点审批，按键核对实际帧焦点。切换标签不阻塞在旧 CDP detach 上，旧帧仍由 page/session/version 检查拒绝；标题读取250ms后用缓存回退。交还/最后观看连接关闭/换页清理按键，鼠标移出再释放，防止清理本身点中原按钮。
+- 模型截图（2026-10-25，ADR-054）：`browser_screenshot(snapshotId)` 经原 BrowserService 返回有界视口 JPEG，HostToolResult 可携带 images；Pi/Claude/Codex 转为各自原生图片结果，DSH 复用其附件投影。用户 Output 的实时画面仍独立。截图前后核对页面/帧/秘密字段，Vault 填后隐藏、接管或停止时拒绝交付。普通远程 MCP 的图片解析不在本次范围内。
 
 
 ### M5 第二批：任务、表单和文本工作区（2026-10-18）

@@ -1,0 +1,6 @@
+{
+  "sandboxId": "ic62vgn5jrfwv4g9voz6o",
+  "exitCode": 1,
+  "stdout": "lcu-0.13.0-linux-x64.tar.gz: OK\n",
+  "stderr": "LCU installer: LCU requires the official ChatGPT desktop app, which includes Codex, to be installed first. LCU does not download or install the app. No app with its Node was found at /usr/lib/chatgpt. Install it from https://chatgpt.com/download/ and rerun LCU. If it is installed elsewhere, pass --existing-app PATH.\n"
+}

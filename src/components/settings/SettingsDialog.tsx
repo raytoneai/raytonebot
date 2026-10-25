@@ -1,10 +1,11 @@
 import * as RadixDialog from "@radix-ui/react-dialog";
-import { Brain, CalendarClock, Check, ChevronDown, CircleAlert, Copy, Info, MessagesSquare, Palette, Plug, Plus, Server, ShieldCheck, X } from "lucide-react";
-import { useEffect, useState, type ReactNode } from "react";
+import { Brain, CalendarClock, Check, ChevronDown, CircleAlert, Copy, Info, KeyRound, MessagesSquare, Palette, Plug, Plus, Server, ShieldCheck, X } from "lucide-react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 
 import { useCopy, useLocale } from "../../i18n/LocaleContext";
 import { APP_LOCALES, type AppLocale } from "../../i18n/locales";
 import { settingsCopy, type SettingsCopy } from "../../i18n/copy/settings";
+import { vaultCopy } from "../../i18n/copy/vault";
 import { appVersionLabel } from "../../appVersion";
 import { AGENT_PRESETS, type AgentHarnessId } from "../../pi/harnessCatalog";
 import { clearApprovalMemory, type PiRuntimeState } from "../../pi/piClient";
@@ -27,6 +28,8 @@ import type { RoutineView } from "../../pi/routineTypes";
 import type { McpServersState } from "../../runtime/useMcpServers";
 import type { McpServerView } from "../../pi/mcpTypes";
 import type { MemoriesState } from "../../runtime/useMemories";
+import type { VaultSettingsState } from "../../runtime/useVault";
+import type { VaultLoginInput, VaultLoginView } from "../../pi/vaultTypes";
 import { MEMORY_COUNT_LIMIT, MEMORY_TEXT_LIMIT, type MemoryView } from "../../pi/memoryTypes";
 import { CHANNEL_FIELDS, type ChannelPatch, type ChannelPlatform, type ChannelView } from "../../pi/imChannels/types";
 import { useBotNames } from "../shell/ShellExtras";
@@ -43,7 +46,7 @@ import "./settings.css";
 export type PermissionMode = "request" | "auto" | "allow-all";
 export type { ProviderPatch } from "../../runtime/providerSettings";
 
-export type SettingsSectionId = "providers" | "permissions" | "channels" | "routines" | "mcp" | "memory" | "appearance" | "about";
+export type SettingsSectionId = "providers" | "permissions" | "channels" | "routines" | "mcp" | "memory" | "vault" | "appearance" | "about";
 type SectionId = SettingsSectionId;
 
 const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI", dsh: "DeepSeek Harness" };
@@ -90,6 +93,8 @@ export type SettingsDialogProps = {
   mcpServers?: McpServersState;
   /** Cross-conversation memory from the host (ADR-038); the section is hidden when absent (fixtures, static previews). */
   memories?: MemoriesState;
+  /** Public login metadata; absent in fixtures and static previews. */
+  vault?: VaultSettingsState;
   /** Opens a routine's conversation and closes the dialog. */
   onOpenConversation?: (conversationId: string) => void;
 };
@@ -128,6 +133,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.routines ? [{ id: "routines" as const, label: t.nav.routines, Icon: CalendarClock }] : []),
     ...(props.mcpServers ? [{ id: "mcp" as const, label: t.nav.mcp, Icon: Plug }] : []),
     ...(props.memories ? [{ id: "memory" as const, label: t.nav.memory, Icon: Brain }] : []),
+    ...(props.vault ? [{ id: "vault" as const, label: vaultCopy[locale].nav, Icon: KeyRound }] : []),
     { id: "appearance", label: t.nav.appearance, Icon: Palette },
     { id: "about", label: t.nav.about, Icon: Info },
   ];
@@ -172,6 +178,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {section === "routines" && props.routines ? <RoutinesSection t={t} state={props.routines} onOpenConversation={props.onOpenConversation} /> : null}
               {section === "mcp" && props.mcpServers ? <McpSection t={t} state={props.mcpServers} /> : null}
               {section === "memory" && props.memories ? <MemorySection t={t} state={props.memories} /> : null}
+              {props.open && section === "vault" && props.vault ? <VaultSection state={props.vault} /> : null}
               {section === "appearance" ? <AppearanceSection {...props} t={t} /> : null}
               {section === "about" ? <AboutSection {...props} t={t} /> : null}
             </div>
@@ -1088,6 +1095,98 @@ function MemoryRow({ t, memory, state }: { t: SettingsCopy; memory: MemoryView; 
           </Button>
         </>
       )}
+    </div>
+  );
+}
+
+function VaultSection({ state }: { state: VaultSettingsState }) {
+  const { locale } = useLocale();
+  const c = vaultCopy[locale];
+  const [editing, setEditing] = useState<string>();
+  const [confirming, setConfirming] = useState<string>();
+  const busy = Boolean(state.busy);
+  return (
+    <>
+      <p className="settings-intro">{c.intro}</p>
+      {state.error ? <p className="settings-status" data-tone="error" role="status">{c.loadFailed}</p> : null}
+      {!state.state && !state.error ? <p className="settings-note" role="status">{c.loading}</p> : null}
+      {state.state?.items.length === 0 && editing !== "new" ? <p className="settings-note">{c.empty}</p> : null}
+      {(state.state?.items.length || editing === "new") ? <div className="settings-list">
+        {(state.state?.items ?? []).map((item) => (
+          <div className="settings-provider" key={item.id} data-open={editing === item.id}>
+            <div className="settings-row settings-vault-row">
+              <span className="settings-row-main">
+                <span className="settings-row-title"><strong>{item.label}</strong><span className="settings-chip">{item.enabled ? c.enabled : c.disabled}</span></span>
+                <span className="settings-row-sub">{item.origin}</span>
+                <span className="settings-row-sub">{item.usernameHint}</span>
+              </span>
+              <Button size="sm" variant="ghost" disabled={busy || Boolean(editing)} onClick={() => { setEditing(item.id); setConfirming(undefined); }}>{c.edit}</Button>
+              <Button size="sm" variant="ghost" disabled={busy || Boolean(editing)} onBlur={() => setConfirming(undefined)} onClick={async () => {
+                if (confirming !== item.id) { setConfirming(item.id); return; }
+                if (await state.remove(item.id)) setConfirming(undefined);
+              }}>{confirming === item.id ? c.confirmRemove : c.remove}</Button>
+            </div>
+            {editing === item.id ? <VaultEditor item={item} state={state} onClose={() => setEditing(undefined)} /> : null}
+            {editing !== item.id && state.actionError?.id === item.id ? <p className="settings-status settings-provider-editor" data-tone="error" role="alert">{c.failed}</p> : null}
+          </div>
+        ))}
+        {editing === "new" ? <div className="settings-provider" data-open><VaultEditor state={state} onClose={() => setEditing(undefined)} /></div> : null}
+      </div> : null}
+      <div className="settings-provider-actions settings-vault-actions">
+        <Button size="sm" variant="ghost" disabled={busy || Boolean(editing) || !state.state} onClick={() => { setEditing("new"); setConfirming(undefined); }}><Plus size={14} aria-hidden="true" />{c.add}</Button>
+        {state.error ? <Button size="sm" variant="ghost" disabled={busy} onClick={() => void state.refresh()}>{c.refresh}</Button> : null}
+      </div>
+    </>
+  );
+}
+
+/** The only place credential drafts are held; unmounted on cancel, success or settings close. */
+function VaultEditor({ item, state, onClose }: { item?: VaultLoginView; state: VaultSettingsState; onClose: () => void }) {
+  const { locale } = useLocale();
+  const c = vaultCopy[locale];
+  const [label, setLabel] = useState(item?.label ?? "");
+  const [origin, setOrigin] = useState(item?.origin ?? "");
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+  const [enabled, setEnabled] = useState(item?.enabled ?? true);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
+  const busy = Boolean(state.busy);
+  const key = item?.id ?? "new";
+  let validOrigin = false;
+  let originChanged = false;
+  try {
+    const url = new URL(origin.trim());
+    validOrigin = url.protocol === "https:" && !url.username && !url.password && url.pathname === "/" && !url.search && !url.hash;
+    originChanged = Boolean(item && url.origin !== item.origin);
+  } catch { /* Report invalid input inline. */ }
+  const needsCredentials = !item || originChanged;
+  const valid = Boolean(label.trim()) && validOrigin && (!needsCredentials || (username.length > 0 && password.length > 0));
+  const save = async () => {
+    if (!valid || busy) return;
+    const input: VaultLoginInput = { id: item?.id, label: label.trim(), origin: origin.trim(), enabled,
+      ...(username.length ? { username } : {}), ...(password.length ? { password } : {}) };
+    if (await state.save(input) && mounted.current) { setUsername(""); setPassword(""); onClose(); }
+  };
+  const cancel = () => { setUsername(""); setPassword(""); onClose(); };
+  return (
+    <div className="settings-provider-editor" role="group" aria-label={item ? c.edit : c.newLogin}>
+      <Field label={c.label}><Input aria-label={c.label} autoFocus autoComplete="off" value={label} disabled={busy} onChange={(event) => setLabel(event.target.value)} /></Field>
+      <Field label={c.origin} hint={c.originHint}><Input aria-label={c.origin} type="url" autoComplete="off" spellCheck={false} placeholder="https://example.com" value={origin} disabled={busy} invalid={Boolean(origin) && !validOrigin} onChange={(event) => setOrigin(event.target.value)} /></Field>
+      {origin && !validOrigin ? <p className="settings-status" data-tone="error">{c.invalidOrigin}</p> : null}
+      {originChanged && validOrigin ? <p className="settings-note" role="status">{c.originChangeHint}</p> : null}
+      <Field label={c.username} hint={!needsCredentials ? c.keepHint : undefined}><Input aria-label={c.username} type="password" autoComplete="off" spellCheck={false} autoCapitalize="none" value={username} placeholder={!needsCredentials ? item?.usernameHint : undefined} disabled={busy} onChange={(event) => setUsername(event.target.value)} /></Field>
+      <Field label={c.password} hint={!needsCredentials ? c.keepHint : undefined}><Input aria-label={c.password} type="password" autoComplete="off" spellCheck={false} value={password} placeholder={!needsCredentials ? MASK : undefined} disabled={busy} onChange={(event) => setPassword(event.target.value)} /></Field>
+      <div className="settings-provider-actions"><Switch size="sm" aria-label={c.enabled} checked={enabled} disabled={busy} onCheckedChange={setEnabled} /><span className="settings-note">{enabled ? c.enabled : c.disabled}</span></div>
+      <p className="settings-note">{c.draftHint}</p>
+      <div className="settings-provider-actions">
+        <Button size="sm" disabled={!valid || busy} onClick={() => void save()}>{state.busy === key ? c.saving : c.save}</Button>
+        <Button size="sm" variant="ghost" disabled={busy} onClick={cancel}>{c.cancel}</Button>
+      </div>
+      {state.actionError?.id === key ? <p className="settings-status" data-tone="error" role="alert">{c.failed}</p> : null}
     </div>
   );
 }

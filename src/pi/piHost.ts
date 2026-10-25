@@ -1,3 +1,8 @@
+import { VaultStore, VaultError } from "./vault.ts";
+import { vaultToolsFor } from "./vaultUse.ts";
+import { VaultRequestGate, VaultRequestError } from "./vaultRequests.ts";
+import type { VaultUseResult } from "./vaultRequestTypes.ts";
+import { vaultResultMessage } from "../i18n/copy/vaultRequest.ts";
 import { ProviderStore, ProviderStoreError, providerBinding } from "./providerStore.ts";
 import { piRuntimeConfigurationForProvider } from "./piProviderSync.ts";
 import { BotConfigStore, BotConfigError } from "./botConfig.ts";
@@ -113,6 +118,7 @@ export type PiBridgeFactory = (input: {
   /** Where this conversation's Pi session lives on disk; in memory when omitted. */
   sessionDir?: string;
   onUserInput(request: UserInputRequest): Promise<UserAnswers>;
+  hostTools?: HostTools;
   /** `connect_channel`: absent when the host has no channel setup (tests, previews). */
   onChannelSetup?(request: ChannelSetupRequest): Promise<ChannelSetupResult>;
   /** `create_routine`: absent when the host keeps no routines (tests, previews). */
@@ -156,6 +162,7 @@ export type PiRuntimeController = {
   /** Answers a held tool call; with a conversation, only that conversation's gate is consulted. */
   resolveApproval(toolCallId: string, decision: PiApprovalDecision, conversationId?: string, runId?: string): boolean;
   resolveUserInput(conversationId: string, requestId: string, answers: unknown): boolean;
+  resolveVaultInput?(conversationId: string, requestId: string, runId: string, answer: unknown): Promise<VaultUseResult>;
   newSession(conversationId?: string): Promise<PiRuntimeState>;
   /** Forgets "always allow" grants: one agent's, or every agent's. */
   clearApprovals(agentPreset?: string): Record<string, string[]>;
@@ -176,6 +183,8 @@ export function createPiRuntimeController(options: {
   store?: ConversationStore;
   bots?: BotConfigStore;
   providers?: ProviderStore;
+  vault?: VaultStore;
+  vaultDir?: string;
   bridgeFactory?: PiBridgeFactory;
   limits?: RunLimits;
   /** Connecting an IM channel from chat; the host binds it to its channel manager. */
@@ -217,7 +226,9 @@ export function createPiRuntimeController(options: {
   const defaultPermissionMode: PiPermissionMode = sandboxed ? "auto" : "request";
   const workspaces = [...new Set([cwd, ...Object.values(layout.agents), ...(layout.shared ? [layout.shared] : [])])];
   const appRoot = options.appRoot ?? process.cwd();
-  const secretPaths = [...defaultSecretPaths(), `${dataDir}.provider-secrets`];
+  const vaultDir = options.vaultDir ?? `${dataDir}.vault`;
+  const privatePaths = [dataDir, `${dataDir}.provider-secrets`, vaultDir];
+  const secretPaths = [...defaultSecretPaths(), `${dataDir}.provider-secrets`, vaultDir];
   // In the sandbox agents run as their own user with their own home; locally it is the developer's.
   const protectedPaths = defaultProtectedPaths({ workspaces, agentHome: process.env.RAYTONEBOT_AGENT_HOME?.trim() || undefined });
   /** The bot's own code: agents may read it (reviewing it is a normal task), never change it. */
@@ -228,6 +239,7 @@ export function createPiRuntimeController(options: {
    *  with their own mode and cwd. */
   const approvalGates = new Map<string, PiApprovalGate>();
   const userInputGate = new UserInputGate();
+  const vaultRequests = new VaultRequestGate();
   const gateFor = (conversationId: string) => {
     let gate = approvalGates.get(conversationId);
     if (!gate) {
@@ -237,7 +249,7 @@ export function createPiRuntimeController(options: {
     }
     return gate;
   };
-  const awaitingUser = (conversationId: string) => Boolean(approvalGates.get(conversationId)?.waiting) || userInputGate.waitingIn(conversationId);
+  const awaitingUser = (conversationId: string) => Boolean(approvalGates.get(conversationId)?.waiting) || userInputGate.waitingIn(conversationId) || vaultRequests.waitingIn(conversationId);
   /** Search and page reads, performed by the bot for every engine (agents have no egress). */
   const webTools = createWebTools({ proxyFakeIp: !sandboxed });
   let gatewayPromise: ReturnType<typeof createModelGateway> | undefined;
@@ -274,7 +286,7 @@ export function createPiRuntimeController(options: {
       modelLease: (provider, protocol, thinkingLevel) => modelLease(provider, protocol, id, thinkingLevel),
       webTools,
       mcpTools: options.mcpTools?.(),
-      hostTools: hostToolsFor(id, "assistant"),
+      hostTools: input.hostTools,
     });
   });
   /** Pi sessions opened with an older MCP tool list, closed when their run ends. */
@@ -302,6 +314,7 @@ export function createPiRuntimeController(options: {
     steer?: (text: string, requestId: string) => Promise<void>;
     steering?: Map<string, { text: string; done: Promise<void> }>;
     stopRequested: boolean;
+    vaultAbort: AbortController;
     memoryDelivered?: () => void;
     limit?: string;
     /** Browsers watching the run; it keeps going with none (a closed tab does not stop it). */
@@ -327,14 +340,34 @@ export function createPiRuntimeController(options: {
   };
   /** remember / forget and the browser for one conversation's agent; downloads land in its own workspace. */
   const hostToolsFor = (conversationId: string, agent: AgentPresetId) => mergeHostTools(
-    artifactTools(layout, agent, [dataDir, `${dataDir}.provider-secrets`], (file) => {
+    artifactTools(layout, agent, privatePaths, (file) => {
       const slot = runs.get(conversationId);
       if (!slot?.adapter || slot.stopRequested) throw new Error("The artifact run is no longer active.");
       slot.adapter.apply({ type: "artifact_published", ...file });
     }),
+    options.vault && options.browser ? vaultToolsFor({ store: options.vault, browser: options.browser, conversationId,
+      currentRun: () => {
+        const slot = runs.get(conversationId);
+        return slot?.adapter && !slot.stopRequested ? { runId: slot.runId, botId: slot.turn.botId ?? agent,
+          locale: slot.turn.locale, fromChannel: slot.fromChannel, groupConversation: slot.groupConversation, signal: slot.vaultAbort.signal } : undefined;
+      },
+      requests: vaultRequests,
+      announce: (toolCallId, view) => {
+        const slot = runs.get(conversationId);
+        if (!slot?.adapter || slot.stopRequested || slot.runId !== view.runId) throw new Error("Vault request expired.");
+        slot.adapter.apply({ type: "vault_input_required", toolCallId, request: view });
+        store.flush(conversationId);
+      },
+      resolved: (toolCallId, requestId, result) => {
+        const slot = runs.get(conversationId);
+        slot?.adapter?.apply({ type: "vault_input_resolved", toolCallId, requestId,
+          message: vaultResultMessage(slot.turn.locale ?? "en", result) });
+        store.flush(conversationId);
+      }, log,
+    }) : undefined,
     options.memory?.toolsFor({ conversationId, agent }),
     options.browser?.toolsFor({ conversationId, agent,
-      saveDownload: (name, bytes) => saveWorkspaceDownload(layout, agent, name, bytes, [dataDir, `${dataDir}.provider-secrets`]),
+      saveDownload: (name, bytes) => saveWorkspaceDownload(layout, agent, name, bytes, privatePaths),
       ask: (questions, signal) => askUser(conversationId, { toolCallId: `browser_takeover_${randomUUID()}`, questions, signal: signal ?? new AbortController().signal }) }),
   );
   const askUser = async (conversationId: string, { toolCallId, questions, signal }: UserInputRequest) => {
@@ -412,7 +445,7 @@ export function createPiRuntimeController(options: {
       bridgePromises.set(id, existing);
       return existing;
     }
-    const created = bridgeFactory({ cwd, approvalGate: gateFor(id), sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)), onUserInput: (request) => askUser(id, request),
+    const created = bridgeFactory({ hostTools: hostToolsFor(id, "assistant"), cwd, approvalGate: gateFor(id), sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)), onUserInput: (request) => askUser(id, request),
       ...(options.channelSetup ? { onChannelSetup: (request: ChannelSetupRequest) => setupChannel(id, request) } : {}),
       ...(options.createRoutine ? { onCreateRoutine: (request: RoutineRequest) => createRoutine(id, request) } : {}) }).catch((error) => {
       bridgePromises.delete(id);
@@ -787,6 +820,7 @@ export function createPiRuntimeController(options: {
     if (runId !== undefined && (conversationId === undefined || targets[0]?.runId !== runId)) return false;
     await Promise.all(targets.map(async (slot) => {
       slot.stopRequested = true;
+      slot.vaultAbort.abort();
       await slot.stop?.();
     }));
     return true;
@@ -859,7 +893,7 @@ export function createPiRuntimeController(options: {
       // No await after the final checks: another prompt cannot take this conversation or slot.
       let settle!: () => void;
       const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, groupConversation: options?.groupConversation,
-        turn: { provider: input.provider, model: input.model, locale: input.locale }, stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
+        turn: { provider: input.provider, model: input.model, locale: input.locale }, vaultAbort: new AbortController(), stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
       lastRunTouchedAt = Date.now();
       const stopOnSignal = () => void abortRuns(conversationId, slot.runId).catch(() => undefined);
@@ -933,7 +967,7 @@ export function createPiRuntimeController(options: {
         opened = true;
         store.setExtra(conversationId, { botId: identity.botId, availableBots: identity.availableBots });
         if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
-        const workspacePrompt = await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, [dataDir, `${dataDir}.provider-secrets`]);
+        const workspacePrompt = await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, privatePaths);
         const memoryNote = memory?.noteFor(conversationId);
         slot.memoryDelivered = memoryNote?.delivered;
         const browserNote = browser?.contextNote();
@@ -952,6 +986,7 @@ export function createPiRuntimeController(options: {
           } catch (failure) { if (!recorder.failed) throw failure; }
         }
       } finally {
+        slot.vaultAbort.abort();
         clearTimeout(deadline);
         options?.signal?.removeEventListener("abort", stopOnSignal);
         try {
@@ -1042,6 +1077,7 @@ export function createPiRuntimeController(options: {
       return true;
     },
     abort: abortRuns,
+    resolveVaultInput: (conversationId, requestId, runId, answer) => vaultRequests.answer(normalizeConversationId(conversationId), requestId, runId, answer),
     resolveUserInput: (conversationId, requestId, answers) => userInputGate.resolve(normalizeConversationId(conversationId), requestId, answers),
     resolveApproval(toolCallId, decision, onlyConversationId, runId) {
       const scope = onlyConversationId === undefined ? undefined : normalizeConversationId(onlyConversationId);
@@ -1078,6 +1114,7 @@ export function createPiRuntimeController(options: {
     },
     dispose() {
       disposed.abort(new Error("Pi runtime controller is disposed."));
+      for (const slot of runs.values()) slot.vaultAbort.abort();
       for (const gate of approvalGates.values()) gate.cancelAll();
       for (const pending of bridgePromises.values()) void pending.then((current) => current.dispose());
       bridgePromises.clear();
@@ -1088,7 +1125,7 @@ export function createPiRuntimeController(options: {
   // Group chat wraps the controller (groupChat.ts, ADR-032).
   return attachGroupChat(api, { store, userInputGate,
     bots: options.bots,
-    validateAttachments: (attachments, role) => promptWithWorkspaceFiles("", attachments, role, layout, [dataDir, `${dataDir}.provider-secrets`]).then(() => {}),
+    validateAttachments: (attachments, role) => promptWithWorkspaceFiles("", attachments, role, layout, privatePaths).then(() => {}),
     credentials: providerCredentials,
     providerDefinition: (id) => id ? providerDefinitions.get(id) : undefined,
     providerKey: (id) => providerCredentials(id)?.apiKey, log, providerIds: () => [...providerDefinitions.keys()],
@@ -1111,20 +1148,25 @@ export function createPiHttpHost(options: {
   routineClock?: boolean;
   /** The shared browser (ADR-040); tests without one turn it off. */
   browser?: false | BrowserService;
+  /** Local testing override; sandbox deployments use the private sibling directory. */
+  vaultDir?: string;
 }) {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: options.cwd });
-  const privatePaths = [options.dataDir ?? defaultDataDir(), `${options.dataDir ?? defaultDataDir()}.provider-secrets`];
+  const sandboxed = options.sandboxed ?? process.env.RAYTONEBOT_SANDBOX === "1";
+  const vaultDir = resolvePath(sandboxed ? `${options.dataDir ?? defaultDataDir()}.vault` : options.vaultDir ?? process.env.RAYTONEBOT_VAULT_DIR ?? `${options.dataDir ?? defaultDataDir()}.vault`);
+  const privatePaths = [options.dataDir ?? defaultDataDir(), `${options.dataDir ?? defaultDataDir()}.provider-secrets`, vaultDir];
   // Bound below: the setup needs the channel manager, which needs the controller.
   let channelSetup: ReturnType<typeof createChannelSetup> | undefined;
   let routines: RoutineService | undefined;
   const dataDir = options.dataDir ?? defaultDataDir();
   const providers = new ProviderStore(join(`${dataDir}.provider-secrets`, "providers.enc"));
+  const vault = new VaultStore(join(vaultDir, "logins.enc"));
   const bots = new BotConfigStore(join(dataDir, "bots.json"));
   const store = createConversationStore(dataDir);
   const mcp = createMcpService({ dataDir, log: runtimeLogger(dataDir) });
   const memory = createMemoryService({ dataDir, log: runtimeLogger(dataDir) });
   const browser = options.browser === false ? undefined : options.browser ?? createBrowserService({ dataDir, log: runtimeLogger(dataDir) });
-  const controller = createPiRuntimeController({ ...options, layout, store, bots, providers, channelSetup: (run) => channelSetup!.run(run),
+  const controller = createPiRuntimeController({ ...options, layout, store, bots, providers, vault, vaultDir, channelSetup: (run) => channelSetup!.run(run),
     createRoutine: (input) => routines!.create(input), mcpTools: () => mcp.toolkit(), memory, browser });
   routines = createRoutineService({ dataDir, bots, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
   const stopClock = options.routineClock === false ? undefined : routines.startClock();
@@ -1151,6 +1193,31 @@ export function createPiHttpHost(options: {
       }
 
       try {
+        const vaultAnswer = new RegExp(`^${PI_API_PREFIX}/vault/requests/([^/]+)/answer$`).exec(url.pathname);
+        if (vaultAnswer) {
+          if (req.method !== "POST") { sendJson(res, 405, { error: "Method not allowed." }); return true; }
+          if (req.headers["x-raytone-vault"] !== "1" || !req.headers.origin) { sendJson(res, 403, { error: "Confirm Vault use in the RaytoneBot web app." }); return true; }
+          if (sandboxed) requireAgentIsolation({ ...process.env, RAYTONEBOT_SANDBOX: "1" });
+          let body: Record<string, unknown>;
+          try { body = await readJson(req); } catch { throw new VaultRequestError("Invalid Vault request.", 400); }
+          const conversationId = stringField(body, "conversationId"), runId = stringField(body, "runId");
+          if (!conversationId || !runId) throw new VaultRequestError("Invalid Vault request.", 400);
+          if (!controller.resolveVaultInput) throw new VaultRequestError("Vault is unavailable.", 503);
+          sendJson(res, 200, await controller.resolveVaultInput(conversationId, vaultAnswer[1], runId, body.answer));
+          return true;
+        }
+        if (url.pathname === `${PI_API_PREFIX}/vault`) {
+          // A custom header prevents cross-site simple requests; this is not same-UID isolation.
+          if (req.headers["x-raytone-vault"] !== "1") { sendJson(res, 403, { error: "Open Vault in Settings." }); return true; }
+          if (sandboxed) requireAgentIsolation({ ...process.env, RAYTONEBOT_SANDBOX: "1" });
+          if (req.method === "GET") sendJson(res, 200, vault.view());
+          else if (req.method === "POST" || req.method === "DELETE") {
+            let body: Record<string, unknown>;
+            try { body = await readJson(req); } catch { throw new VaultError("Invalid Vault request."); }
+            sendJson(res, 200, req.method === "POST" ? vault.save(body.item, body.revision) : vault.remove(typeof body.id === "string" ? body.id : "", body.revision));
+          } else sendJson(res, 405, { error: "Method not allowed." });
+          return true;
+        }
         if (url.pathname === `${PI_API_PREFIX}/providers`) {
           if (req.method === "GET") sendJson(res, 200, providers.view());
           else if (req.method === "POST") {
@@ -1624,7 +1691,7 @@ export function createPiHttpHost(options: {
         }
         sendJson(res, 404, { error: "Unknown Pi endpoint." });
       } catch (error) {
-        if (!res.headersSent) sendJson(res, error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
+        if (!res.headersSent) sendJson(res, error instanceof VaultRequestError ? error.statusCode : error instanceof VaultError || error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
         else if (!res.destroyed) res.end();
       }
       return true;

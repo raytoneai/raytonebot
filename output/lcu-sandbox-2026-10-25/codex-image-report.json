@@ -1,0 +1,81 @@
+{
+  "codexExit": 0,
+  "providerRequests": [
+    {
+      "request": 1,
+      "images": [],
+      "toolOutputs": []
+    },
+    {
+      "request": 2,
+      "images": [],
+      "toolOutputs": [
+        {
+          "callId": "trial-call-0",
+          "types": [
+            "input_text",
+            "input_text",
+            "input_text",
+            "input_text"
+          ]
+        }
+      ]
+    },
+    {
+      "request": 3,
+      "images": [
+        {
+          "mimeType": "image/jpeg",
+          "bytes": 5684,
+          "sha256": "3feda1912fecb9ee4717bef2018d9e6dc8a6111eabab9fffbd45ab50bc9636b7"
+        }
+      ],
+      "toolOutputs": [
+        {
+          "callId": "trial-call-0",
+          "types": [
+            "input_text",
+            "input_text",
+            "input_text",
+            "input_text"
+          ]
+        },
+        {
+          "callId": "trial-call-1",
+          "types": [
+            "input_text",
+            "input_image"
+          ]
+        }
+      ]
+    }
+  ],
+  "providerImages": [
+    {
+      "mimeType": "image/jpeg",
+      "bytes": 5684,
+      "sha256": "3feda1912fecb9ee4717bef2018d9e6dc8a6111eabab9fffbd45ab50bc9636b7"
+    }
+  ],
+  "toolImages": [
+    {
+      "bytes": 5684,
+      "sha256": "3feda1912fecb9ee4717bef2018d9e6dc8a6111eabab9fffbd45ab50bc9636b7"
+    }
+  ],
+  "toolStatuses": [
+    {
+      "tool": "js",
+      "status": "completed",
+      "error": null
+    },
+    {
+      "tool": "js",
+      "status": "completed",
+      "error": null
+    }
+  ],
+  "imagesMatch": true,
+  "failures": [],
+  "stderrTail": "Reading additional input from stdin...\n"
+}

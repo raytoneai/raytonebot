@@ -1,6 +1,7 @@
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Socket } from "node:net";
 import { tmpdir } from "node:os";
+import { createRequire } from "node:module";
 import { delimiter, dirname, isAbsolute, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { cliCommand, runCliProcess, type CliRunBase, type ClaudePermissionRequest } from "./cliHarness.ts";
@@ -10,7 +11,7 @@ import { agentIsolationEnabled } from "./runtime/agentProcess.ts";
 import { WEB_TOOL_SPECS } from "./webAccess.ts";
 import { userInputTool } from "./userInputTool.ts";
 import { planTool } from "./planTool.ts";
-import type { HostToolSpec } from "./mcpServers.ts";
+import type { HostToolResult, HostToolSpec } from "./mcpServers.ts";
 
 export const DSH_VERSION = "0.2.1-rc.2";
 export type DshRunOptions = CliRunBase & {
@@ -33,7 +34,7 @@ export function dshInstallation(env: NodeJS.ProcessEnv = process.env): string {
 }
 
 /** A complete, host-owned overlay. No personal profiles, credentials, telemetry or autonomous work. */
-export function dshPatch(options: Pick<DshRunOptions, "cwd" | "home" | "provider">, socketPath: string, specs: HostToolSpec[]) {
+export function dshPatch(options: Pick<DshRunOptions, "cwd" | "home" | "provider">, socketPath: string, specs: HostToolSpec[], mcpClientModule?: string) {
   const disabled = ["hmr", "plugin-manager", "tool-plugin-manager", "config-editor", "settings", "credentials", "authorization",
     "deepseek-account", "llm-deepseek-account", "llm-pi-ai", "session-log-deepseek", "plugin-package-inventory-deepseek",
     "otel", "session-telemetry-otel", "ptc-runtime", "workflow-ptc", "tool-workflow", "subagent-spawn-in-process", "subagent-fork-in-process",
@@ -54,7 +55,7 @@ export function dshPatch(options: Pick<DshRunOptions, "cwd" | "home" | "provider
     { id: "attachment-local", config: { dshHome: options.home } },
     { id: "acp", inject: ["acpAppStartup", "raytoneBridge"], config: { provider: "deepseek-official", model: options.provider.model } },
     { insert: [{ id: "raytone-bridge", name: fileURLToPath(new URL("./runtime/dshPlugin.mjs", import.meta.url)),
-      config: { socketPath, tools: specs } }] },
+      config: { socketPath, tools: specs, mcpClientModule } }] },
   ];
 }
 
@@ -92,7 +93,7 @@ export async function runDsh(options: DshRunOptions): Promise<void> {
       if (newline < 0) return;
       dispatched = true;
       const work = (async () => {
-        let result: { text: string; isError: boolean };
+        let result: HostToolResult;
         try {
           const request = JSON.parse(text.slice(0, newline));
           if (!specs.some(spec => spec.name === request.name)
@@ -121,7 +122,8 @@ export async function runDsh(options: DshRunOptions): Promise<void> {
     await new Promise<void>((resolve, reject) => { server.once("error", reject); server.listen(socketPath, resolve); });
     chmodSync(socketPath, 0o600);
     const patch = join(temp, "profile.json");
-    writeFileSync(patch, JSON.stringify(dshPatch(options, socketPath, specs)), { mode: 0o600 });
+    const mcpClientModule = createRequire(anchor).resolve("@deepseek-ai/dsh-mcp-client");
+    writeFileSync(patch, JSON.stringify(dshPatch(options, socketPath, specs, mcpClientModule)), { mode: 0o600 });
     const env = scrubSecretEnv(process.env);
     for (const key of Object.keys(env)) if (/^(DSH_|DEEPSEEK_|RAYTONE_|RAYTONEBOT_|NODE_OPTIONS$|NODE_PATH$|BASH_ENV$|ENV$)/.test(key)) delete env[key];
     Object.assign(env, { HOME: temp, DSH_HOME: join(temp, ".dsh"), DSH_AGENTS_HOME: join(temp, ".agents"),

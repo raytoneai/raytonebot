@@ -132,8 +132,8 @@ test("browser worker lifecycle through real Chromium and IPC", { skip: !executab
       assert.ok(shot.notes.some(note => note.includes("Embedded frames")));
       assert.doesNotMatch(shot.snapshot, /frame-secret/);
       assert.equal(Object.values(shot.elements).some(e => e.name === "Child action"), false);
-      await assert.rejects(request({ op: "snapshot", scope: "iframe" }), /Frame-scoped snapshots are not supported/);
-      await assert.rejects(request({ op: "snapshot", scope: "iframe >> internal:control=enter-frame >> button" }), /Frame-scoped snapshots are not supported/);
+      await assert.rejects(request({ op: "snapshot", scope: "iframe" }), /Frame-scoped snapshots require frameRef/);
+      await assert.rejects(request({ op: "snapshot", scope: "iframe >> internal:control=enter-frame >> button" }), /Frame-scoped snapshots require frameRef/);
       const fresh = await request({ op: "snapshot" });
       const typed = await request({ op: "type", snapshotId: fresh.snapshotId, ref: ref(fresh, "Parent field"), text: "parent only" });
       assert.match(typed.snapshot, /parent only/);

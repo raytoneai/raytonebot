@@ -1,4 +1,5 @@
 import { connect } from "node:net";
+import { pathToFileURL } from "node:url";
 
 export const name = "raytone-bridge";
 export const inject = ["tools", "approval"];
@@ -27,7 +28,7 @@ function hostCall(path, request, signal) {
       if (end < 0) return;
       try {
         const result = JSON.parse(buffer.slice(0, end));
-        if (result.isError) finish(new Error(result.text)); else finish(undefined, result.text);
+        if (result.isError) finish(new Error(result.text)); else finish(undefined, result);
       } catch (error) { finish(error); }
     });
     socket.on("error", error => finish(error));
@@ -36,7 +37,7 @@ function hostCall(path, request, signal) {
 }
 
 /** All tool dispatches, including native tools, require a host authorization. */
-export function apply(ctx, config) {
+export async function apply(ctx, config) {
   const allowed = new Set();
   ctx.on("tools/pre-execute", async (exec, next) => {
     if (!exec.agent) return { kind: "deny", reason: "Missing RaytoneBot session." };
@@ -50,12 +51,27 @@ export function apply(ctx, config) {
   }, { prepend: true });
   ctx.tools.guard(exec => allowed.has(exec.token) ? undefined : "Missing RaytoneBot authorization.");
   ctx.on("tools/result", exec => { allowed.delete(exec.token); });
-  for (const spec of config.tools) ctx.tools.register({
-    name: spec.name, description: spec.description, parameters: spec.inputSchema,
-    output: { schema: { type: "string" }, render: (_args, text) => [{ type: "text", text }] },
-    execute(args, exec) {
-      return hostCall(config.socketPath, { sessionId: exec.agent.session.id, callId: exec.callId, name: spec.name, args }, exec.signal);
-    },
-  });
+  for (const spec of config.tools) {
+    const call = (args, exec) => hostCall(config.socketPath, { sessionId: exec.agent.session.id, callId: exec.callId, name: spec.name, args }, exec.signal);
+    if (spec.name === "browser_screenshot") {
+      // The pinned DSH installation owns image capability checks and durable attachments.
+      const { createMcpToolDefinition } = await import(pathToFileURL(config.mcpClientModule).href);
+      ctx.tools.register(createMcpToolDefinition(ctx, { name: spec.name, rawName: spec.name,
+        description: spec.description, inputSchema: spec.inputSchema,
+        async call(args, exec) {
+          const result = await call(args, exec);
+          return { content: [{ type: "text", text: result.text }, ...(result.images ?? []).map(image => ({ type: "image", ...image }))] };
+        },
+      }));
+      continue;
+    }
+    ctx.tools.register({
+      name: spec.name, description: spec.description, parameters: spec.inputSchema,
+      output: { schema: { type: "string" }, render: (_args, text) => [{ type: "text", text }] },
+      async execute(args, exec) {
+        return (await call(args, exec)).text;
+      },
+    });
+  }
   ctx.provide("raytoneBridge", true);
 }

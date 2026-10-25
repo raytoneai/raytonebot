@@ -8,6 +8,56 @@
 
 下方近期记录和历史任务卡保留各自日期。日志中的“未部署/未推送”描述当次结果；当前部署以对应 runbook 和实际状态查询为准，Git 发布状态以仓库为准。M0–M4 的工期是初版估计，不代表剩余排期。
 
+### 2026-10-26 Vault 脱敏审查修复
+
+- [x] 修复短用户名破坏浏览器协议的问题：模型输出按网页字段脱敏，保留 snapshot/page ID、ref、角色与状态、分页说明及账户状态结构；主机内部 URL 和元素事实保留原值供页面绑定和审批使用。
+- 验证：真实 Chromium 回归先复现失败，再验证单字符用户名填充、浏览器重启后的截图/输入/按键/点击/标签/分页与回显过滤；完整测试、构建、本机及云入口检查通过。详见 [08 验收记录](08-acceptance.md#2026-10-26-vault-脱敏审查修复)。未调用真实模型或部署。
+
+### T6.3 原生浏览器截图与 iframe 增强（2026-10-25）
+
+- 用户同意先试现有 Playwright 的增量增强。入口仍为聊天工具及原 Output 浏览器；模型结果由 HostTools/各引擎 adapter 负责，浏览器状态仍由 BrowserService/worker 负责，无新增 UI、服务或依赖。
+- `browser_screenshot(snapshotId)` 返回当前视口 JPEG；Pi、Claude、Codex 接收原生图片结果，DSH 复用固定版本自带的附件与模型能力检查。截图绑定对话/快照/控制权，Vault 填后及任何 frame 中已填写的秘密字段阻止截图。
+- 修正早期调研结论：Playwright 1.64 原有整页快照和 refs 已可跨域操作 iframe。本次补 `browser_snapshot(frameRef, scope)`、嵌套帧快照、所属 origin 审批、帧导航后的失效检查及按键焦点核对；父页面引用不因无关子帧导航失效。
+- 验收：真实 Chromium + 实际 Pi/Claude/Codex/DSH 进程接本地脚本模型端点，核对截图进入模型请求；合成页面验证跨域/嵌套输入、POST 审批、旧引用、接管/停止与 Vault。完整命令及限制见[验收记录](../../output/browser-vision-frames-2026-10-25/README.md)、ADR-054。未修改默认模型，未部署。
+
+### 2026-10-25 LCU 浏览器方案调研
+
+- 用户随后要求“完全可替代才替换”。对照现有 Vault/接管/审批/引擎/下载调用方后，当前不满足完整替换条件；保留现有 runtime 与部署，不新增部分可用的 LCU 开关。现有浏览器 18 项定向回归全部通过、无跳过。差异性质和替换前条件见[完整替换检查](../lcu-browser-use-comparison-2026-10-25.md#完整替换检查2026-10-25按用户附加条件)，[本轮证据](../../output/lcu-replacement-audit-2026-10-25/README.md)。
+- 完成 [LCU 与内置浏览器对照](../lcu-browser-use-comparison-2026-10-25.md)，并在独立、相同模板的 AgentSphere sandbox 实测。已有 Codex CLI 0.154.0 可复用，但须补官方 app/runtime 与 X11/D-Bus/Chromium/扩展；安装、JS 沙箱、MCP、中文保存、跨域 iframe、截图及显式 turn-end 清理通过。原生 Codex MCP 图片进入本地脚本模型端点，字节哈希一致。[验证记录](../../output/lcu-sandbox-2026-10-25/README.md)
+- 初步建议曾为可选后端集成，随后按上述用户条件保留当前实现；调研时 HostTools 会丢弃图片（后续 T6.3 已补内置截图通道），Output/审批/Vault/停止仍需适配。调研未使用真实模型推理、未做成功率/速度对测、未修改生产部署，未采纳替换决策。
+- 测试进程已收尾，独立实例已暂停；验证脚本语法、证据断言、本地文档链接与变更空白检查通过。
+
+### 2026-10-25 社交平台快捷登录
+
+- [x] 原有 Output 浏览器登录页增加小红书、微博、Instagram、Facebook 品牌卡片；服务端固定登录地址与 `browser_accounts` 平台说明同步扩充，沿用持久 profile、用户接管与交还。
+- 验证：build、503/503 测试、check:local、cloud-preview --check、变更文件空白检查通过；19 个事件场景与欢迎页逐项切换无控制台 error，列表图标加载与滚动正常。逐个点击四个入口，微博/Facebook 显示登录入口，小红书出现 IP 风控，Instagram 本次页面空白；未验证真实账号登录或部署。390px 全页未能打开既有输出面板，窄屏视觉验收未完成。详见[验收记录](../../output/browser-login-social-2026-10-25/README.md)。
+
+### T6.2 登录凭据 Vault（2026-10-25，本机实现与验收完成）
+
+
+- 目标：在 Settings → Vault 保存登录账号，Agent 请求使用时经一次性批准填入当前网站；不含信用卡。
+- 入口与 owner：SettingsDialog 的 `vault` 分区负责管理，现有 `chatframe/approval.tsx` 的用户选择卡负责本次授权，OutputFrame 原浏览器负责检查与接管。主机 `VaultStore` 保存凭据，HostTools 的 `vault_request_use` 请求使用，浏览器 worker 执行专用填充。
+- 范围：登录的新增、编辑、停用、删除，加密文件、秘密不回读、精确 HTTPS origin、run/条目版本/页面绑定、拒绝/停止/过期；本机可指定被 git 忽略的测试目录。只填充不提交；填后用户接管检查并登录。
+- 接口：`GET/POST/DELETE /__agentcanvas/pi/vault`；授权复用 `/input` 和既有提问事件，只含标签与网站，不收秘密；内部增加 secure-fill IPC，不开放任意读取密码工具。
+- 验收：487 项测试、build、check:local、cloud-preview --check 通过；覆盖存储/冲突/损坏、主机 HTTP、三种权限模式逐次授权、过期/停止/版本变化、真实 HTTPS Chromium 虚拟凭据填充且不提交、敏感输出过滤；Settings 保存/编辑/刷新和内置场景实看。详见[证据与复现](../../output/vault-2026-10-25/README.md)、ADR-052。
+- 本机测试：`.local/vault-test/Vault/` 为独立私密文件夹，已加入 git 忽略；仅放虚拟账号。密码框须显式声明 `autocomplete=current-password`；iframe、多步用户名页、验证码等使用原有接管。
+- 边界：本机同 UID 仅验证功能，不承诺恶意 Agent 隔离；AgentSphere/AgentMatrix 未经目标环境安全验收不宣称可用于真实秘密。用户已授权此范围；未授权部署、推送或真实登录。
+
+### T6.2b 聊天内安全输入（2026-10-25，本机实现与验收完成）
+
+- 用户已批准[安全输入方案](../vault-secure-input-proposal-2026-10-25.md)，要求 UI 与整体一致。扩展现有审批卡，沿用卡片/输入/按钮样式；无凭据可直接输入，有凭据可选择或使用其他账号，可选保存。
+- `vault_request_use` 发起主机请求，秘密走独立 `/vault/requests/:requestId/answer`；事件只含目标、候选与状态。普通问答、权限审批与秘密输入保留各自的数据路径，全部允许不能跳过授权。
+- 验收：503 项测试、build、check:local、cloud-preview --check 通过；真实 Chromium 验证三种权限模式下已保存/新账号不保存/新账号保存，实际 UI 走查亮暗主题与分栏；回执修复确保卡片关闭后结果仍在聊天中。详见[验收记录](../../output/vault-secure-input-2026-10-25/README.md)。未调用真实模型/账号或部署。
+
+
+### 2026-10-24 用户 Vault 调研
+
+- 2026-10-25 补充：用户要求参考 Grok Bot，让 Agent 在缺少登录信息时发起输入卡。已完成[官方 Secure Form 核验](../grokbot-secure-form-2026-10-25.md)与[本仓库具体方案](../vault-secure-input-proposal-2026-10-25.md)：建议扩展现有 `vault_request_use`，复用审批卡和 channel setup 的秘密直达主机模式，支持一次性输入与可选保存；调研后已获用户批准并在 T6.2b 实现；普通 `ask_user` 不作密码输入。
+
+- 核对 Grok Bot 内建 Vault、Secure Form 与 1Password 的官方边界；结合 ProviderStore、安全输入卡、HostTools、浏览器和备份源码完成[可行性与实施建议](../vault-feasibility-2026-10-24.md)及[一手来源笔记](../grokbot-vault-primary-sources-2026-10-24.md)。
+- 建议沿用 SettingsDialog、approval 和 Output 浏览器，先做登录凭据的保存与单次授权填充闭环；信用卡后续独立评估。本机同 UID、AgentMatrix 隔离、allow-all 审批跳过、iframe 与页面回显列为明确缺口。用户随后批准登录范围，进入 T6.2。
+- 验证仅为官方资料、源码、文档相对链接与 diff 空白检查；未改运行时代码，未创建真实凭据、执行真实登录/付款或部署。
+
 ### 2026-10-24 未提交改动审查修复
 
 - [x] Console 认领、设置与撤销统一使用原子比较并写入；并发请求不能抹掉撤销状态，重复认领只入队一次。

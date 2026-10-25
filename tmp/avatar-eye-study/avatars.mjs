@@ -29,9 +29,9 @@ const artwork = {
       <path d="M23 52C21 30 35 18 52 18C69 18 80 30 78 49C69 47 61 39 57 30C51 41 38 48 23 52Z" fill="${navy}"/>
       <path d="M55 20C65 21 73 27 76 36C69 34 62 30 58 25Z" fill="${blue}"/>
       <path d="M21 44Q20 22 42 16" stroke="${gold}" stroke-width="2.2" stroke-linecap="round"/>
-      <g stroke="${gold}" stroke-width="2.3" stroke-linecap="round"><path d="M69 34L75 31M70 38L76 35M71 42L77 39"/></g>
+
       <ellipse cx="20" cy="59" rx="6.5" ry="8.6" fill="#FFF"/>
-      <g stroke="${gold}" stroke-width="2.5" stroke-linecap="round"><path d="M18 52H22M16 55.5H24M15.5 59H24.5M16 62.5H24M18 66H22"/></g>
+      <g stroke="${gold}" stroke-width="2.5" stroke-linecap="round"><path d="M17 55H23M15.5 59H24.5M17 63H23"/></g>
       <path d="M21.5 66Q23 73 33 74" stroke="${gold}" stroke-width="2" stroke-linecap="round"/>
       <circle class="mic" cx="34" cy="74" r="2.2" fill="${gold}"/>`,
     over: mouth(), height: 72,
@@ -44,20 +44,20 @@ const artwork = {
       <path d="M78 41L89 27" stroke="${gold}" stroke-width="3.4" stroke-linecap="round"/>
       <path d="M89 27L91 24.6" stroke="${navy}" stroke-width="3.4" stroke-linecap="round"/>`,
     over: `<g stroke="${navy}" stroke-width="2.1">
-      <rect x="26" y="46.5" width="23" height="27" rx="5"/><rect x="51" y="46.5" width="23" height="27" rx="5"/>
-      <path d="M49 53Q50 51 51 53M26 54H18M74 54H82"/>
-      </g><g stroke="${gold}" stroke-width="1.6" stroke-linecap="round"><path d="M19 51H25M19 54H25M19 57H25M75 51H81M75 54H81M75 57H81"/></g>
+      <rect x="27.5" y="47" width="21" height="25" rx="4.5"/><rect x="51.5" y="47" width="21" height="25" rx="4.5"/>
+      <path d="M48.5 53Q50 51 51.5 53M27.5 54H18M72.5 54H82"/>
+      </g>
       <g class="glint" stroke="#FFF" stroke-width="1.6" stroke-linecap="round"><path d="M30 66L34 52M55 66L59 52"/></g>${mouth()}`,
     height: 72,
   },
   boy: {
     body: `${face(true)}
       <path d="M21 56C17 37 25 23 49 24C76 24 86 37 80 56L75 50L73 44L68 48L62 42L36 42L30 49L27 46L25 56Z" fill="${navy}"/>
-      <g transform="translate(0 -2)"><ellipse cx="43" cy="13" rx="4" ry="2.5" fill="${navy}"/>
+      <g transform="translate(0 -6)"><ellipse cx="43" cy="13" rx="4" ry="2.5" fill="${navy}"/>
       <path d="M17 47C15 26 30 13 52 13C72 13 84 28 83 41L83 46L28 49L18 51Z" fill="${navy}"/>
       <path d="M20 39Q23 22 42 16L33 27L26 44Z" fill="${blue}"/>
       <path d="M29 46Q56 44 76 40Q90 39 95 46Q96 50 89 50Q76 45 65 49Q43 55 29 46Z" fill="${blue}"/>
-      <path d="M30 47Q46 51 66 46Q82 40 93 46" stroke="${gold}" stroke-width="1.2" stroke-linecap="round"/>
+
       <g stroke="${gold}" stroke-width="2.1" stroke-linecap="round"><path d="M53 27H60M50 31H63M53 35H60"/></g></g>`,
     over: mouth(), height: 77.5,
   },
@@ -80,7 +80,7 @@ export function avatarSVG(kind, { ratio = .24, halo = true, id = kind, pose = nu
   }).join('');
   const clip = `lenses-${id}`;
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 400 400" fill="none" aria-hidden="true">
-    ${kind === 'man' ? `<defs><clipPath id="${clip}"><rect x="108" y="190" width="84" height="100" rx="15"/><rect x="208" y="190" width="84" height="100" rx="15"/></clipPath></defs>` : ''}
+    ${kind === 'man' ? `<defs><clipPath id="${clip}"><rect x="114" y="192" width="76" height="92" rx="14"/><rect x="210" y="192" width="76" height="92" rx="14"/></clipPath></defs>` : ''}
     ${halo ? `<g class="halo" transform="scale(4)" opacity=".55">${rays}</g>` : ''}
     <g class="drag-group"><g class="follow-group"${pose ? ` transform="translate(${pose.x/2.4} ${pose.y/3}) rotate(${pose.turn} 200 235)"` : ''}><g class="action-group"><g class="gesture-group"><g class="breath">
     <g transform="scale(4)">${part.body}</g>

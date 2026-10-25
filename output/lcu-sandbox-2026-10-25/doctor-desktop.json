@@ -1,0 +1,6 @@
+{
+  "sandboxId": "ic62vgn5jrfwv4g9voz6o",
+  "exitCode": 0,
+  "stdout": "Original app: ChatGPT 26.1021.22027 (CUA 0.0.35/20261022031940-486a6d3fcc3f).\nTested pair: no.\nWarning: ChatGPT 26.1021.22027 with CUA 0.0.35/20261022031940-486a6d3fcc3f is not a pair LCU has tested on linux x64. LCU will still use it, but behavior has not been verified. Tested: ChatGPT 26.915.31945 with CUA 0.0.16/20260915001755-492f19756c31; ChatGPT 26.928.31416 with CUA 0.0.27/20260927214556-b77d38801cca.\nDiagnostic log: /home/user/.local/state/lcu/logs (metadata only; kept 7 days, at most 20 MB in total and 2 MB per file; LCU_DIAGNOSTIC_LOG=0 turns it off).\nJavaScript sandbox: active. The kernel that runs the model's JavaScript is confined (read-only filesystem, no network; subprocesses it starts are confined too); only the trusted Sky desktop service runs outside it. An agent host that sends a disabled sandbox state gets none.\nWindow listing: passed (1 windows).\nScreenshot capture: passed (1 images); returned image data was discarded by LCU.\nComputer use is ready for the first agent call.\ndoctor_exit=0\n",
+  "stderr": ""
+}

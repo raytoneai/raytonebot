@@ -105,6 +105,7 @@
 
 ## 浏览器验收
 
+- **Vault 短用户名破坏后续浏览器操作**（2026-10-26）→ 对完整工具响应替换秘密子串，会连同 `Snapshot` 标记、UUID、ref、角色和 JSON 状态一起改写；提前脱敏元素名称还会影响 `Pay` 等动作的审批分类 → 保留主机内部 URL/元素事实，只在模型输出边界脱敏页面名称、值和元数据，协议结构单独保留。真实 Chromium 用单字符 `a` / `e` 验证返回引用可继续操作，并检查浏览器重启后的回显过滤。
 - **自动化浏览器报 `ERR_BLOCKED_BY_CLIENT`**（Codex 内置浏览器、受控 Chrome）→ 客户端拦截，不是服务问题 → 用本机普通浏览器手动验收；不要为此关闭鉴权或改服务器。
 - **双击 `index.html` 白屏** → `file://` 禁止 ES module → 始终用 `npm run dev` / `npm run preview`。
 - **审批只读表单的 `method` 就漏掉 POST**（2026-10-16）→ 提交按钮自己的 `formmethod` 覆盖表单的 `method`，字段里按 Enter 也用表单默认提交按钮的覆盖；只看 `form.getAttribute("method")` 会把 `<form method="get"><button formmethod="post">` 判成普通点击，自动模式直接提交 → 页面内的 `elementSubmitFacts` 算真正会用的方法（按钮看自身、字段看默认提交按钮）。这类缺陷只能在真实页面里验证：Node 侧策略断言无法发现「页面报错了方法」。

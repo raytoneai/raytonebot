@@ -420,6 +420,10 @@
 
 .settings-spacer { flex: 1; }
 
+.settings-vault-actions { padding-left: 0; margin-top: 12px; }
+.settings-vault-row { flex-wrap: wrap; }
+.settings-vault-row .settings-row-main { flex-basis: 180px; overflow-wrap: anywhere; }
+
 .settings-text-button {
   display: inline-flex;
   align-items: center;

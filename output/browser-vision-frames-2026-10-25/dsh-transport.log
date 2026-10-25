@@ -1,0 +1,1 @@
+{"engine":"dsh","providerRequests":2,"produced":["810411e54372712346fb0f0f16dfd067b4e85adbe54bfaeb93c11b2ca3ecacba"],"received":["b9c06f92c24f39dd2d658e069cc6df6a925abfc77c2695afd41b4022618a9afb"],"normalizedPixels":{"width":1280,"height":800,"meanAbsoluteError":0.0512880859375,"reason":"DSH native attachment JPEG normalization"},"pass":true,"failures":[],"eventErrors":[]}

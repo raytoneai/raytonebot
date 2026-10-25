@@ -6,6 +6,8 @@ import type { ChannelPatch, ChannelPlatform, ChannelView } from "./imChannels/ty
 import type { RoutineView } from "./routineTypes.ts";
 import type { McpServerInput, McpServerView } from "./mcpTypes.ts";
 import type { MemoryState, MemoryView } from "./memoryTypes.ts";
+import type { VaultLoginInput, VaultState } from "./vaultTypes.ts";
+import type { VaultRequestAnswer, VaultUseResult } from "./vaultRequestTypes.ts";
 import type { BrowserInput, BrowserViewState } from "./browser/browserProtocol.ts";
 import type { AppLocale } from "../i18n/locales.ts";
 import type { AgentHarnessStatus, AgentPresetId, ClaudeCodeModelSource } from "./harnessCatalog.ts";
@@ -249,6 +251,29 @@ export async function sendBrowserInputs(inputs: BrowserInput[], signal: AbortSig
 
 /** Server-sent `state` and `frame` events; frames flow only while it is open. */
 export const BROWSER_STREAM_URL = `${PI_API_PREFIX}/browser/stream`;
+
+async function vaultRequest(method: "GET" | "POST" | "DELETE", body?: unknown): Promise<VaultState> {
+  const response = await fetch(`${PI_API_PREFIX}/vault`, { method, cache: "no-store", signal: AbortSignal.timeout(15_000),
+    headers: { "x-raytone-vault": "1", ...(body ? { "content-type": "application/json" } : {}) },
+    ...(body ? { body: JSON.stringify(body) } : {}),
+  });
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Vault request failed"));
+  return response.json();
+}
+export const getVault = (): Promise<VaultState> => vaultRequest("GET");
+export const saveVault = (input: VaultLoginInput, revision: number): Promise<VaultState> => vaultRequest("POST", { item: input, revision });
+export const deleteVault = (id: string, revision: number): Promise<VaultState> => vaultRequest("DELETE", { id, revision });
+
+/** Secret answers go directly to the host, never through chat/input or event storage. */
+export async function answerVaultRequest(conversationId: string, requestId: string, runId: string, answer: VaultRequestAnswer,
+  fetcher: typeof fetch = fetch): Promise<VaultUseResult> {
+  const response = await fetcher(`${PI_API_PREFIX}/vault/requests/${encodeURIComponent(requestId)}/answer`, {
+    method: "POST", headers: { "content-type": "application/json", "x-raytone-vault": "1" }, cache: "no-store",
+    body: JSON.stringify({ conversationId, runId, answer }), signal: AbortSignal.timeout(30_000),
+  });
+  if (!response.ok) throw new PiRequestError(response.status, "Vault request could not be completed.");
+  return response.json();
+}
 
 export async function getMemories(fetcher: typeof fetch = fetch): Promise<MemoryState> {
   return requestJson<MemoryState>(fetcher, `${PI_API_PREFIX}/memories`, undefined, AbortSignal.timeout(15_000));

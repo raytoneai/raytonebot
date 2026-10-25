@@ -1,0 +1,6 @@
+{
+  "sandboxId": "ic62vgn5jrfwv4g9voz6o",
+  "exitCode": 0,
+  "stdout": "[\n  {\n    \"pid\": 4928,\n    \"args\": \"Xvfb :99 -screen 0 1280x800x24 -nolisten tcp -nolisten tcp -auth /tmp/xvfb-run.AJFNV6/Xauthority\"\n  }\n]\n",
+  "stderr": ""
+}

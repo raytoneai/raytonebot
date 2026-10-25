@@ -15,8 +15,9 @@ function render() {
   const ratio = Number(document.querySelector('[name="ratio"]:checked').value);
   document.querySelector('#portraits').innerHTML = kinds.map(kind => `<section class="person">
     <div class="stage"><span class="raytone-avatar" data-kind="${kind}" data-interactive="true">${avatarSVG(kind,{ratio,halo:halo.checked,id:`large-${kind}`})}</span></div>
-    <h2>${names[kind]}</h2><div class="sub">${kind === 'man' ? '紧凑方框 · 金色镜腿' : kind === 'boy' ? '棒球帽 · 三条黄线' : '条纹耳麦 · 胶囊发夹'}</div>
+    <h2>${names[kind]}</h2><div class="sub">${kind === 'man' ? '紧凑方框 · 金色铅笔' : kind === 'boy' ? '棒球帽 · 三条黄线' : '三条纹耳麦 · 简洁发型'}</div>
     <div class="small"><span class="raytone-avatar" data-kind="${kind}" style="width:76px;height:76px">${avatarSVG(kind,{ratio,halo:halo.checked,id:`small-${kind}`})}</span><span class="size-label">实际欢迎区<br>76 px</span></div>
+    <div class="small">${[16,26].map(size => `<span class="raytone-avatar" data-kind="${kind}" style="width:${size}px;height:${size}px">${avatarSVG(kind,{ratio,halo:false,id:`tiny-${size}-${kind}`})}</span><span class="size-label">${size} px</span>`).join('')}</div>
   </section>`).join('');
   motions = [...document.querySelectorAll('.raytone-avatar')].map(root => mountAvatarMotion(root,{interactive:root.dataset.interactive === 'true',kind:root.dataset.kind}));
   motions.forEach(m => m.setState(state.value));

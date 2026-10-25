@@ -43,6 +43,7 @@ Product features that have no entry point yet extend their owner, and only these
 | Routines: list, on/off, run now, open conversation (ADR-033); created from chat by Raer's `create_routine` | `SettingsDialog` (its "routines" section); host logic in `src/pi/routines.ts` |
 | MCP servers: add, edit, on/off, test, delete remote Streamable HTTP servers (ADR-037) | `SettingsDialog` (its "mcp" section); host logic in `src/pi/mcpServers.ts` |
 | Cross-conversation memory: on/off, list, edit, delete, add; agents write with `remember` / `forget` (ADR-038) | `SettingsDialog` (its "memory" section); host logic in `src/pi/memories.ts` |
+| Login Vault: manage saved logins, secure chat input with optional save, one-time browser fill (ADR-052/053) | `SettingsDialog` (its "vault" section), `chatframe/approval.tsx`, existing Output browser; host logic in `src/pi/vault.ts` and `vaultUse.ts` |
 | Group chat: "+"/To member picker, group faces and previews, author per message, PM confirmation, `@` member completion (ADR-032) | `SessionSidebar`, `ShellExtras` (header/welcome), `ChatFrame`, `ComposerFrame` (`@` list; logic in `src/runtime/mentionCompletion.ts`), `chatframe/approval.tsx`; host logic in `src/pi/groupChat.ts` |
 
 How to extend:
@@ -97,6 +98,10 @@ env paths differ by deployment; see the runbooks. Platform deployment credential
 `ARIADRA_API_KEY`) stay on trusted deployment hosts, never inside the bot sandbox or Agent
 environment. Never write keys into source, the bundle or docs. Agent child processes get secrets stripped
 (`src/pi/runtime/childEnv.ts`).
+
+Login Vault credentials live in `<dataDir>.vault/` (ADR-052), outside ordinary data backups.
+Local functional tests may override this with `RAYTONEBOT_VAULT_DIR`; use dummy credentials only
+when host and Agent share a UID. Never put real login values in chat, tools, fixtures or docs.
 
 ## How to verify a change
 

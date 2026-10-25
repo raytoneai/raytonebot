@@ -14,7 +14,13 @@ import { readSettingsFile } from "./settingsFile.ts";
  */
 
 export type HostToolSpec = { name: string; description: string; inputSchema: Record<string, unknown> };
-export type HostToolResult = { text: string; isError: boolean };
+export type HostToolImage = { mimeType: "image/png" | "image/jpeg" | "image/webp"; data: string };
+export type HostToolResult = { text: string; isError: boolean; images?: HostToolImage[] };
+
+/** Native model tool content; UI summaries continue to use the text field. */
+export function hostToolContent(result: HostToolResult): ({ type: "text"; text: string } | ({ type: "image" } & HostToolImage))[] {
+  return [{ type: "text", text: result.text }, ...(result.isError ? [] : result.images ?? []).map(image => ({ type: "image" as const, ...image }))];
+}
 
 /** The enabled servers' tools at the start of one run. */
 export type McpToolkit = {

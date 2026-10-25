@@ -11,3 +11,6 @@ __pycache__/
 
 # AgentMatrix deployment state (resolved IDs and the generated access password)
 .agentmatrix/
+
+# Local Vault integration test data (ciphertext and master key stay private)
+.local/vault-test/

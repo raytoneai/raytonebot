@@ -1,0 +1,33 @@
+✔ model screenshots return image bytes, bind the conversation, and respect takeover and cancellation (1021.693542ms)
+✔ cross-origin iframe refs act inside their frame and keep submission approval (932.928583ms)
+✔ frame navigation expires child refs even when the replacement has identical controls (1533.540167ms)
+▶ browser worker lifecycle through real Chromium and IPC
+  ✔ popups become active, receive input, switch tabs and close back to their opener (1294.133042ms)
+  ✔ cross-origin iframe boundaries are explicit and never retarget parent refs (480.06575ms)
+  ✔ embedded navigation preserves main-frame refs and ordinary frame-named selectors work (1144.536333ms)
+  ✔ replaced and cleared page owners release their completed task callbacks (474.30625ms)
+  ✔ input receipts carry a frame captured after dispatch and survive screencast reconnect (633.332375ms)
+  ✔ disconnect and handoff cleanup release held modifiers instead of leaking them into the next driver (278.074084ms)
+  ✔ repeated popup initialization does not leave a five-second unrelated-page wait (1822.479ms)
+  ✔ snapshot IDs bind actions to the exact snapshot and user input invalidates them (461.508667ms)
+  ✔ live formmethod and accessible name changes refuse previously approved actions (1735.435959ms)
+  ✔ click result includes a deferred SPA render without waiting for network idle (623.94ms)
+  ✔ a continuously changing DOM returns within its budget without repeating the action (1256.437916ms)
+  ✔ slow SPA text waits and explicit timeouts work with a persistent SSE connection (1117.538583ms)
+  ✔ text wait finds a visible duplicate after a hidden first match (243.38225ms)
+  ✔ hidden wait refuses success while any duplicate remains visible (440.245584ms)
+  ✔ closing a tab during wait reports its real failure rather than a timeout (927.021041ms)
+  ✔ user input remains responsive while an agent is waiting (1740.56675ms)
+  ✔ scoped full, interactive and content snapshots keep usable links and redact secrets (753.708709ms)
+  ✔ controls past the safety read limit stay unresolved and their values are redacted (401.552125ms)
+✔ browser worker lifecycle through real Chromium and IPC (16121.284334ms)
+✔ Pi, Claude and Codex tool responses preserve model image bytes alongside text (4.432792ms)
+✔ installed DSH bridge projects image attachments and reports models without image input (130.503583ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16212.169042

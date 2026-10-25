@@ -1,0 +1,57 @@
+[
+  {
+    "engine": "pi",
+    "providerRequests": 2,
+    "produced": [
+      "810411e54372712346fb0f0f16dfd067b4e85adbe54bfaeb93c11b2ca3ecacba"
+    ],
+    "received": [
+      "810411e54372712346fb0f0f16dfd067b4e85adbe54bfaeb93c11b2ca3ecacba"
+    ],
+    "pass": true,
+    "failures": [],
+    "eventErrors": []
+  },
+  {
+    "engine": "codex",
+    "providerRequests": 2,
+    "produced": [
+      "810411e54372712346fb0f0f16dfd067b4e85adbe54bfaeb93c11b2ca3ecacba"
+    ],
+    "received": [
+      "810411e54372712346fb0f0f16dfd067b4e85adbe54bfaeb93c11b2ca3ecacba"
+    ],
+    "pass": true,
+    "failures": [],
+    "eventErrors": []
+  },
+  {
+    "engine": "claude",
+    "providerRequests": 2,
+    "produced": [
+      "810411e54372712346fb0f0f16dfd067b4e85adbe54bfaeb93c11b2ca3ecacba"
+    ],
+    "received": [
+      "810411e54372712346fb0f0f16dfd067b4e85adbe54bfaeb93c11b2ca3ecacba"
+    ],
+    "pass": true,
+    "failures": [],
+    "eventErrors": []
+  },
+  {
+    "engine": "dsh",
+    "providerRequests": 2,
+    "produced": [
+      "810411e54372712346fb0f0f16dfd067b4e85adbe54bfaeb93c11b2ca3ecacba"
+    ],
+    "received": [
+      "b9c06f92c24f39dd2d658e069cc6df6a925abfc77c2695afd41b4022618a9afb"
+    ],
+    "pass": false,
+    "failures": [
+      "SyntaxError: No number after minus sign in JSON at position 1 (line 1 column 2)",
+      "AssertionError [ERR_ASSERTION]: Provider must receive exact browser image bytes"
+    ],
+    "eventErrors": []
+  }
+]

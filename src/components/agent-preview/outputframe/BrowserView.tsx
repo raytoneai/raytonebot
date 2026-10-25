@@ -1,4 +1,4 @@
-import { AppleLogo, GithubLogo, GoogleLogo, RedditLogo, XLogo } from "@phosphor-icons/react";
+import { AppleLogo, FacebookLogo, GithubLogo, GoogleLogo, InstagramLogo, RedditLogo, XLogo } from "@phosphor-icons/react";
 import { ArrowUpRight, Globe, Hand, LockKeyhole, MousePointerClick, Power } from "lucide-react";
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 
@@ -14,6 +14,10 @@ const LOGIN_SITES = [
   { id: "reddit", name: "Reddit", domain: "reddit.com", icon: RedditLogo },
   { id: "apple", name: "Apple", domain: "account.apple.com", icon: AppleLogo },
   { id: "x", name: "X", domain: "x.com", icon: XLogo },
+  { id: "xiaohongshu", name: "小红书", domain: "xiaohongshu.com", icon: "./brand/browser/xiaohongshu.svg" },
+  { id: "weibo", name: "微博", domain: "weibo.com", icon: "./brand/browser/weibo.svg" },
+  { id: "instagram", name: "Instagram", domain: "instagram.com", icon: InstagramLogo },
+  { id: "facebook", name: "Facebook", domain: "facebook.com", icon: FacebookLogo },
 ];
 
 /**
@@ -94,7 +98,7 @@ export function BrowserView({ copy, onLoginOpen }: { copy: OutputFrameCopy; onLo
           <div className="browser-auth-providers" aria-busy={view.busy}>
             {LOGIN_SITES.map(({ id, name, domain, icon: Icon }) => (
               <button key={id} type="button" className="browser-auth-provider" data-site={id} disabled={view.busy} onClick={() => { onLoginOpen?.(); void view.login(id); }}>
-                <Icon size={24} weight="fill" aria-hidden="true" />
+                {typeof Icon === "string" ? <img src={Icon} width={24} height={24} alt="" /> : <Icon size={24} weight="fill" aria-hidden="true" />}
                 <span><strong>{c.login(name)}</strong><small>{domain}</small></span>
                 <ArrowUpRight size={16} aria-hidden="true" />
               </button>
