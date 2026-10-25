@@ -4,7 +4,9 @@ import type { AgentUXEvent } from "@agent-ux/protocol";
 export type GroupTask = {
   id: string; parentId?: string; retryOf?: string; reviewedAt?: number; requestId: string; owner: string; title: string;
   status: "pending" | "running" | "completed" | "cancelled" | "failed" | "needs_review";
-  runId?: string; result?: string; updatedAt: number;
+  runId?: string; result?: string; resultTruncated?: boolean; updatedAt: number;
+  /** A one-layer read-only delegate owns a fresh hidden conversation. */
+  kind?: "delegation"; conversationId?: string; notifiedAt?: number;
 };
 export function newGroupTask(requestId: string, owner: string, title: string, parentId?: string): GroupTask {
   return { id: `assignment_${randomUUID()}`, requestId, owner, title: title.slice(0, 500), status: "pending", updatedAt: Date.now(), ...(parentId ? { parentId } : {}) };
@@ -12,18 +14,24 @@ export function newGroupTask(requestId: string, owner: string, title: string, pa
 /** Keep unresolved work, plus the ten most recent finished roots and their children. */
 export function retainedGroupTasks(tasks: GroupTask[] = []): GroupTask[] {
   const roots = tasks.filter(t => !t.parentId);
-  const keep = new Set([...tasks.filter(t => ["pending", "running", "needs_review"].includes(t.status)).map(t => t.parentId ?? t.id), ...roots.slice(-10).map(t => t.id)]);
+  const keep = new Set([...tasks.filter(t => ["pending", "running", "needs_review"].includes(t.status) || t.kind === "delegation" && !t.notifiedAt).map(t => t.parentId ?? t.id), ...roots.slice(-10).map(t => t.id)]);
   return tasks.filter(t => keep.has(t.parentId ?? t.id));
 }
 export function settleGroupTask(task: GroupTask, runId: string, status: GroupTask["status"], result?: string): GroupTask {
   if (task.status !== "running" || task.runId !== runId) throw new Error("Stale assignment result refused.");
-  return { ...task, status, ...(result ? { result: result.slice(0, 2000) } : {}), updatedAt: Date.now() };
+  return { ...task, status, ...(result ? { result: result.slice(0, 2000), ...(result.length > 2000 ? { resultTruncated: true } : {}) } : {}), updatedAt: Date.now() };
 }
-export function recoverGroupTasks(tasks: GroupTask[] = []): GroupTask[] {
-  return tasks.map(t => ["pending", "running"].includes(t.status) ? { ...t, status: "needs_review", updatedAt: Date.now() } : t);
+export function recoverGroupTasks(tasks: GroupTask[] = [], activeIds: ReadonlySet<string> = new Set()): GroupTask[] {
+  return tasks.map(t => !activeIds.has(t.id) && ["pending", "running"].includes(t.status) ? { ...t, status: "needs_review", updatedAt: Date.now() } : t);
+}
+/** A foreground turn owns its assignments; background delegates own their latest records. */
+export function mergeForegroundGroupTasks(current: GroupTask[] = [], foreground: GroupTask[] = []): GroupTask[] {
+  const tasks = new Map(current.map(task => [task.id, task]));
+  for (const task of foreground) if (task.kind !== "delegation" || !tasks.has(task.id)) tasks.set(task.id, task);
+  return retainedGroupTasks([...tasks.values()]);
 }
 export function groupTaskContext(tasks: GroupTask[]): string {
-  return JSON.stringify([...tasks.filter(t => t.status === "needs_review"), ...tasks.filter(t => t.status !== "needs_review").slice(-20)].slice(0, 30).map(({ id, parentId, requestId, owner, title, status, runId, result }) => ({ id, parentId, requestId, owner, title, status, runId, result })));
+  return JSON.stringify([...tasks.filter(t => t.status === "needs_review"), ...tasks.filter(t => t.status !== "needs_review").slice(-20)].slice(0, 30).map(({ id, parentId, requestId, owner, title, status, runId, result, resultTruncated, kind }) => ({ id, parentId, requestId, owner, title, status, runId, result, resultTruncated, kind })));
 }
 /** A full data snapshot; the existing plan renderer supplies Markdown and no new panel. */
 export function groupTaskEvents(runId: string, tasks: GroupTask[]): AgentUXEvent[] {

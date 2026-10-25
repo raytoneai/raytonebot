@@ -85,6 +85,8 @@ import { useImChannels } from "./runtime/useImChannels";
 import { useRoutines } from "./runtime/useRoutines";
 import { useMcpServers } from "./runtime/useMcpServers";
 import { useMemories } from "./runtime/useMemories";
+import { useSkills } from "./runtime/useSkills";
+import { useUsage } from "./runtime/useUsage";
 import { conversationHistoryGroup, useSessionHistoryGroups } from "./runtime/useSessionHistoryGroups";
 
 const THEME_KEY = "raytonebot.theme";
@@ -388,8 +390,10 @@ export function AgentApp() {
   }, [configuredProject]);
   const imChannels = useImChannels(settingsOpen && Boolean(piRuntimeState), channelModel);
   const routines = useRoutines(settingsOpen && Boolean(piRuntimeState));
-  const mcpServers = useMcpServers(settingsOpen && Boolean(piRuntimeState));
+  const mcpServers = useMcpServers((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
   const memories = useMemories(settingsOpen && Boolean(piRuntimeState));
+  const skills = useSkills((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
+  const usage = useUsage(settingsOpen && Boolean(piRuntimeState));
   const vault = useVault(settingsOpen && Boolean(piRuntimeState));
   /** A routine's conversation opened from settings before this page has listed it. */
   const [pendingOpen, setPendingOpen] = useState<string>();
@@ -572,6 +576,11 @@ export function AgentApp() {
       // started by the host itself: routines, IM chats): pick them up. Following twice is a no-op.
       const running = new Set(stored.filter((entry) => entry.running).map((entry) => entry.id));
       for (const stub of stubs) if (running.has(stub.id)) void followRun(stub);
+      // Background group results get their own persisted turn after the foreground is idle.
+      const selected = stored.find(entry => entry.id === activeConversationIdRef.current);
+      const loaded = piConversations.find(entry => entry.id === selected?.id);
+      if (selected && loaded && !selected.running && !piAbortRefs.current.has(selected.id) && selected.eventCount > loaded.events.length)
+        void loadStoredConversation(loaded).catch(() => undefined);
       // The host knows which of them wait on the user, also for an approval announced before this
       // page followed it. A list read just before a new wait must not clear it: a running turn's
       // wait is cleared by its own stream, a finished one's here.
@@ -877,8 +886,10 @@ export function AgentApp() {
       // on the configured model service need it registered (and its key handed over) first.
       if (isGroup || settingsUseProvider({ ...agentSettings, presetId })) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal);
       const attachments: PiPromptAttachment[] = [];
+      const referencedConversationIds: string[] = [];
       const attachmentScope = isGroup ? "shared" : presetId;
       for (const attachment of context?.attachments ?? []) {
+        if (attachment.chatReference) { referencedConversationIds.push(attachment.chatReference.conversationId); continue; }
         if (attachment.reference) {
           await checkPiAttachment(attachment.reference, controller.signal);
           attachments.push(attachment.reference); continue;
@@ -904,6 +915,7 @@ export function AgentApp() {
         artifactSubmission: queued?.artifactSubmission,
         prompt: normalizedPrompt,
         attachments,
+        referencedConversationIds,
         provider: provider.id,
         model: provider.defaultModel,
         thinkingLevel: context?.budgetMode === "fast" ? "low" : context?.budgetMode === "expert" ? "high" : "medium",
@@ -1431,7 +1443,7 @@ export function AgentApp() {
   } satisfies ComposerRunOptions;
   const workingMember = isGroupConversation(activePiConversation) ? workingGroupMember(events) : undefined;
   const botEditor: BotEditorState | undefined = botDraft ? {
-    ...botDraft, error: botError ?? botLoadError, saving: botSaving, ready: botRevision !== undefined,
+    ...botDraft, models: configuredProject.providers.connections.filter(p => p.enabled).flatMap(p => [...new Set([p.defaultModel, ...p.models])].map(model => ({ provider: p.id, model, label: `${p.label} / ${model}` }))), mcpServers: mcpServers.servers, skills: skills.state?.skills, error: botError ?? botLoadError, saving: botSaving, ready: botRevision !== undefined,
     onChange: draft => { if (!botSaving) { setBotDraft({ ...botDraft, draft }); setBotError(undefined); } },
     onClose: () => { if (!botSaving) { setBotDraft(undefined); setBotError(undefined); } },
     onSave: async () => {
@@ -1447,6 +1459,7 @@ export function AgentApp() {
     },
   } : undefined;
   const shellExtras: ShellExtras = {
+    chatReferences: streamId ? undefined : piConversations.filter(c => c.id !== activePiConversationId && c.stored && !c.id.includes(".m.")).map(c => ({ id: c.id, title: c.title })),
     providerSelection: { onChange: (id, model) => void selectProvider(id, model), error: providerSelectionError },
     bots: streamId ? undefined : knownBots,
     sessionBotIds: streamId ? undefined : botStore.conversations,
@@ -1831,6 +1844,9 @@ export function AgentApp() {
             routines={piRuntimeState ? routines : undefined}
             mcpServers={piRuntimeState ? mcpServers : undefined}
             memories={piRuntimeState ? memories : undefined}
+            memoryScopes={[{ scope: { kind: "global" }, label: locale === "zh" ? "全局" : "Global" }, ...bots.map(bot => ({ scope: { kind: "bot" as const, id: bot.id }, label: bot.name })), ...piConversations.filter(c => c.stored && isGroupConversation(c)).map(c => ({ scope: { kind: "group" as const, id: c.id }, label: c.title }))]}
+            skills={piRuntimeState ? skills : undefined}
+            usage={piRuntimeState ? usage : undefined}
             vault={piRuntimeState ? vault : undefined}
             onOpenConversation={openStoredConversation}
             />

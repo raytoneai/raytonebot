@@ -98,8 +98,62 @@ test("a saved server is listed at once, keeps its token on the server only, and 
     // Switching off removes its tools; a run that kept the old toolkit gets a clear error.
     await mcp.save(saved.id, { enabled: false });
     assert.equal(mcp.toolkit(), undefined);
-    assert.match((await toolkit.run("mcp__github-issues__search", {})).text, /switched off or removed/);
+    assert.match((await toolkit.run("mcp__github-issues__search", {})).text, /switched off.*removed/);
   } finally { await remote.close(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("MCP assignment filters both engine tool catalogs and rejects tools outside the offered servers", async () => {
+  const docsRemote = await fakeMcp(), issuesRemote = await fakeMcp();
+  try {
+    const mcp = createMcpService();
+    const docs = await mcp.save(undefined, { name: "Docs", url: docsRemote.url });
+    const issues = await mcp.save(undefined, { name: "Issues", url: issuesRemote.url });
+    assert.equal(mcp.toolkit([]), undefined, "an explicit empty assignment offers no remote tools");
+    assert.equal(mcp.toolkit(["missing"]), undefined);
+    assert.deepEqual(mcp.toolkit()!.servers.map(server => server.id), [docs.id, issues.id], "omitted assignments preserve the legacy catalog");
+
+    const toolkit = mcp.toolkit([docs.id])!;
+    assert.deepEqual(toolkit.specs.map(spec => spec.name), ["mcp__docs__search", "mcp__docs__create_issue"]);
+    assert.deepEqual(toolkit.servers.map(server => [server.id, server.tools.map(tool => tool.name)]), [["docs", ["search", "create_issue"]]],
+      "Claude SDK servers receive the same assignment filtering as Pi/Codex specs");
+    const denied = await toolkit.run("mcp__issues__search", { q: "not assigned" });
+    assert.equal(denied.isError, true);
+    assert.match(denied.text, /Unknown MCP tool/);
+    assert.equal(issuesRemote.calls.length, 0, "a forged unoffered tool name cannot reach its remote server");
+    assert.equal((await toolkit.run("mcp__docs__search", { q: "assigned" })).isError, false);
+    assert.deepEqual(docsRemote.calls.map(call => [call.name, call.arguments]), [["search", { q: "assigned" }]]);
+
+    const liveFiltered = mcp.toolkit([docs.id, issues.id], id => id === docs.id)!;
+    assert.deepEqual(liveFiltered.servers.map(server => server.id), [docs.id], "the live check also applies when building a new catalog");
+  } finally { await Promise.all([docsRemote.close(), issuesRemote.close()]); }
+});
+
+test("a stale MCP toolkit rechecks live Bot assignment before dispatch without disabling the shared server", async () => {
+  const docsRemote = await fakeMcp(), issuesRemote = await fakeMcp();
+  try {
+    const mcp = createMcpService();
+    const docs = await mcp.save(undefined, { name: "Docs", url: docsRemote.url });
+    const issues = await mcp.save(undefined, { name: "Issues", url: issuesRemote.url });
+    const assigned = new Set([docs.id, issues.id]);
+    const allowed = (id: string) => assigned.has(id);
+    const toolkit = mcp.toolkit([docs.id, issues.id], allowed)!;
+    assert.equal((await toolkit.run("mcp__docs__search", { q: "before revocation" })).isError, false);
+    const callsBefore = docsRemote.calls.length;
+
+    assigned.delete(docs.id); // The model still holds the old tool catalog during this run.
+    assert.equal(mcp.list().find(server => server.id === docs.id)?.enabled, true);
+    const denied = await toolkit.run("mcp__docs__search", { q: "after revocation" });
+    assert.equal(denied.isError, true);
+    assert.match(denied.text, /no longer assigned/);
+    assert.equal(docsRemote.calls.length, callsBefore, "revocation blocks the outgoing connector call");
+    assert.equal((await toolkit.run("mcp__issues__search", { q: "still assigned" })).isError, false);
+    assert.equal(issuesRemote.calls.length, 1);
+    assert.deepEqual(mcp.toolkit([docs.id, issues.id], allowed)!.servers.map(server => server.id), [issues.id]);
+    assigned.clear();
+    assert.equal(mcp.toolkit([docs.id, issues.id], allowed), undefined);
+    assert.equal((await toolkit.run("mcp__issues__search", {})).isError, true);
+    assert.equal(issuesRemote.calls.length, 1);
+  } finally { await Promise.all([docsRemote.close(), issuesRemote.close()]); }
 });
 
 test("bad addresses are refused, a rejected token is shown on the server, and a new name never takes a used id", async () => {

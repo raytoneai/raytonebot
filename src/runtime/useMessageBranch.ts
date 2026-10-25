@@ -30,10 +30,12 @@ export function branchMessageRuns(events: readonly AgentUXEvent[]): Map<string, 
   return runs;
 }
 
-export function branchComposerDraft(draft: { prompt: string; attachments?: PiPromptAttachment[] }): ComposerDraft {
-  return { prompt: draft.prompt, attachments: (draft.attachments ?? []).map(reference => ({
+export function branchComposerDraft(draft: { prompt: string; attachments?: PiPromptAttachment[]; referencedConversationIds?: string[] }): ComposerDraft {
+  return { prompt: draft.prompt, attachments: [...(draft.attachments ?? []).map(reference => ({
     id: crypto.randomUUID(), reference, name: reference.name || reference.path.split("/").at(-1) || reference.path, isImage: false,
-  })) };
+  })), ...(draft.referencedConversationIds ?? []).map(conversationId => ({
+    id: crypto.randomUUID(), chatReference: { conversationId, title: conversationId }, name: conversationId, isImage: false,
+  }))] };
 }
 
 export function useMessageBranch(input: {

@@ -1,13 +1,21 @@
 import { DEFAULT_BOT_NAMES, isAgentPresetId, type AgentPresetId } from "../pi/harnessCatalog.ts";
 import { DEFAULT_BOTS, parseBotAppearance, parseBotAppearances, type BotAppearance, type BotAppearances, type BotKind } from "./botAppearance.ts";
 
-export type BotProfile = { id: string; presetId: AgentPresetId; name: string; appearance: BotAppearance };
+export type BotProfile = {
+  id: string; presetId: AgentPresetId; name: string; appearance: BotAppearance;
+  role?: string; personality?: string; instructions?: string;
+  model?: { provider: string; model: string };
+  /** Missing retains the legacy all-enabled-servers behavior; [] explicitly selects none. */
+  mcpServerIds?: string[];
+  skillIds?: string[];
+};
 export type BotConfigView = { revision: number; profiles: BotProfile[] };
 export type BotProfileStore = { profiles: BotProfile[]; conversations: Record<string, string> };
 export const BOT_PROFILES_KEY = "raytone.bot-profiles.v1";
 export const BOT_KINDS = { assistant: "woman", planner: "man", builder: "boy", dsh: "woman" } as const satisfies Record<AgentPresetId, BotKind>;
 export const BOT_NAMES = DEFAULT_BOT_NAMES;
 export const BOT_NAME_LIMIT = 40;
+export const BOT_PERSONA_LIMITS = { role: 300, personality: 1000, instructions: 4000 } as const;
 const customId = /^bot_[a-f0-9-]{36}$/;
 
 export function parseBotProfile(value: unknown): BotProfile | undefined {
@@ -17,7 +25,28 @@ export function parseBotProfile(value: unknown): BotProfile | undefined {
   if (typeof data.id !== "string" || (!isAgentPresetId(data.id) && !customId.test(data.id))
     || !isAgentPresetId(data.presetId) || (isAgentPresetId(data.id) && data.id !== data.presetId)
     || typeof data.name !== "string" || !data.name.trim() || data.name.trim().length > BOT_NAME_LIMIT || /[\r\n\u0000-\u001f]/.test(data.name) || !appearance) return;
-  return { id: data.id, presetId: data.presetId, name: data.name.trim(), appearance };
+  const persona: Pick<BotProfile, "role" | "personality" | "instructions"> = {};
+  for (const key of Object.keys(BOT_PERSONA_LIMITS) as (keyof typeof BOT_PERSONA_LIMITS)[]) {
+    const text = data[key];
+    if (text !== undefined && (typeof text !== "string" || text.length > BOT_PERSONA_LIMITS[key] || /[\u0000-\u0008\u000b\u000c\u000e-\u001f]/.test(text))) return;
+    if (typeof text === "string" && text.trim()) persona[key] = text.trim();
+  }
+  let model: BotProfile["model"];
+  if (data.model !== undefined) {
+    const value = data.model as BotProfile["model"];
+    if (!value || typeof value.provider !== "string" || typeof value.model !== "string"
+      || !value.provider.trim() || !value.model.trim() || value.provider.length > 128 || value.model.length > 256
+      || /[\u0000-\u001f]/.test(value.provider + value.model)) return;
+    model = { provider: value.provider.trim(), model: value.model.trim() };
+  }
+  const capabilities: Pick<BotProfile, "mcpServerIds" | "skillIds"> = {};
+  for (const key of ["mcpServerIds", "skillIds"] as const) {
+    const values = data[key];
+    if (values === undefined) continue;
+    if (!Array.isArray(values) || values.length > 100 || values.some(id => typeof id !== "string" || !/^[a-zA-Z0-9_-]{1,100}$/.test(id))) return;
+    capabilities[key] = [...new Set(values)] as string[];
+  }
+  return { id: data.id, presetId: data.presetId, name: data.name.trim(), appearance, ...persona, ...(model ? { model } : {}), ...capabilities };
 }
 
 export function parseBotProfiles(raw: string | null): BotProfileStore {

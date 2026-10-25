@@ -3,6 +3,12 @@
 .bot-creator-preview > strong { font-size: var(--text-xl); }
 .bot-creator-preview > .settings-row-sub { text-align: center; }
 .bot-creator-controls { display: grid; gap: 20px; flex: 1; min-width: 0; padding-top: 16px; }
+.bot-editor-field textarea { box-sizing: border-box; width: 100%; min-height: 64px; resize: vertical; border: var(--border-width) solid var(--border-subtle); border-radius: 8px; padding: 10px 12px; color: var(--text-primary); background: var(--surface-inset); font: inherit; line-height: 1.5; }
+.bot-editor-field textarea:focus-visible { outline: 2px solid var(--text-secondary); outline-offset: 2px; }
+.bot-editor-capabilities { display: grid; min-width: 0; }
+.bot-editor-capabilities summary { cursor: pointer; font-weight: 600; }
+.bot-editor-capabilities[open] > :not(summary) { margin-top: 16px; }
+.bot-capability-option { display: flex; align-items: center; gap: 8px; margin: 8px 0; font-size: var(--text-md); }
 .bot-options { border: 0; padding: 0; margin: 0; min-width: 0; }
 .bot-options legend { font-size: var(--text-md); font-weight: 600; margin-bottom: 8px; }
 .bot-options > div { display: flex; flex-wrap: wrap; gap: 8px; }
@@ -30,7 +36,7 @@
 .bot-editor-form { display: flex; flex-direction: column; min-height: 0; }
 .bot-editor-form .settings-body-scroll { flex: 1; padding: 8px 24px 24px; }
 .bot-editor-field { display: grid; gap: 8px; font-weight: 600; font-size: var(--text-md); }
-.bot-editor-field select { width: 100%; min-height: 36px; border: var(--border-width) solid var(--border-subtle); border-radius: 8px; padding: 6px 10px; background: var(--surface-panel); color: var(--text-primary); font: inherit; }
+.bot-editor-field select { width: 100%; max-width: 100%; min-height: 36px; border: var(--border-width) solid var(--border-subtle); border-radius: 8px; padding: 6px 10px; background: var(--surface-panel); color: var(--text-primary); font: inherit; }
 .bot-editor-field .settings-row-sub { font-weight: 400; }
 .bot-editor-footer { border-top: var(--border-width) solid var(--border-subtle); padding: 14px 24px; }
 .bot-editor-footer .bot-actions { justify-content: flex-end; padding: 0; }

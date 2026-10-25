@@ -80,6 +80,9 @@ Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子�
 | 方法 | 路径 | 作用 |
 | --- | --- | --- |
 | GET | `/__agentcanvas/pi/health` | 无模型调用的进程健康、活跃任务数、并发上限、运行时长与最近一次轮次距今时间（`lastRunAgoMs`，keeper 的活动识别用它，见 ADR-041）；云端仍需 Basic Auth |
+| GET | `/__agentcanvas/pi/usage` | 最近轮次的主机网关用量、覆盖完整度与存储错误，不返回消息、密钥或估算费用 |
+| GET / POST | `/__agentcanvas/pi/skills` | 主机文本 Skills 清单 / 保存 `{input,revision}`；冲突 409 |
+| POST | `/__agentcanvas/pi/skills/remove` | 删除 `{id,revision}` 指定的文本 Skill |
 | POST | `/__agentcanvas/pi/files?scope=&name=` | 单文件原始字节上传，≤10 MiB；返回 `{scope,path,name,size}`，重名不覆盖 |
 | GET | `/__agentcanvas/pi/files?scope=&path=` | 当前角色或 shared 工作区的只读目录列表 |
 | GET / HEAD | `/__agentcanvas/pi/files/download?scope=&path=` | 下载普通文件，支持单段 Range 与元数据读取，强制附件响应；拒绝隐藏路径、链接与越界路径 |
@@ -107,7 +110,9 @@ Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子�
 
 `/prompt` 可带 `attachments: [{scope,path}]`（最多 10 项）。服务端验证文件属于当前角色或共享工作区，再把绝对路径加入模型上下文；界面与保存的用户消息保留原文。上传失败保留草稿与附件，准备阶段可取消。浏览器 Output 面板复用为文件列表、目录导航及下载入口。
 
-会话搜索沿用文件存储，37 行 `conversationSearch.ts` 按 runId/textId 拼接正文增量，不检索工具参数、思考或原生文件。每条命中消息返回一个片段；会话摘要保持每会话一份。62 行 `useConversationSearch.ts` 管理 200ms 防抖、取消、迟到响应及失败/部分结果，并将 matches 展开为按消息时间排序的结果；显示日期不改写会话元数据。复用既有搜索弹层、结果行与状态文字，按 conversationId/textId 联合标识，方向键与回车选择。未发送草稿保留本地标题匹配，正文请求上限 15 秒；选中结果后读取该会话并定位命中的消息。查询发现活跃会话时只订阅原任务，不重发提示词。分页用 36 行 `conversationSearchPage.ts`，服务端与客户端共用按时间降序、会话 id/textId 的稳定排序；游标绑定查询和最后一项的位置，删除游标对应消息不会让后续项跳过。新客户端每次请求 100 项并按需续页；旧客户端不传分页参数保持原返回。下一页失败保留已加载结果，关闭/换词取消全部相关请求。当前仍逐记录扫描，游标不是快照：查询期间新增的较新结果需重新查询；没有新增索引、数据库或全文下载，大量历史扫描性能和跨资源搜索仍待补。
+普通与群 `/prompt` 还可带 `referencedConversationIds`（每次提交最多五个不同的可见会话 ID）。`conversationReferences.ts` 在接收轮次前校验存在性，随 `turns` 保存；后续轮次与历史分支继承已授予的范围。引用仅让主机历史工具读取原文，不复制整份聊天进模型。Composer 的原引用入口显示选择与可移除标签，草稿、提交快照、跟进队列与分支草稿都保留这些 ID；隐藏群子会话不能被引用。
+
+会话搜索沿用文件存储，`conversationSearch.ts` 按 runId/textId 拼接正文增量，不检索工具参数、思考或原生文件。每条命中消息返回一个片段；会话摘要保持每会话一份。62 行 `useConversationSearch.ts` 管理 200ms 防抖、取消、迟到响应及失败/部分结果，并将 matches 展开为按消息时间排序的结果；显示日期不改写会话元数据。复用既有搜索弹层、结果行与状态文字，按 conversationId/textId 联合标识，方向键与回车选择。未发送草稿保留本地标题匹配，正文请求上限 15 秒；选中结果后读取该会话并定位命中的消息。查询发现活跃会话时只订阅原任务，不重发提示词。分页用 36 行 `conversationSearchPage.ts`，服务端与客户端共用按时间降序、会话 id/textId 的稳定排序；游标绑定查询和最后一项的位置，删除游标对应消息不会让后续项跳过。新客户端每次请求 100 项并按需续页；旧客户端不传分页参数保持原返回。下一页失败保留已加载结果，关闭/换词取消全部相关请求。当前仍逐记录扫描，游标不是快照：查询期间新增的较新结果需重新查询；没有新增索引、数据库或全文下载，大量历史扫描性能和跨资源搜索仍待补。
 
 搜索结果复用现有 SessionGroup，由 97 行 `useSearchWindow.ts` 测量可见行高度并保留上下缓冲区；未挂载行仍保留布局位置，焦点行离屏时单独保留。键盘按完整结果顺序导航，换词/关闭重置窗口，窗口宽度变化按消息标识保留阅读位置。片段不截成固定行数，不新增组件或依赖；已加载结果仍存在客户端内存，位置计算为线性扫描，不是全文索引或无限数据规模保证。
 
@@ -158,7 +163,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 
 `groupChat.ts` 为父轮次保存 `runId`、成员当前子轮 id、订阅者和完成信号；事件复用 `conversationRecorder.ts`，按群历史连续编号，用户消息、审批/提问等待及终态落盘后再广播。已接收请求通过历史 `runId` 去重，完成与进程重启后仍拒绝重复执行；重启只补中断终态，不重放。`followRun` 同步补齐游标后的事件并注册后续订阅，断开订阅不停止运行；群成员信息随历史/搜索恢复。停止与审批先核对父轮身份，再转发当前子轮身份。成员失败使父轮失败，依赖步骤与汇总停止；并行成员全部退出后才发布唯一终态。元数据写入失败不得先发布成功，清理失败路径仍释放运行槽；群运行期间拒绝重置，群提交等待已在进行的重置，重置失败则不调用成员。
 
-群成员通过内部 `runPrompt(..., { waitForCapacity: true, signal })` 等待已有运行槽完成；醒来后同步重查身份与名额并占槽，总上限仍为 3。等待可取消、不写子轮回执；普通网页/IM 调用仍在满额时直接拒绝，不新增 HTTP 参数或持久队列，也不承诺 FIFO。群广播逐个隔离出错的订阅者；成员失败仅发带成员名的父轮错误卡。首次元数据保存失败属于未接收，收尾与标题异常不得变为 `prompt_rejected`；错误兜底须等 recorder 收尾，避免与 `history_save_failed` 重复发布终态。
+群成员通过内部 `runPrompt(..., { waitForCapacity: true, signal })` 等待已有运行槽完成；醒来后同步重查身份与名额并占槽，总上限仍为 3。等待可取消、不写子轮回执；普通网页/IM 调用仍在满额时直接拒绝，不新增 HTTP 参数或持久队列，也不承诺 FIFO。群广播逐个隔离出错的订阅者；成员失败仅发带成员名的父轮错误卡。首次元数据保存失败属于未接收，收尾与标题异常不得变为 `prompt_rejected`；错误兜底须等 recorder 收尾，避免与 `history_save_failed` 重复发布终态。一层后台只读委派有独立任务与结果轮次，不占父群的前台运行标志，见下方 ADR-055 的委派说明。
 
 ### 当前缺口
 
@@ -305,7 +310,7 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 
 ### M5 第二批：任务、表单和文本工作区（2026-10-18）
 
-- `group.tasks` 随原会话文件保存 assignment、parentId、owner、requestId、runId、status、result、retryOf；读取无活动轮次的群时，pending/running 改为 needs_review。`/task <id> complete|cancel|retry` 是原群 prompt 内的显式控制命令，接受去重与存储约束；不自动重放。群写轮次共用串行 lease，并行讨论经 ApprovalGate 的可信 readOnly 标志拒绝非白名单工具，allow-all 也不绕过；单聊并发未改变。原工具/计划事件显示进度，不增加任务事件协议或看板。
+- `group.tasks` 随原会话文件保存 assignment、parentId、owner、requestId、runId、status、result、retryOf；读取时，没有本进程前台轮次或后台委派句柄的 pending/running 改为 needs_review。`/task <id> complete|cancel|retry` 是原群 prompt 内的显式控制命令，接受去重与存储约束；不自动重放。群写轮次共用串行 lease，并行讨论经 ApprovalGate 的可信 readOnly 标志拒绝非白名单工具，allow-all 也不绕过；单聊并发未改变。原工具/计划事件显示进度，不增加任务事件协议或看板。
 - `.form.json` 仅接受显式 `raytone-form` v1 schema，最多20字段/24K字符，类型为 text/number/boolean/select。Output helper 使用 runtime hook 保存同源输入、稳定提交身份及封存值，提交沿 Composer 队列和主机 requestId。普通/群 prompt 可选 `artifactSubmission: {artifactId,submissionId}`，submissionId 必须等于 requestId；父 turn 保存来源，隐藏成员执行不继承父提交身份。结果按原 runId 查找并定位现有回答，脚本不参与提交。
 - 既有 `/__agentcanvas/pi/files` 的 GET 支持 `query`：有预算的本地 `.md/.txt` 路径/正文搜索，返回可选 snippet、truncated。`GET /documents?scope=&path=` 返回文本、SHA256 version、可选来源；`POST /documents` 接受 scope/name/content 及可选 conversationId/artifactId，另存到 documents 唯一路径；`PUT /documents` 接受 scope/path/content/version，旧版本409，保留服务器字节。均复用同源与工作区边界；存在活动运行时拒绝 POST/PUT。
 - 文件≤256 KiB、UTF-8；同一路径保存串行且原子 rename，使用 fd chmod 保留0660组权限。安全文件读取拒绝链接、私有路径及越界。来源引用随原会话 `documents` metadata（最多100项）保存，字节与 metadata 不具备跨文件事务保证；文本编辑草稿在浏览器本地，失效版本需用户明确丢弃/重新核对。新会话引用仍是原 attachments，不复制历史字节。无新服务、数据库或外部存储。
@@ -314,7 +319,7 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 
 `runtime/botProfiles.ts` 区分 Bot ID 与引擎角色：三个内置 ID 保持 assistant / planner / builder，新 Bot 使用随机 ID 并选择现有角色。名字、结构化头像与 conversation ID → Bot ID 映射共同保存在当前 origin 的 `raytone.bot-profiles.v1`，`useBotProfiles` 处理同页通知和跨标签页更新。旧 `raytone.bot-appearances.v1` 按角色作为缺省值读取，编辑保存后由新配置优先，不删除旧数据。Bot 不接受任意 SVG。
 
-创建/编辑表单从 Settings 移到 `ShellExtras` 的唯一 `BotEditor` helper，入口为 `SessionSidebar` Logo、侧栏头像右键/键盘菜单键/编辑按钮，以及聊天标题头像右键。表单保存成功才更新；存储失败保留草稿。聊天主机仍使用原有 conversation ID 隔离上下文，新 Bot 复用所选角色的引擎、模型来源、工作区、工具权限与运行时人设；名称属于显示配置。历史分组、草稿、搜索、活动状态与消息分支按浏览器记录的 Bot ID 恢复，编辑现有 Bot 不允许改引擎。
+创建/编辑表单从 Settings 移到 `ShellExtras` 的唯一 `BotEditor` helper，入口为 `SessionSidebar` Logo、侧栏头像右键/键盘菜单键/编辑按钮，以及聊天标题头像右键。表单保存成功才更新；存储失败保留草稿。聊天主机使用原有 conversation ID 区分原生上下文；初版 Bot 只定制显示信息，2026-10-26 起还可保存下文的人设、模型覆盖和能力选择。Bot 仍复用所选角色的引擎、工作区与基础权限，编辑现有 Bot 不允许改引擎。
 
 2026-10-19 群聊扩展到自建 Bot：`groupParticipants.ts` 校验 `{id,name,presetId}` 名单，`group.members` 保存 Bot ID、`participants` 保存名字与引擎快照、`hostId` 保存主持。`@` 使用当前名字（支持中文）；头像完整配置仍在浏览器，其他浏览器恢复群记录时使用角色默认头像。
 
@@ -328,13 +333,39 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 
 所有群成员共用一套路由，模型输出 `{mode,members:[稳定ID]}`；名字仅在用户输入边界解析，不决定可用模式。旧 router 的符号 route key 仅作兼容输入，映射固定内置 ID，不发入当前模型提示。重名点名拒绝猜测，前缀重叠按最长完整名字解析；PM 确认选项由计划成员生成，回答通过该轮选项表映射 ID，任务重试直接读取 owner ID。
 
-### 服务端 Bot 配置（2026-10-19，ADR-049）
+### 服务端 Bot 配置（ADR-049/055，2026-10-26 更新）
 
-上述浏览器存储范围已由 ADR-049 取代。`src/pi/botConfig.ts` 在现有主机内读写数据目录 `bots.json`（0600），保存 `{revision, profiles:[{id,presetId,name,appearance}]}`；三个内置缺省值只用于尚未配置的 ID。`GET /__agentcanvas/pi/bots` 返回完整名单，`POST` 接收 `{bot,revision}`，冲突返回 409；不可改变 ID 对应的引擎，头像仍是结构化枚举/颜色，最多 100 个 Bot。
+上述浏览器存储范围已由 ADR-049 取代。`src/pi/botConfig.ts` 在现有主机内读写数据目录 `bots.json`（0600），保存 `{revision,profiles}`；profile 的 `id/presetId/name/appearance` 之外，可选 `role`（300 字符）、`personality`（1000）、`instructions`（4000）、`model:{provider,model}`、`mcpServerIds`、`skillIds`。`runtime/botProfiles.ts` 共用校验，缺失新字段保持旧配置有效。`GET /__agentcanvas/pi/bots` 返回完整名单，`POST` 接收 `{bot,revision}`，冲突返回 409；不可改变 ID 对应的引擎，头像仍是结构化枚举/颜色，最多 100 个 Bot。
 
 `POST /__agentcanvas/pi/bots/import` 接收旧 `{profiles,conversations}`，只补缺失配置和未绑定且引擎一致的旧对话；不覆盖服务器保存的改名或已有 botId。`useBotProfiles` 首次导入旧名字/头像，之后读服务器，localStorage 仅为带 `source:server` 的显示缓存和未提交对话归属缓存。发送前完成同步，保存失败保留草稿；一页所有头像共享一个轮询器，前台 3 秒、聚焦及跨标签页通知刷新，未变化不重新发布状态。
 
-HTTP host 共用一个 BotConfigStore，网页、IM、例行任务和群聊运行都按其名单解析 Bot ID。会话/群保存的 availableBots/participants 是历史快照，不再覆盖当前配置。群创建同时保存主持 botId，IM 检查已绑定会话身份以区分改名与更换 Bot。IM 设置新增可选 botId（旧 agentPreset 回退到内置 ID），频道 picker 可选全部配置 Bot；聊天配对沿用发起 Bot。Routine 新增 botId，来自创建工具所处轮次，不由模型指定；旧任务回退 assistant。每次调度都重新查当前配置，UI 用同一名字表显示所属 Bot，原有模型配置和调度行为保持。
+HTTP host 共用一个 BotConfigStore，网页、IM、例行任务和群聊运行都按其名单解析 Bot ID。会话/群保存的 availableBots/participants 是历史快照，不再覆盖当前配置。群创建同时保存主持 botId，IM 检查已绑定会话身份以区分改名与更换 Bot。IM 设置新增可选 botId（旧 agentPreset 回退到内置 ID），频道 picker 可选全部配置 Bot；聊天配对沿用发起 Bot。Routine 新增 botId，来自创建工具所处轮次，不由模型指定；旧任务回退 assistant。每次调度都重新查当前配置，UI 用同一名字表显示所属 Bot，未配置 Bot 模型覆盖时保留入口原有模型选择，调度规则不变。
+
+`BotEditor` 沿用原创建/编辑入口。`rolePrompt.ts` 把当前 Bot 的职责、性格和长期要求加入主机角色提示，明确优先于共享角色默认人设、服从用户当前请求；不改写历史和磁盘 SOUL 文件。已设置的 Bot 模型覆盖本轮提交的 provider/model，未设置则沿用调用入口的原模型选择。MCP 缺省 `mcpServerIds` 保持所有已启用服务的旧行为，`[]` 明确不分配；`mcpServers.toolkit` 同时在工具清单和实际调用检查当前分配与开关。`skillIds` 缺省为空。独立 Bot 配置不是独立文件系统、UID 或浏览器 profile，角色工作区和既有审批边界保持不变。
+
+### 有范围的长期上下文与文本 Skills（ADR-055）
+
+`memories.ts` 继续使用 `<dataDir>/memories.json`，旧记录无 scope 时视为 global；新 scope 为 `{kind:"global"}`、`{kind:"bot",id}` 或 `{kind:"group",id}`。注入、`recall_memories` 与 `forget` 只处理全局、当前 Bot、当前父群可见的记忆；模型不能自报另一个 owner ID。`remember` 单聊默认当前 Bot，群聊默认当前群，可显式选择当前可用范围；写入/删除仍走 connector 审批。Settings 原 Memory 分区负责范围选择与全局管理。总量仍为 100 条、每条 300 字符，提示有约 4000 字符预算；只读 recall 用最多 200 字符的字面查询返回最多 20 条，补查提示中省略的旧记忆。关闭后既有工具句柄也拒绝操作。
+
+`conversationHistoryTools.ts` 直接读取 ConversationStore 的公共用户/助手文本，复用 `conversationSearch.ts` 按 `runId + textId` 累积流式内容；不读取 reasoning、工具原始内容、Vault 等专用秘密输入或引擎原生会话。`search_chat_history` 默认当前可见会话、最多 20 个命中；`read_chat_history` 用 textId/可选 runId 返回目标及合计至多十条邻居。结果保留 conversationId、角色、时间与稳定消息锚点，序列化输出最多 16000 字符，显式标注截断；越权、记录删除、歧义锚点均返回错误。跨会话范围仅来自上述用户引用，群成员与只读委派由宿主传入父群 ID，隐藏子会话即使被点名也拒绝读取。
+
+`botSkills.ts` 将共享文本库保存在 `<dataDir>/skills.json`（0600），Settings 原 MCP 分区负责增删改、开关，BotEditor 负责分配。保存/删除带 revision，冲突 409；单条指令最多 16000 字符、总量最多 100 条、文件最多 2 MiB。模型只先收到已分配且启用的名称/说明索引（约 6000 字符），相关时用 `read_skill` 读取正文，调用时再检查最新分配与开关。内容是用户当前任务下的参考指引，不授予动作权限；不扫描个人技能目录、不加载模块或执行附带脚本。损坏记录保留并停用读取/保存，修复后重启。
+
+### 一层只读委派（ADR-055）
+
+`groupDelegation.ts` 只向当前群主持的普通成员轮次提供 `delegate_task({memberId,task})` 和 `group_tasks({taskId?,cancel?})`。只能选已加入的其他成员；先把 `kind:delegation` 的 assignment 存入父群 `group.tasks`，再异步启动独立隐藏子会话并立即返回任务 ID。每次请求最多四项、每群最多四项活动委派，执行复用主机总并发、容量等待、时长/输出上限。子任务带可信 `readOnly/delegated/groupId` 标志，没有委派工具；主机不提供外部 MCP、浏览器、Vault、频道/例行任务或记忆修改能力，普通写入和命令也被只读闸门拒绝。
+
+前台群轮次正常结束不取消已接受的委派，父群可继续接收消息；新轮次保存 metadata 时按任务所有权合并最新记录。`group_tasks` 或 `/task <id> cancel` 可取消后台任务，停止来源轮次取消其仍活跃的委派，全局停止取消全部；迟到结果不能把已取消任务改回成功。主机重启后未完成项为 needs_review，不重放；委派的 `/task retry` 被拒绝，需用户核对后让主持创建新的只读任务。
+
+完整子运行仍由 ConversationStore 保存，父任务结果最多 2000 字符并标注截断。完成回执在群空闲时写入独立 `result_<assignmentId>` 轮次，复用原文本和任务 artifact；不会向已结束父轮追加文本或第二个终态。回执只写一次，增加 eventCount 并更新群预览；shell 发现已选空闲群的事件数增加时刷新历史，不把后台工作标为前台忙碌。没有新服务、任务看板或嵌套调度器。
+
+### 模型用量与 Pi 自定义参数（ADR-055）
+
+`usage.ts` 保存 `<dataDir>/usage.json`（0600），最多 500 轮、每轮最多 100 个请求记录；身份键为 conversationId/runId，请求键来自主机网关。`runtime/modelGateway.ts` 通过 `modelUsage.ts` 被动解析 OpenAI-compatible/Anthropic JSON 或 SSE 的 usage，不改动转发字节、不保存正文或密钥；同一请求累计快照更新原记录，不重复求和，真实重试使用不同请求键。input 总量包含供应商报告的 cache 子集，不再把 cache 加一次。恢复时未结束轮次标 interrupted；存储故障保留原文件，近期数据留内存并在界面报错，不影响任务结果或重放任务。
+
+Settings 的 Usage 分区展示可得的 input/output/cache、耗时、状态与 `source:gateway`，并区分 complete/partial/unknown。缺失字段保留未知；本机 HTTP 直连、CLI 本机登录或其他未走网关的路径可能只有未知记录，不推断零 token、价格或费用。此记录覆盖已观察到的主机模型请求，不代表供应商账单或所有后台调用。
+
+Provider 原编辑卡可为已列出的模型配置 `modelOptions`：contextWindow、maxTokens、text/image 输入和 reasoning。`modelMetadata.ts` 在页面同步、主机保存和 Pi SDK 注册共用校验；正整数上限为 1000 万，输出不得超过上下文，输入须包含 text。未配置保持旧默认（128000 上下文、16384 输出、text/image，reasoning 沿原端点能力判断）；只缩小上下文时默认输出同步取较小值。配置随既有 Provider 主机存储保存，不新增定价猜测或更换产品默认模型，不宣称改写 CLI 的原生模型目录。
 
 
 ### Provider 主机存储（2026-10-23）

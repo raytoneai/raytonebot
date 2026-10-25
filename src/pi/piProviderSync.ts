@@ -1,5 +1,6 @@
 import type { ProviderConnection } from "../schema/agentuxConfig";
 import type { PiProviderDefinition, PiRuntimeConfiguration } from "./piClient";
+import { normalizeModelOptions } from "./modelMetadata.ts";
 
 /**
  * Convert the editor's source-of-truth provider into the browser-safe contract accepted by
@@ -25,6 +26,7 @@ export function piRuntimeConfigurationForProvider(
     protocol: provider.protocol,
     baseUrl,
     models,
+    ...(provider.modelOptions !== undefined ? { modelOptions: normalizeModelOptions(provider.modelOptions, models) } : {}),
     authMode: provider.auth.mode === "none" ? "none" : "required",
     apiKeyEnvVar: provider.auth.envVar?.trim() || undefined,
   };

@@ -1,4 +1,4 @@
-import { randomBytes } from "node:crypto";
+import { randomBytes, randomUUID } from "node:crypto";
 import { lookup } from "node:dns/promises";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import { connect, isIP } from "node:net";
@@ -6,6 +6,8 @@ import { Readable } from "node:stream";
 import { pipeline } from "node:stream/promises";
 import { gatewayPort } from "./agentProcess.ts";
 import { providerErrorMessage } from "./providerError.ts";
+import { createModelUsageTap } from "../modelUsage.ts";
+import type { ModelUsage } from "../usageTypes.ts";
 
 // The limits are a safety net, not a verdict on the task: say how to continue.
 const BUDGET_MESSAGE = "This turn reached its model request limit (RAYTONEBOT_RUN_MODEL_REQUESTS). Work so far is kept; send \"continue\" to resume.";
@@ -15,6 +17,7 @@ type LeaseInput = {
   baseUrl: string; apiKey: string; model: string; protocol: "openai" | "anthropic";
   thinkingLevel?: string;
   maxRequests?: number; maxDurationMs?: number; onLimit?: (message: string) => void;
+  onUsage?: (requestId: string, usage: ModelUsage) => void;
 };
 type Lease = LeaseInput & { requests: number; expires: number; active: Set<AbortController>; limited: boolean };
 
@@ -144,6 +147,8 @@ export async function createModelGateway(options: {
     res.once("close", disconnected);
     const timer = setTimeout(() => { limit(lease, DURATION_MESSAGE); }, Math.max(1, lease.expires - Date.now()));
     timer.unref();
+    const requestId = randomUUID();
+    let usageTap: ReturnType<typeof createModelUsageTap> | undefined, completed = false;
     try {
       const headers: Record<string, string> = { "content-type": "application/json", authorization: `Bearer ${lease.apiKey}` };
       if (lease.protocol === "anthropic") {
@@ -162,12 +167,19 @@ export async function createModelGateway(options: {
         return reply(res, upstream.status, await providerErrorMessage(upstream, [lease.apiKey, token]));
       }
       res.writeHead(upstream.status, { "content-type": upstream.headers.get("content-type") ?? "application/json", "cache-control": "no-store" });
-      if (upstream.body) await pipeline(Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream), res);
+      usageTap = createModelUsageTap({ protocol: lease.protocol, contentType: upstream.headers.get("content-type") ?? undefined });
+      if (upstream.body) await pipeline(Readable.fromWeb(upstream.body as import("node:stream/web").ReadableStream), usageTap.stream, res);
       else res.end();
+      completed = true;
     } catch {
       if (!res.headersSent) reply(res, 502, "Model gateway request failed.");
       else res.destroy();
-    } finally { clearTimeout(timer); lease.active.delete(controller); res.removeListener("close", disconnected); }
+    } finally {
+      clearTimeout(timer); lease.active.delete(controller); res.removeListener("close", disconnected);
+      if (!suffix.endsWith("/count_tokens")) try {
+        lease.onUsage?.(requestId, usageTap?.finish(completed) ?? { source: "gateway", complete: false });
+      } catch { /* Usage reporting cannot fail a model response or cause a retry. */ }
+    }
   }
   const server = createServer((req, res) => { void handle(req, res).catch(() => { if (!res.headersSent) reply(res, 400, "Invalid gateway request."); else res.destroy(); }); });
   server.requestTimeout = 15_000;

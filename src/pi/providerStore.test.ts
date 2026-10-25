@@ -60,6 +60,7 @@ test('provider save survives restart without exposing secrets and binds credenti
   const providers = structuredClone(project.providers);
   const provider = providers.connections.find(p => p.id === 'gemini')!;
   provider.enabled = true; providers.defaultProviderId = provider.id;
+  provider.modelOptions = { [provider.defaultModel]: { contextWindow: 1_000_000, maxTokens: 65_536, input: ['text', 'image'], reasoning: true } };
   const definition = piRuntimeConfigurationForProvider(provider).providerDefinition!;
   try {
     const first = new ProviderStore(file);
@@ -71,6 +72,9 @@ test('provider save survives restart without exposing secrets and binds credenti
     assert.equal(statSync(file).mode & 0o777, 0o600);
     assert.equal(statSync(join(dir, 'secrets')).mode & 0o777, 0o700);
     const next = new ProviderStore(file);
+    assert.deepEqual(next.view().providers?.connections.find(p => p.id === 'gemini')?.modelOptions, provider.modelOptions);
+    const restoredProvider = next.view().providers!.connections.find(p => p.id === 'gemini')!;
+    assert.deepEqual(piRuntimeConfigurationForProvider(restoredProvider).providerDefinition?.modelOptions, provider.modelOptions);
     assert.equal(next.resolve(definition), 'fake-private-test-key');
     assert.equal(next.resolve({ ...definition, baseUrl: 'https://other.example/v1' }), undefined);
     assert.throws(() => next.save(providers, {}, [], 0), /changed/);
@@ -79,6 +83,17 @@ test('provider save survives restart without exposing secrets and binds credenti
     next.save(providers, {}, ['gemini'], saved.revision);
     assert.equal(new ProviderStore(file).resolve(definition), undefined);
   } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('invalid model metadata cannot advance the provider revision or overwrite a saved profile', () => {
+  const store = new ProviderStore();
+  const providers = structuredClone(project.providers);
+  const saved = store.save(providers, {}, [], 0);
+  const provider = providers.connections.find(p => p.id === 'gemini')!;
+  provider.modelOptions = { [provider.defaultModel]: { contextWindow: 8_192, maxTokens: 16_384 } };
+  assert.throws(() => store.save(providers, {}, [], saved.revision), /Invalid provider settings/);
+  assert.equal(store.view().revision, saved.revision);
+  assert.equal(store.view().providers?.connections.find(p => p.id === 'gemini')?.modelOptions, undefined);
 });
 
 test('HTTP save reloads configuration and key into fresh turns after restart; deleting clears old engine credentials', async () => {

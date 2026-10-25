@@ -101,6 +101,7 @@ export type PiProviderDefinition = {
   protocol: PiProviderProtocol;
   baseUrl: string;
   models: string[];
+  modelOptions?: Record<string, import("./modelMetadata.ts").ModelOptions>;
   authMode: "required" | "none";
   apiKeyEnvVar?: string;
 };
@@ -119,6 +120,7 @@ export type PiRuntimeConfiguration = {
 };
 
 export type PiPromptInput = {
+  referencedConversationIds?: string[];
   members?: string[];
   botId?: string;
   availableBots?: import("./groupParticipants.ts").GroupParticipant[];
@@ -280,9 +282,22 @@ export async function getMemories(fetcher: typeof fetch = fetch): Promise<Memory
 }
 
 /** Adds a memory (no id) or rewrites one. */
-export async function saveMemory(id: string | undefined, text: string, fetcher: typeof fetch = fetch): Promise<MemoryView> {
+export async function saveMemory(id: string | undefined, text: string, fetcher: typeof fetch = fetch, scope?: import("./memoryTypes.ts").MemoryScope): Promise<MemoryView> {
   const path = id ? `${PI_API_PREFIX}/memories/${encodeURIComponent(id)}` : `${PI_API_PREFIX}/memories`;
-  return (await requestJson<{ memory: MemoryView }>(fetcher, path, { text }, AbortSignal.timeout(15_000))).memory;
+  return (await requestJson<{ memory: MemoryView }>(fetcher, path, { text, ...(scope ? { scope } : {}) }, AbortSignal.timeout(15_000))).memory;
+}
+
+export async function getSkills(): Promise<import("./skillTypes.ts").SkillState> {
+  return requestJson(fetch, `${PI_API_PREFIX}/skills`, undefined, AbortSignal.timeout(15_000));
+}
+export async function getUsage(): Promise<import("./usageTypes.ts").UsageState> {
+  return requestJson(fetch, `${PI_API_PREFIX}/usage`, undefined, AbortSignal.timeout(15_000));
+}
+export async function saveSkill(input: import("./skillTypes.ts").SkillInput, revision: number): Promise<import("./skillTypes.ts").SkillState> {
+  return requestJson(fetch, `${PI_API_PREFIX}/skills`, { input, revision }, AbortSignal.timeout(15_000));
+}
+export async function deleteSkill(id: string, revision: number): Promise<import("./skillTypes.ts").SkillState> {
+  return requestJson(fetch, `${PI_API_PREFIX}/skills/remove`, { id, revision }, AbortSignal.timeout(15_000));
 }
 
 export async function setMemoryEnabled(enabled: boolean, fetcher: typeof fetch = fetch): Promise<MemoryState> {
@@ -319,7 +334,7 @@ export async function getPiRuntimeState(fetcher: typeof fetch = fetch): Promise<
 
 /** Creates a saved prefix and returns the original submission; never starts the draft. */
 export async function branchStoredConversation(id: string, beforeRunId: string, fetcher: typeof fetch = fetch) {
-  return requestJson<{ conversationId: string; draft: { prompt: string; attachments: PiPromptAttachment[] } }>(fetcher,
+  return requestJson<{ conversationId: string; draft: { prompt: string; attachments: PiPromptAttachment[]; referencedConversationIds?: string[] } }>(fetcher,
     `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}/branch`, { beforeRunId }, AbortSignal.timeout(15_000));
 }
 

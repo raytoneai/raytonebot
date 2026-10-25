@@ -1,13 +1,15 @@
 import { isSafeProviderEnvVarName, type AgentFrontendProject, type ProviderConnection } from "../schema/agentuxConfig.ts";
+import { normalizeModelOptions } from "../pi/modelMetadata.ts";
 
 type Providers = AgentFrontendProject["providers"];
-type Fields = Pick<ProviderConnection, "baseUrl" | "defaultModel" | "models" | "enabled" | "added">;
+type Fields = Pick<ProviderConnection, "baseUrl" | "defaultModel" | "models" | "modelOptions" | "enabled" | "added">;
 export type ProviderPatch = Partial<Fields> & { authEnvVar?: string };
 type Saved = { version: 1; defaultProviderId?: string; connections: (ProviderPatch & { id: string })[] };
 export const PROVIDER_SETTINGS_KEY = "raytonebot.providerSettings";
 
 const modelName = (value: unknown): value is string => typeof value === "string" && Boolean(value.trim()) && value.length <= 256 && !/[\x00-\x1f\x7f]/.test(value);
 function validPatch(value: ProviderPatch): boolean {
+  try { normalizeModelOptions(value.modelOptions); } catch { return false; }
   if (value.baseUrl !== undefined) {
     try {
       const url = new URL(value.baseUrl);
@@ -30,10 +32,12 @@ export function restoreProviderSettings(base: Providers, raw: string | null): Pr
   const connections = base.connections.map(provider => {
     const values = saved.connections.filter(item => item?.id === provider.id);
     if (!values.length) return provider;
-    const { baseUrl, defaultModel, models, enabled, authEnvVar, added } = values[0];
-    const patch = { baseUrl, defaultModel, models, enabled, authEnvVar, added };
+    const { baseUrl, defaultModel, models, modelOptions, enabled, authEnvVar, added } = values[0];
+    const patch = { baseUrl, defaultModel, models, modelOptions, enabled, authEnvVar, added };
     if (values.length > 1 || !validPatch(patch)) throw new Error("Invalid provider settings");
     return { ...provider, ...Object.fromEntries(Object.entries({ baseUrl, defaultModel, models, enabled }).filter(([, v]) => v !== undefined)),
+      ...((modelOptions ?? provider.modelOptions) !== undefined ? { modelOptions: normalizeModelOptions(modelOptions ?? provider.modelOptions,
+        [defaultModel ?? provider.defaultModel, ...(models ?? provider.models)]) } : {}),
       ...(added !== undefined ? { added } : Object.values(patch).some(value => value !== undefined) ? { added: true } : {}),
       auth: authEnvVar !== undefined && provider.auth.mode === "env" ? { ...provider.auth, envVar: authEnvVar } : provider.auth };
   });
@@ -55,6 +59,7 @@ export function serializeProviderSettings(base: Providers, current: Providers): 
     for (const key of ["baseUrl", "defaultModel", "models", "enabled", "added"] as const) {
       if (JSON.stringify(provider[key]) !== JSON.stringify(original[key])) Object.assign(patch, { [key]: provider[key] });
     }
+    if (JSON.stringify(provider.modelOptions) !== JSON.stringify(original.modelOptions)) patch.modelOptions = provider.modelOptions === undefined ? {} : provider.modelOptions;
     if (provider.auth.mode === "env" && provider.auth.envVar !== original.auth.envVar) patch.authEnvVar = provider.auth.envVar;
     if (!validPatch(patch)) throw new Error("Invalid provider settings");
     if (Object.keys(patch).length) saved.connections.push({ id: provider.id, ...patch });
@@ -71,6 +76,7 @@ export function normalizeProviderSettings(providers: Providers): Providers {
   return { ...providers, connections: providers.connections.map(provider => ({
     ...provider, baseUrl: provider.baseUrl.trim(), defaultModel: provider.defaultModel.trim(),
     models: [...new Set(provider.models.map(model => model.trim()).filter(Boolean))],
+    ...(provider.modelOptions !== undefined ? { modelOptions: normalizeModelOptions(provider.modelOptions, [provider.defaultModel, ...provider.models]) } : {}),
   })) };
 }
 
@@ -83,9 +89,10 @@ export function updateProviderSettings(providers: Providers, id: string, patch: 
   }) };
 }
 
-export function providerValidationIssue(provider: ProviderConnection): "baseUrl" | "defaultModel" | "authEnvVar" | undefined {
+export function providerValidationIssue(provider: ProviderConnection): "baseUrl" | "defaultModel" | "modelOptions" | "authEnvVar" | undefined {
   if (!validPatch({ baseUrl: provider.baseUrl })) return "baseUrl";
   if (!validPatch({ defaultModel: provider.defaultModel })) return "defaultModel";
+  try { normalizeModelOptions(provider.modelOptions, [provider.defaultModel, ...provider.models]); } catch { return "modelOptions"; }
   if (provider.auth.mode === "env" && (!provider.auth.envVar || !validPatch({ authEnvVar: provider.auth.envVar }))) return "authEnvVar";
   return undefined;
 }

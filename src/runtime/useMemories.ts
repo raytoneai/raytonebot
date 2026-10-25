@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { deleteMemory, getMemories, saveMemory, setMemoryEnabled } from "../pi/piClient";
-import type { MemoryState } from "../pi/memoryTypes";
+import type { MemoryScope, MemoryState } from "../pi/memoryTypes";
 
 export type MemoriesState = {
   memory?: MemoryState;
@@ -10,7 +10,7 @@ export type MemoriesState = {
   busy?: string;
   actionError?: { id: string; message: string };
   /** Resolves true once saved; a failure stays on `actionError`. */
-  save(id: string | undefined, text: string): Promise<boolean>;
+  save(id: string | undefined, text: string, scope?: MemoryScope): Promise<boolean>;
   remove(id: string): Promise<void>;
   setEnabled(enabled: boolean): Promise<void>;
 };
@@ -52,7 +52,7 @@ export function useMemories(active: boolean): MemoriesState {
 
   return {
     memory, error, busy, actionError,
-    save: (id, text) => act(id ?? "new", () => saveMemory(id, text)),
+    save: (id, text, scope) => act(id ?? "new", () => saveMemory(id, text, fetch, scope)),
     remove: async (id) => { await act(id, () => deleteMemory(id)); },
     setEnabled: async (enabled) => { await act("settings", () => setMemoryEnabled(enabled)); },
   };

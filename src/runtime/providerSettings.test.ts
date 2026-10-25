@@ -82,3 +82,41 @@ test("invalid saved settings cannot introduce services, change protocols/authent
   assert.equal(restoreProviderSettings(source, null), source);
   assert.deepEqual(JSON.parse(serializeProviderSettings(source, source)), {version:1,connections:[]});
 });
+
+test("model metadata survives draft update, normalization, save and reload for each model", () => {
+  const source = base();
+  const changed = updateProviderSettings(source, "deepseek", {
+    defaultModel: " custom-model ", models: [" custom-model ", "text-model"],
+    modelOptions: { " custom-model ": { contextWindow: 256_000, maxTokens: 32_000, reasoning: true }, "text-model": { input: ["text"] } },
+  });
+  assert.equal(providerValidationIssue(changed.connections[0]), undefined);
+  const normalized = normalizeProviderSettings(changed);
+  const restored = restoreProviderSettings(source, serializeProviderSettings(source, normalized));
+  assert.deepEqual(restored.connections[0].modelOptions, {
+    "custom-model": { contextWindow: 256_000, maxTokens: 32_000, reasoning: true }, "text-model": { input: ["text"] },
+  });
+  assert.equal(restored.connections[0].defaultModel, "custom-model");
+  assert.equal(source.connections[0].modelOptions, undefined);
+  assert.ok(Object.hasOwn(changed.connections[0].modelOptions!, " custom-model "), "normalization leaves the editable draft intact");
+});
+
+test("metadata validation rejects invalid saved values and clearing metadata survives reload", () => {
+  const source = base();
+  for (const modelOptions of [
+    { "deepseek-chat": { maxTokens: 200_000 } }, { "deepseek-chat": { reasoning: "yes" } },
+    { "deepseek-chat": { contextWindow: 64_000, maxTokens: 65_000 } }, { "not-configured": { input: ["text"] } },
+    { "deepseek-chat": { madeUp: true } }, null,
+  ]) {
+    const malformed = { ...source.connections[0], modelOptions } as unknown as typeof source.connections[number];
+    assert.equal(providerValidationIssue(malformed), "modelOptions");
+    assert.throws(() => serializeProviderSettings(source, { ...source, connections: [malformed, source.connections[1]] }));
+    assert.throws(() => restoreProviderSettings(source, JSON.stringify({ version: 1, connections: [{ id: "deepseek", modelOptions }] })));
+  }
+  source.connections[0].modelOptions = { "deepseek-chat": { contextWindow: 256_000 } };
+  const cleared = updateProviderSettings(source, "deepseek", { modelOptions: undefined });
+  assert.deepEqual(restoreProviderSettings(source, serializeProviderSettings(source, cleared)).connections[0].modelOptions, {});
+  const nextDeployment = base();
+  nextDeployment.connections[0].modelOptions = { "deepseek-chat": { contextWindow: 512_000 } };
+  assert.deepEqual(restoreProviderSettings(nextDeployment, serializeProviderSettings(source, source)).connections[0].modelOptions,
+    nextDeployment.connections[0].modelOptions, "untouched metadata continues to inherit deployment defaults");
+});

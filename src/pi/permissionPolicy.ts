@@ -99,7 +99,7 @@ export function classifyToolCall(toolName: string, args: unknown, policy: Permis
   if (host) return host.kind;
   // `mcp__raytone__*` is the host's own web_search / web_fetch as Claude names them.
   if (name.startsWith("mcp__") && !name.startsWith("mcp__raytone__")) return "connector";
-  if (name === "remember" || name === "forget") return "connector";
+  if (name === "remember" || name === "forget" || name === "delegate_task") return "connector";
   if (name === "bash" || name === "powershell") {
     const command = typeof record.command === "string" ? record.command : "";
     if (ENV_DUMP.test(command) || pathIsWithin(callCwd, policy.secretPaths ?? [], policy.cwd) || commandMentions(command, policy.secretPaths ?? [])) return "secret";

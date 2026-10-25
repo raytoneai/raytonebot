@@ -22,15 +22,20 @@ import type { ProviderSettingsStatus } from "../../runtime/useProviderSettings";
 import { providerIsAdded, providerValidationIssue, type ProviderPatch } from "../../runtime/providerSettings";
 import { useProviderProbe } from "../../runtime/useProviderProbe";
 import { useProviderEditor } from "../../runtime/useProviderEditor";
+import { ModelOptionsEditor } from "./ModelOptionsEditor";
 import type { ImChannelsState } from "../../runtime/useImChannels";
 import type { RoutinesState } from "../../runtime/useRoutines";
 import type { RoutineView } from "../../pi/routineTypes";
 import type { McpServersState } from "../../runtime/useMcpServers";
 import type { McpServerView } from "../../pi/mcpTypes";
 import type { MemoriesState } from "../../runtime/useMemories";
+import type { SkillsState } from "../../runtime/useSkills";
+import { SkillsSection } from "./SkillsSection";
+import { UsageSection } from "./UsageSection";
+import type { UsageViewState } from "../../runtime/useUsage";
 import type { VaultSettingsState } from "../../runtime/useVault";
 import type { VaultLoginInput, VaultLoginView } from "../../pi/vaultTypes";
-import { MEMORY_COUNT_LIMIT, MEMORY_TEXT_LIMIT, type MemoryView } from "../../pi/memoryTypes";
+import { MEMORY_COUNT_LIMIT, MEMORY_TEXT_LIMIT, type MemoryScope, type MemoryView } from "../../pi/memoryTypes";
 import { CHANNEL_FIELDS, type ChannelPatch, type ChannelPlatform, type ChannelView } from "../../pi/imChannels/types";
 import { useBotNames } from "../shell/ShellExtras";
 import "./settings.css";
@@ -46,7 +51,7 @@ import "./settings.css";
 export type PermissionMode = "request" | "auto" | "allow-all";
 export type { ProviderPatch } from "../../runtime/providerSettings";
 
-export type SettingsSectionId = "providers" | "permissions" | "channels" | "routines" | "mcp" | "memory" | "vault" | "appearance" | "about";
+export type SettingsSectionId = "providers" | "permissions" | "channels" | "routines" | "mcp" | "memory" | "vault" | "usage" | "appearance" | "about";
 type SectionId = SettingsSectionId;
 
 const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI", dsh: "DeepSeek Harness" };
@@ -91,8 +96,12 @@ export type SettingsDialogProps = {
   routines?: RoutinesState;
   /** MCP servers from the host (ADR-037); the section is hidden when absent (fixtures, static previews). */
   mcpServers?: McpServersState;
+  /** Text Skills share the existing MCP settings surface. */
+  skills?: SkillsState;
+  usage?: UsageViewState;
   /** Cross-conversation memory from the host (ADR-038); the section is hidden when absent (fixtures, static previews). */
   memories?: MemoriesState;
+  memoryScopes?: { scope: MemoryScope; label: string }[];
   /** Public login metadata; absent in fixtures and static previews. */
   vault?: VaultSettingsState;
   /** Opens a routine's conversation and closes the dialog. */
@@ -110,7 +119,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     for (const provider of providers.connections) {
       const original = props.project.providers.connections.find(item => item.id === provider.id);
       if (JSON.stringify(provider) !== JSON.stringify(original)) props.onUpdateProvider(provider.id, {
-        baseUrl: provider.baseUrl, defaultModel: provider.defaultModel, models: provider.models,
+        baseUrl: provider.baseUrl, defaultModel: provider.defaultModel, models: provider.models, modelOptions: provider.modelOptions,
         enabled: provider.enabled, added: provider.added, authEnvVar: provider.auth.envVar,
       });
       if (keys[provider.id] !== props.sessionKeys[provider.id]) props.onSessionKeyChange(provider.id, keys[provider.id] ?? "");
@@ -131,8 +140,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
     { id: "permissions", label: t.nav.permissions, Icon: ShieldCheck },
     ...(props.imChannels ? [{ id: "channels" as const, label: t.nav.channels, Icon: MessagesSquare }] : []),
     ...(props.routines ? [{ id: "routines" as const, label: t.nav.routines, Icon: CalendarClock }] : []),
-    ...(props.mcpServers ? [{ id: "mcp" as const, label: t.nav.mcp, Icon: Plug }] : []),
+    ...(props.mcpServers || props.skills ? [{ id: "mcp" as const, label: props.skills ? (locale === "zh" ? "MCP 与 Skills" : "MCP & Skills") : t.nav.mcp, Icon: Plug }] : []),
     ...(props.memories ? [{ id: "memory" as const, label: t.nav.memory, Icon: Brain }] : []),
+    ...(props.usage ? [{ id: "usage" as const, label: locale === "zh" ? "模型用量" : "Model usage", Icon: Info }] : []),
     ...(props.vault ? [{ id: "vault" as const, label: vaultCopy[locale].nav, Icon: KeyRound }] : []),
     { id: "appearance", label: t.nav.appearance, Icon: Palette },
     { id: "about", label: t.nav.about, Icon: Info },
@@ -177,7 +187,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {section === "channels" && props.imChannels ? <ChannelsSection t={t} state={props.imChannels} /> : null}
               {section === "routines" && props.routines ? <RoutinesSection t={t} state={props.routines} onOpenConversation={props.onOpenConversation} /> : null}
               {section === "mcp" && props.mcpServers ? <McpSection t={t} state={props.mcpServers} /> : null}
-              {section === "memory" && props.memories ? <MemorySection t={t} state={props.memories} /> : null}
+              {section === "mcp" && props.skills ? <SkillsSection state={props.skills} /> : null}
+              {section === "memory" && props.memories ? <MemorySection t={t} state={props.memories} scopes={props.memoryScopes} /> : null}
+              {section === "usage" && props.usage ? <UsageSection usage={props.usage} /> : null}
               {props.open && section === "vault" && props.vault ? <VaultSection state={props.vault} /> : null}
               {section === "appearance" ? <AppearanceSection {...props} t={t} /> : null}
               {section === "about" ? <AboutSection {...props} t={t} /> : null}
@@ -186,7 +198,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               <p className="settings-note">{t.providers.saveScope}</p>
               <div className="settings-save-actions">
                 <span className="settings-status" role="status" data-tone={editor.invalid || editor.status === "failed" || editor.status === "conflict" ? "error" : editor.status === "saved" ? "ok" : "muted"}>
-                  {editor.invalid ? `${editor.invalid.provider.label}：${t.providers.validation[editor.invalid.field!]}`
+                  {editor.invalid ? `${editor.invalid.provider.label}：${editor.invalid.field === "modelOptions" ? (locale === "zh" ? "请检查模型参数，输出上限不能超过上下文窗口。" : "Check model options. Output cannot exceed the context window.") : t.providers.validation[editor.invalid.field!]}`
                     : editor.status === "failed" ? t.providers.saveFailed : editor.status === "conflict" ? t.providers.saveConflict
                     : saving ? t.providers.saving : confirmClose ? t.providers.unsavedClose : props.isRunning ? t.providers.runningHint
                     : editor.dirty ? t.providers.unsaved : editor.status === "saved" ? t.providers.saved : ""}
@@ -407,6 +419,7 @@ function ProviderRow({
               </Button>
             </div>
           </Field>
+          <ModelOptionsEditor provider={provider} onChange={modelOptions => onUpdate({ modelOptions })} />
           <div className="settings-provider-actions">
             <Button size="sm" disabled={test === "running" || Boolean(invalid)} onClick={() => void runTest(false)}>
               {test === "running" ? t.providers.testing : t.providers.test}
@@ -1016,16 +1029,33 @@ function McpRow({ t, server, state, open, onToggleOpen, onAdded }: {
   );
 }
 
-function MemorySection({ t, state }: { t: SettingsCopy; state: MemoriesState }) {
+const memoryScopeKey = (scope?: MemoryScope) => !scope || scope.kind === "global" ? "global" : `${scope.kind}:${scope.id}`;
+type MemoryScopeOption = { scope: MemoryScope; label: string; available: boolean };
+
+function MemorySection({ t, state, scopes = [] }: { t: SettingsCopy; state: MemoriesState; scopes?: SettingsDialogProps["memoryScopes"] }) {
   const c = t.memory;
+  const { locale } = useLocale();
+  const zh = locale === "zh";
   const [draft, setDraft] = useState("");
+  const [filter, setFilter] = useState("all");
+  const [addScope, setAddScope] = useState("global");
   const memory = state.memory;
-  const memories = [...(memory?.memories ?? [])].reverse();
+  const options = new Map<string, MemoryScopeOption>([["global", { scope: { kind: "global" }, label: zh ? "全局" : "Global", available: true }]]);
+  for (const option of scopes) options.set(memoryScopeKey(option.scope), { ...option, available: true });
+  for (const item of memory?.memories ?? []) {
+    const scope = item.scope ?? { kind: "global" as const };
+    if (!options.has(memoryScopeKey(scope))) options.set(memoryScopeKey(scope), { scope, label: scope.kind === "global" ? (zh ? "全局" : "Global")
+      : `${scope.kind === "bot" ? "Bot" : zh ? "群聊" : "Group"} · ${scope.id} (${zh ? "已不可用" : "unavailable"})`, available: false });
+  }
+  const scopeOptions = [...options.values()];
+  const available = scopeOptions.filter(option => option.available);
+  const memories = [...(memory?.memories ?? [])].reverse().filter(item => filter === "all" || memoryScopeKey(item.scope) === filter);
   const addFailure = state.actionError?.id === "new" ? state.actionError.message : undefined;
-  const add = async () => { if (draft.trim() && await state.save(undefined, draft)) setDraft(""); };
+  const selectedAddScope = available.find(option => memoryScopeKey(option.scope) === addScope)?.scope;
+  const add = async () => { if (!state.busy && draft.trim() && selectedAddScope && await state.save(undefined, draft, selectedAddScope)) setDraft(""); };
   return (
     <>
-      <p className="settings-intro">{c.intro}</p>
+      <p className="settings-intro">{zh ? "记忆可供所有 Bot、指定 Bot 或指定群聊使用。聊天中保存时默认归当前 Bot 或群聊，全局记忆供所有对话使用。" : "Memories can be shared globally, with one Bot, or within one group. Chat saves default to the current Bot or group; global memories are available in every conversation."}</p>
       {state.error ? <p className="settings-status" data-tone="error" role="status"><Dot />{c.loadFailed(state.error)}</p> : null}
       {memory ? (
         <div className="settings-list">
@@ -1037,19 +1067,25 @@ function MemorySection({ t, state }: { t: SettingsCopy; state: MemoriesState }) 
           </div>
         </div>
       ) : null}
+      {memory ? <div className="settings-memory-controls">
+        <SelectMenu ariaLabel={zh ? "按范围筛选记忆" : "Filter memories by scope"} value={filter} onValueChange={setFilter}
+          options={[{ value: "all", label: zh ? "全部范围" : "All scopes" }, ...scopeOptions.map(option => ({ value: memoryScopeKey(option.scope), label: option.label }))]} />
+      </div> : null}
       {memory && !memory.enabled ? <p className="settings-status" data-tone="warn" role="note"><Dot />{c.off}</p> : null}
-      {memory && memories.length === 0 ? <p className="settings-note">{c.empty}</p> : null}
+      {memory && memories.length === 0 ? <p className="settings-note">{filter === "all" ? c.empty : zh ? "这个范围还没有记忆。" : "No memories in this scope."}</p> : null}
       {memories.length ? (
         <div className="settings-list">
-          {memories.map((item) => <MemoryRow key={item.id} t={t} memory={item} state={state} />)}
+          {memories.map((item) => <MemoryRow key={item.id} t={t} memory={item} state={state} scopes={scopeOptions} />)}
         </div>
       ) : null}
       {memory ? (
-        <div className="settings-field-row">
-          <Input value={draft} maxLength={MEMORY_TEXT_LIMIT} placeholder={c.addPlaceholder} aria-label={c.addPlaceholder}
+        <div className="settings-field-row settings-memory-controls">
+          <Input value={draft} disabled={Boolean(state.busy)} maxLength={MEMORY_TEXT_LIMIT} placeholder={c.addPlaceholder} aria-label={c.addPlaceholder}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) void add(); }} />
-          <Button size="sm" disabled={!draft.trim() || state.busy === "new"} onClick={() => void add()}>{c.add}</Button>
+          <SelectMenu ariaLabel={zh ? "新记忆的范围" : "New memory scope"} value={addScope} onValueChange={setAddScope} disabled={Boolean(state.busy)}
+            options={available.map(option => ({ value: memoryScopeKey(option.scope), label: option.label }))} />
+          <Button size="sm" disabled={!draft.trim() || Boolean(state.busy) || !selectedAddScope} onClick={() => void add()}>{c.add}</Button>
         </div>
       ) : null}
       {addFailure ? <span className="settings-status" data-tone="error" role="status"><Dot />{c.failed(addFailure)}</span> : null}
@@ -1057,38 +1093,47 @@ function MemorySection({ t, state }: { t: SettingsCopy; state: MemoriesState }) 
   );
 }
 
-function MemoryRow({ t, memory, state }: { t: SettingsCopy; memory: MemoryView; state: MemoriesState }) {
+function MemoryRow({ t, memory, state, scopes }: { t: SettingsCopy; memory: MemoryView; state: MemoriesState; scopes: MemoryScopeOption[] }) {
   const c = t.memory;
   const { locale } = useLocale();
   const botNames = useBotNames();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(memory.text);
+  const [scopeKey, setScopeKey] = useState(memoryScopeKey(memory.scope));
+  const [scopeChanged, setScopeChanged] = useState(false);
   const [confirming, setConfirming] = useState(false);
-  const busy = state.busy === memory.id;
+  const busy = Boolean(state.busy);
   const failure = state.actionError?.id === memory.id ? state.actionError.message : undefined;
   const when = new Date(memory.updatedAt).toLocaleDateString(locale, { month: "short", day: "numeric" });
-  const save = async () => { if (await state.save(memory.id, text)) setEditing(false); };
+  const selectedScope = scopes.find(option => memoryScopeKey(option.scope) === scopeKey);
+  const validScope = !scopeChanged || selectedScope?.available;
+  const scopeLabel = scopes.find(option => memoryScopeKey(option.scope) === memoryScopeKey(memory.scope))?.label;
+  const reset = () => { setText(memory.text); setScopeKey(memoryScopeKey(memory.scope)); setScopeChanged(false); };
+  const save = async () => { if (!busy && validScope && await state.save(memory.id, text, scopeChanged ? selectedScope?.scope : undefined)) setEditing(false); };
   return (
     <div className="settings-row settings-memory-row">
       <span className="settings-row-main">
         {editing ? (
-          <Input value={text} maxLength={MEMORY_TEXT_LIMIT} autoFocus aria-label={c.edit} onChange={(event) => setText(event.target.value)}
+          <Input value={text} maxLength={MEMORY_TEXT_LIMIT} autoFocus disabled={busy} aria-label={c.edit} onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
-              if (event.key === "Escape") { event.stopPropagation(); setText(memory.text); setEditing(false); }
+              if (event.key === "Escape") { event.stopPropagation(); reset(); setEditing(false); }
               if (event.key === "Enter" && !event.nativeEvent.isComposing) void save();
             }} />
         ) : <span className="settings-row-title">{memory.text}</span>}
-        <span className="settings-row-sub">{memory.source ? c.savedBy(botNames[memory.source.agent], when) : c.addedByYou(when)}</span>
+        {editing ? <SelectMenu ariaLabel={locale === "zh" ? "记忆范围" : "Memory scope"} value={scopeKey} disabled={busy}
+          onValueChange={value => { setScopeKey(value); setScopeChanged(value !== memoryScopeKey(memory.scope)); }}
+          options={scopes.map(option => ({ value: memoryScopeKey(option.scope), label: option.label, disabled: !option.available }))} /> : null}
+        <span className="settings-row-sub">{scopeLabel} · {memory.source ? c.savedBy(botNames[memory.source.botId ?? memory.source.agent] ?? botNames[memory.source.agent], when) : c.addedByYou(when)}</span>
         {failure ? <span className="settings-status" data-tone="error" role="status"><Dot />{c.failed(failure)}</span> : null}
       </span>
       {editing ? (
         <>
-          <Button size="sm" disabled={busy || !text.trim()} onClick={() => void save()}>{c.save}</Button>
-          <Button size="sm" variant="ghost" onClick={() => { setText(memory.text); setEditing(false); }}>{c.cancel}</Button>
+          <Button size="sm" disabled={busy || !text.trim() || !validScope} onClick={() => void save()}>{c.save}</Button>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => { reset(); setEditing(false); }}>{c.cancel}</Button>
         </>
       ) : (
         <>
-          <Button size="sm" variant="ghost" disabled={busy} onClick={() => { setText(memory.text); setEditing(true); }}>{c.edit}</Button>
+          <Button size="sm" variant="ghost" disabled={busy} onClick={() => { reset(); setEditing(true); }}>{c.edit}</Button>
           <Button size="sm" variant="ghost" disabled={busy} onBlur={() => setConfirming(false)}
             onClick={() => { if (confirming) void state.remove(memory.id); else setConfirming(true); }}>
             {confirming ? c.confirmRemove : c.remove}

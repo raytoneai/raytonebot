@@ -60,7 +60,7 @@ export class BotConfigStore {
     if (saved?.agentPreset && saved.agentPreset !== bot.presetId) throw new BotConfigError("A conversation’s engine cannot change.");
     if (input.agentPreset && input.agentPreset !== bot.presetId) throw new BotConfigError("Bot and engine do not match.");
     const identity = resolveBotIdentity(bot.presetId, { botId: bot.id, availableBots: this.catalog() }, saved ? { botId: saved.botId } : undefined);
-    return { ...input, agentPreset: bot.presetId, botId: identity.botId, availableBots: this.catalog() };
+    return { ...input, ...(bot.model ? { ...bot.model, claudeCodeModelSource: "provider" as const, codexModelSource: "provider" as const } : {}), agentPreset: bot.presetId, botId: identity.botId, availableBots: this.catalog() };
   }
   private write(profiles: BotProfile[]) {
     if (resolveBotProfiles({ profiles, conversations: {} }).length > 100) throw new BotConfigError("At most 100 Bots are supported.");

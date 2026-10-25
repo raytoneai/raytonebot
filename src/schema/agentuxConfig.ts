@@ -7,6 +7,7 @@ import {
   type CompleteAgentCanvasExperienceV2,
 } from "@agentmatrix/agentcanvas-contract";
 import type { ThemePresetId } from "../theme/themeTokens";
+import type { ModelOptions } from "../pi/modelMetadata.ts";
 
 export const allowedRegions = [
   "sidebar",
@@ -72,6 +73,8 @@ export type ProviderConnection = {
   auth: ProviderAuth;
   defaultModel: string;
   models: string[];
+  /** Optional, user-supplied capabilities for individual model IDs. */
+  modelOptions?: Record<string, ModelOptions>;
   enabled: boolean;
   /** Listed in settings even while disabled; absent on untouched catalog presets. */
   added?: boolean;

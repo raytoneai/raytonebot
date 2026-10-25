@@ -37,9 +37,12 @@ export function savedRunOptions(value: unknown): ComposerDraft["runOptions"] {
 const savedDraft = (draft: ComposerDraft): ComposerDraft => ({
   prompt: draft.prompt,
   runOptions: savedRunOptions(draft.runOptions),
-  attachments: draft.attachments.map(({ id, file, reference, name, isImage }) => ({ id, name, isImage,
-    ...(reference ? { reference: { scope: reference.scope, path: reference.path, name: reference.name } } : { file: file! }),
-  })),
+  attachments: draft.attachments.map(({ id, file, reference, chatReference, name, isImage }) => {
+    const base = { id, name, isImage };
+    if (chatReference) return { ...base, isImage: false, chatReference: { conversationId: chatReference.conversationId, title: chatReference.title } };
+    if (reference) return { ...base, reference: { scope: reference.scope, path: reference.path, name: reference.name } };
+    return { ...base, file: file! };
+  }),
 });
 
 /** Only draft data crosses this boundary: never transcripts, provider settings or session keys. */
@@ -82,9 +85,23 @@ function savedGroupMembers(value: unknown): string[] | undefined {
   return members.length ? members : undefined;
 }
 
-const validDraft = (draft: ComposerDraft | undefined) => typeof draft?.prompt === "string" && Array.isArray(draft.attachments)
-  && draft.attachments.every((attachment) => attachment.file instanceof File || (attachment.reference
-    && ["assistant", "planner", "builder", "dsh", "shared"].includes(attachment.reference.scope) && typeof attachment.reference.path === "string"));
+const validDraft = (draft: ComposerDraft | undefined) => {
+  if (typeof draft?.prompt !== "string" || !Array.isArray(draft.attachments)) return false;
+  const chats = new Set<string>();
+  return draft.attachments.every(attachment => {
+    if (!attachment || typeof attachment.id !== "string" || typeof attachment.name !== "string" || typeof attachment.isImage !== "boolean"
+      || [attachment.file, attachment.reference, attachment.chatReference].filter(value => value !== undefined).length !== 1) return false;
+    if (attachment.chatReference) {
+      const { conversationId, title } = attachment.chatReference;
+      if (typeof conversationId !== "string" || !/^[a-zA-Z0-9._:-]{1,160}$/.test(conversationId) || conversationId === "." || conversationId === ".."
+        || typeof title !== "string" || title.length > 500 || attachment.isImage || chats.has(conversationId) || chats.size >= 5) return false;
+      chats.add(conversationId);
+      return true;
+    }
+    return attachment.file instanceof File || Boolean(attachment.reference
+      && ["assistant", "planner", "builder", "dsh", "shared"].includes(attachment.reference.scope) && typeof attachment.reference.path === "string");
+  });
+};
 
 export function readComposerDrafts(db: IDBDatabase): Promise<SavedComposerDraft[]> {
   return new Promise((resolve, reject) => {

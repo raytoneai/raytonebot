@@ -1,6 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { acceptedComposerDraft, hasComposerDraft, hasComposerState, hasSavedState, savedComposerDraft, savedRunOptions } from "./composerDraftStore.ts";
+import { acceptedComposerDraft, hasComposerDraft, hasComposerState, hasSavedState, readComposerDrafts, savedComposerDraft, savedRunOptions } from "./composerDraftStore.ts";
+import { enqueueDraft, nextQueueStep, queuedPrompt } from "./followUpQueue.ts";
+import { branchComposerDraft } from "./useMessageBranch.ts";
 
 test("explicit conversation options survive saving and message acceptance without capturing defaults or secrets", () => {
   const conversation = { id: "a", title: "A", createdAt: 1, events: [] };
@@ -54,4 +56,70 @@ test("a new group's member-only draft survives, while empty accepted groups and 
   assert.equal(hasSavedState(savedComposerDraft({ ...conversation, id: "solo", groupMembers: undefined }, record.draft)), false);
   assert.equal(hasSavedState(savedComposerDraft({ ...conversation, id: "pi_promoted" }, record.draft)), true, "promoted rooms keep their original conversation ID");
   assert.deepEqual(savedComposerDraft({ ...conversation, groupMembers: ["builder", "admin", "builder"] }, record.draft).conversation.groupMembers, ["builder"]);
+});
+
+function draftDatabase(records: unknown[]): IDBDatabase {
+  return { transaction: () => ({ objectStore: () => ({ getAll() {
+    const request: { result?: unknown; onsuccess?: () => void } = {};
+    queueMicrotask(() => { request.result = records; request.onsuccess?.(); });
+    return request;
+  } }) }) } as unknown as IDBDatabase;
+}
+
+test("chat references persist as ids and titles across drafts, queues and acceptance without copying transcripts", async () => {
+  const chat = { id: "ref-a", name: "Project review", isImage: false,
+    chatReference: { conversationId: "saved:a", title: "Project review", transcript: "Must not be cached" } };
+  const file = { id: "file-a", file: new File(["notes"], "notes.txt"), name: "notes.txt", isImage: false };
+  const draft = { prompt: "Compare with this chat", attachments: [chat, file] };
+  const { item, draft: cleared } = enqueueDraft(draft, { permissionMode: "request", budgetMode: "medium" }, "queued-a", 10);
+  assert.deepEqual(cleared.attachments, []);
+  assert.deepEqual(item.attachments, draft.attachments);
+  assert.equal(queuedPrompt({ prompt: "", attachments: [chat] }), "Project review");
+  const saved = savedComposerDraft({ id: "current", title: "Current", createdAt: 1, events: [] }, draft, undefined, [item]);
+  const expected = { conversationId: "saved:a", title: "Project review" };
+  assert.deepEqual(saved.draft.attachments[0].chatReference, expected);
+  assert.deepEqual(saved.queue?.[0].attachments[0].chatReference, expected);
+  assert.equal(saved.draft.attachments[0].file, undefined);
+  assert.equal(JSON.stringify(saved).includes("Must not be cached"), false);
+  const [restored] = await readComposerDrafts(draftDatabase([saved]));
+  assert.deepEqual(restored.draft.attachments[0].chatReference, expected);
+  assert.deepEqual(restored.queue?.[0].attachments[0].chatReference, expected);
+  assert.equal(nextQueueStep({ items: restored.queue!, paused: "restored" }, { running: false, events: [], connectionFailed: false }).kind, "wait");
+  const late = { ...chat, id: "ref-later", chatReference: { conversationId: "saved:later", title: "Later" } };
+  const accepted = acceptedComposerDraft({ prompt: draft.prompt, attachments: [chat, late] }, { requestId: "run-a", prompt: draft.prompt, attachmentIds: [chat.id] });
+  assert.deepEqual(accepted.attachments, [late], "late additions are not consumed by an earlier acceptance");
+});
+
+test("restoring chat-reference drafts rejects invalid ids, mixed attachment kinds, duplicates and more than five", async () => {
+  const chat = { id: "ref-a", name: "Previous", isImage: false, chatReference: { conversationId: "saved:a", title: "Previous" } };
+  const base = savedComposerDraft({ id: "current", title: "Current", createdAt: 1, events: [] }, { prompt: "Use this", attachments: [chat] });
+  const invalid = [
+    [{ ...chat, chatReference: { ...chat.chatReference, conversationId: "../escape" } }],
+    [{ ...chat, chatReference: { ...chat.chatReference, conversationId: ".." } }],
+    [{ ...chat, chatReference: { conversationId: "saved:a" } }],
+    [{ ...chat, chatReference: { ...chat.chatReference, title: "x".repeat(501) } }],
+    [{ ...chat, reference: { scope: "shared", path: "other.txt" } }],
+    [{ ...chat, file: new File(["mixed"], "mixed.txt") }],
+    [{ ...chat, isImage: true }], [chat, { ...chat, id: "duplicate" }],
+    Array.from({ length: 6 }, (_, index) => ({ ...chat, id: `ref-${index}`, chatReference: { conversationId: `saved:${index}`, title: "Previous" } })),
+  ];
+  for (const attachments of invalid) {
+    assert.deepEqual(await readComposerDrafts(draftDatabase([{ ...base, draft: { prompt: "Bad", attachments } }])), []);
+  }
+  const [restored] = await readComposerDrafts(draftDatabase([{ ...base, queue: [
+    { id: "valid", createdAt: 1, prompt: "Valid", attachments: [chat] },
+    ...invalid.map((attachments, index) => ({ id: `invalid-${index}`, createdAt: 1, prompt: "Bad", attachments })),
+  ] }]));
+  assert.deepEqual(restored.queue?.map(item => item.id), ["valid"], "malformed queued references never become missing or broader context");
+});
+
+test("branch and resend drafts recover conversation references alongside workspace files", () => {
+  const draft = branchComposerDraft({ prompt: "Original request", attachments: [{ scope: "shared", path: "notes.txt" }], referencedConversationIds: ["saved:a", "saved:b"] });
+  assert.equal(draft.attachments.length, 3);
+  assert.deepEqual(draft.attachments[0].reference, { scope: "shared", path: "notes.txt" });
+  assert.deepEqual(draft.attachments.slice(1).map(item => item.chatReference), [
+    { conversationId: "saved:a", title: "saved:a" }, { conversationId: "saved:b", title: "saved:b" },
+  ]);
+  assert.equal(new Set(draft.attachments.map(item => item.id)).size, 3);
+  assert.ok(draft.attachments.every(item => !item.isImage));
 });

@@ -180,3 +180,57 @@ test("installed Pi SDK omits store for official Gemini behind a lease without ch
     }
   } finally { await gateway.close(); }
 });
+
+test("installed Pi SDK registers per-model metadata and sends its configured output cap without replacing a valid provider on rejection", async () => {
+  const { ModelRuntime } = await import("@earendil-works/pi-coding-agent");
+  const { InMemoryCredentialStore } = await import("@earendil-works/pi-ai");
+  const { registerEditorProvider } = await import("./piHost.ts");
+  const calls: Record<string, unknown>[] = [];
+  const events = [
+    { type: "message_start", message: { id: "metadata-check", type: "message", role: "assistant", model: "custom-text", content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 5, output_tokens: 0 } } },
+    { type: "content_block_start", index: 0, content_block: { type: "text", text: "" } },
+    { type: "content_block_delta", index: 0, delta: { type: "text_delta", text: "Hello" } },
+    { type: "content_block_stop", index: 0 },
+    { type: "message_delta", delta: { stop_reason: "end_turn", stop_sequence: null }, usage: { output_tokens: 1 } },
+    { type: "message_stop" },
+  ];
+  const gateway = await createModelGateway({ port: 0, fetcher: (async (_url, init) => {
+    calls.push(JSON.parse(String(init?.body)));
+    return new Response(events.map(event => `event: ${event.type}\ndata: ${JSON.stringify(event)}\n\n`).join(""), { headers: { "content-type": "text/event-stream" } });
+  }) as typeof fetch });
+  const runtime = await ModelRuntime.create({ allowModelNetwork: false, credentials: new InMemoryCredentialStore() });
+  try {
+    const lease = gateway.issue({ baseUrl: "https://custom.example", apiKey: "test-only", model: "custom-text", protocol: "anthropic" });
+    const definition = { id: "metadata-check", name: "Metadata check", baseUrl: lease.baseUrl, protocol: "anthropic" as const,
+      models: ["custom-text", "custom-reasoning", "legacy-model"], authMode: "required" as const,
+      modelOptions: { "custom-text": { contextWindow: 65_536, maxTokens: 4_096, input: ["text"] as ("text" | "image")[], reasoning: false },
+        "custom-reasoning": { contextWindow: 256_000, maxTokens: 32_000, reasoning: true } } };
+    registerEditorProvider(runtime, definition, definition.id, "custom-text", "https://custom.example");
+    const textModel = runtime.getModel(definition.id, "custom-text")!;
+    assert.deepEqual({ contextWindow: textModel.contextWindow, maxTokens: textModel.maxTokens, input: textModel.input, reasoning: textModel.reasoning },
+      { contextWindow: 65_536, maxTokens: 4_096, input: ["text"], reasoning: false });
+    const reasoning = runtime.getModel(definition.id, "custom-reasoning")!;
+    assert.equal(reasoning.reasoning, true);
+    assert.equal(reasoning.contextWindow, 256_000);
+    const legacy = runtime.getModel(definition.id, "legacy-model")!;
+    assert.equal(legacy.contextWindow, 128_000);
+    assert.equal(legacy.maxTokens, 16_384);
+    assert.deepEqual(legacy.input, ["text", "image"]);
+
+    let unregistered = 0;
+    const observedRuntime = { registerProvider: runtime.registerProvider.bind(runtime), unregisterProvider(id: string) { unregistered++; runtime.unregisterProvider(id); } };
+    assert.throws(() => registerEditorProvider(observedRuntime, { ...definition, modelOptions: { "custom-text": { contextWindow: 100, maxTokens: 200 } } },
+      definition.id, "custom-text", "https://custom.example"), /maxTokens/);
+    assert.equal(unregistered, 0, "invalid metadata must not unregister the previous provider");
+    assert.deepEqual(runtime.getModel(definition.id, "custom-text"), textModel);
+    assert.ok(runtime.getModel(definition.id, "legacy-model"));
+    await runtime.setRuntimeApiKey(definition.id, lease.apiKey);
+    const answer = await runtime.completeSimple(runtime.getModel(definition.id, "custom-text")!, { messages: [{ role: "user", content: "hello", timestamp: 1 }] });
+    assert.equal(answer.stopReason, "stop");
+    assert.equal(calls.length, 1);
+    assert.equal(calls[0].model, "custom-text");
+    assert.equal(calls[0].max_tokens, 4_096, "the configured output cap reaches the actual SDK request");
+    assert.equal(calls[0].thinking, undefined, "a text-only, non-reasoning model does not enable thinking");
+    lease.revoke();
+  } finally { await gateway.close(); }
+});

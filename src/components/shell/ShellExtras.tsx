@@ -84,6 +84,8 @@ export type ShellExtras = {
   composerActivity?: { scope: string; persona?: AgentPersona };
   /** Group chat: members the composer offers after "@", in group order. */
   composerMentions?: readonly { id: string; name: string; handle?: string; presetId?: AgentPresetId; kind: AvatarKind }[];
+  /** Saved conversations the user may explicitly attach as context for a new turn. */
+  chatReferences?: readonly { id: string; title: string }[];
   /** The shell keeps each conversation's files and draft across layout remounts. */
   composerDraft?: { value: ComposerDraft; status?: "loading" | "saving" | "saved" | "unavailable" | "conflict"; onChange: (update: (current: ComposerDraft) => ComposerDraft) => void };
   /** Follow-ups typed while a turn runs. The shell owns order, sending and pausing; the composer only shows and edits. */

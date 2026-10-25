@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Built-in demo",
+    "treeLength": 1967
+  },
+  {
+    "name": "Group chat",
+    "treeLength": 1845
+  },
+  {
+    "name": "Coding agent",
+    "treeLength": 1860
+  },
+  {
+    "name": "Reasoning kinds",
+    "treeLength": 1352
+  },
+  {
+    "name": "Tool approval",
+    "treeLength": 1970
+  },
+  {
+    "name": "Error block",
+    "treeLength": 1313
+  },
+  {
+    "name": "Artifact action",
+    "treeLength": 1297
+  },
+  {
+    "name": "Capability tray",
+    "treeLength": 1215
+  },
+  {
+    "name": "HTML artifact stream",
+    "treeLength": 1567
+  },
+  {
+    "name": "Basic text",
+    "treeLength": 1350
+  },
+  {
+    "name": "Normal turn",
+    "treeLength": 1527
+  },
+  {
+    "name": "Streaming thinking + message",
+    "treeLength": 1538
+  },
+  {
+    "name": "Tool approval + completion",
+    "treeLength": 1715
+  },
+  {
+    "name": "MCP success + interrupt",
+    "treeLength": 2204
+  },
+  {
+    "name": "Runtime boot + sync",
+    "treeLength": 1608
+  },
+  {
+    "name": "Retrying incident",
+    "treeLength": 1643
+  },
+  {
+    "name": "Exhausted incident",
+    "treeLength": 1550
+  },
+  {
+    "name": "Terminal incident",
+    "treeLength": 1394
+  },
+  {
+    "name": "Config, spans, deletion",
+    "treeLength": 1496
+  },
+  {
+    "name": "欢迎页(无事件)",
+    "treeLength": 1116
+  }
+]

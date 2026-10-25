@@ -386,9 +386,9 @@ export function createMcpService(options: {
     refresh,
 
     /** The enabled servers' tools for one run; servers that failed to list offer nothing. */
-    toolkit(): McpToolkit | undefined {
+    toolkit(serverIds?: readonly string[], allowed: (id: string) => boolean = () => true): McpToolkit | undefined {
       if (store.error) return undefined;
-      const servers = store.list().filter((server) => server.enabled && !server.error && server.tools.length);
+      const servers = store.list().filter((server) => server.enabled && !server.error && server.tools.length && (serverIds === undefined || serverIds.includes(server.id)) && allowed(server.id));
       if (!servers.length) return undefined;
       return {
         specs: servers.flatMap((server) => server.tools.map(({ name, description, inputSchema }) => ({ name: `${MCP_TOOL_PREFIX}${server.id}__${name}`, description, inputSchema }))),
@@ -399,7 +399,7 @@ export function createMcpService(options: {
           if (!server || !tool) return { text: `Unknown MCP tool: ${fullName}.`, isError: true };
           // The latest saved address and token, in case they changed since the run started.
           const saved = store.get(server.id);
-          if (!saved?.enabled) return { text: `The MCP server "${server.name}" was switched off or removed in Settings.`, isError: true };
+          if (!saved?.enabled || !allowed(server.id)) return { text: `The MCP server "${server.name}" was switched off, removed or is no longer assigned to this Bot.`, isError: true };
           try {
             const result = await connectionFor(saved).request("tools/call", { name: tool.original, arguments: record(args) }, signal, CALL_TIMEOUT_MS);
             return { text: mcpResultText(result), isError: result.isError === true };

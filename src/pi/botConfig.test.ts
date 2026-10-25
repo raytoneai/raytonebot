@@ -15,6 +15,24 @@ const custom = { id: "bot_aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa", presetId: "assi
 const definition = { id: "bot-sync-test", name: "Bot sync test", protocol: "openai-compatible" as const,
   baseUrl: "https://models.example.test/v1", models: ["controlled"], authMode: "required" as const, apiKeyEnvVar: "BOT_SYNC_TEST_KEY" };
 const request = { title: "Daily check", schedule: "0 9 * * *", timezone: "UTC", instructions: "Check status" };
+
+test("Bot-specific persona and model persist and apply to host turns without affecting another Bot", () => {
+  const dir = mkdtempSync(join(tmpdir(), "rtb-persona-"));
+  try {
+    const path = join(dir, "bots.json");
+    const bots = new BotConfigStore(path);
+    bots.save({ ...custom, role: "Source researcher", personality: "Concise", instructions: "Keep citations", model: { provider: "p", model: "m" } }, 0);
+    const restored = new BotConfigStore(path);
+    assert.equal(restored.require(custom.id).instructions, "Keep citations");
+    const run = restored.input({ botId: custom.id, prompt: "Research", provider: "old", model: "old" });
+    assert.equal(run.provider, "p"); assert.equal(run.model, "m");
+    const explicitModel = restored.input({ botId: custom.id, prompt: "Research", claudeCodeModelSource: "local-login", codexModelSource: "local-login" });
+    assert.equal(explicitModel.claudeCodeModelSource, "provider");
+    assert.equal(explicitModel.codexModelSource, "provider");
+    assert.equal(restored.input({ botId: "builder", prompt: "Build", codexModelSource: "local-login" }).codexModelSource, "local-login");
+    assert.equal(restored.input({ botId: "assistant", prompt: "Hello", model: "old" }).model, "old");
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
 async function until(check: () => boolean) {
   const deadline = Date.now() + 3000;
   while (!check()) { assert.ok(Date.now() < deadline, "controlled operation timed out"); await new Promise(resolve => setTimeout(resolve, 5)); }

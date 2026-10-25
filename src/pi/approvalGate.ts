@@ -50,7 +50,7 @@ export class PiApprovalGate {
   /** Refusal precedes every approval mode and any remembered grants. */
   refusalReason(toolName: string, args: unknown): string | undefined {
     if (classifyToolCall(toolName, args, this.policy) === "secret") return SECRET_REFUSAL;
-    if (this.readOnly && !["read", "read_file", "grep", "glob", "find", "ls", "list_dir", "web_search", "web_fetch", "browser_accounts", "update_plan"].includes(toolName.toLowerCase().replace(/^mcp__raytone__/, ""))) {
+    if (this.readOnly && !["read", "read_file", "grep", "glob", "find", "ls", "list_dir", "web_search", "web_fetch", "browser_accounts", "update_plan", "recall_memories", "search_chat_history", "read_chat_history", "read_skill", "group_tasks"].includes(toolName.toLowerCase().replace(/^mcp__raytone__/, ""))) {
       return "This parallel assignment is read-only. Ask for a sequential task to change files, use the shared browser or run commands.";
     }
   }

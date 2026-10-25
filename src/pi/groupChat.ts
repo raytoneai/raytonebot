@@ -12,9 +12,11 @@ import type { PiPromptInput, PiProviderDefinition } from "./piClient.ts";
 import type { PiRuntimeController } from "./piHost.ts";
 import type { UserInputGate } from "./userInputGate.ts";
 import { createConversationRecorder } from "./conversationRecorder.ts";
+import { conversationReferences } from "./conversationReferences.ts";
 import { piErrorTurnEvents } from "./piErrorTurn.ts";
 import { validArtifactSubmission } from "../runtime/artifactForm.ts";
-import { createGroupWriteQueue, originalGroupTaskRequest, newGroupTask, retainedGroupTasks, recoverGroupTasks, settleGroupTask, groupTaskEvents, groupTaskContext, type GroupTask } from "./groupTasks.ts";
+import { createGroupWriteQueue, originalGroupTaskRequest, newGroupTask, retainedGroupTasks, recoverGroupTasks, settleGroupTask, groupTaskEvents, groupTaskContext, mergeForegroundGroupTasks, type GroupTask } from "./groupTasks.ts";
+import { createGroupDelegation, delegationConversationPrefix } from "./groupDelegation.ts";
 import { redactCredentials } from "./imChannels/redactCredentials.ts";
 
 /**
@@ -446,6 +448,39 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     const conversation = deps.store.get(id) as (StoredConversation & { group?: GroupMeta }) | undefined;
     return conversation?.group ? conversation : undefined;
   };
+  const delegation = createGroupDelegation({ ...deps, controller, settled: publishDelegations });
+
+  /** Separate terminal turns avoid appending late text or a second terminal to a parent run. */
+  function publishDelegations(groupId: string) {
+    if (active.has(groupId) || resets.has(groupId)) return;
+    for (const task of groupOf(groupId)?.group?.tasks ?? []) {
+      if (task.kind !== "delegation" || task.notifiedAt || ["pending", "running"].includes(task.status)) continue;
+      const notificationRunId = `result_${task.id}`;
+      const saved = deps.store.get(groupId)!;
+      const name = saved.group?.participants?.find(bot => bot.id === task.owner)?.name ?? task.owner;
+      const result = `${name} · ${task.id} · ${task.status}\n${task.result ?? "This task was interrupted before a result was confirmed. Review it before starting new work."}${task.resultTruncated ? "\n[Result truncated; full output remains in the delegated conversation.]" : ""}`;
+      if (!saved.events.some(event => event.runId === notificationRunId && (event.type === "run.finished" || event.type === "run.error"))) {
+        const adapter = createPiEventAdapter({ runId: notificationRunId });
+        const events = [
+          ...adapter.apply({ type: "message_start", message: { role: "assistant" } }),
+          ...adapter.apply({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: result } }),
+          ...groupTaskEvents(notificationRunId, [task]),
+          ...adapter.finish("success"),
+        ];
+        const recorder = createConversationRecorder({ store: deps.store, conversationId: groupId, runId: notificationRunId,
+          broadcast: () => {}, stop: () => {} });
+        for (const event of events) recorder.record(retag(event, task.owner, notificationRunId));
+        if (!recorder.finish()) return;
+      }
+      const current = groupOf(groupId)?.group;
+      if (!current) return;
+      deps.store.setExtra(groupId, { group: { ...current,
+        tasks: current.tasks?.map(item => item.id === task.id ? { ...item, notifiedAt: Date.now() } : item),
+        lines: [...current.lines, { author: task.owner, text: result }].slice(-20),
+        preview: { author: task.owner, text: `${task.status}: ${task.title}`.slice(0, 80) },
+      } });
+    }
+  }
 
   function setGroupMembers(id: string, members: string[], bots?: GroupParticipant[], hostId?: string) {
     const saved = controller.getConversation(id);
@@ -467,9 +502,11 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
   const recoverTasks = (id: string) => {
     if (active.has(id)) return;
     const group = groupOf(id)?.group;
-    if (group?.tasks?.some(task => task.status === "pending" || task.status === "running")) {
-      deps.store.setExtra(id, { group: { ...group, tasks: recoverGroupTasks(group.tasks) } });
+    const activeIds = delegation.activeIds(id);
+    if (group?.tasks?.some(task => !activeIds.has(task.id) && (task.status === "pending" || task.status === "running"))) {
+      deps.store.setExtra(id, { group: { ...group, tasks: recoverGroupTasks(group.tasks, activeIds) } });
     }
+    publishDelegations(id);
   };
 
   async function runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, invitation: string[] = []) {
@@ -488,6 +525,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     }
     recoverTasks(groupId);
     const existing = groupOf(groupId);
+    conversationReferences(deps.store, input.referencedConversationIds, existing);
     const abort = new AbortController();
     let settle!: () => void;
     const slot = { abort, runId: groupRunId, done: new Promise<void>((resolve) => { settle = resolve; }),
@@ -497,7 +535,9 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     const command = /^\/task\s+(assignment_[a-f0-9-]{36})\s+(complete|cancel|retry)\s*$/.exec(userPrompt);
     if (/^\/task(?:\s|$)/.test(userPrompt) && !command) throw new Error("Use /task <assignment id> complete, cancel or retry.");
     const reviewed = command ? meta.tasks?.find(t => t.id === command[1]) : undefined;
-    if (command && (!reviewed || !["needs_review", "failed"].includes(reviewed.status))) throw new Error("Only this group's unresolved assignments can be reviewed or retried.");
+    const cancellingDelegate = reviewed?.kind === "delegation" && command?.[2] === "cancel" && ["pending", "running"].includes(reviewed.status);
+    if (command && (!reviewed || !["needs_review", "failed"].includes(reviewed.status) && !cancellingDelegate)) throw new Error("Only this group's unresolved assignments can be reviewed or retried.");
+    if (reviewed?.kind === "delegation" && command?.[2] === "retry") throw new Error("Ask the group host to delegate a new read-only task after reviewing this result.");
     // The client sends the group's members (chosen in "To:", edited in the member panel); keep the group order.
     const catalog = deps.bots?.catalog() ?? participantCatalog(input.availableBots, meta.participants ?? DEFAULT_PARTICIPANTS);
     const requested = input.members;
@@ -522,6 +562,10 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     active.set(groupId, slot);
     // Until a topic is summarized, a group is named by its members; a summarized topic is kept.
     const named = () => (meta.preserveTitle || deps.store.get(groupId)?.titleSource === "summary" ? {} : { title: groupTitle(meta.members, names) });
+    const persistMeta = (extra: Record<string, unknown> = {}) => {
+      meta.tasks = mergeForegroundGroupTasks(groupOf(groupId)?.group?.tasks, meta.tasks);
+      deps.store.setExtra(groupId, { group: meta, ...extra });
+    };
     const reportFailure = (event: string, error: unknown) => {
       try { deps.log?.(event, { conversationId: groupId, runId: groupRunId,
         error: redactCredentials(error instanceof Error ? error.message : String(error)) }); }
@@ -560,7 +604,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     let taskToolStarted = false;
     const taskToolId = `${groupRunId}_assignments`;
     const persistTasks = (displayRequest = groupRunId) => {
-      deps.store.setExtra(groupId, { group: meta });
+      persistMeta();
       const tasks = (meta.tasks ?? []).filter(t => t.requestId === displayRequest);
       const base = { runId: groupRunId, ts: Date.now() };
       if (!taskToolStarted) {
@@ -619,7 +663,9 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
           }
           if (event.type === "text.delta" && typeof (event.payload as { delta?: unknown }).delta === "string") text += (event.payload as { delta: string }).delta;
           emit([retag(event, member, groupRunId, childRunId)]);
-        }, { signal: abort.signal, waitForCapacity: true, groupConversation: true, readOnly });
+        }, { signal: abort.signal, waitForCapacity: true, groupConversation: true, groupId, readOnly,
+          ...(member === hostId && record ? { extraHostTools: delegation.toolsFor({ groupId, requestId: groupRunId, hostId,
+            parentId: root?.id, input, signal: abort.signal, isCurrent: () => active.get(groupId) === slot }) } : {}) });
         if (failure !== undefined) throw new Error(failure);
         if (cancelled) abort.abort();
         abort.signal.throwIfAborted();
@@ -651,7 +697,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
 
     const openGroup = () => {
       deps.store.begin(groupId, presetOf(hostId), prompt);
-      deps.store.setExtra(groupId, { group: meta, ...named() });
+      persistMeta(named());
       opened = true;
       emit(adapter.startUserMessage(userPrompt));
       emit([{ type: "group.members.updated", id: `${groupRunId}_members`, runId: groupRunId, visibility: "debug", payload: { group: { members: meta.members, participants: catalog, hostId } } } as AgentUXEvent]);
@@ -660,10 +706,18 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       if (input.attachments === undefined) openGroup();
       if (reviewed && command && command[2] !== "retry") {
         if (!opened) openGroup();
-        deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt: userPrompt });
-        const result = command[2] === "complete" ? "User confirmed completion after review." : "User closed this assignment; previous effects are not rolled back.";
+        deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt: userPrompt,
+          ...(input.referencedConversationIds ? { referencedConversationIds: input.referencedConversationIds } : {}) });
+        if (reviewed.kind === "delegation" && command[2] === "cancel") {
+          await delegation.cancel(groupId, reviewed.id);
+          meta.tasks = groupOf(groupId)?.group?.tasks;
+        }
+        const result = command[2] === "complete" ? "User confirmed completion after review." : reviewed.kind === "delegation"
+          ? "Cancellation requested; late delegated output is ignored." : "User closed this assignment; previous effects are not rolled back.";
         meta.tasks = meta.tasks!.map(t => (t.id === reviewed.id || t.parentId === reviewed.id) && ["needs_review", "failed"].includes(t.status)
           ? { ...t, status: command[2] === "complete" ? "completed" : "cancelled", result, reviewedAt: Date.now(), updatedAt: Date.now() } : t);
+        // This explicit user review owns the delegate transition; ordinary foreground saves do not.
+        if (reviewed.kind === "delegation") deps.store.setExtra(groupId, { group: { ...groupOf(groupId)!.group!, tasks: meta.tasks } });
         persistTasks(reviewed.requestId);
         emit(adapter.apply({ type: "message_start", message: { role: "assistant" } }));
         emit(adapter.apply({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: result } }));
@@ -696,7 +750,9 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       }
       abort.signal.throwIfAborted();
       if (!opened) openGroup();
-      deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt: userPrompt, ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}), attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
+      deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt: userPrompt,
+        ...(input.referencedConversationIds ? { referencedConversationIds: input.referencedConversationIds } : {}),
+        ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}), attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
       readOnly = plan.mode === "parallel" || invitedIds.length > 0;
       meta.tasks = retainedGroupTasks(meta.tasks);
       if (meta.tasks.length > 800) throw new Error("Too many unresolved assignments; review them before starting more work.");
@@ -805,13 +861,13 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
             if (root) {
               meta.tasks = meta.tasks!.map(t => t.id === root!.id
                 ? { ...t, status: declined ? "cancelled" : status === "success" ? "completed" : status === "error" ? "failed" : "needs_review", updatedAt: Date.now() }
-                : t.requestId === groupRunId && t.status === "pending" ? { ...t, status: "cancelled", updatedAt: Date.now() } : t);
+                : t.kind !== "delegation" && t.requestId === groupRunId && t.status === "pending" ? { ...t, status: "cancelled", updatedAt: Date.now() } : t);
               persistTasks();
             }
             meta.lines = [...meta.lines, ...joinLines, { author: "user" as const, text: userPrompt }, ...outputs.map((o) => ({ author: o.member, text: o.text.slice(0, 4000) }))].slice(-20);
             const last = [...outputs].reverse().find((o) => o.text.trim());
             meta.preview = last ? { author: last.member, text: last.text.replace(/\s+/g, " ").trim().slice(0, 80) } : { author: "user", text: prompt.slice(0, 80) };
-            try { deps.store.setExtra(groupId, { group: meta, ...named() }); }
+            try { persistMeta(named()); }
             catch (error) { status = "error"; turnFailure = error; }
           }
           if (status === "error") emit(adapter.apply({ type: "extension_error",
@@ -843,7 +899,11 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
             else for (const event of unsavedFailure ?? []) broadcast(event);
           }
         }
-        finally { active.delete(groupId); settle(); }
+        finally {
+          delegation.closeOrigin(groupId, groupRunId);
+          active.delete(groupId); settle();
+          try { publishDelegations(groupId); } catch (error) { reportFailure("group.delegate_notification_failed", error); }
+        }
       }
     }
     // The topic comes from the first real request, not from "hello".
@@ -908,12 +968,17 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       if (!conversationId) {
         const hadGroups = active.size > 0;
         for (const turn of active.values()) turn.abort.abort();
-        return await controller.abort() || hadGroups;
+        const hadDelegates = await delegation.cancelAll();
+        return await controller.abort() || hadGroups || hadDelegates;
       }
       const turn = conversationId ? active.get(conversationId) : undefined;
-      if (!turn) return controller.abort(conversationId, runId);
+      if (!turn) {
+        const hadDelegates = await delegation.cancelAll(conversationId, runId);
+        return await controller.abort(conversationId, runId) || hadDelegates;
+      }
       if (runId && turn.runId !== runId) return false;
       turn.abort.abort();
+      await delegation.cancelAll(conversationId, turn.runId);
       await Promise.all([...turn.children].map(([m, id]) => controller.abort(childConversationId(conversationId, m), id).catch(() => false)));
       return true;
     },
@@ -932,16 +997,18 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       return child ? controller.resolveUserInput(child.childId, child.id, answers) : false;
     },
     deleteConversation(id) {
-      if (active.has(id)) throw new Error("A run is already active in this conversation. Stop it before deleting the conversation.");
+      if (active.has(id) || delegation.hasActive(id)) throw new Error("A run is already active in this conversation. Stop it before deleting the conversation.");
       const group = groupOf(id);
+      const delegated = group ? controller.listConversations().filter(conversation => conversation.id.startsWith(delegationConversationPrefix(id))) : [];
       controller.deleteConversation(id);
       // The members' hidden conversations belong to the group and go with it.
       if (group) for (const member of (group.group?.participants ?? DEFAULT_PARTICIPANTS).map(bot => bot.id)) {
         if (deps.store.get(childConversationId(id, member))) controller.deleteConversation(childConversationId(id, member));
       }
+      for (const conversation of delegated) controller.deleteConversation(conversation.id);
     },
     async newSession(conversationId) {
-      if (conversationId && active.has(conversationId)) {
+      if (conversationId && (active.has(conversationId) || delegation.hasActive(conversationId))) {
         throw new Error("Stop this conversation's run before starting a new session.");
       }
       if (!conversationId) return controller.newSession(conversationId);
@@ -959,16 +1026,17 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       if (conversation && tasks) conversation = { ...conversation, events: conversation.events.map(event => {
         for (const field of ["args", "result"] as const) {
           const value = (event.payload as Record<string, unknown>)[field] as { kind?: string; tasks?: GroupTask[] } | undefined;
-          if (event.type.startsWith("tool.call.") && value?.kind === "group-tasks" && Array.isArray(value.tasks)) return { ...event, payload: { ...event.payload, [field]: { ...value, tasks: value.tasks.map(t => tasks.find(current => current.id === t.id && (current.status === "needs_review" || current.reviewedAt)) ?? t) } } } as AgentUXEvent;
+          if (event.type.startsWith("tool.call.") && value?.kind === "group-tasks" && Array.isArray(value.tasks)) return { ...event, payload: { ...event.payload, [field]: { ...value, tasks: value.tasks.map(t => tasks.find(current => current.id === t.id && (current.kind === "delegation" || current.status === "needs_review" || current.reviewedAt)) ?? t) } } } as AgentUXEvent;
         }
         const data = (event.payload as { delta?: { kind?: string; tasks?: GroupTask[] } }).delta;
         return event.type === "artifact.delta" && data?.kind === "group-tasks" && data.tasks
-          ? { ...event, payload: { ...event.payload, delta: { ...data, tasks: data.tasks.map(t => tasks.find(current => current.id === t.id && (current.status === "needs_review" || current.reviewedAt)) ?? t) } } } as AgentUXEvent : event;
+          ? { ...event, payload: { ...event.payload, delta: { ...data, tasks: data.tasks.map(t => tasks.find(current => current.id === t.id && (current.kind === "delegation" || current.status === "needs_review" || current.reviewedAt)) ?? t) } } } as AgentUXEvent : event;
       }) };
       const turn = active.get(id);
       return conversation && turn ? { ...conversation, activeRunId: turn.runId, incomplete: false } : conversation;
     },
     dispose() {
+      delegation.dispose();
       for (const turn of active.values()) turn.abort.abort();
       controller.dispose();
     },

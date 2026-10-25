@@ -7,6 +7,22 @@ import { mentionMatches, applyMention } from "./mentionCompletion.ts";
 
 const custom: BotProfile = { id: "bot_12345678-1234-1234-1234-123456789abc", presetId: "assistant", name: "  Muse  ", appearance: DEFAULT_BOTS.boy };
 
+test("independent persona, model and capabilities survive save/restore without changing legacy defaults", () => {
+  const configured = { ...custom, role: "  Product researcher ", personality: "Direct\nand patient", instructions: "Cite primary sources.",
+    model: { provider: "custom", model: "research-model" }, mcpServerIds: [], skillIds: ["research"] };
+  const restored = parseBotProfiles(JSON.stringify(updateBotProfile(parseBotProfiles(null), configured)));
+  const bot = restored.profiles[0];
+  assert.equal(bot.role, "Product researcher");
+  assert.equal(bot.personality, "Direct\nand patient");
+  assert.equal(bot.instructions, "Cite primary sources.");
+  assert.deepEqual(bot.model, configured.model);
+  assert.deepEqual(bot.mcpServerIds, []);
+  assert.equal(resolveBotProfiles(parseBotProfiles(null))[0].mcpServerIds, undefined);
+  for (const bad of [{ role: "x".repeat(301) }, { personality: 42 }, { model: { provider: "", model: "x" } }, { skillIds: ["../x"] }]) {
+    assert.throws(() => updateBotProfile(restored, { ...configured, ...bad } as BotProfile));
+  }
+});
+
 test("Bot profiles preserve legacy avatars until explicitly saved and keep identities separate from engines", () => {
   const empty = parseBotProfiles(null);
   assert.equal(resolveBotProfiles(empty, { woman: DEFAULT_BOTS.man })[0].appearance, DEFAULT_BOTS.man);

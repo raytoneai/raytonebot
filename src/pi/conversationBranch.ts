@@ -2,6 +2,7 @@ import { validArtifactSubmission, type ArtifactSubmission } from "../runtime/art
 import type { AgentHarnessId } from "./harnessCatalog.ts";
 import type { PiPromptAttachment } from "./piClient.ts";
 import type { StoredConversation } from "./conversationStore.ts";
+import { validConversationReferences } from "./conversationReferences.ts";
 
 export type NativeTurnCheckpoint =
   | { harness: "pi"; sessionId: string; sourceId: string; beforeEntryId: string | null }
@@ -10,6 +11,7 @@ export type NativeTurnCheckpoint =
 export type StoredTurn = {
   runId: string; harness: AgentHarnessId; prompt: string; attachments?: PiPromptAttachment[];
   artifactSubmission?: ArtifactSubmission;
+  referencedConversationIds?: string[];
   native?: NativeTurnCheckpoint;
 };
 export type NativeBranch =
@@ -33,6 +35,7 @@ export function validBranchMetadata(turns: unknown, branch: unknown): boolean {
     const turn = record(value);
     return typeof turn.runId !== "string" || !turn.runId || typeof turn.prompt !== "string"
       || (turn.artifactSubmission !== undefined && (!validArtifactSubmission(turn.artifactSubmission) || turn.artifactSubmission.submissionId !== turn.runId))
+      || (turn.referencedConversationIds !== undefined && !validConversationReferences(turn.referencedConversationIds))
       || !["pi", "claude-code", "codex", "dsh"].includes(String(turn.harness))
       || (turn.native !== undefined && (!validNative(turn.native) || record(turn.native).harness !== turn.harness))
       || (turn.attachments !== undefined && (!Array.isArray(turn.attachments) || turn.attachments.some(value => {
@@ -76,5 +79,5 @@ export function branchPrefix(source: StoredConversation, beforeRunId: string) {
     if (!native) throw new ConversationBranchError("The native boundary for this turn is unavailable. The original conversation has not been changed.");
   }
   return { events, turns, branch: { sourceId: source.id, beforeRunId, native } satisfies ConversationBranch,
-    draft: { prompt: turn.prompt, attachments: turn.attachments ?? [] } };
+    draft: { prompt: turn.prompt, attachments: turn.attachments ?? [], ...(turn.referencedConversationIds ? { referencedConversationIds: turn.referencedConversationIds } : {}) } };
 }

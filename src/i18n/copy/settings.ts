@@ -181,7 +181,7 @@ const en = {
     switchedOff: (reason: string) => `Switched off after failing twice: ${reason}`,
   },
   mcp: {
-    intro: "Connect MCP servers to share their tools with all assistants.",
+    intro: "Connect MCP servers, then choose which services each Bot can use in its settings.",
     approvalNote: "Each tool asks before it runs, unless you choose Always allow for it or the conversation allows everything.",
     codexNote: "Codex conversations keep the tools they started with; changes reach new Codex conversations.",
     empty: "No MCP servers yet.",
@@ -436,7 +436,7 @@ const zh: typeof en = {
     switchedOff: (reason: string) => `连续失败两次，已自动关闭：${reason}`,
   },
   mcp: {
-    intro: "连接 MCP 服务，让所有助手使用其中的工具。",
+    intro: "连接 MCP 服务，再到 Bot 设置中选择它可以使用的服务。",
     approvalNote: "工具运行前需确认；已选择「始终允许」或本对话使用「自动执行」时除外。",
     codexNote: "已开始的 Codex 对话保留原有工具，改动在新的 Codex 对话中生效。",
     empty: "还没有 MCP 服务。",
@@ -691,7 +691,7 @@ const ja: typeof en = {
     switchedOff: (reason: string) => `2 回続けて失敗したためオフにしました：${reason}`,
   },
   mcp: {
-    intro: "MCP サーバーを接続すると、すべてのアシスタントがツールを利用できます。",
+    intro: "MCP サーバーを接続し、Bot の設定で利用するサービスを選択します。",
     approvalNote: "各ツールは実行前に確認します。「常に許可」を選ぶか、会話で自動実行を選ぶと確認しません。",
     codexNote: "開始済みの Codex 会話は元のツールのままです。変更は新しい Codex 会話から反映されます。",
     empty: "MCP サーバーはまだありません。",

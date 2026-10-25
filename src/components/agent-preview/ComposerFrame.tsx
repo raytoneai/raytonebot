@@ -58,7 +58,11 @@ const permissionHintKey = (mode: PermissionMode) =>
       ? "toolPermissionAutoHint" as const
       : "toolPermissionAllowAllHint" as const;
 
-export type ComposerSubmitAttachment = ({ file: File; reference?: never } | { file?: never; reference: PiPromptAttachment }) & {
+export type ComposerSubmitAttachment = (
+  { file: File; reference?: never; chatReference?: never }
+  | { file?: never; reference: PiPromptAttachment; chatReference?: never }
+  | { file?: never; reference?: never; chatReference: { conversationId: string; title: string } }
+) & {
   name: string;
   isImage: boolean;
   imageSrc?: string;
@@ -138,7 +142,7 @@ export function ComposerFrame({
   const copy = useCopy();
   const { locale } = useLocale();
   const steerLabel = locale === "zh" ? "调整当前任务" : locale === "ja" ? "現在のタスクを調整" : "Adjust current task";
-  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity, onBrowseWorkspace, providerSelection } = useShellExtras();
+  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity, onBrowseWorkspace, providerSelection, chatReferences } = useShellExtras();
   const reduceMotion = useReducedMotion();
   const workingPersona = composerActivity?.persona;
   const activityCopy = composerActivityCopy[locale];
@@ -159,6 +163,8 @@ export function ComposerFrame({
   const { steering, notice: steeringNotice, submit: submitSteering } = useSteeringInput(composerQueue?.onSteer, updateDraft, locale, composerQueue?.inputScope);
   const promptValue = draft.prompt;
   const attachedFiles = draft.attachments;
+  const attachedChats = new Set(attachedFiles.flatMap(attachment => attachment.chatReference ? [attachment.chatReference.conversationId] : []));
+  const chatReferenceLabel = locale === "zh" ? "引用对话" : "Reference chat";
   const setPromptValue = (value: SetStateAction<string>) => updateDraft((current) => ({
     ...current, prompt: typeof value === "function" ? value(current.prompt) : value,
   }));
@@ -520,7 +526,7 @@ export function ComposerFrame({
               <div className="context-chips">
                 {attachedFiles.map((file) => (
                   <span className="context-chip" key={file.id}>
-                    {file.isImage ? <ImageIcon size={13} /> : <FileText size={13} />}
+                    {file.chatReference ? <MessageSquareText size={13} /> : file.isImage ? <ImageIcon size={13} /> : <FileText size={13} />}
                     <span>{file.name}</span>
                     <button
                       className="context-chip-remove"
@@ -622,6 +628,25 @@ export function ComposerFrame({
               </IconButton>
             </>
           ) : null}
+          {chatReferences ? <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <IconButton type="button" label={chatReferenceLabel} disabled={restoringDrafts}><MessageSquareText size={16} /></IconButton>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start" sideOffset={10} style={{ maxHeight: "min(360px, var(--radix-dropdown-menu-content-available-height))", overflowY: "auto", maxWidth: "min(360px, calc(100vw - 32px))" }}>
+              <DropdownMenuLabel>{chatReferenceLabel} · {attachedChats.size}/5</DropdownMenuLabel>
+              {chatReferences.length ? chatReferences.map(chat => <DropdownMenuItem key={chat.id}
+                disabled={attachedChats.has(chat.id) || attachedChats.size >= 5} textValue={chat.title || chat.id}
+                onSelect={() => setAttachedFiles(current => {
+                  const references = current.filter(attachment => attachment.chatReference);
+                  if (references.length >= 5 || references.some(attachment => attachment.chatReference?.conversationId === chat.id)) return current;
+                  return [...current, { id: crypto.randomUUID(), name: chat.title || chat.id, isImage: false, chatReference: { conversationId: chat.id, title: chat.title || chat.id } }];
+                })}>
+                <MessageSquareText size={14} aria-hidden="true" />
+                <span className="ui-dropdown-menu__item-label" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.title || chat.id}</span>
+                {attachedChats.has(chat.id) ? <span aria-hidden="true">✓</span> : null}
+              </DropdownMenuItem>) : <DropdownMenuItem disabled>{locale === "zh" ? "暂无可引用的已保存对话" : "No saved chats to reference"}</DropdownMenuItem>}
+            </DropdownMenuContent>
+          </DropdownMenu> : null}
           {!isWelcome && onBrowseWorkspace ? <IconButton type="button" label={copy.workspace.outputFrame.files} disabled={restoringDrafts} onClick={onBrowseWorkspace}><FileText size={16} /></IconButton> : null}
           {project.composer.toolToggle ? (
             <DropdownMenu>

@@ -54,6 +54,12 @@ import { randomUUID } from "node:crypto";
 import { join } from "node:path";
 import { probeProvider, type ProviderProbeResult } from "./providerProbe.ts";
 import { createMcpService, McpError, type McpToolkit } from "./mcpServers.ts";
+import { normalizeModelOptions, resolveModelOptions } from "./modelMetadata.ts";
+import { createConversationHistoryTools } from "./conversationHistoryTools.ts";
+import { conversationReferences, conversationReferenceNote } from "./conversationReferences.ts";
+import { createUsageService } from "./usage.ts";
+import type { UsageState } from "./usageTypes.ts";
+import { createBotSkillsService, SkillsError } from "./botSkills.ts";
 import { createMemoryService, MemoryError, mergeHostTools, type HostTools, type MemoryService } from "./memories.ts";
 import { createBrowserService, type BrowserService } from "./browser/browserService.ts";
 import { browserLoginUrl } from "./browser/browserPolicy.ts";
@@ -118,6 +124,7 @@ export type PiBridgeFactory = (input: {
   /** Where this conversation's Pi session lives on disk; in memory when omitted. */
   sessionDir?: string;
   onUserInput(request: UserInputRequest): Promise<UserAnswers>;
+  delegated?: boolean;
   hostTools?: HostTools;
   /** `connect_channel`: absent when the host has no channel setup (tests, previews). */
   onChannelSetup?(request: ChannelSetupRequest): Promise<ChannelSetupResult>;
@@ -126,6 +133,7 @@ export type PiBridgeFactory = (input: {
 }) => Promise<PiSessionBridge>;
 
 export type PiRuntimeController = {
+  usage(): UsageState;
   /** Permission mode a turn gets when its client does not choose one (IM channels). */
   readonly defaultPermissionMode: PiPermissionMode;
   health(): { status: "ok"; activeRuns: number; maxConcurrentRuns: number; uptimeSeconds: number; lastRunAgoMs?: number };
@@ -136,7 +144,7 @@ export type PiRuntimeController = {
    *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards.
    *  Internal group children may `waitForCapacity`; cancelling that wait leaves no receipt.
    *  `title` names a new conversation instead of its first prompt (a routine's own name). */
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean; readOnly?: boolean }): Promise<void>;
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean; groupId?: string; delegated?: boolean; extraHostTools?: import("./memories.ts").HostTools; readOnly?: boolean }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   steer(conversationId: string, runId: string, requestId: string, text: string): Promise<boolean>;
@@ -192,9 +200,10 @@ export function createPiRuntimeController(options: {
   /** Saving a routine from chat; the host binds it to its routine service. */
   createRoutine?: (input: RoutineCreateInput) => RoutineView;
   /** The enabled MCP servers' tools now (ADR-037); read when a run or Pi session starts. */
-  mcpTools?: () => McpToolkit | undefined;
+  mcpTools?: (botId?: string) => McpToolkit | undefined;
   /** Cross-conversation memory (ADR-038): its note joins a turn's prompt, its tools each run. */
   memory?: MemoryService;
+  skills?: ReturnType<typeof createBotSkillsService>;
   /** The shared browser (ADR-040): its tools each run, its snapshot judges each action. */
   browser?: BrowserService;
 }): GroupController {
@@ -202,10 +211,12 @@ export function createPiRuntimeController(options: {
   const botConfig = options.bots;
   const dataDir = options.dataDir ?? defaultDataDir();
   const store = options.store ?? createConversationStore(dataDir);
+  const usage = createUsageService({ dataDir });
   const limits = options.limits ?? runLimits();
   const log = runtimeLogger(dataDir);
   /** `runPrompt` has its own `options`; services are read through these names. */
   const memory = options.memory;
+  const optionsSkills = options.skills;
   const browser = options.browser;
   const startedAt = Date.now();
   // A turn still open on disk was cut off when the last process ended (restart, crash, redeploy).
@@ -260,6 +271,7 @@ export function createPiRuntimeController(options: {
     if (!sandboxed && new URL(provider.baseUrl).protocol === "http:") return { ...provider, revoke() {} };
     const slot = runs.get(conversationId);
     const lease = (await gateway()).issue({ ...provider, protocol, thinkingLevel, maxRequests: limits.modelRequests, maxDurationMs: limits.durationMs,
+      onUsage(requestId, measured) { if (slot) usage.record(slot.runId, requestId, measured, conversationId); },
       onLimit(message) {
         if (!slot || slot.limit) return;
         slot.limit = message;
@@ -273,7 +285,7 @@ export function createPiRuntimeController(options: {
   const bridgeFactory = options.bridgeFactory ?? ((input) => {
     const id = decodeURIComponent(input.sessionDir!.split("/").pop()!);
     const saved = store.get(id);
-    return createDefaultPiBridge({ ...input, sandboxed, rolePrompt: rolePrompt(saved?.agentPreset ?? "assistant", layout, { sandboxed, botId: saved?.botId, availableBots: saved?.availableBots }), sessionId: saved?.piSessionId,
+    return createDefaultPiBridge({ ...input, sandboxed, rolePrompt: rolePrompt(saved?.agentPreset ?? "assistant", layout, { sandboxed, botId: saved?.botId, availableBots: saved?.availableBots, profile: botConfig?.require(saved?.botId ?? saved?.agentPreset ?? "assistant") }), sessionId: saved?.piSessionId,
       branch: saved?.branch?.native?.harness === "pi" ? { ...saved.branch.native,
         sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(saved.branch.native.sourceId)) } : undefined,
       hasHistory: saved?.agentPreset === "assistant" && saved.events.length > 0,
@@ -285,7 +297,7 @@ export function createPiRuntimeController(options: {
       onPromptAccepted: () => runs.get(id)?.memoryDelivered?.(),
       modelLease: (provider, protocol, thinkingLevel) => modelLease(provider, protocol, id, thinkingLevel),
       webTools,
-      mcpTools: options.mcpTools?.(),
+      mcpTools: runs.get(id)?.delegated ? undefined : options.mcpTools?.(saved?.botId ?? saved?.agentPreset),
       hostTools: input.hostTools,
     });
   });
@@ -294,9 +306,11 @@ export function createPiRuntimeController(options: {
   const dropBridge = (id: string) => {
     const bridge = bridgePromises.get(id);
     bridgePromises.delete(id);
+    bridgeToolContexts.delete(id);
     void bridge?.then((current) => current.dispose(), () => undefined);
   };
   const bridgePromises = new Map<string, Promise<PiSessionBridge>>();
+  const bridgeToolContexts = new Map<string, string>();
   /** Conversations that have already announced their tool set — see `runPrompt`. */
   const announcedCapabilities = new Set<string>();
   const defaultConversationId = "default";
@@ -307,6 +321,10 @@ export function createPiRuntimeController(options: {
     runId: string;
     fromChannel?: boolean;
     groupConversation?: boolean;
+    groupId?: string;
+    delegated?: boolean;
+    references?: string[];
+    extraHostTools?: import("./memories.ts").HostTools;
     /** The turn's model service and language, for a routine created during it. */
     turn: Pick<PiPromptInput, "provider" | "model" | "locale" | "botId">;
     adapter?: PiEventAdapter;
@@ -339,7 +357,8 @@ export function createPiRuntimeController(options: {
     return op;
   };
   /** remember / forget and the browser for one conversation's agent; downloads land in its own workspace. */
-  const hostToolsFor = (conversationId: string, agent: AgentPresetId) => mergeHostTools(
+  const hostToolsFor = (conversationId: string, agent: AgentPresetId) => {
+    const toolkit = mergeHostTools(
     artifactTools(layout, agent, privatePaths, (file) => {
       const slot = runs.get(conversationId);
       if (!slot?.adapter || slot.stopRequested) throw new Error("The artifact run is no longer active.");
@@ -365,12 +384,22 @@ export function createPiRuntimeController(options: {
         store.flush(conversationId);
       }, log,
     }) : undefined,
-    options.memory?.toolsFor({ conversationId, agent }),
+    options.memory?.toolsFor({ conversationId, agent, botId: runs.get(conversationId)?.turn.botId ?? store.get(conversationId)?.botId ?? agent,
+      groupId: runs.get(conversationId)?.groupId }),
+    options.skills?.toolsFor(() => botConfig?.require(runs.get(conversationId)?.turn.botId ?? store.get(conversationId)?.botId ?? agent).skillIds ?? []),
+    createConversationHistoryTools({ store, conversationId: runs.get(conversationId)?.groupId ?? conversationId,
+      allowedConversationIds: runs.get(conversationId)?.references }),
+    runs.get(conversationId)?.extraHostTools,
     options.browser?.toolsFor({ conversationId, agent,
       saveDownload: (name, bytes) => saveWorkspaceDownload(layout, agent, name, bytes, privatePaths),
       ask: (questions, signal) => askUser(conversationId, { toolCallId: `browser_takeover_${randomUUID()}`, questions, signal: signal ?? new AbortController().signal }) }),
-  );
+    );
+    if (!toolkit || !runs.get(conversationId)?.delegated) return toolkit;
+    const names = new Set(["search_chat_history", "read_chat_history", "recall_memories", "read_skill"]);
+    return { specs: toolkit.specs.filter(tool => names.has(tool.name)), run: (name: string, args: unknown, signal?: AbortSignal) => names.has(name) ? toolkit.run(name, args, signal) : Promise.resolve({ text: "Tool unavailable in a delegated read-only task.", isError: true }) };
+  };
   const askUser = async (conversationId: string, { toolCallId, questions, signal }: UserInputRequest) => {
+    if (runs.get(conversationId)?.delegated) throw new Error("Background delegated tasks cannot request user input.");
     const adapter = runs.get(conversationId)?.adapter;
     if (!adapter) throw new Error("The question's run is no longer active.");
     let pending: PendingUserInput | undefined;
@@ -389,7 +418,7 @@ export function createPiRuntimeController(options: {
   };
   const setupChannel = (conversationId: string, { toolCallId, platform, signal }: ChannelSetupRequest) => {
     const slot = runs.get(conversationId), adapter = slot?.adapter;
-    if (!adapter || !options.channelSetup) throw new Error("Channel setup is not available in this run.");
+    if (!adapter || slot.delegated || !options.channelSetup) throw new Error("Channel setup is not available in this run.");
     return options.channelSetup({ conversationId, platform, signal, botId: slot.turn.botId, fromChannel: slot?.fromChannel === true,
       announce: (requestId, state) => adapter.apply({ type: "channel_setup", requestId, toolCallId, state }),
       resolved: (requestId) => adapter.apply({ type: "channel_setup_resolved", requestId, toolCallId }),
@@ -397,7 +426,7 @@ export function createPiRuntimeController(options: {
   };
   const createRoutine = async (conversationId: string, request: RoutineRequest) => {
     const slot = runs.get(conversationId);
-    if (!slot || !options.createRoutine) throw new Error("Routines are not available in this run.");
+    if (!slot || slot.delegated || !options.createRoutine) throw new Error("Routines are not available in this run.");
     const definition = slot.turn.provider ? providerDefinitions.get(slot.turn.provider) : undefined;
     return options.createRoutine({ ...request, fromConversationId: conversationId, botId: slot.turn.botId, locale: slot.turn.locale,
       ...(definition ? { model: { definition, model: slot.turn.model ?? definition.models[0] } } : {}) });
@@ -439,15 +468,18 @@ export function createPiRuntimeController(options: {
   const bridge = (conversationId = activeConversationId) => {
     const id = normalizeConversationId(conversationId);
     activeConversationId = id;
+    const slot = runs.get(id);
+    const toolContext = JSON.stringify([slot?.groupId, slot?.delegated, slot?.references, slot?.extraHostTools ? slot.runId : undefined]);
     const existing = bridgePromises.get(id);
-    if (existing) {
+    if (existing && bridgeToolContexts.get(id) === toolContext) {
       bridgePromises.delete(id);
       bridgePromises.set(id, existing);
       return existing;
     }
-    const created = bridgeFactory({ hostTools: hostToolsFor(id, "assistant"), cwd, approvalGate: gateFor(id), sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)), onUserInput: (request) => askUser(id, request),
-      ...(options.channelSetup ? { onChannelSetup: (request: ChannelSetupRequest) => setupChannel(id, request) } : {}),
-      ...(options.createRoutine ? { onCreateRoutine: (request: RoutineRequest) => createRoutine(id, request) } : {}) }).catch((error) => {
+    bridgeToolContexts.set(id, toolContext);
+    const created = (existing ? existing.then(current => current.dispose()) : Promise.resolve()).then(() => bridgeFactory({ delegated: slot?.delegated, hostTools: hostToolsFor(id, "assistant"), cwd, approvalGate: gateFor(id), sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)), onUserInput: (request) => askUser(id, request),
+      ...(options.channelSetup && !slot?.delegated ? { onChannelSetup: (request: ChannelSetupRequest) => setupChannel(id, request) } : {}),
+      ...(options.createRoutine && !slot?.delegated ? { onCreateRoutine: (request: RoutineRequest) => createRoutine(id, request) } : {}) })).catch((error) => {
       bridgePromises.delete(id);
       throw error;
     });
@@ -568,7 +600,7 @@ export function createPiRuntimeController(options: {
     modelPrompt: string,
   ) => {
     const current = await bridge(conversationId);
-    current.setRolePrompt?.(rolePrompt(isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant", layout, { sandboxed, botId: input.botId, availableBots: input.availableBots }));
+    current.setRolePrompt?.(rolePrompt(isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant", layout, { sandboxed, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }));
     const approvalGate = gateFor(conversationId);
     approvalGate.setCwd(cwd);
     approvalGate.setMode(input.permissionMode ?? "request");
@@ -704,10 +736,10 @@ export function createPiRuntimeController(options: {
         lease = provider;
         await runDsh({
           cwd: runCwd, home: join(dataDir, "dsh", encodeURIComponent(conversationId)), prompt: modelPrompt,
-          systemPrompt: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots }),
+          systemPrompt: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
           permissionMode, resumeId, signal: run.signal, emit, onSessionId, onUserInput,
           onAccepted: () => runs.get(conversationId)?.memoryDelivered?.(),
-          provider, webTools, mcpTools: options.mcpTools?.(), hostTools: hostToolsFor(conversationId, role),
+          provider, webTools, mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role), hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
             const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
             if (refusal) return refusal;
@@ -735,10 +767,10 @@ export function createPiRuntimeController(options: {
           emit,
           onSessionId,
           provider,
-          appendSystemPrompt: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots }),
+          appendSystemPrompt: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
           disallowedTools: agentPreset(role).disallowedTools,
           webTools,
-          mcpTools: options.mcpTools?.(),
+          mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role),
           hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
             // The planner writes only into the shared directory: plans and handoffs for others.
@@ -771,7 +803,7 @@ export function createPiRuntimeController(options: {
           cwd: runCwd,
           addDirs: sharedDirs,
           prompt: modelPrompt,
-          developerInstructions: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots }),
+          developerInstructions: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
           permissionMode,
           resumeId,
           forkBeforeTurnId: branch?.harness === "codex" ? branch.beforeTurnId : undefined,
@@ -781,7 +813,7 @@ export function createPiRuntimeController(options: {
           onSessionId,
           provider,
           webTools,
-          mcpTools: options.mcpTools?.(),
+          mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role),
           hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
             const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
@@ -827,6 +859,7 @@ export function createPiRuntimeController(options: {
   };
 
   const api: PiRuntimeController = {
+    usage: () => usage.list(),
     state,
     defaultPermissionMode,
     health: () => ({ status: "ok", activeRuns: runs.size, maxConcurrentRuns, uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
@@ -861,6 +894,7 @@ export function createPiRuntimeController(options: {
       const prompt = input.prompt?.trim() ? redactCredentials(input.prompt.trim()) : undefined;
       if (!prompt) throw new Error("Pi prompt is empty.");
       const conversationId = normalizeConversationId(input.conversationId);
+      const references = conversationReferences(store, input.referencedConversationIds, store.get(options?.groupId ?? conversationId));
       input = { ...input, requestId: input.requestId ?? `run_${randomUUID()}` };
       for (;;) {
         disposed.signal.throwIfAborted();
@@ -892,8 +926,8 @@ export function createPiRuntimeController(options: {
       }
       // No await after the final checks: another prompt cannot take this conversation or slot.
       let settle!: () => void;
-      const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, groupConversation: options?.groupConversation,
-        turn: { provider: input.provider, model: input.model, locale: input.locale }, vaultAbort: new AbortController(), stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
+      const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, groupConversation: options?.groupConversation, groupId: options?.groupId, delegated: options?.delegated, extraHostTools: options?.extraHostTools,
+        references, turn: { provider: input.provider, model: input.model, locale: input.locale }, vaultAbort: new AbortController(), stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
       lastRunTouchedAt = Date.now();
       const stopOnSignal = () => void abortRuns(conversationId, slot.runId).catch(() => undefined);
@@ -962,20 +996,24 @@ export function createPiRuntimeController(options: {
         const identity = resolveBotIdentity(role, input, botConfig ? { botId: saved?.botId } : saved);
         input = { ...input, botId: identity.botId, availableBots: identity.availableBots };
         slot.turn = input;
+        usage.start({ runId: input.requestId!, conversationId, botId: identity.botId, harness, provider: input.provider, model: input.model, startedAt: runStartedAt });
         const fresh = !saved;
         const conversation = store.begin(conversationId, role, options?.title ?? prompt);
         opened = true;
         store.setExtra(conversationId, { botId: identity.botId, availableBots: identity.availableBots });
         if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
         const workspacePrompt = await promptWithWorkspaceFiles(prompt, input.attachments, role, layout, privatePaths);
-        const memoryNote = memory?.noteFor(conversationId);
+        const memoryNote = memory?.noteFor(conversationId, { botId: identity.botId, groupId: slot.groupId });
+        const skillNote = optionsSkills?.noteFor(botConfig?.require(identity.botId).skillIds ?? []);
         slot.memoryDelivered = memoryNote?.delivered;
-        const browserNote = browser?.contextNote();
-        const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(workspacePrompt, options?.groupConversation), unseenPrompts(conversationId, harness))}\n\n[Current Bot identity from host configuration: ${JSON.stringify(identity.bot)}. Use this identity even if earlier messages use an old name.]${memoryNote?.text ? `\n\n${memoryNote.text}` : ""}${browserNote ? `\n\n${browserNote}` : ""}`, input.locale);
-        store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt, ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}),
+        const browserNote = slot.delegated ? undefined : browser?.contextNote();
+        const referenceNote = conversationReferenceNote(store, references);
+        const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(workspacePrompt, options?.groupConversation), unseenPrompts(conversationId, harness))}\n\n[Current Bot identity from host configuration: ${JSON.stringify(identity.bot)}. Use this identity even if earlier messages use an old name.]${memoryNote?.text ? `\n\n${memoryNote.text}` : ""}${browserNote ? `\n\n${browserNote}` : ""}${skillNote ? `\n\n${skillNote}` : ""}`, input.locale);
+        store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt, ...(input.referencedConversationIds?.length ? { referencedConversationIds: input.referencedConversationIds } : {}), ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}),
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
-        if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, modelPrompt);
-        else await runPiPrompt(input, conversationId, prompt, record, modelPrompt);
+        const fullPrompt = referenceNote ? `${modelPrompt}\n\n${referenceNote}` : modelPrompt;
+        if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, fullPrompt);
+        else await runPiPrompt(input, conversationId, prompt, record, fullPrompt);
       } catch (error) {
         if (!opened) throw error; // No acceptance or model action if existing history cannot be opened.
         // Bridge/configuration failures can precede the adapter. Persist the failed submission
@@ -997,6 +1035,7 @@ export function createPiRuntimeController(options: {
           settle();
         }
         log("run.ended", { conversationId, harness, status: terminalStatus, durationMs: Date.now() - runStartedAt, outputBytes });
+        usage.end(slot.runId, terminalStatus === "success" ? "completed" : terminalStatus === "cancelled" ? "cancelled" : "failed", conversationId);
         lastRunTouchedAt = Date.now();
         const stashed = pendingTitles.get(conversationId);
         if (stashed) { pendingTitles.delete(conversationId); applyTitle(conversationId, stashed.createdAt, stashed.title); }
@@ -1162,12 +1201,13 @@ export function createPiHttpHost(options: {
   const providers = new ProviderStore(join(`${dataDir}.provider-secrets`, "providers.enc"));
   const vault = new VaultStore(join(vaultDir, "logins.enc"));
   const bots = new BotConfigStore(join(dataDir, "bots.json"));
+  const skills = createBotSkillsService({ dataDir });
   const store = createConversationStore(dataDir);
   const mcp = createMcpService({ dataDir, log: runtimeLogger(dataDir) });
   const memory = createMemoryService({ dataDir, log: runtimeLogger(dataDir) });
   const browser = options.browser === false ? undefined : options.browser ?? createBrowserService({ dataDir, log: runtimeLogger(dataDir) });
   const controller = createPiRuntimeController({ ...options, layout, store, bots, providers, vault, vaultDir, channelSetup: (run) => channelSetup!.run(run),
-    createRoutine: (input) => routines!.create(input), mcpTools: () => mcp.toolkit(), memory, browser });
+    createRoutine: (input) => routines!.create(input), mcpTools: (botId) => mcp.toolkit(botId ? bots.require(botId).mcpServerIds : undefined, serverId => !botId || bots.require(botId).mcpServerIds?.includes(serverId) !== false), memory, skills, browser });
   routines = createRoutineService({ dataDir, bots, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
   const stopClock = options.routineClock === false ? undefined : routines.startClock();
   // Starts the enabled channels; the vite plugin creates this host when its server starts.
@@ -1252,7 +1292,7 @@ export function createPiHttpHost(options: {
                   }
                 }
                 sendJson(res, 200, view);
-              } else sendJson(res, 200, bots.save(body.bot, body.revision));
+              } else { const saved = bots.save(body.bot, body.revision); controller.refreshTools(); sendJson(res, 200, saved); }
             } else sendJson(res, 405, { error: "Unsupported Bot operation." });
           } catch (error) {
             if (!(error instanceof BotConfigError)) throw error;
@@ -1262,6 +1302,22 @@ export function createPiHttpHost(options: {
         }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/health`) {
           sendJson(res, 200, controller.health());
+          return true;
+        }
+        if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/usage`) {
+          sendJson(res, 200, controller.usage());
+          return true;
+        }
+        if (url.pathname === `${PI_API_PREFIX}/skills` || url.pathname === `${PI_API_PREFIX}/skills/remove`) {
+          try {
+            if (req.method === "GET" && url.pathname.endsWith("/skills")) sendJson(res, 200, skills.state());
+            else if (req.method === "POST") {
+              const body = await readJson(req);
+              const saved = url.pathname.endsWith("/remove") ? skills.remove(typeof body.id === "string" ? body.id : "", body.revision) : skills.save(body.input, body.revision);
+              controller.refreshTools();
+              sendJson(res, 200, saved);
+            } else sendJson(res, 405, { error: "Unsupported Skills operation." });
+          } catch (error) { if (!(error instanceof SkillsError)) throw error; sendJson(res, error.status, { error: error.message }); }
           return true;
         }
         if (url.pathname === `${PI_API_PREFIX}/files`) {
@@ -1424,8 +1480,13 @@ export function createPiHttpHost(options: {
               // Pi sessions hold their tools: reopen them with or without remember / forget.
               if (memory.enabled !== before) controller.refreshTools();
             }
-            else if (req.method === "POST" && !id) sendJson(res, 201, { memory: memory.add((await readJson(req)).text) });
-            else if (req.method === "POST" && id) sendJson(res, 200, { memory: memory.update(id, (await readJson(req)).text) });
+            else if (req.method === "POST") {
+              const body = await readJson(req);
+              const scope = body.scope as import("./memoryTypes.ts").MemoryScope | undefined;
+              if (scope?.kind === "bot" && !bots.view().profiles.some(bot => bot.id === scope.id)) throw new MemoryError("Memory Bot is unavailable.", 404);
+              if (scope?.kind === "group" && (typeof scope.id !== "string" || !/^[a-zA-Z0-9._:-]{1,160}$/.test(scope.id) || scope.id.includes(".m.") || !store.get(scope.id)?.group)) throw new MemoryError("Memory group is unavailable.", 404);
+              sendJson(res, id ? 200 : 201, { memory: id ? memory.update(id, body.text, scope) : memory.add(body.text, scope) });
+            }
             else if (req.method === "DELETE" && id) { memory.remove(id); sendJson(res, 200, { ok: true }); }
             else sendJson(res, 404, { error: "Unknown memory request." });
           } catch (error) {
@@ -1616,6 +1677,7 @@ export function createPiHttpHost(options: {
           res.once("close", () => clearInterval(heartbeat));
           try {
             await controller.runGroupPrompt({
+              referencedConversationIds: body.referencedConversationIds as PiPromptInput["referencedConversationIds"],
               conversationId, requestId, prompt, artifactSubmission: body.artifactSubmission as PiPromptInput["artifactSubmission"], attachments: body.attachments as PiPromptInput["attachments"],
               ...(Array.isArray(body.members) ? { members: body.members as string[] } : {}),
               availableBots: body.availableBots as PiPromptInput["availableBots"], botId: stringField(body, "botId"),
@@ -1660,6 +1722,7 @@ export function createPiHttpHost(options: {
           res.once("close", () => clearInterval(heartbeat));
           try {
             await controller.runPrompt({
+              referencedConversationIds: body.referencedConversationIds as PiPromptInput["referencedConversationIds"],
               conversationId,
               availableBots: body.availableBots as PiPromptInput["availableBots"], botId: stringField(body, "botId"),
               requestId,
@@ -1722,12 +1785,14 @@ function channelPatch(body: Record<string, unknown>): ChannelPatch {
         id: definition.id, name: stringField(definition, "name") ?? definition.id, baseUrl: definition.baseUrl,
         protocol: definition.protocol as PiProviderDefinition["protocol"], models: definition.models.filter((entry): entry is string => typeof entry === "string"),
         authMode: definition.authMode === "none" ? "none" : "required",
+        ...(definition.modelOptions === undefined ? {} : { modelOptions: normalizeModelOptions(definition.modelOptions, definition.models as string[]) }),
         ...(stringField(definition, "apiKeyEnvVar") ? { apiKeyEnvVar: stringField(definition, "apiKeyEnvVar") } : {}),
       } } } : {}),
   };
 }
 
 async function createDefaultPiBridge(input: {
+  delegated?: boolean;
   cwd: string; approvalGate: PiApprovalGate; sessionDir?: string; sandboxed: boolean; rolePrompt?: string;
   sessionId?: string | null; hasHistory: boolean; onSessionId(id: string, beforeEntryId: string | null): void;
   onPromptAccepted?(): void;
@@ -1778,7 +1843,8 @@ async function createDefaultPiBridge(input: {
       pi.createFindToolDefinition(input.cwd),
       pi.createLsToolDefinition(input.cwd),
     ].map((definition) => guardTool(isolatePiTool(definition, input.cwd), input.approvalGate)) as ToolDefinition<any, any, any>[];
-    definitions.push(planTool, userInputTool(input.onUserInput));
+    definitions.push(planTool);
+    if (!input.delegated) definitions.push(userInputTool(input.onUserInput));
     if (input.webTools) {
       const { webPiTools } = await import("./webTool.ts");
       definitions.push(...webPiTools(input.webTools));
@@ -1978,6 +2044,7 @@ export function registerEditorProvider(
   if (selectedModel && !models.includes(selectedModel)) {
     throw new Error(`Pi model ${selectedModel} is not configured for ${definition.name || id}.`);
   }
+  const modelOptions = normalizeModelOptions(definition.modelOptions, models);
 
   // registerProvider merges omitted fields on re-registration. Unregister first so changing an
   // editor provider cannot retain a stale endpoint, model list, or credential fallback.
@@ -1994,14 +2061,11 @@ export function registerEditorProvider(
     models: models.map((model) => ({
       id: model,
       name: model,
-      reasoning: deepSeekThinking(upstreamBaseUrl, model),
+      ...resolveModelOptions(model, modelOptions, deepSeekThinking(upstreamBaseUrl, model)),
       ...(geminiOpenAI ? { compat: { supportsStore: false } } : {}),
       ...(deepSeekThinking(upstreamBaseUrl, model) ? { compat: { thinkingFormat: "deepseek" as const, supportsReasoningEffort: true, supportsDeveloperRole: false,
         supportsStore: false, maxTokensField: "max_tokens" as const, requiresReasoningContentOnAssistantMessages: true } } : {}),
-      input: ["text", "image"],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
-      contextWindow: 128_000,
-      maxTokens: 16_384,
     })),
   });
 }
