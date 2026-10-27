@@ -458,7 +458,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       const notificationRunId = `result_${task.id}`;
       const saved = deps.store.get(groupId)!;
       const name = saved.group?.participants?.find(bot => bot.id === task.owner)?.name ?? task.owner;
-      const result = `${name} · ${task.id} · ${task.status}\n${task.result ?? "This task was interrupted before a result was confirmed. Review it before starting new work."}${task.resultTruncated ? "\n[Result truncated; full output remains in the delegated conversation.]" : ""}`;
+      const result = `${name} · ${task.id} · ${task.status}\n${task.result ?? "This task was interrupted before a result was confirmed. Review it before starting new work."}${task.resultTruncated ? "\n[Summary truncated. Ask the group host for the full answer.]" : ""}`;
       if (!saved.events.some(event => event.runId === notificationRunId && (event.type === "run.finished" || event.type === "run.error"))) {
         const adapter = createPiEventAdapter({ runId: notificationRunId });
         const events = [
@@ -1014,7 +1014,16 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       if (!conversationId) return controller.newSession(conversationId);
       const pending = resets.get(conversationId);
       if (pending) return pending;
-      const reset = controller.newSession(conversationId);
+      // Register the group lock before any child operation. Keep the parent's metadata if a
+      // child fails; requests waiting on this reset must fail without starting a new group turn.
+      const reset = Promise.resolve().then(async () => {
+        if (groupOf(conversationId)) {
+          const children = controller.listConversations().filter(entry => entry.id.startsWith(`${conversationId}${CHILD}`)
+            || entry.id.startsWith(delegationConversationPrefix(conversationId)));
+          for (const child of children) await controller.newSession(child.id);
+        }
+        return controller.newSession(conversationId);
+      });
       resets.set(conversationId, reset);
       try { return await reset; }
       finally { if (resets.get(conversationId) === reset) resets.delete(conversationId); }

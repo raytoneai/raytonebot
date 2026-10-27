@@ -24,6 +24,8 @@
 - 点击侧栏 Logo 创建 Bot，右键 Bot 头像编辑名字、外观、职责、性格与长期要求，也可选择该 Bot 的模型、MCP 服务与文本 Skills；聊天顶栏的 ＋ 邀请成员加入原对话，支持同一引擎的多个 Bot。设置包括模型服务、权限、IM 频道、例行任务、MCP/文本 Skills、记忆、Vault、模型用量、外观和关于；依赖主机的分区在无对应状态时隐藏。
 - 对话列表每行带角色小头像；输入框占位为「给<角色>发消息…」。
 - 输入框不再显示模型选择（`composer.modelSwitcher: false`）；模型在设置的「模型服务」里配置。Bot 的可选模型覆盖优先于轮次入口传入的 provider/model；未配置覆盖时保持原选择。Pi 自定义模型可在原 Provider 卡设置上下文/输出上限、text/image 与 reasoning 能力，未填写使用原默认。
+- 顶栏显示实际 Bot 模型；设置了覆盖的 Claude/Codex 固定使用模型服务，需在 Bot 编辑器清除覆盖才能切到本机登录。启用可选 Composer 模型菜单时，有覆盖就修改此 Bot，无覆盖才修改全局默认。停用服务保留配置和凭据，但主机拒绝继续执行；不会自动换到其他模型。
+- Claude/DSH 仅将官方 DeepSeek 根地址或 `/v1` 转换为官方 Anthropic 地址。自定义 OpenAI-compatible 代理不能据 provider 名称推断 Anthropic 接口；可在 Anthropic 协议的服务预设中填写代理地址，主机不会把代理密钥送去官方地址。
 - 引擎角色定义在 `src/pi/harnessCatalog.ts`；Bot 显示配置在 `src/runtime/botProfiles.ts`。创建普通 Bot 复用已有引擎角色，不需要修改 `AGENT_PRESETS` 或增加内置角色。
 
 ## Bot 配置与上下文范围（ADR-055）
@@ -34,6 +36,7 @@
 - **记忆**：Settings Memory 管理 global、指定 Bot 或指定群的记忆；缺省旧记录仍为 global。Agent 只看到全局、自己 Bot 与当前父群的条目，不能指定别的 owner ID。`remember` 默认单聊存当前 Bot、群聊存当前群，`forget` 只能删除当前可见条目；两者仍按 connector 询问。只读 `recall_memories` 可查自动提示没放下的旧条目，关闭记忆后既有工具也不可继续操作。
 - **旧聊天**：`search_chat_history`/`read_chat_history` 默认只读当前可见会话的公共用户/助手文本；跨会话须由用户在 Composer 引用，授权随已提交轮次保留并继承到分支。工具参数不能自行扩大范围。群成员和委派读取父群，不开放内部子会话；不回读思考、工具原始内容、Vault 等专用秘密输入或原生会话文件。搜索/读取受命中数、窗口和输出长度限制，缺失或越权明确报错。
 - **模型用量**：Settings Usage 只展示主机网关确认的 token、耗时、状态与覆盖完整度。HTTP 直连、本机登录等未观察路径可显示未知，缺失不当作零；没有价格与账单估算。详情接口只返回有界元数据，不返回对话或凭据。
+- **一层委派**：群主持可向已加入的其他 Bot 委派独立只读任务，每请求/群活动任务最多四项；子任务无命令、写入、浏览器、外部 MCP 或再次委派权限。群内保留 2000 字符摘要，主持通过 `group_tasks` 的 taskId/offset 分页读完整公共答案；取消后的迟到输出不再可用，重启中的任务标为待核对，不自动重放。群重置同时重置成员及委派原生会话，不能只清父聊天。
 
 主机工具对记录范围和能力的限制由代码执行，但不能阻止同 UID 的本机进程或共用 Agent UID 绕过工具直接读可访问文件。要区分产品级 Bot 身份与下面的主机/Agent 硬隔离；此轮没有新增每 Bot 文件系统、进程或网络隔离。
 
@@ -43,10 +46,10 @@
 
 | 路径 | 用途 |
 | --- | --- |
-| `agents/assistant/`、`agents/planner/`、`agents/builder/` | 各角色的工作目录（cwd），含人设 `SOUL.md`。不再生成 `AGENTS.md`：未改过的旧版启动时删除，用户改过的保留 |
+| `agents/assistant/`、`agents/planner/`、`agents/builder/`、`agents/dsh/` | 各角色的工作目录（cwd），含人设 `SOUL.md`。不再生成 `AGENTS.md`：未改过的旧版启动时删除，用户改过的保留 |
 | `shared/` | 所有角色可读写的协作目录：`plans/`、`handoffs/<from>-to-<to>.md`、`artifacts/`，含 `README.md`、`USER.md` |
 
-- 工作区布局只经角色提示词传给三个引擎（Codex `developerInstructions`、Claude `--append-system-prompt`、Pi `appendSystemPrompt`）。用户文件列表不显示根目录的 `SOUL.md` 与共享目录根的 `USER.md`/`README.md`（同点文件一样隐藏）；Agent 仍可读写，按路径仍可打开/下载。云端 Pi 禁止 bot 身份自动读取工作区资源，工作区布局由固定代码生成的说明传入，需要其他说明时通过受限 read 工具读取。本机 Pi 保留自动读取。Claude Code 在 `--safe-mode` 下不读，改由 `--append-system-prompt` 告知同样内容。Claude 用 `--add-dir`，Codex 通过逐项文件/命令审批访问共享目录。
+- 工作区布局经角色提示词传给引擎（Codex `developerInstructions`、Claude `--append-system-prompt`、Pi `appendSystemPrompt`，DSH 使用受控 profile）。用户文件列表不显示根目录的 `SOUL.md` 与共享目录根的 `USER.md`/`README.md`（同点文件一样隐藏）；Agent 仍可读写，按路径仍可打开/下载。云端 Pi 禁止 bot 身份自动读取工作区资源，工作区布局由固定代码生成的说明传入，需要其他说明时通过受限 read 工具读取。本机 Pi 保留自动读取。Claude Code 在 `--safe-mode` 下不读，改由 `--append-system-prompt` 告知同样内容。Claude 用 `--add-dir`，Codex 通过逐项文件/命令审批访问共享目录。
 - 规划角色只能把文件写进共享目录（其他位置的 Write 直接拒绝，Edit 类工具禁用）。
 - 工作区与应用目录分离后，应用代码自动成为受保护路径；每个角色目录与共享目录里的 `.claude/.codex/.agents`、`.git/hooks`、`.mcp.json`、`.npmrc`、`SOUL.md`、`USER.md`，以及 Agent HOME 的 shell 启动文件与 `.npmrc` 也受保护。受保护只管修改，读取不询问。
 - 未设置时（本机开发）所有角色共用一个目录，行为与之前一致。
@@ -60,7 +63,7 @@ Claude Code / Codex 的 JSON 输出
   → AgentUX 事件 → 现有组件
 ```
 
-三个引擎走同一条渲染链路，界面不区分引擎。进程管理在 `src/pi/cliHarness.ts`，控制器分支在 `piHost.ts` 的 `runCliPrompt`。
+Pi、Claude Code、Codex 和可选 DSH 走同一条事件渲染链路。Claude/Codex 进程管理在 `src/pi/cliHarness.ts`，DSH ACP 接入在 `dshHarness.ts` / `dshProtocol.ts`，控制器统一由 `piHost.ts` 分流。
 
 | 项 | Claude Code | Codex CLI |
 | --- | --- | --- |
@@ -113,7 +116,7 @@ Claude Code / Codex 的 JSON 输出
 - bot 进程内的 gateway 只允许单轮固定 provider/model 路由，禁止转发重定向，token 结束撤销；默认 100 次请求、30 分钟有效期。云端只支持已配置的 HTTPS OpenAI-compatible / Anthropic 服务。本机的其他 Pi 协议、三引擎 HTTP 服务与 CLI 登录模式保持原路径，因此不声称有代理请求次数上限或真实 key 隔离。
 - Agent UID 的 IPv4/IPv6 直连、DNS 与 bot HTTP 端口均被防火墙拒绝；仅 loopback gateway 开放。原生 ACL 另拒绝 Agent 遍历 `/run/dbus`、`/run/systemd`，避免借系统 DNS 服务联网；每次启动 Agent 检查 ACL，丢失即拒绝执行。包下载允许 `registry.npmjs.org`、`pypi.org`、`files.pythonhosted.org` 的 CONNECT，校验 TLS ClientHello SNI、公网 IP，拒绝 ECH 与不匹配握手。任意网页访问、其他下载源默认不可用，确有任务需求时再显式扩域。
 - 联网工具（ADR-034）：三个引擎都有 `web_search`（Tavily）和 `web_fetch`，由 bot 进程执行，Agent UID 的防火墙不变。读取只到公网地址（连接时检查、跳转重检），只回文本；归为只读，不经审批。`TAVILY_API_KEY` 只在 bot 环境。Claude Code 自带 WebSearch/WebFetch、Codex 自带 web_search 均关闭。
-- 浏览器（ADR-040）：headless shell 跑在独立的 `raytone-browser` UID，只能连 bot 的出站代理（127.0.0.1:5191，只到公网 80/443）并在 CDP 端口 5192 回包；配置与下载目录 0700。浏览器工具的审批由 bot 的页面快照判定：读取不问；普通点击/输入/GET 搜索为 `mutating`；用户接管登录过的站点上的写操作为 `connector`，「总是允许」按站点记忆；发送/支付/购买/删除/同意/cookie 横幅、POST 提交、快照不认识的元素为 `outward`；向密码、验证码、卡号字段输入为 `secret`（worker 执行时再检查一次）。下载经大小与文件头检查后写入 Agent 工作区 `downloads/`，可执行文件不保留。
+- 浏览器（ADR-040，含后续有界面模式）：默认使用 Chromium headless shell；AgentSphere 部署可选完整 Chromium + Xvfb（`--headed-browser`），模式在重部署时保留，两种模式都由独立的 `raytone-browser` UID 运行，只能连 bot 的出站代理（127.0.0.1:5191，只到公网 80/443）并在 CDP 端口 5192 回包；配置与下载目录 0700。浏览器工具的审批由 bot 的页面快照判定：读取不问；普通点击/输入/GET 搜索为 `mutating`；用户接管登录过的站点上的写操作为 `connector`，「总是允许」按站点记忆；发送/支付/购买/删除/同意/cookie 横幅、POST 提交、快照不认识的元素为 `outward`；向密码、验证码、卡号字段输入为 `secret`（worker 执行时再检查一次）。下载经大小与文件头检查后写入 Agent 工作区 `downloads/`，可执行文件不保留。
 - 白名单代理不解密 TLS，不是 DLP：不能保证阻止白名单站点上传或站点支持的 HTTP Host 域名前置。三个角色和并行任务仍共享 Agent UID，可以访问彼此的工作区与临时 token；当前范围是单用户 bot 与 Agent 的隔离，不是多租户或逐任务隔离。
 - macOS 开发不创建系统用户或防火墙，不具备以上硬边界。生产实例未更新之前仍保留旧架构风险。新 UID/原生会话目录已在两个独立 Linux 测试实例间完成恢复演练，三个引擎续接通过；具体范围见 [08](08-acceptance.md) G 组。
 

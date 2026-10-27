@@ -11,6 +11,7 @@ import { AGENT_PRESETS } from "./harnessCatalog.ts";
 import { createConversationStore } from "./conversationStore.ts";
 import { attachGroupChat } from "./groupChat.ts";
 import { UserInputGate } from "./userInputGate.ts";
+import { delegationConversationPrefix } from "./groupDelegation.ts";
 
 const groupId = "group_lifecycle";
 const childId = `${groupId}.m.assistant`;
@@ -717,6 +718,60 @@ test("a persistent disk failure reports an accepted group's missing terminal wit
     assert.equal(controller.getConversation(groupId)?.activeRunId, undefined);
     rmSync(blocked, { recursive: true });
     await assert.rejects(controller.runGroupPrompt(input("accepted-disk-failure"), () => {}), /already.*submitted/i);
+    assert.equal(bridge.calls.length, 1);
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("resetting a group clears member and delegation sessions, including departed members, before a fresh turn", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-group-reset-children-"));
+  const store = createConversationStore(dataDir), bridge = controlledBridges(), resetIds: string[] = [];
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: async context => {
+    const session = await bridge.factory(context);
+    session.newSession = async () => { resetIds.push(decodeURIComponent(context.sessionDir!.split("/").pop()!)); };
+    return session;
+  } });
+  try {
+    await controller.runGroupPrompt(input("before-reset"), () => {});
+    const children = [childId, `${groupId}.m.departed`, `${delegationConversationPrefix(groupId)}old-task`];
+    for (const id of children) {
+      store.begin(id, "assistant", "OLD CONTEXT");
+      store.setPiSession(id, "old-pi-session");
+      store.setCliSession(id, { harness: "codex", id: "old-native-session" });
+    }
+    store.begin("unrelated.m.assistant", "assistant", "keep");
+    await controller.newSession(groupId);
+    assert.ok(children.every(id => resetIds.includes(id)), "all owned native sessions must be reset");
+    assert.equal(resetIds.at(-1), groupId, "clear the parent only after its children reset successfully");
+    for (const id of [...children, groupId]) assert.equal(controller.getConversation(id), undefined);
+    assert.ok(controller.getConversation("unrelated.m.assistant"));
+    await controller.runGroupPrompt(input("after-reset"), () => {});
+    assert.ok(controller.getConversation(childId)!.events.every(event => !event.runId?.includes("before-reset")));
+    assert.notEqual(controller.getConversation(childId)?.cliSession?.id, "old-native-session");
+  } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("a failed child reset preserves the parent record and rejects a waiting group turn", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-group-child-reset-failure-"));
+  const bridge = controlledBridges();
+  let entered = false, fail!: (error: Error) => void;
+  const work = new Promise<void>((_, reject) => { fail = reject; });
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: async context => {
+    const session = await bridge.factory(context);
+    if (decodeURIComponent(context.sessionDir!.split("/").pop()!) === childId) {
+      session.newSession = async () => { entered = true; await work; };
+    }
+    return session;
+  } });
+  try {
+    await controller.runGroupPrompt(input("before-child-reset"), () => {});
+    const before = structuredClone(controller.getConversation(groupId)!.events);
+    const resetting = controller.newSession(groupId);
+    await until(() => entered);
+    const waiting = controller.runGroupPrompt(input("waiting-for-reset"), () => {});
+    const rejected = Promise.all([assert.rejects(resetting, /child reset failed/), assert.rejects(waiting, /child reset failed/)]);
+    fail(new Error("child reset failed"));
+    await rejected;
+    assert.deepEqual(controller.getConversation(groupId)!.events, before);
     assert.equal(bridge.calls.length, 1);
   } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
 });

@@ -1,11 +1,31 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_BOTS } from "./botAppearance.ts";
-import { conversationBotId, parseBotProfiles, resolveBotProfiles, updateBotProfile, type BotProfile } from "./botProfiles.ts";
+import { botModelConfiguration, conversationBotId, parseBotProfiles, resolveBotProfiles, updateBotProfile, type BotProfile } from "./botProfiles.ts";
+import { project } from "../exported-project.ts";
+import { DEFAULT_AGENT_SETTINGS } from "../pi/harnessCatalog.ts";
 import { groupSessionHistory } from "./useSessionHistoryGroups.ts";
 import { mentionMatches, applyMention } from "./mentionCompletion.ts";
 
 const custom: BotProfile = { id: "bot_12345678-1234-1234-1234-123456789abc", presetId: "assistant", name: "  Muse  ", appearance: DEFAULT_BOTS.boy };
+
+test("display and submission use the Bot override without changing defaults or falling back from disabled services", () => {
+  const original = structuredClone(project.providers);
+  const settings = { ...DEFAULT_AGENT_SETTINGS, presetId: "planner" as const, claudeCodeModelSource: "local-login" as const };
+  const bot = { ...custom, presetId: "planner" as const, model: { provider: "openai", model: "bot-specific-model" } };
+  const selected = botModelConfiguration(project, settings, bot);
+  assert.equal(selected.providerId, "openai");
+  assert.equal(selected.model, "bot-specific-model");
+  assert.equal(selected.provider?.defaultModel, "bot-specific-model");
+  assert.equal(selected.provider?.enabled, false, "disabled overrides remain identifiable, never silently fall back");
+  assert.equal(selected.settings.claudeCodeModelSource, "provider");
+  assert.equal(botModelConfiguration(project, settings, { ...bot, model: { provider: "missing", model: "missing-model" } }).provider, undefined);
+  const inherited = botModelConfiguration(project, settings, custom);
+  assert.equal(inherited.providerId, "deepseek");
+  assert.equal(inherited.model, "deepseek-flash");
+  assert.equal(inherited.settings.claudeCodeModelSource, "local-login");
+  assert.deepEqual(project.providers, original);
+});
 
 test("independent persona, model and capabilities survive save/restore without changing legacy defaults", () => {
   const configured = { ...custom, role: "  Product researcher ", personality: "Direct\nand patient", instructions: "Cite primary sources.",

@@ -100,6 +100,7 @@ import {
   agentPreset,
   anthropicBaseUrlForProvider,
   isAgentPresetId,
+  settingsUseProvider,
   type AgentHarnessId,
   type AgentPresetId,
 } from "./harnessCatalog.ts";
@@ -444,7 +445,14 @@ export function createPiRuntimeController(options: {
   /** Provider definitions and session keys from settings, for CLI harnesses that need them. */
   const providerStore = options.providers ?? new ProviderStore();
   const providerDefinitions = new Map<string, PiProviderDefinition>();
-  try { for (const p of providerStore.view().providers?.connections ?? []) providerDefinitions.set(p.id, piRuntimeConfigurationForProvider(p).providerDefinition!); } catch { /* Exposed by the settings endpoint; do not overwrite damaged storage. */ }
+  try { for (const p of providerStore.view().providers?.connections ?? []) if (p.enabled) providerDefinitions.set(p.id, piRuntimeConfigurationForProvider(p).providerDefinition!); } catch { /* Exposed by the settings endpoint; do not overwrite damaged storage. */ }
+  // Saved settings are authoritative even when an older IM/routine/browser carries a definition.
+  // Before the first save, runtime configuration remains the source of provider definitions.
+  const requireEnabledProvider = (providerId?: string) => {
+    if (!providerId) return;
+    const saved = providerStore.view().providers?.connections.find(p => p.id === providerId);
+    if (saved && !saved.enabled) throw new Error(`${saved.label} model service is disabled. Enable it in settings or choose another model service.`);
+  };
   const providerKeys = new Map<string, string>();
   const hostCredentialConversations = new Set<string>();
   const resolveProviderKey = (definition: PiProviderDefinition, conversationId?: string) => definition.authMode === "none" ? undefined
@@ -537,6 +545,7 @@ export function createPiRuntimeController(options: {
 
   /** A provider definition plus the key to reach it: the session key, else the host's env var. */
   const providerCredentials = (providerId?: string, conversationId?: string) => {
+    requireEnabledProvider(providerId);
     const definition = providerId ? providerDefinitions.get(providerId) : undefined;
     if (!definition) return undefined;
     const apiKey = resolveProviderKey(definition, conversationId);
@@ -553,9 +562,9 @@ export function createPiRuntimeController(options: {
   };
   /** Summarizes a new conversation's first prompt with the turn's own model service. */
   const titleConversation = async (id: string, createdAt: number, input: PiPromptInput, prompt: string) => {
-    const credentials = providerCredentials(input.provider, id);
-    if (!credentials || (credentials.definition.authMode !== "none" && !credentials.apiKey)) return;
     try {
+      const credentials = providerCredentials(input.provider, id);
+      if (!credentials || (credentials.definition.authMode !== "none" && !credentials.apiKey)) return;
       const title = await summarizeConversationTitle(credentials.definition, credentials.apiKey,
         input.model ?? credentials.definition.models[0], prompt);
       if (title) applyTitle(id, createdAt, title);
@@ -579,6 +588,7 @@ export function createPiRuntimeController(options: {
   };
 
   const claudeProvider = (providerId?: string, model?: string, engine = "Claude Code", conversationId?: string) => {
+    requireEnabledProvider(providerId);
     const definition = providerId ? providerDefinitions.get(providerId) : undefined;
     if (!definition) {
       throw new Error(`${engine} has no model service configured. Save the model service in settings.`);
@@ -600,6 +610,7 @@ export function createPiRuntimeController(options: {
     modelPrompt: string,
   ) => {
     const current = await bridge(conversationId);
+    requireEnabledProvider(input.provider ?? (await current.state()).provider);
     current.setRolePrompt?.(rolePrompt(isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant", layout, { sandboxed, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }));
     const approvalGate = gateFor(conversationId);
     approvalGate.setCwd(cwd);
@@ -873,6 +884,8 @@ export function createPiRuntimeController(options: {
       for (let op = sessionOp(conversationId); op; op = sessionOp(conversationId)) await op.catch(() => undefined);
       idle();
       await track(configuring, conversationId, (async () => {
+        requireEnabledProvider(input.provider);
+        if (input.providerDefinition) requireEnabledProvider(input.providerDefinition.id);
         if (input.providerDefinition) providerDefinitions.set(input.providerDefinition.id, input.providerDefinition);
         if (input.credentialSource === "host") hostCredentialConversations.add(conversationId);
         else if (input.apiKey) hostCredentialConversations.delete(conversationId);
@@ -993,6 +1006,10 @@ export function createPiRuntimeController(options: {
         }
         const saved = store.get(conversationId);
         if (botConfig) input = botConfig.input(input, saved);
+        if (settingsUseProvider({ presetId: input.agentPreset ?? role,
+          claudeCodeModelSource: input.claudeCodeModelSource ?? "provider", codexModelSource: input.codexModelSource ?? "provider" })) {
+          requireEnabledProvider(input.provider);
+        }
         const identity = resolveBotIdentity(role, input, botConfig ? { botId: saved?.botId } : saved);
         input = { ...input, botId: identity.botId, availableBots: identity.availableBots };
         slot.turn = input;
@@ -1093,7 +1110,7 @@ export function createPiRuntimeController(options: {
     refreshProviders() {
       providerKeys.clear();
       providerDefinitions.clear();
-      for (const p of providerStore.view().providers?.connections ?? []) providerDefinitions.set(p.id, piRuntimeConfigurationForProvider(p).providerDefinition!);
+      for (const p of providerStore.view().providers?.connections ?? []) if (p.enabled) providerDefinitions.set(p.id, piRuntimeConfigurationForProvider(p).providerDefinition!);
       for (const id of bridgePromises.keys()) dropBridge(id);
     },
     async testProvider(definition, apiKey) {

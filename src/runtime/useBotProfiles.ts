@@ -6,7 +6,7 @@ import { BOT_PROFILES_KEY, legacyBotImport, parseBotProfiles, resolveBotProfiles
 const listeners = new Set<() => void>();
 type State = { store: BotProfileStore; profiles: BotProfile[]; revision?: number; error?: string };
 let state: State | undefined;
-let loading: Promise<void> | undefined;
+let loading: Promise<State> | undefined;
 let imported = false;
 let stopWatching: (() => void) | undefined;
 function local(key: string) { try { return localStorage.getItem(key); } catch { return null; } }
@@ -28,7 +28,7 @@ function accept(view: BotConfigView) {
   try { if (view.revision > 0) localStorage.setItem(BOT_PROFILES_KEY, JSON.stringify({ ...store, source: "server" })); } catch { /* The host saved it. */ }
   emit();
 }
-export function syncBotProfiles(): Promise<void> {
+export function syncBotProfiles(): Promise<State> {
   if (loading) return loading;
   loading = (async () => {
     try {
@@ -37,6 +37,7 @@ export function syncBotProfiles(): Promise<void> {
         accept(await importBotConfig(legacy.profiles, legacy.conversations));
       } else accept(await listBotConfig());
       imported = true;
+      return snapshot();
     } catch (error) {
       state = { ...snapshot(), error: error instanceof Error ? error.message : String(error) };
       emit();

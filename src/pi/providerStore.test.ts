@@ -6,9 +6,52 @@ import { join } from 'node:path';
 import { project } from '../exported-project.ts';
 import { piRuntimeConfigurationForProvider } from './piProviderSync.ts';
 import { ProviderStore } from './providerStore.ts';
-import { createPiHttpHost } from './piHost.ts';
+import { createPiHttpHost, createPiRuntimeController } from './piHost.ts';
+import { BotConfigStore } from './botConfig.ts';
+import { DEFAULT_NEW_BOT } from '../runtime/botAppearance.ts';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { scrubSecretEnv } from './runtime/childEnv.ts';
+
+test('disabling a saved provider blocks Bot overrides and stale runtime configurations before engine execution', async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rtb-disabled-provider-'));
+  const providers = structuredClone(project.providers);
+  const provider = providers.connections.find(p => p.id === 'openai')!;
+  provider.enabled = true;
+  provider.baseUrl = 'http://127.0.0.1:1/v1';
+  const definition = piRuntimeConfigurationForProvider(provider).providerDefinition!;
+  const store = new ProviderStore();
+  store.save(providers, { openai: 'dummy-disabled-key' }, [], 0);
+  const bots = new BotConfigStore();
+  bots.save({ id: 'assistant', name: 'Raer', presetId: 'assistant', appearance: DEFAULT_NEW_BOT,
+    model: { provider: 'openai', model: provider.defaultModel } }, 0);
+  const configured: unknown[] = [], prompted: string[] = [];
+  const controller = createPiRuntimeController({ cwd: dir, dataDir: dir, providers: store, bots,
+    bridgeFactory: async () => ({ subscribe: () => () => {}, state: async () => ({ provider: 'openai', models: [], tools: [] }),
+      configure: async value => { configured.push(value); }, prompt: async prompt => { prompted.push(prompt); },
+      newSession: async () => {}, abort: async () => {}, dispose() {} }),
+  });
+  try {
+    await controller.configure({ conversationId: 'cached', provider: 'openai', providerDefinition: definition });
+    provider.enabled = false;
+    store.save(providers, {}, [], 1);
+    controller.refreshProviders!();
+    configured.length = 0;
+    await assert.rejects(controller.runPrompt({ conversationId: 'cached', prompt: 'Use my Bot model', provider: 'deepseek', model: 'deepseek-flash' }, () => {}), /OpenAI.*disabled/i);
+    assert.deepEqual(prompted, [], 'the saved Bot override must not bypass provider disablement');
+    assert.deepEqual(configured, [], 'a disabled service must not supply credentials to an engine');
+    await assert.rejects(controller.configure({ conversationId: 'stale', provider: 'openai', providerDefinition: definition,
+      credentialSource: 'host' }), /disabled/i, 'IM and routine snapshots cannot re-enable a service');
+    provider.auth.mode = 'none';
+    store.save(providers, {}, [], 2);
+    controller.refreshProviders!();
+    await assert.rejects(controller.configure({ provider: 'openai', providerDefinition: { ...definition, authMode: 'none' } }), /disabled/i);
+    bots.save({ ...bots.require('assistant'), model: undefined }, 1);
+    const events: any[] = [];
+    await controller.runPrompt({ conversationId: 'sdk-default', prompt: 'Use the engine default' }, event => events.push(event));
+    assert.deepEqual(prompted, [], 'an SDK-selected default cannot bypass the saved switch either');
+    assert.match(JSON.stringify(events), /OpenAI.*disabled/i);
+  } finally { controller.dispose(); rmSync(dir, { recursive: true, force: true }); }
+});
 
 test('provider save rejects a run started while its request body is still arriving', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'rtb-provider-save-race-'));

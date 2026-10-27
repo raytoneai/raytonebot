@@ -7,15 +7,17 @@ import type { HostToolSpec } from "./mcpServers.ts";
 import type { PiRuntimeController } from "./piHost.ts";
 import type { PiPromptInput, PiProviderDefinition } from "./piClient.ts";
 import { redactCredentials } from "./imChannels/redactCredentials.ts";
+import { visibleConversationText } from "./conversationSearch.ts";
 
 export const GROUP_DELEGATION_TOOL_SPECS: HostToolSpec[] = [
   { name: "delegate_task", description: "Delegate one bounded, independent read-only task to another joined group member. Returns immediately with a task id; the group can keep talking. The delegate cannot delegate, change files, run commands, use browser/account tools, or external MCP tools. Use only when delegation helps the user's current request. At most four tasks per request and four active in this group. Results arrive in the group's existing assignment records and history. Never silently retry uncertain work.",
     inputSchema: { type: "object", additionalProperties: false, properties: {
       memberId: { type: "string", minLength: 1, maxLength: 80 }, task: { type: "string", minLength: 1, maxLength: 2000 },
     }, required: ["memberId", "task"] } },
-  { name: "group_tasks", description: "Inspect this group's bounded delegated-task status and results, or request cancellation of one task by taskId. Cancelled tasks ignore late results. A needs_review task was interrupted by a restart; do not replay it automatically.",
+  { name: "group_tasks", description: "Inspect this group's bounded delegated-task status and result summaries, or request cancellation of one task by taskId. To read a completed task's full public answer, supply taskId and offset: 0, then follow nextOffset until null. Pages contain at most 2000 characters and exclude reasoning and tools. Cancelled tasks ignore late results. A needs_review task was interrupted by a restart; do not replay it automatically.",
     inputSchema: { type: "object", additionalProperties: false, properties: {
       taskId: { type: "string", minLength: 1, maxLength: 80 }, cancel: { type: "boolean", default: false },
+      offset: { type: "integer", minimum: 0 }, limit: { type: "integer", minimum: 1, maximum: 2000, default: 2000 },
     } } },
 ];
 
@@ -126,10 +128,26 @@ export function createGroupDelegation(deps: {
           const input = args as Record<string, unknown>, meta = group(origin.groupId);
           if (meta.hostId !== origin.hostId) throw new Error("Only the current group host can manage delegation.");
           if (name === "group_tasks") {
-            if (Object.keys(input).some(key => !["taskId", "cancel"].includes(key)) || input.cancel !== undefined && typeof input.cancel !== "boolean") throw new Error("Invalid group_tasks arguments.");
+            if (Object.keys(input).some(key => !["taskId", "cancel", "offset", "limit"].includes(key)) || input.cancel !== undefined && typeof input.cancel !== "boolean") throw new Error("Invalid group_tasks arguments.");
             if (input.taskId !== undefined && (typeof input.taskId !== "string" || input.taskId.length > 80)) throw new Error("Invalid task id.");
             const tasks = (meta.tasks ?? []).filter(task => task.kind === "delegation" && (input.taskId === undefined || task.id === input.taskId));
             if (input.taskId !== undefined && !tasks.length) throw new Error("No delegated task with that id in this group.");
+            if (input.offset !== undefined || input.limit !== undefined) {
+              const offset = input.offset, limit = input.limit ?? 2000;
+              if (input.cancel || typeof input.taskId !== "string" || typeof offset !== "number" || !Number.isSafeInteger(offset) || offset < 0
+                || typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > 2000) throw new Error("Reading a result requires taskId, a non-negative offset and limit 1-2000; it cannot cancel a task.");
+              const task = tasks[0];
+              if (task.status !== "completed") throw new Error("Only confirmed completed tasks have readable full output.");
+              if (!task.runId || !task.conversationId?.startsWith(delegationConversationPrefix(origin.groupId))) throw new Error("Delegated result is no longer available.");
+              const saved = deps.store.get(task.conversationId);
+              if (!saved) throw new Error("Delegated result is no longer available.");
+              const output = redactCredentials(visibleConversationText(saved.events)
+                .filter(message => message.runId === task.runId && message.role === "assistant").map(message => message.text).join("\n\n"));
+              if (offset > output.length) throw new Error("Result offset exceeds the output length.");
+              const end = Math.min(output.length, offset + limit);
+              return { text: JSON.stringify({ taskId: task.id, offset, output: output.slice(offset, end),
+                nextOffset: end < output.length ? end : null, totalCharacters: output.length }), isError: false };
+            }
             if (input.cancel) {
               if (typeof input.taskId !== "string") throw new Error("Cancelling requires one taskId.");
               return { text: JSON.stringify({ taskId: input.taskId, cancelled: await cancel(origin.groupId, input.taskId) }), isError: false };

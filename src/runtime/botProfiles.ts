@@ -1,4 +1,5 @@
-import { DEFAULT_BOT_NAMES, isAgentPresetId, type AgentPresetId } from "../pi/harnessCatalog.ts";
+import { DEFAULT_BOT_NAMES, isAgentPresetId, type AgentPresetId, type AgentSettings } from "../pi/harnessCatalog.ts";
+import { defaultProviderConnection, type AgentFrontendProject } from "../schema/agentuxConfig.ts";
 import { DEFAULT_BOTS, parseBotAppearance, parseBotAppearances, type BotAppearance, type BotAppearances, type BotKind } from "./botAppearance.ts";
 
 export type BotProfile = {
@@ -11,6 +12,16 @@ export type BotProfile = {
 };
 export type BotConfigView = { revision: number; profiles: BotProfile[] };
 export type BotProfileStore = { profiles: BotProfile[]; conversations: Record<string, string> };
+
+/** Shared by the live model display and submission; missing/disabled overrides never fall back. */
+export function botModelConfiguration(project: AgentFrontendProject, settings: AgentSettings, bot?: Pick<BotProfile, "model">) {
+  const override = bot?.model;
+  const connection = override ? project.providers.connections.find(provider => provider.id === override.provider) : defaultProviderConnection(project);
+  const model = override?.model ?? connection!.defaultModel;
+  return { provider: connection ? { ...connection, defaultModel: model } : undefined,
+    providerId: override?.provider ?? connection!.id, model,
+    settings: override ? { ...settings, claudeCodeModelSource: "provider" as const, codexModelSource: "provider" as const } : settings };
+}
 export const BOT_PROFILES_KEY = "raytone.bot-profiles.v1";
 export const BOT_KINDS = { assistant: "woman", planner: "man", builder: "boy", dsh: "woman" } as const satisfies Record<AgentPresetId, BotKind>;
 export const BOT_NAMES = DEFAULT_BOT_NAMES;

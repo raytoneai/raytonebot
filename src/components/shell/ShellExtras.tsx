@@ -79,7 +79,8 @@ export type ShellExtras = {
   /** Composer placeholder naming the current agent. */
   composerPlaceholder?: string;
   /** One model-menu choice is one host transaction; legacy previews keep their callbacks. */
-  providerSelection?: { onChange: (providerId: ProviderConnectionId, model: string) => void; error?: string };
+  providerSelection?: { onChange: (providerId: ProviderConnectionId, model: string) => void; error?: string;
+    selected?: { providerId: string; model: string } };
   /** Live work above the input; an empty persona leaves a stable, quiet gap after completion. */
   composerActivity?: { scope: string; persona?: AgentPersona };
   /** Group chat: members the composer offers after "@", in group order. */
@@ -297,7 +298,7 @@ export function HeaderAgent({
                     role="radio"
                     key={value}
                     aria-checked={source === value}
-                    disabled={disabled}
+                    disabled={disabled || Boolean(bot?.model)}
                     onClick={() => onChange({ ...settings, [sourceKey]: value })}
                   >
                     {value === "provider"
@@ -309,6 +310,7 @@ export function HeaderAgent({
             </div>
           ) : null}
           {preset.harness === "codex" ? <p className="shell-popover-note">{roleCopy.codexModelNote}</p> : null}
+          {bot?.model && onEditBot ? <button type="button" className="shell-popover-link" onClick={() => onEditBot(bot)}>{t.agents.botModel}</button> : null}
           {sourceKey ? <button type="button" className="shell-popover-link" onClick={onManageProviders}>{t.shell.manageProviders}</button> : null}
         </RadixPopover.Content>
       </RadixPopover.Portal>

@@ -246,12 +246,14 @@ export function ComposerFrame({
   const hasToolsAfterUpload = Boolean(project.composer.thinkingBudget || project.composer.modelSwitcher);
   const enabledProviders = enabledProviderConnections(project);
   const defaultProvider = defaultProviderConnection(project);
-  const modelValues = modelOptions.includes(defaultProvider.defaultModel)
-    ? modelOptions
-    : [defaultProvider.defaultModel, ...modelOptions];
-  const providerModelValue = `${defaultProvider.id}::${defaultProvider.defaultModel}`;
+  const selectedProviderId = providerSelection?.selected?.providerId ?? defaultProvider.id;
+  const selectedModel = providerSelection?.selected?.model ?? defaultProvider.defaultModel;
+  const selectedOptions = providerSelection?.selected
+    ? project.providers.connections.find(provider => provider.id === selectedProviderId)?.models ?? [] : modelOptions;
+  const modelValues = selectedOptions.includes(selectedModel) ? selectedOptions : [selectedModel, ...selectedOptions];
+  const providerModelValue = `${selectedProviderId}::${selectedModel}`;
   const providerModelOptions = enabledProviders.flatMap((provider) => {
-    const providerModels = provider.id === defaultProvider.id
+    const providerModels = provider.id === selectedProviderId
       ? modelValues
       : (provider.models.length > 0 ? provider.models : [provider.defaultModel]);
     return providerModels.map((model) => ({
@@ -736,7 +738,7 @@ export function ComposerFrame({
                 <>
                   <Sparkles className="provider-model-icon" size={15} aria-hidden="true" />
                   <span className="provider-model-summary">
-                    <em>{defaultProvider.defaultModel}</em>
+                    <em>{selectedModel}</em>
                   </span>
                   <ChevronRight className="composer-menu-chevron" size={14} aria-hidden="true" />
                 </>
@@ -756,7 +758,7 @@ export function ComposerFrame({
                     disabled={restoringDrafts}
                   >
                     {project.composer.modelSwitcher ? (
-                      <span className="combined-model-budget-model">{defaultProvider.defaultModel}</span>
+                      <span className="combined-model-budget-model">{selectedModel}</span>
                     ) : null}
                     {project.composer.thinkingBudget ? (
                       <span className="combined-model-budget-budget">{selectedBudget.label}</span>
@@ -768,7 +770,7 @@ export function ComposerFrame({
                     <DropdownMenuSub>
                       <DropdownMenuSubTrigger className="combined-model-budget-summary-item">
                         <span className="combined-model-budget-row-label">{copy.composer.frame.model}</span>
-                        <span className="combined-model-budget-row-value">{defaultProvider.defaultModel}</span>
+                        <span className="combined-model-budget-row-value">{selectedModel}</span>
                         <ChevronRight className="composer-menu-chevron" size={14} aria-hidden="true" />
                       </DropdownMenuSubTrigger>
                       <DropdownMenuSubContent className="combined-model-budget-menu combined-model-budget-submenu" sideOffset={8}>

@@ -11,7 +11,7 @@ import {
   type OutputPanelOpenRequest,
 } from "./components/agent-preview/outputframe/panelItem";
 import { useBotProfiles, bindBotConversation, forgetBotConversation, saveBotProfile, syncBotProfiles } from "./runtime/useBotProfiles";
-import { BOT_NAMES, conversationBotId, type BotProfile } from "./runtime/botProfiles";
+import { BOT_NAMES, botModelConfiguration, conversationBotId, type BotProfile } from "./runtime/botProfiles";
 import { DEFAULT_NEW_BOT } from "./runtime/botAppearance";
 import type { BotEditorState } from "./components/shell/BotEditor";
 import type { SettingsSectionId } from "./components/settings/SettingsDialog";
@@ -383,7 +383,11 @@ export function AgentApp() {
     }),
     [configuredProject, outputSource, streamId, activityPreview, enabledSlots],
   );
-  /** IM chats run on the default model service; its definition (never a key) is saved with them. */
+  const modelBot = streamId || isGroupConversation(activePiConversation) ? undefined : activeBot;
+  const activeModel = botModelConfiguration(activeProject, agentSettings, modelBot);
+  const modelUnavailable = settingsUseProvider(activeModel.settings) && !activeModel.provider?.enabled
+    ? settingsCopy[locale].agents.modelUnavailable : undefined;
+  /** IM chats inherit this service unless their host-owned Bot overrides it; never save a key here. */
   const channelModel = useMemo(() => {
     const config = piRuntimeConfigurationForProvider(defaultProviderConnection(configuredProject));
     return config.providerDefinition && config.model ? { definition: config.providerDefinition, model: config.model } : undefined;
@@ -750,8 +754,10 @@ export function AgentApp() {
     projectSnapshot = activeProject,
     conversationId = activePiConversationId,
     signal?: AbortSignal,
+    bot?: Pick<BotProfile, "model">,
   ) {
-    const provider = defaultProviderConnection(projectSnapshot);
+    const { provider } = botModelConfiguration(projectSnapshot, agentSettings, bot);
+    if (!provider?.enabled) throw new Error(settingsCopy[locale].agents.modelUnavailable);
     const state = await configurePiRuntime(
       {
         ...piRuntimeConfigurationForProvider(provider, sessionKeys[provider.id]),
@@ -832,7 +838,6 @@ export function AgentApp() {
     const isGroup = isGroupConversation(target);
     // Synchronous guard: state updates land later, so a double submit could slip past `piRunning`.
     if (piAbortRefs.current.has(conversationId)) return false;
-    const provider = defaultProviderConnection(activeProject);
     const controller = new AbortController();
     piAbortRefs.current.set(conversationId, controller);
     preparingPiRefs.current.add(conversationId);
@@ -873,18 +878,20 @@ export function AgentApp() {
       showIfActive(conversation);
     });
     try {
-      await syncBotProfiles();
+      const syncedBots = await syncBotProfiles();
       // Reopening and reattaching share this load; a new turn never starts from an empty stub.
       if (nextConversation.stored && nextConversation.events.length === 0) {
         nextConversation = await loadStoredConversation(nextConversation);
         turnStartEventCount = nextConversation.events.length;
       }
       if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
+      const botId = nextConversation.groupHostId ?? conversationBotId(syncedBots.store, nextConversation) ?? presetId;
+      const targetBot = syncedBots.profiles.find(bot => bot.id === botId);
+      const model = botModelConfiguration(activeProject, { ...agentSettings, presetId }, isGroup ? undefined : targetBot);
       setPiConversations((current) => replacePiConversation(current, nextConversation));
       showIfActive(nextConversation);
-      // Codex and a locally logged-in Claude Code bring their own model; only roles that run
-      // on the configured model service need it registered (and its key handed over) first.
-      if (isGroup || settingsUseProvider({ ...agentSettings, presetId })) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal);
+      // CLI local-login runs bring their own model unless the Bot has a provider override.
+      if (isGroup || settingsUseProvider(model.settings)) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal, isGroup ? undefined : targetBot);
       const attachments: PiPromptAttachment[] = [];
       const referencedConversationIds: string[] = [];
       const attachmentScope = isGroup ? "shared" : presetId;
@@ -909,20 +916,20 @@ export function AgentApp() {
       for await (const event of (isGroup ? runGroupTurn : runPiTurn)({
         ...(isGroup ? { members: groupMembersOf(nextConversation) } : {}),
         conversationId: nextConversation.id,
-        botId: conversationBotId(botStore, nextConversation) ?? activeBot.id,
-        availableBots: knownBots.map(({ id, name, presetId }) => ({ id, name, presetId })),
+        botId,
+        availableBots: syncedBots.profiles.map(({ id, name, presetId }) => ({ id, name, presetId })),
         requestId: runId,
         artifactSubmission: queued?.artifactSubmission,
         prompt: normalizedPrompt,
         attachments,
         referencedConversationIds,
-        provider: provider.id,
-        model: provider.defaultModel,
+        provider: model.providerId,
+        model: model.model,
         thinkingLevel: context?.budgetMode === "fast" ? "low" : context?.budgetMode === "expert" ? "high" : "medium",
         permissionMode: context?.permissionMode ?? "request",
         agentPreset: presetId,
-        claudeCodeModelSource: agentSettings.claudeCodeModelSource,
-        codexModelSource: agentSettings.codexModelSource,
+        claudeCodeModelSource: model.settings.claudeCodeModelSource,
+        codexModelSource: model.settings.codexModelSource,
         locale,
       }, { signal: controller.signal })) {
         if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
@@ -1178,8 +1185,14 @@ export function AgentApp() {
     providerSelectionPending.current = true;
     setProviderSelectionError(undefined);
     try {
-      await saveProviders(nextProject.providers);
-      await synchronizePiRuntime(nextProject);
+      if (modelBot?.model) {
+        const bot = { ...modelBot, model: { provider: id, model: selectedModel } };
+        await saveBotProfile(bot, botRevision);
+        await synchronizePiRuntime(activeProject, activePiConversationId, undefined, bot);
+      } else {
+        await saveProviders(nextProject.providers);
+        await synchronizePiRuntime(nextProject);
+      }
     } catch (error) {
       setProviderSelectionError(error instanceof Error ? error.message : String(error));
     } finally { providerSelectionPending.current = false; }
@@ -1279,7 +1292,7 @@ export function AgentApp() {
     setPiEvents([]);
     void startNewPiSession(conversation.id)
       .then(setPiRuntimeState)
-      .then(() => synchronizePiRuntime(activeProject, conversation.id))
+      .then(() => synchronizePiRuntime(activeProject, conversation.id, undefined, group ? undefined : bot))
       .catch(() => undefined);
     setOutputPanelItems([]);
     setActiveOutputPanelItemId(undefined);
@@ -1364,7 +1377,8 @@ export function AgentApp() {
     setOutputPanelItems([]);
     setActiveOutputPanelItemId(undefined);
     setOutputModalOpen(false);
-    void synchronizePiRuntime(activeProject, conversation.id).catch(() => undefined);
+    const selectedBot = isGroupConversation(conversation) ? undefined : knownBots.find(bot => bot.id === conversationBotId(botStore, conversation));
+    void synchronizePiRuntime(activeProject, conversation.id, undefined, selectedBot).catch(() => undefined);
   }
 
   const slotContext: SlotRenderContext = {
@@ -1391,7 +1405,7 @@ export function AgentApp() {
     onExport: noop,
     onGitCommit: noop,
     onProviderChange: (id) => void selectProvider(id),
-    onModelChange: (model) => void selectProvider(defaultProviderConnection(activeProject).id, model),
+    onModelChange: (model) => { if (activeModel.provider) void selectProvider(activeModel.provider.id, model); },
     onApprovalDecision: approveLive,
     onCollapseLeft: () => setLeftCollapsed(true),
     onCollapseRight: () => setRightCollapsed(true),
@@ -1415,7 +1429,6 @@ export function AgentApp() {
     providerSettingsControl: undefined,
   };
 
-  const defaultProvider = defaultProviderConnection(activeProject);
   const changeComposerDraft = (update: (draft: ComposerDraft) => ComposerDraft) => {
     const conversation = { ...activePiConversation, agentPreset: agentSettings.presetId };
     if (activePiConversation.agentPreset !== conversation.agentPreset) {
@@ -1460,7 +1473,8 @@ export function AgentApp() {
   } : undefined;
   const shellExtras: ShellExtras = {
     chatReferences: streamId ? undefined : piConversations.filter(c => c.id !== activePiConversationId && c.stored && !c.id.includes(".m.")).map(c => ({ id: c.id, title: c.title })),
-    providerSelection: { onChange: (id, model) => void selectProvider(id, model), error: providerSelectionError },
+    providerSelection: { onChange: (id, model) => void selectProvider(id, model), error: providerSelectionError ?? modelUnavailable,
+      selected: { providerId: activeModel.providerId, model: activeModel.model } },
     bots: streamId ? undefined : knownBots,
     sessionBotIds: streamId ? undefined : botStore.conversations,
     onCreateBot: streamId ? undefined : () => {
@@ -1528,11 +1542,11 @@ export function AgentApp() {
     ) : (
       <HeaderAgent
         avatars={PRESET_AVATARS}
-        settings={agentSettings}
+        settings={activeModel.settings}
         bot={streamId ? undefined : activeBot}
         onEditBot={streamId ? undefined : editBot}
-        providerName={defaultProvider.label}
-        providerLabel={`${defaultProvider.label} (${defaultProvider.defaultModel})`}
+        providerName={activeModel.provider?.label ?? activeModel.providerId}
+        providerLabel={`${activeModel.provider?.label ?? activeModel.providerId} (${activeModel.model})${modelUnavailable ? ` — ${modelUnavailable}` : ""}`}
         onChange={changeAgentSettings}
         onManageProviders={() => openSettings("providers")}
       />

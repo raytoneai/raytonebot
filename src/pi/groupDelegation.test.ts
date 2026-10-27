@@ -5,6 +5,7 @@ import { join } from "node:path";
 import { test } from "node:test";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { createConversationStore } from "./conversationStore.ts";
+import { createPiEventAdapter } from "../harness/adapters/piAdapter.ts";
 import { createPiRuntimeController, type PiBridgeFactory } from "./piHost.ts";
 import { DEFAULT_PARTICIPANTS } from "./groupParticipants.ts";
 import { delegationConversationPrefix } from "./groupDelegation.ts";
@@ -28,7 +29,7 @@ function fixture() {
     introduced: ["assistant", guest.id], lines: [{ author: "user", text: "seed" }] } });
   const calls: string[] = [], released = new Map<string, () => void>(), delegatedSpecs: string[][] = [], nestedErrors: boolean[] = [];
   const accepted: { taskId: string }[] = [], rejected: string[] = [], statusResults: unknown[] = [], referencedChecks: boolean[] = [];
-  let count = 1, holdMain = false, checkInvalid = false, hostTools: HostTools | undefined;
+  let count = 1, holdMain = false, checkInvalid = false, resultText = "Actual delegated result.", hostTools: HostTools | undefined;
   const factory: PiBridgeFactory = async ({ sessionDir, hostTools: tools, approvalGate }) => {
     const id = decodeURIComponent(sessionDir!.split("/").pop()!);
     const delegated = id.startsWith(delegationConversationPrefix(groupId));
@@ -47,7 +48,7 @@ function fixture() {
           await new Promise<void>(resolve => released.set(id, resolve));
           // Deliberately sends text after abort too: the host/assignment identity must reject it.
           emit({ type: "message_update", assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: "private reasoning" } });
-          emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 1, delta: "Actual delegated result." } });
+          emit({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 1, delta: resultText } });
         } else {
           hostTools = tools;
           if (prompt.includes("delegate-now")) {
@@ -82,6 +83,7 @@ function fixture() {
   return { store, calls, released, accepted, rejected, statusResults, delegatedSpecs, nestedErrors, referencedChecks, tasks, request,
     get controller() { return controller; }, get hostTools() { return hostTools; },
     setCount(value: number) { count = value; }, setHoldMain(value: boolean) { holdMain = value; }, checkInvalid() { checkInvalid = true; },
+    setResult(value: string) { resultText = value; },
     releaseDelegates() { for (const [id, resolve] of released) if (id.startsWith(delegationConversationPrefix(groupId))) resolve(); },
     async restart() {
       controller.dispose();
@@ -96,6 +98,51 @@ function fixture() {
     },
   };
 }
+
+test("a completed delegate's entire public answer is readable in bounded pages after restart", async () => {
+  const f = fixture();
+  const full = "Evidence \"quoted\"\n".repeat(400) + "IMPORTANT FINAL CONCLUSION";
+  f.setResult(full);
+  let turn: Promise<void> | undefined;
+  try {
+    await f.request("long-result");
+    await until(() => f.released.size === 1);
+    f.releaseDelegates();
+    await until(() => f.tasks()[0].status === "completed" && !!f.tasks()[0].notifiedAt);
+    assert.equal(f.tasks()[0].resultTruncated, true);
+    const taskId = f.tasks()[0].id;
+    const unrelated = createPiEventAdapter({ runId: "unrelated-child-turn" });
+    unrelated.apply({ type: "message_start", message: { role: "assistant" } });
+    unrelated.apply({ type: "message_update", assistantMessageEvent: { type: "text_delta", contentIndex: 0, delta: "OTHER_RUN_MUST_NOT_LEAK" } });
+    unrelated.finish("success");
+    for (const event of unrelated.events) f.store.append(f.tasks()[0].conversationId!, event);
+    f.store.flush(f.tasks()[0].conversationId!);
+    await f.restart();
+    f.setHoldMain(true);
+    turn = f.request("read-result", "inspect-now");
+    await until(() => f.released.has(`${groupId}.m.assistant`));
+    let offset = 0, reconstructed = "";
+    do {
+      const reply = await f.hostTools!.run("group_tasks", { taskId, offset, limit: 1000 });
+      assert.equal(reply.isError, false, reply.text);
+      assert.ok(reply.text.length < 16_000);
+      const page = JSON.parse(reply.text);
+      assert.equal(page.offset, offset);
+      reconstructed += page.output;
+      offset = page.nextOffset;
+    } while (offset !== null);
+    assert.equal(reconstructed, full, "the conclusion beyond the summary must remain reachable");
+    for (const args of [{ taskId: "another-group-task", offset: 0 }, { offset: 0 }, { taskId, offset: -1 },
+      { taskId, offset: 0, limit: 2001 }, { taskId, offset: 0, cancel: true }]) {
+      assert.equal((await f.hostTools!.run("group_tasks", args)).isError, true);
+    }
+    f.store.setExtra(groupId, { group: { ...f.store.get(groupId)!.group!, tasks: f.tasks().map(task => ({ ...task, status: "cancelled" })) } });
+    assert.equal((await f.hostTools!.run("group_tasks", { taskId, offset: 0 })).isError, true, "cancelled work never exposes late output");
+  } finally {
+    f.released.get(`${groupId}.m.assistant`)?.();
+    await turn; await f.cleanup();
+  }
+});
 
 test("a delegate runs independently while the group continues, then publishes one bounded separate result", async () => {
   const f = fixture();

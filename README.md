@@ -4,10 +4,10 @@ RaytoneBot 是一个单用户 AI 工作助手。你可以在浏览器里给 Bot 
 
 ## 能做什么
 
-- **与不同 Bot 工作**：内置 Raer（Pi）、Tonny（Claude Code）、Bob（Codex），支持创建 Bot、修改名字和头像，以及在同一对话里邀请成员协作。本机还可选用 DeepSeek Harness（DSH）。
+- **与不同 Bot 工作**：内置 Raer（Pi）、Tonny（Claude Code）、Bob（Codex），支持独立人设、模型和 MCP/文本 Skills 分配，以及在同一对话里邀请成员协作、一层只读委派。本机还可选用 DeepSeek Harness（DSH）。
 - **跟进任务**：查看文本、思考、工具调用和计划；回答问题、批准操作、停止执行或排队追问。
 - **管理会话和产物**：恢复与搜索历史，查看工作区文件，预览代码、Markdown、媒体、交互 HTML 和结构化表单，将文本产物保存为文档。
-- **连接持续工作能力**：配置 IM 频道、远程 MCP、跨会话记忆和例行任务；有浏览器运行环境时，可查看画面并接管操作。
+- **连接持续工作能力**：配置 IM 频道、远程 MCP、分范围记忆和例行任务；可显式引用其他聊天供 Agent 回查。有浏览器运行环境时可查看画面、接管操作，并通过 Login Vault 逐次授权填入登录信息。
 
 各能力的实现、验收和部署范围见 [路线图](docs/product/03-roadmap.md) 与 [验收记录](docs/product/08-acceptance.md)。例行任务只在主机运行时按时触发；云环境休眠期间需要外部唤醒。DSH 目前仅支持本机。
 
@@ -24,7 +24,7 @@ npm run dev
 
 打开 **http://127.0.0.1:5188/**。Vite 同时启动前端和 Node Agent 主机，不需要另起后端。
 
-首次使用，在设置 →「模型服务」中配置服务商、模型和会话 Key；也可在启动进程的环境中提供模型服务指定的变量，内置 DeepSeek 配置使用 `DEEPSEEK_API_KEY`。会话 Key 只保存在浏览器内存中，由同源主机使用，不写入源码或 bundle。
+首次使用，在设置 →「模型服务」中配置服务商、模型和 API key，点击保存后由主机加密持久化。输入框留空保留已存密钥，删除需显式操作；浏览器不保存或回读密钥。也可在启动进程的环境中提供指定变量，内置 DeepSeek 配置使用 `DEEPSEEK_API_KEY`。配置与密钥存于 `<dataDir>.provider-secrets/`，不包含在普通数据备份中，恢复方法见 [凭据说明](docs/product/12-provider-credentials-proposal.md)。Bot 专属模型优先于默认服务；停用服务会阻止继续调用，但保留配置和凭据。
 
 Pi SDK 随项目依赖安装。Claude Code、Codex 和 DSH 需要另行安装相应 CLI；界面会报告不可用的引擎。安装要求、模型来源和权限规则见 [引擎与权限](docs/product/10-agents-and-permissions.md)。
 

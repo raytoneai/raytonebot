@@ -80,18 +80,16 @@ export function settingsUseProvider(settings: AgentSettings): boolean {
  * Anthropic-format endpoints for providers that offer one, so Claude Code can run on them.
  * Claude Code appends `/v1/messages` itself; these must not end in `/v1`.
  */
-const ANTHROPIC_COMPATIBLE_BASE_URLS: Record<string, string> = {
-  deepseek: "https://api.deepseek.com/anthropic",
-};
-
 export function anthropicBaseUrlForProvider(provider: {
   id: string;
   protocol: string;
   baseUrl: string;
 }): string | undefined {
-  const known = ANTHROPIC_COMPATIBLE_BASE_URLS[provider.id];
-  if (known) return known;
   if (provider.protocol === "anthropic") return provider.baseUrl.replace(/\/v1\/?$/, "");
+  // A provider ID does not authorize sending a custom endpoint's credentials elsewhere.
+  if (provider.id === "deepseek" && /^https:\/\/api\.deepseek\.com(?:\/v1)?\/?$/.test(provider.baseUrl)) {
+    return "https://api.deepseek.com/anthropic";
+  }
   return undefined;
 }
 

@@ -32,9 +32,11 @@ const en = {
     sourceLocal: "Local Claude login",
     sourceLocalCodex: "Local Codex login",
     usesProvider: "Uses the default model service",
+    botModel: "Edit this Bot’s model",
+    modelUnavailable: "This Bot’s model service is unavailable. Enable it in settings or edit the Bot’s model.",
   },
   providers: {
-    intro: "The default service powers Pi and DeepSeek Harness Bots, and Claude Code and Codex Bots when they use a model service.",
+    intro: "Bots inherit the default service unless they have their own model. Claude Code and Codex can also use a local login when no Bot model is set.",
     persistence: {
       "load-failed": "Could not load host settings. Reload before saving; original storage is preserved.",
       "save-failed": "Could not save settings on the host. Your draft is kept; check host storage or reload after a conflict.",
@@ -287,9 +289,11 @@ const zh: typeof en = {
     sourceLocal: "本机 Claude 登录",
     sourceLocalCodex: "本机 Codex 登录",
     usesProvider: "使用默认模型服务",
+    botModel: "编辑此 Bot 的模型",
+    modelUnavailable: "此 Bot 的模型服务不可用，请在设置中启用服务或修改 Bot 模型。",
   },
   providers: {
-    intro: "默认服务供 Pi、DeepSeek Harness Bot 使用；Claude Code、Codex Bot 选择模型服务时也用它。",
+    intro: "Bot 未指定模型时继承默认服务。Claude Code、Codex 未指定 Bot 模型时也可使用本机登录。",
     persistence: {
       "load-failed": "无法读取主机模型设置，请刷新后重试；原存储不会被覆盖。",
       "save-failed": "配置未保存，草稿已保留。请检查主机存储；若有版本冲突，请放弃草稿后重新编辑。",
@@ -542,9 +546,11 @@ const ja: typeof en = {
     sourceLocal: "ローカルの Claude ログイン",
     sourceLocalCodex: "ローカルの Codex ログイン",
     usesProvider: "既定のモデルサービスを使用",
+    botModel: "この Bot のモデルを編集",
+    modelUnavailable: "この Bot のモデルサービスは利用できません。設定で有効にするか、Bot のモデルを変更してください。",
   },
   providers: {
-    intro: "既定のサービスは Pi・DeepSeek Harness Bot と、モデルサービスを選んだ Claude Code・Codex Bot が使います。",
+    intro: "モデルを指定していない Bot は既定のサービスを使います。Claude Code・Codex は Bot モデル未指定時にローカルログインも使えます。",
     persistence: {
       "load-failed": "ホスト設定を読み込めません。元のデータは保持されます。再読み込みしてください。",
       "save-failed": "ホストに保存できません。下書きは保持されます。保存領域や設定の競合を確認してください。",
