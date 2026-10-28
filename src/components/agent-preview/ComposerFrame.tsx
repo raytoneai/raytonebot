@@ -4,6 +4,7 @@ import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { composerActivityCopy } from "../../i18n/copy/composerActivity";
 import { useShellExtras } from "../shell/ShellExtras";
 import { applyMention, mentionMatches, mentionQuery } from "../../runtime/mentionCompletion";
+import { isCompositionKey, shouldSubmitComposer } from "../../runtime/composerKeyboard";
 import { createQueueEntrance, queueRowEnters, queueSeen, type QueueEntrance } from "../../runtime/queueEntrance";
 import type { PiPromptAttachment } from "../../pi/piClient";
 import { useEffect, useRef, useState, type FormEvent, type KeyboardEvent, type ReactNode, type SetStateAction } from "react";
@@ -210,7 +211,7 @@ export function ComposerFrame({
     requestAnimationFrame(() => textareaRef.current?.setSelectionRange(next.caret, next.caret));
   }
   function mentionKeys(event: KeyboardEvent<HTMLTextAreaElement>) {
-    if (mentionOptions.length && !event.nativeEvent.isComposing) {
+    if (mentionOptions.length && !isCompositionKey(event.nativeEvent)) {
       const step = event.key === "ArrowDown" ? 1 : event.key === "ArrowUp" ? -1 : 0;
       if (step) {
         event.preventDefault();
@@ -320,12 +321,7 @@ export function ComposerFrame({
 
   function submitOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
     if (
-      event.key !== "Enter" ||
-      event.shiftKey ||
-      event.altKey ||
-      event.ctrlKey ||
-      event.metaKey ||
-      event.nativeEvent.isComposing ||
+      !shouldSubmitComposer(event.nativeEvent, window.matchMedia("(hover: none) and (pointer: coarse)").matches) ||
       (isRunning && !canQueue) ||
       !canSubmit
     ) {
@@ -547,6 +543,8 @@ export function ComposerFrame({
             ref={textareaRef}
             autoGrow
             name="prompt"
+            enterKeyHint="enter"
+            aria-keyshortcuts="Control+Enter Meta+Enter"
             placeholder={composerPlaceholder ?? copy.composer.frame.placeholder}
             rows={2}
             readOnly={restoringDrafts}

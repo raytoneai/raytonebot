@@ -73,6 +73,7 @@ const CHANNEL_LOGOS: Record<ChannelPlatform, string> = {
 export type SettingsDialogProps = {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onCloseAutoFocus?: (event: Event) => void;
   /** Section shown when the dialog opens. */
   initialSection?: SettingsSectionId;
   project: AgentFrontendProject;
@@ -152,7 +153,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     <RadixDialog.Root open={props.open} onOpenChange={requestOpenChange}>
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="settings-overlay" />
-        <RadixDialog.Content className="settings-dialog" aria-describedby={undefined}>
+        <RadixDialog.Content className="settings-dialog" aria-describedby={undefined} onCloseAutoFocus={props.onCloseAutoFocus}>
           <nav className="settings-rail" aria-label={t.title}>
             <RadixDialog.Title className="settings-rail-title">{t.title}</RadixDialog.Title>
             {nav.map(({ id, label, Icon }) => (

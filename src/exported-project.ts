@@ -291,8 +291,8 @@ export const project = {
     "promptShortcuts": false
   },
   "conversation": {
-    "speakerLabels": true,
-    "userAvatar": true,
+    "speakerLabels": false,
+    "userAvatar": false,
     "agentAvatar": true,
     "messageActions": {
       "copy": false,

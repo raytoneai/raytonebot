@@ -1,0 +1,13 @@
+WebSocket server error: Port 24678 is already in use
+✔ real user and assistant messages expose copy, while empty streaming placeholders cannot be copied (589.17275ms)
+✔ native tool lifecycle renders honest titles and preserves failures instead of completed file rows (344.434875ms)
+✔ Claude edits show their requested diff separately from results, including failure receipts (3.205167ms)
+✔ image rows and validation aliases stop animating at completion, and partial arguments stay preparatory (3.95675ms)
+ℹ tests 4
+ℹ suites 0
+ℹ pass 4
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 788.0985

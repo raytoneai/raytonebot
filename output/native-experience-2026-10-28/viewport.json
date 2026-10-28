@@ -1,0 +1,64 @@
+{
+  "keyboard": {
+    "result": {
+      "type": "object",
+      "value": {
+        "input": {
+          "bottom": 312,
+          "height": 54,
+          "left": 30.5,
+          "right": 359.5,
+          "top": 258,
+          "width": 329,
+          "x": 30.5,
+          "y": 258
+        },
+        "send": {
+          "bottom": 364,
+          "height": 44,
+          "left": 315.5,
+          "right": 359.5,
+          "top": 320,
+          "width": 44,
+          "x": 315.5,
+          "y": 320
+        },
+        "shell": {
+          "bottom": 484,
+          "height": 460,
+          "left": 0,
+          "right": 390,
+          "top": 24,
+          "width": 390,
+          "x": 0,
+          "y": 24
+        }
+      }
+    }
+  },
+  "settings": {
+    "result": {
+      "type": "object",
+      "value": {
+        "dialog": {
+          "bottom": 468,
+          "height": 428,
+          "left": 16,
+          "right": 374,
+          "top": 40,
+          "width": 358,
+          "x": 16,
+          "y": 40
+        }
+      }
+    }
+  },
+  "pinch": {
+    "result": {
+      "type": "object",
+      "value": {
+        "height": "460px"
+      }
+    }
+  }
+}

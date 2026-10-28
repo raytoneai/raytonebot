@@ -6,6 +6,7 @@ import { createPortal } from "react-dom";
 import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } from "react";
 import { searchResultKey, useConversationSearch, type SearchSession } from "../../runtime/useConversationSearch";
 import { useSearchWindow } from "../../runtime/useSearchWindow";
+import { useSearchShortcut } from "../../runtime/useSearchShortcut";
 import { conversationHistoryGroup, groupSessionHistory } from "../../runtime/useSessionHistoryGroups";
 import { conversationSearchPattern } from "../../pi/conversationSearch";
 
@@ -52,6 +53,7 @@ export function SessionSidebar({
   const { newButton, search, grouping, footer } = project.sidebar;
   const sidebarRef = useRef<HTMLElement | null>(null);
   const searchTriggerRef = useRef<HTMLButtonElement | null>(null);
+  const searchReturnFocus = useRef<HTMLElement | null>(null);
   const [searchOpen, setSearchOpen] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [searchOverlayRoot, setSearchOverlayRoot] = useState<HTMLElement | null>(null);
@@ -98,12 +100,22 @@ export function SessionSidebar({
     : { heading: grouping ? 20 : 0, rowGap: 3, groupGap: 16, rowHeight: 34 });
   // A modal covers the whole frame, including sidebar controls and the compact drawer.
   const resolveSearchOverlayRoot = () => sidebarRef.current?.closest<HTMLElement>(".preview-frame") ?? null;
+  useSearchShortcut(sidebarRef, search, () => {
+    searchReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    setSearchOverlayRoot(resolveSearchOverlayRoot());
+    setSearchOpen(true);
+  });
   const closeSearch = (selected = false) => {
     setSearchOpen(false);
     const frame = sidebarRef.current?.closest<HTMLElement>(".preview-frame");
     if (selected && sidebarRef.current?.closest(".compact-drawer")) {
       requestAnimationFrame(() => frame?.querySelector<HTMLButtonElement>('.preview-rail-float[data-side="left"]')?.focus());
-    } else searchTriggerRef.current?.focus();
+    } else {
+      const previous = searchReturnFocus.current;
+      if (previous?.isConnected && !previous.closest("[inert]")) previous.focus({ preventScroll: true });
+      else searchTriggerRef.current?.focus({ preventScroll: true });
+    }
+    searchReturnFocus.current = null;
   };
   const selectSearchResult = (session: SearchSession) => {
     if (extras.onSelectSearchResult) extras.onSelectSearchResult(session);
@@ -235,10 +247,13 @@ export function SessionSidebar({
                 className="session-search-trigger"
                 type="button"
                 aria-label={c.searchPlaceholder}
+                title={`${c.searchPlaceholder} (⌘K / Ctrl+K)`}
+                aria-keyshortcuts="Meta+K Control+K"
                 aria-expanded={searchOpen}
                 onClick={() => {
                   const nextOpen = !searchOpen;
                   if (nextOpen) {
+                    searchReturnFocus.current = searchTriggerRef.current;
                     setSearchOverlayRoot(resolveSearchOverlayRoot());
                   }
                   setSearchOpen(nextOpen);

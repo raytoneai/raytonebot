@@ -1,4 +1,6 @@
 import { useVault } from "./runtime/useVault";
+import { useAppViewport } from "./runtime/useAppViewport";
+import { useCompactDrawer } from "./runtime/useCompactDrawer";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { createAgentUXViewModel, type AgentUXToolTimelineItem } from "@agent-ux/render-core";
@@ -201,6 +203,7 @@ function devtoolsRequested(): boolean {
  * tool approvals are live while the same fixture path remains available for visual QA.
  */
 export function AgentApp() {
+  useAppViewport();
   const { locale } = useLocale();
   const copy = useCopy();
   const frameRef = useRef<HTMLDivElement>(null);
@@ -209,6 +212,8 @@ export function AgentApp() {
   const [activityPreview, setActivityPreview] = useState<AvatarState | "">("");
   /** Phones: the sidebar (agents, history, settings) lives in a drawer opened from the top left. */
   const [drawerOpen, setDrawerOpen] = useState(false);
+  const drawerRef = useRef<HTMLDivElement>(null);
+  const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   // Closed until asked for, matching the configurator: a run with nothing to show should not
   // hand half the canvas to an empty output panel. Opens on the drawer toggle or on clicking an
   // artifact in the conversation.
@@ -255,10 +260,12 @@ export function AgentApp() {
   const botStorageError = locale === "zh" ? "保存失败，请检查连接后重试。" : "Could not save. Check the connection and retry.";
   const editBot = (bot: BotProfile) => { setBotError(undefined); setBotDraft({ draft: { ...bot, appearance: { ...bot.appearance } }, creating: false, revision: botRevision }); };
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const settingsFromDrawer = useRef(false);
   /** Mounted from the first open on, so later opens and closes keep their animation. */
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("providers");
   const openSettings = (section: SettingsSectionId = "providers") => {
+    settingsFromDrawer.current = drawerOpen;
     setSettingsMounted(true);
     setDrawerOpen(false);
     setSettingsSection(section);
@@ -653,19 +660,11 @@ export function AgentApp() {
   const leftSidebarMounted = hasSidebar && !autoHiddenRails.left;
   /** Too narrow for the sidebar column (phones): it becomes a drawer instead of disappearing. */
   const compact = hasSidebar && autoHiddenRails.left;
-  // Escape closes the drawer; widening past the breakpoint puts the sidebar back in place.
+  useCompactDrawer(drawerRef, compact && drawerOpen, closeDrawer);
+  // Widening past the breakpoint puts the sidebar back in place.
   useEffect(() => {
-    if (!compact) {
-      setDrawerOpen(false);
-      return;
-    }
-    if (!drawerOpen) return;
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setDrawerOpen(false);
-    };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [compact, drawerOpen]);
+    if (!compact) setDrawerOpen(false);
+  }, [compact]);
   const leftSidebarVisible = leftSidebarMounted && !leftCollapsed;
   // Available = it could be shown. Visible = the reader has opened it. Clicking an artifact
   // keys on the former, so a collapsed panel reopens instead of being bypassed for a modal.
@@ -1660,7 +1659,7 @@ export function AgentApp() {
   const showPicker = devtoolsRequested() && isFixtureMode && streams.length > 0;
   // String concat (not a template literal) so this file can be emitted from the exporter.
   const soloStack = (
-    <section className="preview-stack preview-stack-solo" data-welcome={isWelcome ? "true" : undefined}>
+    <section className="preview-stack preview-stack-solo" inert={compact && drawerOpen} data-welcome={isWelcome ? "true" : undefined}>
       {renderSlots(visibleLayoutSlots, "main", slotContext)}
       {inlineApprovalOverlay}
       {userInputOverlay}
@@ -1679,7 +1678,7 @@ export function AgentApp() {
     <CustomAvatarsProvider value={!streamId}>
     <AgentPersonaProvider persona={persona}>
     <ShellExtrasProvider value={shellExtras}>
-    <div className="exported-shell" style={{ height: "100dvh" }}>
+    <div className="exported-shell">
 
       <>
         <div
@@ -1703,13 +1702,15 @@ export function AgentApp() {
                 data-side="left"
                 aria-label={copy.shell.editor.expandSidebar}
                 aria-expanded={drawerOpen}
+                aria-controls="compact-sidebar"
                 onClick={() => setDrawerOpen(true)}
               >
                 <span className="native-rail-icon"><SidebarRailIcon size={17} /></span>
                 <span className="legacy-rail-icon"><PanelLeft size={17} /></span>
               </button>
               <div className="compact-drawer-scrim" data-open={drawerOpen} aria-hidden="true" onClick={() => setDrawerOpen(false)} />
-              <div className="compact-drawer" data-open={drawerOpen} inert={!drawerOpen}>
+              <div ref={drawerRef} id="compact-sidebar" className="compact-drawer" data-open={drawerOpen} inert={!drawerOpen}
+                role="dialog" aria-modal={drawerOpen ? true : undefined} aria-label={copy.workspace.sessionSidebar.ariaLabel} tabIndex={-1}>
                 {renderSlots(visibleLayoutSlots, "sidebar", { ...slotContext, onCollapseLeft: () => setDrawerOpen(false) })}
               </div>
             </>
@@ -1750,6 +1751,7 @@ export function AgentApp() {
               type="button"
               className="rail-icon-btn preview-rail-float"
               data-side="right"
+              inert={compact && drawerOpen}
               aria-label={copy.shell.editor.expandPanel}
               onClick={() => autoHiddenRails.right ? setWorkspaceModalOpen(true) : setRightCollapsed(false)}
             >
@@ -1835,6 +1837,13 @@ export function AgentApp() {
             <SettingsDialog
               open={settingsOpen}
               onOpenChange={setSettingsOpen}
+              onCloseAutoFocus={event => {
+                if (!settingsFromDrawer.current) return;
+                settingsFromDrawer.current = false;
+                const trigger = frameRef.current?.querySelector<HTMLElement>('.preview-rail-float[data-side="left"]')
+                  ?? frameRef.current?.querySelector<HTMLElement>('.shell-footer-button');
+                if (trigger) { event.preventDefault(); trigger.focus({ preventScroll: true }); }
+              }}
               initialSection={settingsSection}
             project={activeProject}
             providerSettingsStatus={providerSettingsStatus}

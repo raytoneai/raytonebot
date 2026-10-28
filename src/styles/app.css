@@ -11969,8 +11969,7 @@ pre {
     display: grid;
   }
 
-  .builder-surface,
-  .exported-shell {
+  .builder-surface {
     min-height: 900px;
   }
 }
@@ -12639,12 +12638,12 @@ pre {
   visibility: hidden;
   transition:
     transform 220ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    visibility 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
-  transition-behavior: allow-discrete;
+    visibility 0s linear 220ms;
 }
 .compact-drawer[data-open="true"] {
   transform: none;
   visibility: visible;
+  transition-delay: 0s;
 }
 /* The sidebar fills the drawer; the collapsed-rail rule must not slide it away in here. */
 .preview-frame .compact-drawer .session-sidebar {
@@ -12653,6 +12652,7 @@ pre {
   margin-left: 0;
   visibility: inherit;
   border-right: 0;
+  transition: none;
 }
 
 @media (prefers-reduced-motion: reduce) {
@@ -12665,6 +12665,61 @@ pre {
 /* iOS zooms into inputs under 16px on focus; keep the composer at 16px on phones. */
 .preview-frame[data-compact="true"] .composer-frame .ui-textarea {
   font-size: var(--text-lg);
+}
+
+/* Product viewport follows the visible area; the builder keeps its own canvas sizing. */
+.exported-shell {
+  position: fixed;
+  inset: var(--app-viewport-top, 0px) 0 auto;
+  height: var(--app-viewport-height, 100dvh);
+}
+
+.exported-shell .composer-frame .ui-textarea {
+  max-height: min(240px, calc(var(--app-viewport-height, 100dvh) * 0.3));
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+}
+
+.exported-shell :is(.timeline-list, .session-list, .session-search-results),
+.settings-body-scroll {
+  overscroll-behavior-y: contain;
+}
+
+.exported-shell .session-sidebar { overflow-y: auto; overscroll-behavior-y: contain; }
+.exported-shell .session-brand { flex-shrink: 0; }
+.exported-shell .session-list { min-height: 80px; }
+.exported-shell .shell-sidebar-footer { flex-shrink: 0; }
+
+@media (max-height: 600px) {
+  .exported-shell .shell-agents[data-manage="true"] {
+    max-height: calc(var(--app-viewport-height, 100dvh) * 0.3);
+    margin-block: 4px 8px;
+  }
+}
+
+@media (pointer: coarse) {
+  .exported-shell { padding: 0; }
+  .exported-shell .preview-frame {
+    padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
+  }
+  .exported-shell .preview-frame .rail-icon-btn { --rail-icon-button-size: 44px; }
+  .exported-shell .session-search-trigger { width: 44px; height: 44px; }
+  .exported-shell .preview-frame .composer-frame :is(.composer-upload, .ui-icon-button, .permission-mode-trigger, .budget-mode-trigger, .provider-model-picker, .ui-select, .send-button) {
+    min-width: 44px;
+    min-height: 44px;
+    height: 44px;
+  }
+  .exported-shell .preview-frame .composer-tools { transform: none; gap: 4px; }
+  .exported-shell .preview-frame .composer-frame .ui-button.send-button[data-size] {
+    width: 44px;
+    height: 44px;
+    min-height: 44px;
+  }
+  .exported-shell .preview-frame .composer-upload { padding-inline: 8px; margin-right: 0; }
+  .exported-shell .preview-frame .composer-upload::after { display: none; }
+  .exported-shell .preview-frame .composer-frame .ui-textarea,
+  .exported-shell .session-search input { font-size: 16px; }
+  .exported-shell .session-search input { min-height: 44px; }
 }
 
 /* Workspace browsing reuses the output panel and its header controls. */

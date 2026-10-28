@@ -1,0 +1,242 @@
+[
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "label": "附加文件",
+        "width": 44
+      },
+      {
+        "height": 44,
+        "label": "审批权限",
+        "width": 44
+      },
+      {
+        "height": 44,
+        "label": "思考预算",
+        "width": 44
+      },
+      {
+        "height": 44,
+        "label": "发送",
+        "width": 44
+      }
+    ],
+    "composer": {
+      "bottom": 568,
+      "height": 147,
+      "left": 0,
+      "right": 320,
+      "top": 421,
+      "width": 320,
+      "x": 0,
+      "y": 421
+    },
+    "height": 568,
+    "pageHeight": 568,
+    "pageWidth": 320,
+    "shell": {
+      "bottom": 568,
+      "height": 568,
+      "left": 0,
+      "right": 320,
+      "top": 0,
+      "width": 320,
+      "x": 0,
+      "y": 0
+    },
+    "width": 320
+  },
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "label": "附加文件",
+        "width": 44
+      },
+      {
+        "height": 44,
+        "label": "审批权限",
+        "width": 44
+      },
+      {
+        "height": 44,
+        "label": "思考预算",
+        "width": 44
+      },
+      {
+        "height": 44,
+        "label": "发送",
+        "width": 44
+      }
+    ],
+    "composer": {
+      "bottom": 844,
+      "height": 147,
+      "left": 0,
+      "right": 390,
+      "top": 697,
+      "width": 390,
+      "x": 0,
+      "y": 697
+    },
+    "height": 844,
+    "pageHeight": 844,
+    "pageWidth": 390,
+    "shell": {
+      "bottom": 844,
+      "height": 844,
+      "left": 0,
+      "right": 390,
+      "top": 0,
+      "width": 390,
+      "x": 0,
+      "y": 0
+    },
+    "width": 390
+  },
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "label": "附加文件",
+        "width": 44
+      },
+      {
+        "height": 44,
+        "label": "审批权限",
+        "width": 97.015625
+      },
+      {
+        "height": 44,
+        "label": "思考预算",
+        "width": 72.5078125
+      },
+      {
+        "height": 44,
+        "label": "发送",
+        "width": 44
+      }
+    ],
+    "composer": {
+      "bottom": 800,
+      "height": 147,
+      "left": 236,
+      "right": 768,
+      "top": 653,
+      "width": 532,
+      "x": 236,
+      "y": 653
+    },
+    "height": 800,
+    "pageHeight": 800,
+    "pageWidth": 768,
+    "shell": {
+      "bottom": 800,
+      "height": 800,
+      "left": 0,
+      "right": 768,
+      "top": 0,
+      "width": 768,
+      "x": 0,
+      "y": 0
+    },
+    "width": 768
+  },
+  {
+    "buttons": [
+      {
+        "height": 44,
+        "label": "附加文件",
+        "width": 44
+      },
+      {
+        "height": 44,
+        "label": "审批权限",
+        "width": 97.015625
+      },
+      {
+        "height": 44,
+        "label": "思考预算",
+        "width": 72.5078125
+      },
+      {
+        "height": 44,
+        "label": "发送",
+        "width": 44
+      }
+    ],
+    "composer": {
+      "bottom": 390,
+      "height": 147,
+      "left": 236,
+      "right": 844,
+      "top": 243,
+      "width": 608,
+      "x": 236,
+      "y": 243
+    },
+    "height": 390,
+    "pageHeight": 390,
+    "pageWidth": 844,
+    "shell": {
+      "bottom": 390,
+      "height": 390,
+      "left": 0,
+      "right": 844,
+      "top": 0,
+      "width": 844,
+      "x": 0,
+      "y": 0
+    },
+    "width": 844
+  },
+  {
+    "buttons": [
+      {
+        "height": 28,
+        "label": "附加文件",
+        "width": 40
+      },
+      {
+        "height": 28,
+        "label": "审批权限",
+        "width": 97.015625
+      },
+      {
+        "height": 28,
+        "label": "思考预算",
+        "width": 72.5078125
+      },
+      {
+        "height": 32,
+        "label": "发送",
+        "width": 32
+      }
+    ],
+    "composer": {
+      "bottom": 776,
+      "height": 135,
+      "left": 260,
+      "right": 1256,
+      "top": 641,
+      "width": 996,
+      "x": 260,
+      "y": 641
+    },
+    "height": 800,
+    "pageHeight": 800,
+    "pageWidth": 1280,
+    "shell": {
+      "bottom": 800,
+      "height": 800,
+      "left": 0,
+      "right": 1280,
+      "top": 0,
+      "width": 1280,
+      "x": 0,
+      "y": 0
+    },
+    "width": 1280
+  }
+]
