@@ -1,5 +1,5 @@
-import { Braces, Check, CircleAlert, Copy, FileCode2, FileText, PanelsTopLeft, TerminalSquare } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { Braces, Check, CircleAlert, Copy, FileCode2, FileText, PanelsTopLeft, RefreshCw, Search, TerminalSquare, X } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
 import { ToolCallCard } from "../ToolCallCard";
 import { useShellExtras } from "../../shell/ShellExtras";
 import type { AgentUXToolTimelineItem } from "@agent-ux/render-core";
@@ -16,7 +16,10 @@ import { looksLikeUnifiedDiff } from "../../../runtime/unifiedDiff";
 import { HtmlStreamPreview } from "./HtmlStreamPreview";
 import type { LiveHtmlWrite } from "../../../runtime/liveHtmlWrite";
 import { useClipboardFeedback } from "../../../runtime/useClipboardFeedback";
-import { useCopy } from "../../../i18n/LocaleContext";
+import { useCopy, useLocale } from "../../../i18n/LocaleContext";
+import { SelectMenu } from "../../ui";
+import { artifactMatchesQuery, type ArtifactCatalogContext } from "../../../runtime/artifactCatalog";
+import { useArtifactCatalog } from "../../../runtime/useArtifactCatalog";
 import {
   artifactCodePreview,
   artifactDataPreview,
@@ -38,6 +41,7 @@ export function OutputContent({
   onCloseOpenItem,
   tools, artifacts, onOpenArtifact,
   liveHtml,
+  catalog,
 }: {
   project: AgentFrontendProject;
   source: OutputSource;
@@ -53,10 +57,19 @@ export function OutputContent({
   onCloseOpenItem?: (id: string) => void;
   /** An HTML file being written; shown instead of the default view until it is saved. */
   liveHtml?: LiveHtmlWrite;
+  catalog?: ArtifactCatalogContext;
 }) {
   const code = artifact && renderer === "code" ? artifactCodePreview(artifact, copy) : undefined;
   const clipboard = useClipboardFeedback(source === "artifact" && !openItems.length ? code?.code ?? "" : "");
   const labels = useCopy().chat.message.actions;
+  const { locale } = useLocale();
+  const zh = locale === "zh";
+  const [artifactQuery, setArtifactQuery] = useState("");
+  const [allConversations, setAllConversations] = useState(false);
+  const searchRef = useRef<HTMLInputElement>(null);
+  const history = useArtifactCatalog(Boolean(catalog) && source === "artifact" && allConversations, artifactQuery, catalog?.conversationId ?? "");
+  useEffect(() => { setArtifactQuery(""); setAllConversations(false); }, [catalog?.conversationId]);
+  const formatTime = (timestamp?: number) => timestamp === undefined ? "" : new Date(timestamp).toLocaleString(locale, { year: "numeric", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const feedback = clipboard.status === "copied" ? labels.copied : clipboard.status === "failed" ? labels.copyFailedText : undefined;
   if (source === "console") {
     return <ConsoleOutput copy={copy} tools={tools} project={project} />;
@@ -70,7 +83,51 @@ export function OutputContent({
     );
   }
 
-  const artifactList = artifacts.length ? <ul className="workspace-file-list output-artifact-list">{artifacts.map((item) => <li key={item.id}>
+  const visibleArtifacts = artifacts.filter(item => artifactMatchesQuery(item.title ?? item.id, artifactQuery));
+  const artifactList = catalog ? <div className="output-artifact-catalog">
+    <div className="output-artifact-toolbar">
+      <SelectMenu size="sm" value={allConversations ? "all" : "current"} ariaLabel={zh ? "产物范围" : "Artifact scope"}
+        options={[{ value: "current", label: zh ? "当前对话" : "This chat" }, { value: "all", label: zh ? "全部对话" : "All chats" }]}
+        onValueChange={value => setAllConversations(value === "all")} />
+      <label className="workspace-search-field output-artifact-search"><Search size={14} aria-hidden="true" />
+        <input ref={searchRef} type="search" maxLength={200} value={artifactQuery} placeholder={zh ? "查找产物" : "Find artifacts"}
+          aria-label={zh ? "查找产物" : "Find artifacts"} onChange={event => setArtifactQuery(event.target.value)} />
+        {artifactQuery ? <button type="button" className="rail-icon-btn" aria-label={copy.clearSearch}
+          onClick={() => { setArtifactQuery(""); searchRef.current?.focus(); }}><X size={13} /></button> : null}
+      </label>
+      {allConversations ? <button type="button" className="rail-icon-btn" aria-label={zh ? "刷新产物" : "Refresh artifacts"}
+        disabled={history.status === "loading" || history.more} onClick={history.refresh}><RefreshCw size={14} /></button> : null}
+    </div>
+    <div className="output-artifact-results" aria-busy={allConversations && (history.status === "loading" || history.more)}>
+      {allConversations ? <>
+        {history.status === "loading" ? <p role="status">{zh ? "正在查找产物…" : "Finding artifacts…"}</p> : null}
+        {history.error ? <p role="alert">{zh ? "产物读取失败，请重试。" : "Could not load artifacts. Try again."} <button type="button" onClick={history.nextCursor ? history.loadMore : history.refresh}>{zh ? "重试" : "Retry"}</button></p> : null}
+        {history.truncated || history.unreadable ? <p role="status">{history.truncated
+          ? (zh ? "已达到历史扫描上限，结果可能不完整。可打开原对话查看产物。" : "History scan limit reached; results may be incomplete. Open the source chat to inspect its artifacts.")
+          : (zh ? "部分对话无法读取，结果可能不完整。" : "Some chats could not be read; results may be incomplete.")}</p> : null}
+        {history.status === "ready" && !history.error && !history.artifacts.length ? <p>{zh ? "没有找到匹配的产物" : "No matching artifacts"}</p> : null}
+        <ul className="workspace-file-list output-artifact-list">{history.artifacts.map(row => <li key={JSON.stringify([row.conversationId, row.artifactId])}>
+          <button type="button" title={`${row.path}\n${row.conversationTitle}`} onClick={() => catalog.openSource(row)}>
+            <FileText size={14} aria-hidden="true" /><span className="output-artifact-label"><span>{row.name}</span>
+              <small className="output-artifact-meta"><span>{row.conversationTitle}</span>{row.timestamp !== undefined ? <time>{formatTime(row.timestamp)}</time> : null}{!row.available ? <em>{zh ? "文件已不可用" : "File unavailable"}</em> : null}</small>
+            </span>
+          </button>
+        </li>)}</ul>
+        {history.nextCursor ? <button type="button" className="output-artifact-more" disabled={history.more} onClick={history.loadMore}>{history.more ? (zh ? "加载中…" : "Loading…") : (zh ? "加载更多" : "Load more")}</button> : null}
+      </> : <>
+        {!visibleArtifacts.length ? <p>{artifactQuery ? (zh ? "当前对话没有匹配的产物" : "No matching artifacts in this chat") : copy.emptyNoArtifact}</p> : null}
+        <ul className="workspace-file-list output-artifact-list">{visibleArtifacts.map(item => <li key={item.id}>
+          <button type="button" title={item.title ?? item.id} onClick={() => onOpenArtifact(item)}><FileText size={14} aria-hidden="true" />
+            <span className="output-artifact-label"><span>{(item.title ?? item.id).split("/").pop()}</span>
+              {catalog.timestamps?.[item.id] !== undefined ? <small>{formatTime(catalog.timestamps[item.id])}</small> : null}
+            </span></button>
+          <button type="button" className="output-artifact-source" aria-label={`${zh ? "查看来源" : "View source"}: ${catalog.conversationTitle}`}
+            onClick={() => catalog.openSource({ conversationId: catalog.conversationId, artifactId: item.id })}>{zh ? "来源" : "Source"}</button>
+        </li>)}</ul>
+      </>}
+    </div>
+    <p className="output-artifact-note">{zh ? "文件预览显示当前内容" : "File previews show current contents"}</p>
+  </div> : artifacts.length ? <ul className="workspace-file-list output-artifact-list">{artifacts.map((item) => <li key={item.id}>
     <button type="button" title={item.title ?? item.id} onClick={() => onOpenArtifact(item)}><FileText size={14} /><span>{(item.title ?? item.id).split("/").pop()}</span></button>
   </li>)}</ul> : null;
 
@@ -92,7 +149,7 @@ export function OutputContent({
     );
   }
 
-  if (artifacts.length) {
+  if (catalog || artifacts.length) {
     return <div className="artifact-content">{artifactList}</div>;
   }
 

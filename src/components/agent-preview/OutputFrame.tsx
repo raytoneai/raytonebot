@@ -55,7 +55,7 @@ export function OutputFrame({
   const [query, setQuery] = useState("");
   const [truncated, setTruncated] = useState(false);
   const c = copy.workspace.outputFrame;
-  const { workspaceScope, workspaceBotName, workspaceRevision, workspaceSharedAvailable, onOpenFile, outputPanel, toolLog } = useShellExtras();
+  const { workspaceScope, workspaceBotName, workspaceRevision, workspaceSharedAvailable, onOpenFile, outputPanel, toolLog, artifactCatalog } = useShellExtras();
   const [expandedState, setExpanded] = useState(false);
   const expanded = fullscreen || expandedState;
   const [localSource, setLocalSource] = useState<OutputPanelSource>(project.output.source);
@@ -237,6 +237,7 @@ export function OutputFrame({
           onCloseOpenItem={onCloseOpenItem}
           tools={viewModel.timeline.filter((item) => item.kind === "tool")}
           artifacts={artifacts}
+          catalog={artifactCatalog}
           onOpenArtifact={(item) => onOpenFile?.(outputPanelItemFromRenderedArtifact(item, project))}
           liveHtml={liveHtml}
         />}

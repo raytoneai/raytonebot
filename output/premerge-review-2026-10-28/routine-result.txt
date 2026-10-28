@@ -1,0 +1,85 @@
+- complementary "会话历史":
+  - button "创建 Bot":
+    - img "我的Agent"
+  - button "搜索对话":
+  - button "收起侧边栏":
+  - region "Agent":
+    - heading "Agent" [level=4]
+    - button "Raer Pi":
+      - generic: Raer
+      - text: Pi
+    - button "编辑 Raer":
+    - button "Tonny Claude Code":
+      - generic: Tonny
+      - text: Claude Code
+    - button "编辑 Tonny":
+    - button "Bob Codex CLI":
+      - generic: Bob
+      - text: Codex CLI
+    - button "编辑 Bob":
+  - button "聊天记录" [expanded]:
+    - generic: 聊天记录
+  - navigation:
+    - button "Raer 3" [expanded]:
+      - generic: Raer
+      - generic: "3"
+    - button "设计改进记录":
+      - generic: 设计改进记录
+    - 'button "删除对话: 设计改进记录"':
+    - 'button "重命名对话: 设计改进记录"':
+    - button "整理下一步":
+      - generic: 整理下一步
+    - 'button "删除对话: 整理下一步"':
+    - 'button "重命名对话: 整理下一步"':
+    - button "竞品研究周报":
+      - generic: 竞品研究周报
+    - 'button "删除对话: 竞品研究周报"':
+    - 'button "重命名对话: 竞品研究周报"':
+  - button "设置":
+    - generic: 设置
+  - generic: v0.1.0
+- button "Raer, Pi" [active]:
+  - strong: Raer
+  - generic "Pi":
+- button "添加 Agent":
+- article:
+  - paragraph: 本周建议：简化 Bot 创建，支持任务编辑，并保留右侧执行控制台。
+  - generic "Agent 消息操作":
+    - button "复制回复":
+    - button "在新分支中重新生成（保留已写文件）":
+- button "research-report.md 文件":
+  - strong: research-report.md
+  - generic: 文件
+  - generic: 打开
+- textbox "给 Raer 发消息…"
+- button "附加文件":
+- button "引用对话":
+- button "工作区文件":
+- button "审批权限":
+  - generic: 请求权限
+- button "思考预算":
+  - generic: 中等
+- button "发送" [disabled]
+- separator
+- complementary:
+  - generic "产物":
+    - group "输出视图":
+      - button "产物" [pressed]:
+        - generic: 产物
+      - button "控制台日志":
+        - generic: 控制台
+      - button "浏览器":
+        - generic: 浏览器
+      - button "工作区":
+        - generic: 工作区
+    - button "展开输出":
+    - button "收起输出":
+  - button "产物范围":
+    - generic: 当前对话
+  - searchbox "查找产物"
+  - list:
+    - button "research-report.md 2026年10月28日 19:26":
+      - generic: research-report.md
+      - generic: 2026年10月28日 19:26
+    - 'button "查看来源: 竞品研究周报"': 来源
+  - paragraph: 文件预览显示当前内容

@@ -1,0 +1,82 @@
+[
+  {
+    "name": "Built-in demo",
+    "hasContent": true
+  },
+  {
+    "name": "Group chat",
+    "hasContent": true
+  },
+  {
+    "name": "Coding agent",
+    "hasContent": true
+  },
+  {
+    "name": "Reasoning kinds",
+    "hasContent": true
+  },
+  {
+    "name": "Tool approval",
+    "hasContent": true
+  },
+  {
+    "name": "Error block",
+    "hasContent": true
+  },
+  {
+    "name": "Artifact action",
+    "hasContent": true
+  },
+  {
+    "name": "Capability tray",
+    "hasContent": true
+  },
+  {
+    "name": "HTML artifact stream",
+    "hasContent": true
+  },
+  {
+    "name": "Basic text",
+    "hasContent": true
+  },
+  {
+    "name": "Normal turn",
+    "hasContent": true
+  },
+  {
+    "name": "Streaming thinking + message",
+    "hasContent": true
+  },
+  {
+    "name": "Tool approval + completion",
+    "hasContent": true
+  },
+  {
+    "name": "MCP success + interrupt",
+    "hasContent": true
+  },
+  {
+    "name": "Runtime boot + sync",
+    "hasContent": true
+  },
+  {
+    "name": "Retrying incident",
+    "hasContent": true
+  },
+  {
+    "name": "Exhausted incident",
+    "hasContent": true
+  },
+  {
+    "name": "Terminal incident",
+    "hasContent": true
+  },
+  {
+    "name": "Config, spans, deletion",
+    "hasContent": true
+  },
+  {
+    "name": "欢迎页(无事件)",
+    "hasContent": true
+  }
+]

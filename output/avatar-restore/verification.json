@@ -1,0 +1,51 @@
+{
+  "beforeRevision": 1,
+  "afterRevision": 4,
+  "profiles": [
+    {
+      "id": "assistant",
+      "presetId": "assistant",
+      "name": "Raer",
+      "appearance": {
+        "face": "round",
+        "hair": "long",
+        "accessory": "headset",
+        "faceColor": "#FDE7B4",
+        "eyeColor": "#0C2458",
+        "hairColor": "#0C2458",
+        "accessoryColor": "#E7AC26",
+        "eyes": "capsule"
+      }
+    },
+    {
+      "id": "planner",
+      "presetId": "planner",
+      "name": "tony",
+      "appearance": {
+        "face": "soft-square",
+        "hair": "quiff",
+        "accessory": "glasses",
+        "faceColor": "#FDE7B4",
+        "eyeColor": "#0C2458",
+        "hairColor": "#D97757",
+        "accessoryColor": "#D97757",
+        "eyes": "capsule"
+      }
+    },
+    {
+      "id": "builder",
+      "presetId": "builder",
+      "name": "Bob",
+      "appearance": {
+        "face": "round",
+        "hair": "none",
+        "accessory": "cap",
+        "faceColor": "#FDE7B4",
+        "eyeColor": "#0C2458",
+        "hairColor": "#0C2458",
+        "accessoryColor": "#4779E6",
+        "eyes": "capsule"
+      }
+    }
+  ]
+}

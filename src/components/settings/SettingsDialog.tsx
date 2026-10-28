@@ -25,7 +25,8 @@ import { useProviderEditor } from "../../runtime/useProviderEditor";
 import { ModelOptionsEditor } from "./ModelOptionsEditor";
 import type { ImChannelsState } from "../../runtime/useImChannels";
 import type { RoutinesState } from "../../runtime/useRoutines";
-import type { RoutineView } from "../../pi/routineTypes";
+import type { RoutineDefinitionPatch, RoutineRun, RoutineView } from "../../pi/routineTypes";
+import { cronProblem, timezoneProblem, routineScheduleLabel } from "../../runtime/routineSchedule";
 import type { McpServersState } from "../../runtime/useMcpServers";
 import type { McpServerView } from "../../pi/mcpTypes";
 import type { MemoriesState } from "../../runtime/useMemories";
@@ -76,6 +77,8 @@ export type SettingsDialogProps = {
   onCloseAutoFocus?: (event: Event) => void;
   /** Section shown when the dialog opens. */
   initialSection?: SettingsSectionId;
+  initialBotId?: string;
+  initialMemoryScope?: MemoryScope;
   project: AgentFrontendProject;
   providerSettingsStatus?: ProviderSettingsStatus;
   runtime?: PiRuntimeState;
@@ -106,7 +109,7 @@ export type SettingsDialogProps = {
   /** Public login metadata; absent in fixtures and static previews. */
   vault?: VaultSettingsState;
   /** Opens a routine's conversation and closes the dialog. */
-  onOpenConversation?: (conversationId: string) => void;
+  onOpenConversation?: (conversationId: string, target?: Pick<RoutineRun, "runId" | "textId">) => void;
 };
 
 export function SettingsDialog(props: SettingsDialogProps) {
@@ -114,6 +117,8 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const t = settingsCopy[locale];
   const [section, setSection] = useState<SectionId>(props.initialSection ?? "providers");
   const [confirmClose, setConfirmClose] = useState(false);
+  // Closing settings or changing sections keeps unsaved routine drafts for this page session.
+  const [routineDrafts, setRoutineDrafts] = useState<Record<string, RoutineDefinitionPatch | undefined>>({});
   const editor = useProviderEditor(props.project.providers, props.sessionKeys, async (providers, keys, removeKeys) => {
     if (props.onSaveProviders) return props.onSaveProviders(providers, keys, removeKeys);
     // Optional callback keeps standalone fixtures and older hosts compatible.
@@ -186,10 +191,11 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </fieldset> : null}
               {section === "permissions" ? <PermissionsSection {...props} t={t} /> : null}
               {section === "channels" && props.imChannels ? <ChannelsSection t={t} state={props.imChannels} /> : null}
-              {section === "routines" && props.routines ? <RoutinesSection t={t} state={props.routines} onOpenConversation={props.onOpenConversation} /> : null}
+              {section === "routines" && props.routines ? <RoutinesSection key={props.initialBotId ?? "all"} t={t} state={props.routines} initialBotId={props.initialBotId} onOpenConversation={props.onOpenConversation}
+                drafts={routineDrafts} onDraft={(id, draft) => setRoutineDrafts(current => ({ ...current, [id]: draft }))} /> : null}
               {section === "mcp" && props.mcpServers ? <McpSection t={t} state={props.mcpServers} /> : null}
               {section === "mcp" && props.skills ? <SkillsSection state={props.skills} /> : null}
-              {section === "memory" && props.memories ? <MemorySection t={t} state={props.memories} scopes={props.memoryScopes} /> : null}
+              {section === "memory" && props.memories ? <MemorySection key={props.initialMemoryScope ? memoryScopeKey(props.initialMemoryScope) : "all"} t={t} state={props.memories} scopes={props.memoryScopes} initialScope={props.initialMemoryScope} /> : null}
               {section === "usage" && props.usage ? <UsageSection usage={props.usage} /> : null}
               {props.open && section === "vault" && props.vault ? <VaultSection state={props.vault} /> : null}
               {section === "appearance" ? <AppearanceSection {...props} t={t} /> : null}
@@ -816,21 +822,31 @@ function CopyButton({ t, value }: { t: { copy: string; copied: string }; value: 
   );
 }
 
-function RoutinesSection({ t, state, onOpenConversation }: { t: SettingsCopy; state: RoutinesState; onOpenConversation?: (id: string) => void }) {
+function RoutinesSection({ t, state, initialBotId, onOpenConversation, drafts, onDraft }: {
+  t: SettingsCopy; state: RoutinesState; initialBotId?: string; onOpenConversation?: SettingsDialogProps["onOpenConversation"];
+  drafts: Record<string, RoutineDefinitionPatch | undefined>; onDraft: (id: string, draft?: RoutineDefinitionPatch) => void;
+}) {
   const botNames = useBotNames();
-  const [expanded, setExpanded] = useState<string | undefined>();
+  const { locale } = useLocale();
+  const [botId, setBotId] = useState(initialBotId ?? "all");
+  const filtered = state.routines?.filter(routine => botId === "all" || (routine.botId ?? "assistant") === botId);
+  const [expanded, setExpanded] = useState<string | undefined>(() => Object.keys(drafts).find(id => drafts[id]));
   return (
     <>
       <p className="settings-intro">{t.routines.intro.replaceAll("{assistant}", botNames.assistant)}</p>
       <p className="settings-note">{t.routines.clockNote}</p>
       {state.error ? <p className="settings-status" data-tone="error" role="status"><Dot />{t.routines.loadFailed(state.error)}</p> : null}
-      {state.routines?.length === 0 ? <p className="settings-note">{t.routines.empty}</p> : null}
+      <div className="settings-memory-controls"><SelectMenu ariaLabel={locale === "zh" ? "按 Bot 筛选例行任务" : "Filter routines by Bot"} value={botId} onValueChange={setBotId}
+        options={[{ value: "all", label: locale === "zh" ? "全部 Bot" : "All Bots" }, ...Object.entries(botNames).map(([value, label]) => ({ value, label }))]} /></div>
+      {filtered?.length === 0 ? <p className="settings-note">{t.routines.empty}</p> : null}
       <div className="settings-list">
-        {(state.routines ?? []).map((routine) => (
+        {(filtered ?? []).map((routine) => (
           <RoutineRow
             key={routine.id}
             t={t}
             routine={routine}
+            draft={drafts[routine.id]}
+            onDraft={draft => onDraft(routine.id, draft)}
             state={state}
             open={expanded === routine.id}
             onToggleOpen={() => setExpanded((current) => (current === routine.id ? undefined : routine.id))}
@@ -842,33 +858,60 @@ function RoutinesSection({ t, state, onOpenConversation }: { t: SettingsCopy; st
   );
 }
 
-function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation }: {
+function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation, draft, onDraft }: {
   t: SettingsCopy;
   routine: RoutineView;
   state: RoutinesState;
   open: boolean;
   onToggleOpen: () => void;
-  onOpenConversation?: (id: string) => void;
+  onOpenConversation?: SettingsDialogProps["onOpenConversation"];
+  draft?: RoutineDefinitionPatch;
+  onDraft: (draft?: RoutineDefinitionPatch) => void;
 }) {
   const c = t.routines;
   const botNames = useBotNames();
   const { locale } = useLocale();
   const [confirming, setConfirming] = useState(false);
-  const busy = state.busy === routine.id;
+  const [allRuns, setAllRuns] = useState(false);
+  const [customSchedule, setCustomSchedule] = useState(false);
+  const zh = locale === "zh";
+  const busy = Boolean(state.busy);
   const failure = state.actionError?.id === routine.id ? state.actionError.message : undefined;
+  const failureText = failure?.startsWith("This routine changed.")
+    ? (draft && draft.revision !== (routine.revision ?? 0)
+      ? (zh ? "任务已在其他页面修改，草稿仍保留。请放弃更改后重新编辑，以载入最新内容。" : "This routine changed elsewhere. Your draft is kept. Discard changes and edit again to load the latest version.") : undefined) : failure;
   const last = routine.lastRun;
   const tone = !last ? "muted" : { running: "warn", success: "ok", error: "error", cancelled: "muted", interrupted: "warn" }[last.status];
   const when = last ? new Date(last.at).toLocaleString(locale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : undefined;
+  const date = (at: number) => new Date(at).toLocaleString(locale, { timeZone: routine.timezone, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
+  const running = last?.status === "running";
+  const history = routine.history ?? (last ? [last] : []);
+  const fields = (draft?.schedule ?? routine.schedule).trim().split(/\s+/);
+  const simple = /^\d+$/.test(fields[0]) && /^\d+$/.test(fields[1]) && fields[2] === "*" && fields[3] === "*";
+  const frequency = customSchedule || !simple ? "custom" : fields[4] === "*" ? "daily" : fields[4] === "1-5" ? "weekdays" : /^[0-7]$/.test(fields[4]) ? "weekly" : "custom";
+  const time = simple ? `${fields[1].padStart(2, "0")}:${fields[0].padStart(2, "0")}` : "09:00";
+  const problem = draft ? !draft.title.trim() ? (zh ? "请填写任务名称。" : "Enter a task name.")
+    : !draft.instructions.trim() ? (zh ? "请填写任务指令。" : "Enter task instructions.")
+    : cronProblem(draft.schedule) ? (zh ? "请检查时间规则，需要五段有效 cron。" : "Enter a valid five-field cron expression.")
+    : timezoneProblem(draft.timezone) ? (zh ? "请填写有效时区，例如 Asia/Shanghai。" : "Enter a valid time zone, such as Asia/Shanghai.") : undefined : undefined;
+  const changeSchedule = (kind: string, value = time, day = /^[0-7]$/.test(fields[4]) ? fields[4] : "1") => {
+    if (!draft) return;
+    setCustomSchedule(kind === "custom");
+    if (kind === "custom") return;
+    const [hour, minute] = value.split(":");
+    if (hour === undefined || minute === undefined) return;
+    onDraft({ ...draft, schedule: `${Number(minute)} ${Number(hour)} * * ${kind === "daily" ? "*" : kind === "weekdays" ? "1-5" : day}` });
+  };
 
   return (
     <div className="settings-provider" data-open={open}>
-      <div className="settings-row">
+      <div className="settings-row routine-row-header">
         <ProviderMark label={routine.title} />
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title"><strong>{routine.title}</strong></span>
           <span className="settings-row-sub settings-row-meta">
             <span>{botNames[routine.botId ?? "assistant"] ?? routine.botId}</span>
-            <code>{routine.schedule}</code><span>{routine.timezone}</span>{when ? <span>{when}</span> : null}
+            <span title={routine.schedule}>{routineScheduleLabel(routine.schedule, locale)}</span><span>{routine.timezone}</span>
           </span>
         </button>
         <span className="settings-key-pill" data-tone={last?.waiting ? "warn" : tone}><Dot />{last?.waiting ? c.waiting : last ? c.status[last.status] : c.neverRun}</span>
@@ -876,7 +919,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation 
           size="sm"
           aria-label={`${routine.title} ${c.enable}`}
           checked={routine.enabled}
-          disabled={busy}
+          disabled={busy || Boolean(draft)}
           onCheckedChange={(checked) => void state.setEnabled(routine.id, checked)}
         />
         <button type="button" className="settings-chevron" aria-label={routine.title} aria-expanded={open} onClick={onToggleOpen}>
@@ -885,22 +928,53 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation 
       </div>
       {open ? (
         <div className="settings-provider-editor">
-          <p className="settings-note">{routine.instructions}</p>
+          {draft ? <form className="routine-edit-form" onSubmit={async event => { event.preventDefault(); if (!problem && !busy && !running && await state.update(routine.id, draft)) onDraft(); }}>
+            <label className="settings-field">{zh ? "名称" : "Name"}<Input value={draft.title} maxLength={80} required disabled={busy} onChange={event => onDraft({ ...draft, title: event.target.value })} /></label>
+            <label className="settings-field">{zh ? "任务指令" : "Instructions"}<textarea value={draft.instructions} rows={4} maxLength={4000} required disabled={busy} onChange={event => onDraft({ ...draft, instructions: event.target.value })} /></label>
+            <div className="routine-schedule-fields">
+              <label className="settings-field">{zh ? "重复" : "Repeat"}<select value={frequency} disabled={busy} onChange={event => changeSchedule(event.target.value)}>
+                <option value="daily">{zh ? "每天" : "Daily"}</option><option value="weekdays">{zh ? "工作日" : "Weekdays"}</option><option value="weekly">{zh ? "每周" : "Weekly"}</option><option value="custom">{zh ? "自定义" : "Custom"}</option>
+              </select></label>
+              {frequency !== "custom" ? <label className="settings-field">{zh ? "时间" : "Time"}<input type="time" value={time} disabled={busy} onChange={event => changeSchedule(frequency, event.target.value)} /></label> : null}
+              {frequency === "weekly" ? <label className="settings-field">{zh ? "星期" : "Day"}<select value={fields[4] === "7" ? "0" : fields[4]} disabled={busy} onChange={event => changeSchedule("weekly", time, event.target.value)}>
+                {(zh ? ["周日", "周一", "周二", "周三", "周四", "周五", "周六"] : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]).map((label, value) => <option key={value} value={value}>{label}</option>)}
+              </select></label> : null}
+            </div>
+            {frequency === "custom" ? <label className="settings-field">{zh ? "时间规则（cron）" : "Schedule (cron)"}<Input value={draft.schedule} maxLength={160} disabled={busy} placeholder="0 9 * * 1-5" onChange={event => onDraft({ ...draft, schedule: event.target.value })} /></label> : null}
+            <label className="settings-field">{zh ? "时区" : "Time zone"}<Input value={draft.timezone} disabled={busy} maxLength={100} placeholder="Asia/Shanghai" onChange={event => onDraft({ ...draft, timezone: event.target.value })} /></label>
+            <div className="settings-provider-actions"><Button type="submit" size="sm" disabled={busy || running || Boolean(problem)}>{busy ? (zh ? "保存中…" : "Saving…") : (zh ? "保存更改" : "Save changes")}</Button>
+              <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { onDraft(); setCustomSchedule(false); }}>{zh ? "放弃更改" : "Discard changes"}</Button></div>
+            <p className="settings-note" role="status">{problem ?? (running ? (zh ? "任务运行中，结束后可保存。" : "Wait for this run to finish before saving.") : zh ? "尚未保存。关闭设置会暂存此页的编辑内容。" : "Unsaved. Closing settings keeps this draft on this page.")}</p>
+          </form> : <p className="settings-note routine-instructions">{routine.instructions}</p>}
+          <p className="settings-note">{routine.enabled ? routine.nextRunAt ? `${zh ? "下次计划" : "Next planned"} ${date(routine.nextRunAt)} (${routine.timezone})`
+            : (zh ? "未来一年内没有匹配的计划时间。" : "No matching time within the next year.") : (zh ? "已停用，不会按时运行。" : "Disabled; scheduled runs are paused.")}</p>
+          {when ? <p className="settings-note">{zh ? "最近运行" : "Last run"} {date(last!.at)}</p> : null}
           {routine.disabledReason && !routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{c.switchedOff(routine.disabledReason)}</span> : null}
           {last?.status === "error" && last.error && routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{last.error}</span> : null}
           {last?.waiting ? <span className="settings-status" data-tone="warn" role="status"><Dot />{c.waitingNote}</span> : null}
           <div className="settings-provider-actions">
-            <Button size="sm" disabled={busy || !routine.enabled || last?.status === "running"} title={routine.enabled ? undefined : c.turnOnFirst}
+            {!draft ? <Button size="sm" variant="ghost" disabled={busy || running} onClick={() => { setCustomSchedule(false); onDraft({ title: routine.title, instructions: routine.instructions, schedule: routine.schedule, timezone: routine.timezone, revision: routine.revision ?? 0 }); }}>{zh ? "编辑" : "Edit"}</Button> : null}
+            <Button size="sm" disabled={busy || Boolean(draft) || !routine.enabled || running} title={routine.enabled ? undefined : c.turnOnFirst}
               onClick={() => void state.runNow(routine.id)}>{c.runNow}</Button>
             {onOpenConversation ? (
               <Button size="sm" variant="ghost" disabled={!last} onClick={() => onOpenConversation(routine.conversationId)}>{c.openConversation}</Button>
             ) : null}
-            <Button size="sm" variant="ghost" disabled={busy} onBlur={() => setConfirming(false)}
+            <Button size="sm" variant="ghost" disabled={busy || Boolean(draft)} onBlur={() => setConfirming(false)}
               onClick={() => { if (confirming) void state.remove(routine.id); else setConfirming(true); }}>
               {confirming ? c.confirmRemove : c.remove}
             </Button>
-            {failure ? <span className="settings-status" data-tone="error" role="status"><Dot />{failure}</span> : null}
+            {failureText ? <span className="settings-status" data-tone="error" role="status"><Dot />{failureText}</span> : null}
           </div>
+          {history.length ? <div className="routine-history">
+            <h4>{zh ? "运行记录" : "Run history"}</h4>
+            <ol>{history.slice(0, allRuns ? history.length : 5).map(run => <li key={run.occurrenceId}>
+              <div><time dateTime={new Date(run.at).toISOString()}>{date(run.at)}</time><span className="settings-key-pill" data-tone={run.status === "error" ? "error" : run.status === "success" ? "ok" : "muted"}>{run.waiting ? c.waiting : c.status[run.status]}</span>
+                {onOpenConversation && (run.textId || run.runId) ? <Button size="sm" variant="ghost" onClick={() => onOpenConversation(routine.conversationId, run)}>{zh ? "查看结果" : "View result"}</Button> : null}</div>
+              {run.error ? <p className="settings-note" data-tone="error">{run.error}</p> : null}
+            </li>)}</ol>
+            {history.length > 5 ? <Button size="sm" variant="ghost" onClick={() => setAllRuns(value => !value)}>{allRuns ? (zh ? "收起" : "Show less") : (zh ? `查看全部 ${history.length} 次` : `Show all ${history.length} runs`)}</Button> : null}
+            <p className="settings-note">{zh ? "保留最近 20 次记录，完整结果在对话中。" : "The latest 20 runs are listed; full results stay in the conversation."}</p>
+          </div> : null}
         </div>
       ) : null}
     </div>
@@ -1033,13 +1107,13 @@ function McpRow({ t, server, state, open, onToggleOpen, onAdded }: {
 const memoryScopeKey = (scope?: MemoryScope) => !scope || scope.kind === "global" ? "global" : `${scope.kind}:${scope.id}`;
 type MemoryScopeOption = { scope: MemoryScope; label: string; available: boolean };
 
-function MemorySection({ t, state, scopes = [] }: { t: SettingsCopy; state: MemoriesState; scopes?: SettingsDialogProps["memoryScopes"] }) {
+function MemorySection({ t, state, scopes = [], initialScope }: { t: SettingsCopy; state: MemoriesState; scopes?: SettingsDialogProps["memoryScopes"]; initialScope?: MemoryScope }) {
   const c = t.memory;
   const { locale } = useLocale();
   const zh = locale === "zh";
   const [draft, setDraft] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [addScope, setAddScope] = useState("global");
+  const [filter, setFilter] = useState(initialScope ? memoryScopeKey(initialScope) : "all");
+  const [addScope, setAddScope] = useState(memoryScopeKey(initialScope));
   const memory = state.memory;
   const options = new Map<string, MemoryScopeOption>([["global", { scope: { kind: "global" }, label: zh ? "全局" : "Global", available: true }]]);
   for (const option of scopes) options.set(memoryScopeKey(option.scope), { ...option, available: true });

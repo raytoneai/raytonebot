@@ -8,6 +8,7 @@ import { test } from "node:test";
 import { createPiHttpHost, type PiBridgeFactory } from "./piHost.ts";
 import { createRoutineService, cronMatches, cronProblem } from "./routines.ts";
 import type { RoutineView } from "./routineTypes.ts";
+import { ROUTINE_HISTORY_LIMIT } from "./routineTypes.ts";
 
 const definition = { id: "routine-check", name: "Routine check", protocol: "openai-compatible" as const,
   baseUrl: "https://models.example.test/v1", models: ["flash"], authMode: "required" as const, apiKeyEnvVar: "ROUTINE_CHECK_API_KEY" };
@@ -231,11 +232,13 @@ test("a run held for an approval shows as waiting on the user until it is answer
     assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: "wait" })).status, 202);
     const waiting = await routineWhere(api, (item) => item.lastRun?.waiting === true);
     assert.equal(waiting.lastRun?.status, "running");
+    assert.equal(waiting.history?.[0].waiting, true);
     assert.equal(api.host.controller.listConversations().find((entry) => entry.id === routine.conversationId)?.awaitingUser, true);
     assert.equal(api.host.controller.listConversations().find((entry) => entry.id === "chat")?.awaitingUser, undefined);
     assert.equal(api.host.controller.resolveApproval("call_ask", "yes", routine.conversationId), true);
     const done = await routineWhere(api, (item) => item.lastRun?.status === "success");
     assert.equal(done.lastRun?.waiting, undefined);
+    assert.equal(done.history?.[0].waiting, undefined);
     assert.equal(api.host.controller.awaitingUser(routine.conversationId), false);
   } finally { await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
 });
@@ -260,6 +263,8 @@ test("a busy routine refuses a second occurrence instead of queueing it, and a r
     api = await hostFor(dataDir, bridge);
     const [after] = await api.list();
     assert.equal(after.lastRun?.status, "interrupted");
+    assert.equal(after.history?.[0].status, "interrupted");
+    assert.equal(after.history?.[0].occurrenceId, "first");
     assert.equal(bridge.calls.length, 2, "an interrupted run is not replayed");
   } finally { bridge.release(); await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
 });
@@ -280,6 +285,8 @@ test("two failures in a row switch a routine off with the reason; turning it on 
     const twice = await routineWhere(api, (item) => !item.enabled);
     assert.equal(twice.failures, 2);
     assert.ok(twice.disabledReason);
+    assert.deepEqual(twice.history?.map(run => [run.occurrenceId, run.status]), [["two", "error"], ["one", "error"]]);
+    assert.ok(twice.history?.every(run => Boolean(run.error)));
     assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: "three" })).status, 409);
 
     const back = (await api.call(`/routines/${routine.id}`, "POST", { enabled: true })).body as RoutineView;
@@ -365,6 +372,8 @@ test("a model configuration failure counts towards switching the routine off", a
     assert.equal(saved.failures, 1);
     assert.equal(saved.lastRun?.status, "error");
     assert.match(saved.lastRun?.error ?? "", /rejected the configuration/);
+    assert.equal(saved.history?.[0].status, "error");
+    assert.equal(saved.history?.[0].runId, undefined, "a preflight failure has no invented message anchor");
     assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: "two" })).status, 500);
     [saved] = await api.list();
     assert.equal(saved.enabled, false);
@@ -405,4 +414,93 @@ test("a failed disk while recording a finished run is logged and leaves the host
     await api.close();
     rmSync(root, { recursive: true, force: true });
   }
+});
+
+test("routine definitions validate and compare revisions without changing model, identity or enabled state", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-routine-edit-"));
+  const bridge = engine();
+  let api = await hostFor(dataDir, bridge);
+  try {
+    const routine = await createFromChat(api, bridge);
+    const patch = { title: "  Afternoon check  ", instructions: "  Read the changelog.  ", schedule: "30   16 * * 1-5", timezone: "Asia/Shanghai", revision: routine.revision };
+    const saved = await api.call(`/routines/${routine.id}`, "POST", patch);
+    assert.equal(saved.status, 200);
+    assert.equal(saved.body.title, "Afternoon check");
+    assert.equal(saved.body.instructions, "Read the changelog.");
+    assert.equal(saved.body.schedule, "30 16 * * 1-5");
+    assert.equal(saved.body.revision, (routine.revision ?? 0) + 1);
+    assert.equal(saved.body.enabled, false);
+    assert.equal(saved.body.nextRunAt, undefined);
+    assert.equal(saved.body.conversationId, routine.conversationId);
+    assert.equal(saved.body.botId, routine.botId);
+    assert.deepEqual(saved.body.model, routine.model);
+    assert.equal((await api.call(`/routines/${routine.id}`, "POST", patch)).status, 409, "stale editor must not overwrite a newer definition");
+    for (const invalid of [{ title: "" }, { instructions: "" }, { schedule: "every morning" }, { timezone: "Mars/Olympus" }]) {
+      assert.equal((await api.call(`/routines/${routine.id}`, "POST", { ...patch, revision: saved.body.revision, ...invalid })).status, 400);
+    }
+    await api.call(`/routines/${routine.id}`, "POST", { enabled: true });
+    assert.ok(Number.isFinite((await api.list())[0].nextRunAt));
+    await api.close(); api = await hostFor(dataDir, bridge);
+    const [restored] = await api.list();
+    assert.equal(restored.title, "Afternoon check");
+    assert.equal(restored.enabled, true);
+    assert.equal(restored.revision, saved.body.revision);
+    assert.equal(bridge.calls.length, 1, "editing and enabling did not run the task");
+  } finally { await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("routine edits are blocked before acceptance and while running, and failed saves are atomic", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-routine-edit-running-"));
+  const bridge = engine();
+  const api = await hostFor(dataDir, bridge);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  try {
+    const routine = await createFromChat(api, bridge);
+    const service = createRoutineService({ dataDir, permissionMode: "request", runtime: {
+      ...api.host.controller, configure: async input => { await gate; return api.host.controller.configure(input); },
+    } });
+    service.update(routine.id, { enabled: true });
+    bridge.setMode("hold");
+    const run = service.run(routine.id, "one");
+    const patch = { ...request, title: "Changed", revision: routine.revision };
+    assert.throws(() => service.update(routine.id, patch), /Stop this conversation/);
+    release(); await run;
+    assert.throws(() => service.update(routine.id, patch), /Stop this conversation/);
+    service.update(routine.id, { enabled: false }); // Preventing future runs is still allowed.
+    bridge.release();
+    await until(() => service.list()[0].lastRun?.status === "success");
+    mkdirSync(join(dataDir, "routines.json.tmp"));
+    assert.throws(() => service.update(routine.id, patch));
+    assert.equal(service.list()[0].title, routine.title);
+    assert.equal(service.list()[0].revision, routine.revision);
+    rmSync(join(dataDir, "routines.json.tmp"), { recursive: true });
+    assert.equal(service.update(routine.id, patch).title, "Changed");
+    assert.equal(service.list()[0].enabled, false);
+  } finally { release(); bridge.release(); await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("routine history is bounded, persists message anchors and preserves accepted occurrence deduplication", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-routine-history-"));
+  const bridge = engine();
+  let api = await hostFor(dataDir, bridge);
+  try {
+    const routine = await createFromChat(api, bridge);
+    await api.call(`/routines/${routine.id}`, "POST", { enabled: true });
+    for (let i = 0; i < ROUTINE_HISTORY_LIMIT + 2; i++) {
+      assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: `run-${i}` })).status, 202);
+      await routineWhere(api, item => item.lastRun?.occurrenceId === `run-${i}` && item.lastRun.status === "success");
+    }
+    const [saved] = await api.list();
+    assert.equal(saved.history?.length, ROUTINE_HISTORY_LIMIT);
+    assert.equal(saved.history?.[0].occurrenceId, `run-${ROUTINE_HISTORY_LIMIT + 1}`);
+    assert.equal(saved.history?.at(-1)?.occurrenceId, "run-2");
+    assert.deepEqual(saved.lastRun, saved.history?.[0]);
+    assert.ok(saved.lastRun?.runId && saved.lastRun?.textId && saved.lastRun?.finishedAt);
+    const events = api.host.controller.getConversation(routine.conversationId)!.events;
+    assert.ok(events.some(event => event.runId === saved.lastRun?.runId && event.type === "text.started" && event.payload.textId === saved.lastRun?.textId));
+    await api.close(); api = await hostFor(dataDir, bridge);
+    assert.deepEqual((await api.list())[0].history, saved.history);
+    assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: "run-0" })).status, 409, "history truncation must not truncate deduplication");
+  } finally { await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
 });

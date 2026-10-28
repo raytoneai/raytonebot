@@ -1,0 +1,4 @@
+PASS: real-model resume after host restart, same native session, no tools used.
+Rejected native edit through the host approval API.
+PASS: real-model native edit rejected; test file unchanged.
+PASS: real-model bash stopped, child process reaped, native session unchanged.

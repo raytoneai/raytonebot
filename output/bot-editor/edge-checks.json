@@ -1,0 +1,9 @@
+{
+  "checks": [
+    "Create Claude Code and Codex Bots with correct engine and header",
+    "Profiles synchronize to a second tab",
+    "Renamed group member uses canonical @Raer route",
+    "Escape returns focus to Logo"
+  ],
+  "errors": []
+}

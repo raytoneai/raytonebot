@@ -1,6 +1,8 @@
 import { useVault } from "./runtime/useVault";
 import { useAppViewport } from "./runtime/useAppViewport";
 import { useCompactDrawer } from "./runtime/useCompactDrawer";
+import { artifactTimestamps } from "./runtime/artifactCatalog";
+import { outputPanelItemFromRenderedArtifact } from "./components/agent-preview/outputframe/artifactPreview";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { createAgentUXViewModel, type AgentUXToolTimelineItem } from "@agent-ux/render-core";
@@ -251,6 +253,7 @@ export function AgentApp() {
   const [historyProblems, setHistoryProblems] = useState<Record<string, "failed" | "missing" | "incomplete" | undefined>>({});
   const [followProblems, setFollowProblems] = useState<Record<string, HistoryNotice | undefined>>({});
   const [historyListFailed, setHistoryListFailed] = useState(false);
+  const [sourceNotice, setSourceNotice] = useState<{ conversationId: string; message: string }>();
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
   const [runOutcome, setRunOutcome] = useState<RunOutcomeFace>();
   const { store: botStore, profiles: bots, revision: botRevision, error: botLoadError } = useBotProfiles();
@@ -265,12 +268,14 @@ export function AgentApp() {
   /** Mounted from the first open on, so later opens and closes keep their animation. */
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("providers");
-  const openSettings = (section: SettingsSectionId = "providers") => {
+  const [settingsBotId, setSettingsBotId] = useState<string>();
+  const openSettings = (section: SettingsSectionId = "providers", botId?: string) => {
     settingsFromDrawer.current = drawerOpen;
     settingsOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSettingsMounted(true);
     setDrawerOpen(false);
     setSettingsSection(section);
+    setSettingsBotId(botId);
     setSettingsOpen(true);
   };
   const [themePreset, setThemePreset] = useState<ThemePresetId>(() =>
@@ -338,7 +343,8 @@ export function AgentApp() {
   const historyProblem = historyProblems[activePiConversationId];
   const historyMessage = streamId ? undefined : followProblems[activePiConversationId] ?? (historyProblem === "missing" ? historyCopy.historyMissing
     : historyProblem === "incomplete" ? historyCopy.historyIncomplete
-    : historyProblem ? historyCopy.historyFailed : historyListFailed ? historyCopy.listFailed : undefined);
+    : historyProblem ? historyCopy.historyFailed : historyListFailed ? historyCopy.listFailed
+    : sourceNotice?.conversationId === activePiConversationId ? sourceNotice.message : undefined);
   const pendingQuestion = useMemo(() => pendingUserInput(events), [events]);
   useEffect(() => {
     if (!piRuntimeState || streamId) return;
@@ -410,6 +416,9 @@ export function AgentApp() {
   const vault = useVault(settingsOpen && Boolean(piRuntimeState));
   /** A routine's conversation opened from settings before this page has listed it. */
   const [pendingOpen, setPendingOpen] = useState<string>();
+  const navigationRequest = useRef(0);
+  const [pendingSource, setPendingSource] = useState<{ conversationId: string; artifactId?: string; textId?: string; runId?: string; loaded?: boolean }>();
+  const artifactTimes = useMemo(() => artifactTimestamps(replayEvents), [replayEvents]);
   // Both approval modes answer above the composer, exactly where the configurator previewed
   // them. Each mode needs its own surface here: `ChatFrame` no longer places either one in the
   // transcript, so a mode without an overlay would leave a real run with nothing to click.
@@ -700,6 +709,33 @@ export function AgentApp() {
     setOutputModalOpen(true);
   }
 
+  useEffect(() => {
+    if (!pendingSource || streamId || pendingSource.conversationId !== activePiConversationId) return;
+    const unavailable = () => {
+      if (!pendingSource.loaded) return;
+      setPendingSource(undefined);
+      setSourceNotice({ conversationId: activePiConversationId, message: locale === "zh"
+        ? "来源对话已打开，但所选记录已不可用。请刷新列表后重试。"
+        : "The source chat is open, but this record is no longer available. Refresh the list and try again." });
+    };
+    if (pendingSource.artifactId) {
+      const artifact = displayViewModel.timeline.find(item => item.kind === "artifact" && item.id === pendingSource.artifactId);
+      if (!artifact || artifact.kind !== "artifact") { unavailable(); return; }
+      const origin = replayEvents.find(event => event.type.startsWith("artifact.") && event.payload.artifactId === artifact.id);
+      const message = origin?.runId ? replayEvents.find(event => event.type === "text.started" && event.runId === origin.runId && event.payload.role === "assistant")
+        ?? replayEvents.find(event => event.type === "text.started" && event.runId === origin.runId && event.payload.role === "user") : undefined;
+      if (typeof message?.payload.textId === "string") setSearchTarget({ conversationId: activePiConversationId, textId: message.payload.textId, nonce: crypto.randomUUID() });
+      setPendingSource(undefined);
+      openArtifact(outputPanelItemFromRenderedArtifact(artifact, activeProject));
+    } else {
+      const message = replayEvents.find(event => event.type === "text.started" && (pendingSource.textId
+        ? event.payload.textId === pendingSource.textId : event.runId === pendingSource.runId && event.payload.role === "assistant"));
+      if (typeof message?.payload.textId !== "string") { unavailable(); return; }
+      setSearchTarget({ conversationId: activePiConversationId, textId: message.payload.textId, nonce: crypto.randomUUID() });
+      setPendingSource(undefined);
+    }
+  }, [pendingSource, activePiConversationId, displayViewModel.timeline, replayEvents, streamId, locale]);
+
   // An edited (or content-less) page has nothing to stream; it opens once saved, unless the user is
   // looking at another output source. Here rather than in OutputFrame, so a collapsed panel can open.
   // Only runs this page started or follows; the same `file:` id as the live preview's, one tab.
@@ -801,9 +837,11 @@ export function AgentApp() {
             ? [...loaded.events]
             : current
         ));
+        setPendingSource(current => current?.conversationId === loaded.id ? { ...current, loaded: true } : current);
         return loaded;
       })
       .catch((error) => {
+        setPendingSource(current => current?.conversationId === conversation.id ? undefined : current);
         const missing = error instanceof PiRequestError && error.status === 404;
         const unacceptedDraft = composer.restored.some((record) => record.id === conversation.id && !record.hasHistory);
         if (!missing || !unacceptedDraft) {
@@ -1274,6 +1312,9 @@ export function AgentApp() {
   }
 
   function startNewSession(group = false, members: string[] = ["assistant", "planner", "builder"], bot = activeBot) {
+    navigationRequest.current++;
+    setPendingOpen(undefined);
+    setPendingSource(undefined);
     navigatedRef.current = true;
     // A run in flight keeps going in its own conversation; it only draws while on screen.
     const conversation = group
@@ -1319,6 +1360,9 @@ export function AgentApp() {
   /** Clicking an agent is how a new conversation starts (there is no separate "new chat" button).
    *  An empty conversation on screen is reused rather than stacking another blank one. */
   function startConversationWith(presetId: AgentPresetId, bot = presetBot(presetId)) {
+    navigationRequest.current++;
+    setPendingOpen(undefined);
+    setPendingSource(undefined);
     const needsNew = isGroupConversation(activePiConversation) || activePiConversation.events.length > 0 || piRunning
       || hasComposerState(composer.drafts[activePiConversationId]);
     if (needsNew) { if (!startNewSession(false, undefined, bot)) return false; }
@@ -1337,16 +1381,25 @@ export function AgentApp() {
   }
 
   /** From settings (a routine's conversation): select it, listing it first if it is new here. */
-  function openStoredConversation(conversationId: string) {
+  function openStoredConversation(conversationId: string, target?: { artifactId?: string; textId?: string; runId?: string }) {
+    const request = ++navigationRequest.current;
+    setPendingOpen(undefined);
     setSettingsOpen(false);
+    setSourceNotice(undefined);
+    setPendingSource(target ? { conversationId, ...target } : undefined);
+    if (conversationId === activePiConversationId && !streamId) {
+      if (target) void refreshPiConversation(activePiConversation);
+      return;
+    }
     if (piConversations.some((entry) => entry.id === conversationId)) { selectPiConversation(conversationId); return; }
     void listStoredConversations().then(({ conversations: stored }) => {
+      if (navigationRequest.current !== request) return;
       const entry = stored.find((item) => item.id === conversationId);
-      if (!entry) return;
+      if (!entry) { setHistoryListFailed(true); setPendingSource(undefined); return; }
       setPiConversations((current) => current.some((item) => item.id === entry.id) ? current : [...current, storedStub(entry)]);
       setPendingOpen(conversationId);
       if (entry.running) void followRun(storedStub(entry));
-    }).catch(() => setHistoryListFailed(true));
+    }).catch(() => { if (navigationRequest.current === request) { setHistoryListFailed(true); setPendingSource(undefined); } });
   }
 
   useEffect(() => {
@@ -1356,6 +1409,9 @@ export function AgentApp() {
   }, [pendingOpen, piConversations]);
 
   function selectPiConversation(conversationId: string) {
+    navigationRequest.current++;
+    setPendingOpen(undefined);
+    setPendingSource(current => current?.conversationId === conversationId ? current : undefined);
     navigatedRef.current = true;
     setDrawerOpen(false);
     const conversation = piConversations.find((entry) => entry.id === conversationId);
@@ -1473,6 +1529,8 @@ export function AgentApp() {
     },
   } : undefined;
   const shellExtras: ShellExtras = {
+    artifactCatalog: streamId ? undefined : { conversationId: activePiConversationId, conversationTitle: activePiConversation.title,
+      timestamps: artifactTimes, openSource: entry => openStoredConversation(entry.conversationId, { artifactId: entry.artifactId }) },
     chatReferences: streamId ? undefined : piConversations.filter(c => c.id !== activePiConversationId && c.stored && !c.id.includes(".m.")).map(c => ({ id: c.id, title: c.title })),
     providerSelection: { onChange: (id, model) => void selectProvider(id, model), error: providerSelectionError ?? modelUnavailable,
       selected: { providerId: activeModel.providerId, model: activeModel.model } },
@@ -1546,6 +1604,7 @@ export function AgentApp() {
         settings={activeModel.settings}
         bot={streamId ? undefined : activeBot}
         onEditBot={streamId ? undefined : editBot}
+        onManageBot={streamId || !piRuntimeState ? undefined : section => openSettings(section, activeBot.id)}
         providerName={activeModel.provider?.label ?? activeModel.providerId}
         providerLabel={`${activeModel.provider?.label ?? activeModel.providerId} (${activeModel.model})${modelUnavailable ? ` — ${modelUnavailable}` : ""}`}
         onChange={changeAgentSettings}
@@ -1851,6 +1910,8 @@ export function AgentApp() {
                 if (trigger) { event.preventDefault(); trigger.focus({ preventScroll: true }); }
               }}
               initialSection={settingsSection}
+              initialBotId={settingsBotId}
+              initialMemoryScope={settingsBotId ? { kind: "bot", id: settingsBotId } : undefined}
             project={activeProject}
             providerSettingsStatus={providerSettingsStatus}
             runtime={piRuntimeState}

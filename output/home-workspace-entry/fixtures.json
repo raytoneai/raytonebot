@@ -1,0 +1,102 @@
+[
+  {
+    "name": "欢迎页(无事件)",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Built-in demo",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Group chat",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Coding agent",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Reasoning kinds",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Tool approval",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Error block",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Artifact action",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Capability tray",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "HTML artifact stream",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Basic text",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Normal turn",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Streaming thinking + message",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Tool approval + completion",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "MCP success + interrupt",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Runtime boot + sync",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Retrying incident",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Exhausted incident",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Terminal incident",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "name": "Config, spans, deletion",
+    "overflow": false,
+    "rendered": true
+  }
+]

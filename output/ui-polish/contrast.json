@@ -1,0 +1,74 @@
+[
+  {
+    "theme": "Warm Graphite 深色",
+    "background": "color(srgb 0.237882 0.189098 0.111686)",
+    "contrast": 5.21,
+    "text": "rgb(214, 154, 58)"
+  },
+  {
+    "theme": "Cocoa System 深色",
+    "background": "color(srgb 0.252863 0.168941 0.143059)",
+    "contrast": 4.61,
+    "text": "rgb(217, 130, 107)"
+  },
+  {
+    "theme": "Forest Ember 深色",
+    "background": "color(srgb 0.204 0.208627 0.13749)",
+    "contrast": 5.59,
+    "text": "rgb(207, 168, 90)"
+  },
+  {
+    "theme": "Soft Glass 浅色",
+    "background": "color(srgb 0.906667 0.911765 0.921176)",
+    "contrast": 13.62,
+    "text": "rgb(17, 30, 54)"
+  },
+  {
+    "theme": "Sand Workspace 浅色",
+    "background": "rgb(255, 236, 214)",
+    "contrast": 5.86,
+    "text": "rgb(143, 72, 27)"
+  },
+  {
+    "theme": "Tangerine Agent 浅色",
+    "background": "rgb(255, 237, 213)",
+    "contrast": 5.85,
+    "text": "rgb(156, 63, 16)"
+  },
+  {
+    "theme": "Cold Mono 深色",
+    "background": "color(srgb 0.207451 0.218118 0.235922)",
+    "contrast": 9.16,
+    "text": "rgb(221, 227, 234)"
+  },
+  {
+    "theme": "Slate Blue 深色",
+    "background": "color(srgb 0.122431 0.193647 0.301882)",
+    "contrast": 5.12,
+    "text": "rgb(96, 165, 250)"
+  },
+  {
+    "theme": "Cyan Grid 深色",
+    "background": "color(srgb 0.0658039 0.235765 0.277333)",
+    "contrast": 6.59,
+    "text": "rgb(34, 211, 238)"
+  },
+  {
+    "theme": "Ice White 浅色",
+    "background": "color(srgb 0.880314 0.914353 0.98902)",
+    "contrast": 5.95,
+    "text": "color(srgb 0.116078 0.310588 0.737255)"
+  },
+  {
+    "theme": "Mist Violet 浅色",
+    "background": "color(srgb 0.928078 0.891843 0.990118)",
+    "contrast": 6.38,
+    "text": "color(srgb 0.38902 0.181961 0.743529)"
+  },
+  {
+    "theme": "Polar Navy 浅色",
+    "background": "color(srgb 0.872627 0.880314 0.906118)",
+    "contrast": 12.4,
+    "text": "color(srgb 0.0721569 0.116078 0.263529)"
+  }
+]

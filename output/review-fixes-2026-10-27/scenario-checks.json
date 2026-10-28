@@ -1,0 +1,97 @@
+[
+  {
+    "name": "Built-in demo",
+    "rendered": true,
+    "characters": 2062
+  },
+  {
+    "name": "Group chat",
+    "rendered": true,
+    "characters": 1940
+  },
+  {
+    "name": "Coding agent",
+    "rendered": true,
+    "characters": 1955
+  },
+  {
+    "name": "Reasoning kinds",
+    "rendered": true,
+    "characters": 1447
+  },
+  {
+    "name": "Tool approval",
+    "rendered": true,
+    "characters": 2065
+  },
+  {
+    "name": "Error block",
+    "rendered": true,
+    "characters": 1408
+  },
+  {
+    "name": "Artifact action",
+    "rendered": true,
+    "characters": 1392
+  },
+  {
+    "name": "Capability tray",
+    "rendered": true,
+    "characters": 1306
+  },
+  {
+    "name": "HTML artifact stream",
+    "rendered": true,
+    "characters": 1658
+  },
+  {
+    "name": "Basic text",
+    "rendered": true,
+    "characters": 1441
+  },
+  {
+    "name": "Normal turn",
+    "rendered": true,
+    "characters": 1618
+  },
+  {
+    "name": "Streaming thinking + message",
+    "rendered": true,
+    "characters": 1629
+  },
+  {
+    "name": "Tool approval + completion",
+    "rendered": true,
+    "characters": 1806
+  },
+  {
+    "name": "MCP success + interrupt",
+    "rendered": true,
+    "characters": 2323
+  },
+  {
+    "name": "Runtime boot + sync",
+    "rendered": true,
+    "characters": 1699
+  },
+  {
+    "name": "Retrying incident",
+    "rendered": true,
+    "characters": 1734
+  },
+  {
+    "name": "Exhausted incident",
+    "rendered": true,
+    "characters": 1641
+  },
+  {
+    "name": "Terminal incident",
+    "rendered": true,
+    "characters": 1485
+  },
+  {
+    "name": "Config, spans, deletion",
+    "rendered": true,
+    "characters": 1587
+  }
+]

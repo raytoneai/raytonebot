@@ -1,0 +1,33 @@
+Browser tab: 834999550, Title: "RaytoneBot", URL: "http://127.0.0.1:5188/?devtools=1".
+0 AXWebArea RaytoneBot, URL: 127.0.0.1:5188/?devtools=1
+	1 container
+		101 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand
+		48 container
+			102 container
+				103 heading 能力, Value: 3
+					104 text 能力
+				105 text AgentUX 能力事件
+			106 container
+				107 text Filesystem Filesystem tools and allowed-root descriptors available to this run. 3
+			108 heading 今天想让我帮你做些什么？, Value: 2
+				109 text 今天想让我帮你做些什么？
+			83 text entry area (settable)
+			84 button 附加文件
+			85 pop up button (collapsed) Description: 审批权限, ID: radix-_r_a_, Secondary Actions: Expand
+			86 pop up button (collapsed) Description: 思考预算, ID: radix-_r_c_, Secondary Actions: Expand
+			87 button (disabled) 发送
+		88 button 展开右侧面板
+		89 text 事件流(仅开发)
+		90 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_19_, Secondary Actions: Expand
+		91 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand
+			92 menu
+				93 (selected) 工作头像预览
+				94 正在思考
+				95 正在查阅
+				96 正在修改
+				97 正在执行
+				98 正在回复
+				99 等你确认
+				100 结束 / 停止
+
+The focused UI element is 90 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_19_, Secondary Actions: Expand

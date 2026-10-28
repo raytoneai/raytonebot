@@ -1,0 +1,247 @@
+{
+  "switching": [
+    {
+      "artifacts": "agent-anatomy.htmlllm-architecture.html",
+      "browser": false,
+      "console": false,
+      "selected": [
+        "产物"
+      ],
+      "source": "artifact"
+    },
+    {
+      "browser": false,
+      "console": true,
+      "selected": [
+        "控制台"
+      ],
+      "source": "console"
+    },
+    {
+      "browser": true,
+      "console": false,
+      "selected": [
+        "浏览器"
+      ],
+      "source": "browser"
+    },
+    {
+      "browser": false,
+      "console": false,
+      "file": "package.json",
+      "selected": [
+        "工作区"
+      ],
+      "source": "workspace"
+    },
+    {
+      "selected": [
+        "控制台"
+      ],
+      "source": "console"
+    },
+    {
+      "selected": [
+        "浏览器"
+      ],
+      "source": "browser"
+    },
+    {
+      "preview": "agent-anatomy.html",
+      "selected": [
+        "产物"
+      ],
+      "source": "artifact"
+    },
+    {
+      "path": "/artifacts",
+      "selected": [
+        "工作区"
+      ],
+      "source": "workspace"
+    }
+  ],
+  "narrow": {
+    "content": 390,
+    "rect": {
+      "bottom": 792.0430908203125,
+      "height": 740.086181640625,
+      "left": 31.779342651367188,
+      "right": 358.2206268310547,
+      "top": 51.9569091796875,
+      "width": 326.4412841796875,
+      "x": 31.779342651367188,
+      "y": 51.9569091796875
+    },
+    "selected": [
+      "工作区"
+    ],
+    "source": "workspace",
+    "tabsContent": 206,
+    "tabsWidth": 206,
+    "viewport": 390
+  },
+  "fixtures": [
+    {
+      "name": "欢迎页(无事件)",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Built-in demo",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Group chat",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Coding agent",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Reasoning kinds",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Tool approval",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Error block",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Artifact action",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Capability tray",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "HTML artifact stream",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Basic text",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Normal turn",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Streaming thinking + message",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Tool approval + completion",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "MCP success + interrupt",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Runtime boot + sync",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Retrying incident",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Exhausted incident",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Terminal incident",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    },
+    {
+      "name": "Config, spans, deletion",
+      "chatFrames": 1,
+      "width": {
+        "content": 1440,
+        "viewport": 1440
+      }
+    }
+  ],
+  "errors": []
+}

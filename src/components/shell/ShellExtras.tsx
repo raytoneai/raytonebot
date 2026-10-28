@@ -1,6 +1,6 @@
 import * as RadixPopover from "@radix-ui/react-popover";
 import { ChevronDown, Pencil, Plus, Settings } from "lucide-react";
-import { createContext, useContext, useState, type ReactNode, type RefObject } from "react";
+import { createContext, useContext, useRef, useState, type ReactNode, type RefObject } from "react";
 import type { TranscriptScroll } from "../../runtime/useTranscriptScroll";
 import type { BranchAction } from "../../runtime/useMessageBranch";
 import type { ConversationSearch, SearchSession } from "../../runtime/useConversationSearch";
@@ -14,6 +14,7 @@ import { appVersionLabel } from "../../appVersion";
 import type { ComposerDraft, ComposerRunOptions } from "../agent-preview/ComposerFrame";
 import type { OutputPanelOpenRequest } from "../agent-preview/outputframe/panelItem";
 import type { OutputPanelSource } from "../agent-preview/outputframe/types";
+import type { ArtifactCatalogContext } from "../../runtime/artifactCatalog";
 import type { PiRuntimeState } from "../../pi/piClient";
 import type { ProviderConnectionId } from "../../schema/agentuxConfig";
 import {
@@ -41,6 +42,7 @@ import { BOT_NAMES, type BotProfile } from "../../runtime/botProfiles";
  * sidebar and header render exactly as exported.
  */
 export type ShellExtras = {
+  artifactCatalog?: ArtifactCatalogContext;
   botEditor?: BotEditorState;
   bots?: readonly BotProfile[];
   onCreateBot?: () => void;
@@ -251,9 +253,11 @@ export function HeaderAgent({
   onManageProviders,
   bot,
   onEditBot,
+  onManageBot,
 }: {
   bot?: BotProfile;
   onEditBot?: (bot: BotProfile) => void;
+  onManageBot?: (section: "memory" | "routines") => void;
   avatars: Record<AgentPresetId, AvatarKind>;
   settings: AgentSettings;
   /** Display label; never parse UI punctuation to obtain the provider name. */
@@ -265,6 +269,15 @@ export function HeaderAgent({
 }) {
   const { locale } = useLocale();
   const t = settingsCopy[locale];
+  const [menuOpen, setMenuOpen] = useState(false);
+  const trigger = useRef<HTMLButtonElement>(null);
+  const openingSettings = useRef(false);
+  const manage = (action: () => void) => {
+    openingSettings.current = true;
+    setMenuOpen(false);
+    trigger.current?.focus();
+    action();
+  };
   const roleCopy = useCopy().composer.agentSettings;
   const preset = agentPreset(settings.presetId);
   const name = bot?.name ?? BOT_NAMES[preset.id];
@@ -273,9 +286,9 @@ export function HeaderAgent({
   const model = !sourceKey || source === "provider" ? providerLabel : sourceKey === "claudeCodeModelSource" ? t.agents.sourceLocal : t.agents.sourceLocalCodex;
 
   return (
-    <RadixPopover.Root>
+    <RadixPopover.Root open={menuOpen} onOpenChange={setMenuOpen}>
       <RadixPopover.Trigger asChild>
-        <button type="button" className="shell-header-agent shell-header-compact" aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}
+        <button ref={trigger} type="button" className="shell-header-agent shell-header-compact" aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}
           onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot); } }}>
           <AgentAvatar size={28} kind={avatars[preset.id]} appearance={bot?.appearance} live={false} />
           <strong className="shell-header-name">{name}</strong>
@@ -286,7 +299,13 @@ export function HeaderAgent({
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
-        <RadixPopover.Content className={`shell-popover${sourceKey ? "" : " shell-model-popover"}`} align="center" sideOffset={8} collisionPadding={12}>
+        <RadixPopover.Content className={`shell-popover${sourceKey ? "" : " shell-model-popover"}`} align="center" sideOffset={8} collisionPadding={12}
+          onCloseAutoFocus={event => { if (openingSettings.current) { event.preventDefault(); openingSettings.current = false; } }}>
+          {bot && onEditBot ? <button type="button" className="shell-popover-link" onClick={() => manage(() => onEditBot(bot))}>{locale === "zh" ? "编辑此 Bot" : "Edit this Bot"}</button> : null}
+          {onManageBot ? <>
+            <button type="button" className="shell-popover-link" onClick={() => manage(() => onManageBot("memory"))}>{locale === "zh" ? "此 Bot 的记忆" : "This Bot’s memories"}</button>
+            <button type="button" className="shell-popover-link" onClick={() => manage(() => onManageBot("routines"))}>{locale === "zh" ? "此 Bot 的例行任务" : "This Bot’s routines"}</button>
+          </> : null}
           <p className="shell-header-model">{model}</p>
           {sourceKey ? (
             <div className="shell-popover-field">
@@ -310,8 +329,7 @@ export function HeaderAgent({
             </div>
           ) : null}
           {preset.harness === "codex" ? <p className="shell-popover-note">{roleCopy.codexModelNote}</p> : null}
-          {bot?.model && onEditBot ? <button type="button" className="shell-popover-link" onClick={() => onEditBot(bot)}>{t.agents.botModel}</button> : null}
-          {sourceKey ? <button type="button" className="shell-popover-link" onClick={onManageProviders}>{t.shell.manageProviders}</button> : null}
+          <button type="button" className="shell-popover-link" onClick={() => manage(onManageProviders)}>{t.shell.manageProviders}</button>
         </RadixPopover.Content>
       </RadixPopover.Portal>
     </RadixPopover.Root>

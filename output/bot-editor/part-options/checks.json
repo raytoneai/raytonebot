@@ -1,0 +1,138 @@
+{
+  "pieces": [
+    {
+      "field": "hair",
+      "label": "无"
+    },
+    {
+      "field": "hair",
+      "label": "飞机头"
+    },
+    {
+      "field": "hair",
+      "label": "波波头"
+    },
+    {
+      "field": "hair",
+      "label": "侧分短发"
+    },
+    {
+      "field": "hair",
+      "label": "双丸子"
+    },
+    {
+      "field": "hair",
+      "label": "侧分长发"
+    },
+    {
+      "field": "accessory",
+      "label": "无"
+    },
+    {
+      "field": "accessory",
+      "label": "发夹"
+    },
+    {
+      "field": "accessory",
+      "label": "蝴蝶结"
+    },
+    {
+      "field": "accessory",
+      "label": "星星"
+    },
+    {
+      "field": "accessory",
+      "label": "圆眼镜"
+    },
+    {
+      "field": "accessory",
+      "label": "头戴耳机"
+    },
+    {
+      "field": "accessory",
+      "label": "耳麦"
+    },
+    {
+      "field": "accessory",
+      "label": "棒球帽"
+    },
+    {
+      "field": "accessory",
+      "label": "针织帽"
+    }
+  ],
+  "stored": {
+    "face": "round",
+    "hair": "long",
+    "accessory": "headset",
+    "faceColor": "#FDE7B4",
+    "eyeColor": "#0C2458",
+    "hairColor": "#71869B",
+    "accessoryColor": "#E7AC26",
+    "eyes": "capsule"
+  },
+  "noFaces": true,
+  "mobileSizes": [
+    {
+      "width": 48,
+      "height": 56
+    },
+    {
+      "width": 48,
+      "height": 56
+    },
+    {
+      "width": 48,
+      "height": 56
+    },
+    {
+      "width": 48,
+      "height": 56
+    },
+    {
+      "width": 48,
+      "height": 56
+    },
+    {
+      "width": 48,
+      "height": 56
+    },
+    {
+      "width": 59.1875,
+      "height": 56
+    },
+    {
+      "width": 59.203125,
+      "height": 56
+    },
+    {
+      "width": 59.203125,
+      "height": 56
+    },
+    {
+      "width": 59.203125,
+      "height": 56
+    },
+    {
+      "width": 59.203125,
+      "height": 56
+    },
+    {
+      "width": 59.1875,
+      "height": 56
+    },
+    {
+      "width": 59.203125,
+      "height": 56
+    },
+    {
+      "width": 59.203125,
+      "height": 56
+    },
+    {
+      "width": 59.203125,
+      "height": 56
+    }
+  ],
+  "errors": []
+}

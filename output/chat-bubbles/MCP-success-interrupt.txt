@@ -1,0 +1,73 @@
+Browser tab: 834999550, Title: "RaytoneBot", URL: "http://127.0.0.1:5188/?devtools=1".
+0 AXWebArea RaytoneBot, URL: 127.0.0.1:5188/?devtools=1
+	1 container
+		101 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand
+		48 container
+			102 pop up button (collapsed) Description: Rae, Pi, Secondary Actions: Expand
+				103 text Rae
+			104 container
+				105 text 我
+				106 text 运行发布检查。
+				107 container 用户消息操作
+					108 button 复制提示词
+					109 button (disabled) 在新分支中编辑提示词
+				110 container Agent 输出
+					111 text Raer
+				112 button (collapsed) 检查了 1 次, Secondary Actions: Expand
+				113 text 我
+				114 text Publish the release.
+				115 container 用户消息操作
+					116 button 复制提示词
+					117 button (disabled) 在新分支中编辑提示词
+				118 container Agent 输出
+					119 text Raer
+				120 container
+					121 text Publish production release · release-tools (MCP) · 等待审批 {
+					122 button (expanded) Description: Collapse tool, Secondary Actions: Collapse
+				123 text 输入
+				124 text {
+  "environment": "production"
+}
+			125 container 工具审批操作
+				126 text 需要权限
+				127 text Approve publish?
+				128 content list
+					129 container
+						130 text 1 .
+						131 button 允许仅允许这一次
+							132 text 允许
+							133 text 仅允许这一次
+					134 container
+						135 text 2 .
+						136 button 始终允许此 Agent 以后使用该工具不再询问（受保护操作仍会询问）
+							137 text 始终允许
+							138 text 此 Agent 以后使用该工具不再询问（受保护操作仍会询问）
+					139 container
+						140 text 3 .
+						141 button 拒绝这次先拒绝
+							142 text 拒绝
+							143 text 这次先拒绝
+				144 container
+					145 text 使用 Tab / 上下键选择，回车确认
+					146 button 拒绝
+					147 button 允许
+			83 text entry area (settable)
+			84 button 附加文件
+			85 pop up button (collapsed) Description: 审批权限, ID: radix-_r_a_, Secondary Actions: Expand
+			86 pop up button (collapsed) Description: 思考预算, ID: radix-_r_c_, Secondary Actions: Expand
+			87 button (disabled) 发送
+		88 button 展开右侧面板
+		89 text 事件流(仅开发)
+		90 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_19_, Secondary Actions: Expand
+		91 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand
+			92 menu
+				93 (selected) 工作头像预览
+				94 正在思考
+				95 正在查阅
+				96 正在修改
+				97 正在执行
+				98 正在回复
+				99 等你确认
+				100 结束 / 停止
+
+The focused UI element is 90 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_19_, Secondary Actions: Expand

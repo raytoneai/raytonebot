@@ -1,0 +1,148 @@
+- complementary:
+  - button:
+  - button:
+  - button:
+  - region:
+    - heading [level=4]: Agent
+    - button:
+      - generic: Raer
+      - text: Pi
+    - button:
+    - button:
+      - generic: Tonny
+      - text: Claude Code
+    - button:
+    - button:
+      - generic: Bob
+      - text: Codex CLI
+    - button:
+  - button [expanded]:
+    - generic: 聊天记录
+  - navigation:
+    - button [expanded]:
+      - generic: Raer
+      - generic: "3"
+    - button:
+      - generic: 设计改进记录
+    - button:
+    - button:
+    - button:
+      - generic: 整理下一步
+    - button:
+    - button:
+    - button:
+      - generic: 竞品研究周报
+    - button:
+    - button:
+  - button:
+    - generic: 设置
+  - generic: v0.1.0
+- button:
+  - strong: Raer
+- button:
+- article:
+  - paragraph: 界面评审记录：清晰的任务状态、产物来源与上下文入口。
+  - button:
+  - button:
+- button:
+  - strong: design-notes.md
+  - generic: 文件
+  - generic: 打开
+- textbox:
+  - /placeholder: 给 Raer 发消息…
+- button:
+- button:
+- button:
+- button:
+  - generic: 请求权限
+- button:
+  - generic: 中等
+- button [disabled]: 发送
+- separator
+- complementary:
+  - button [pressed]:
+    - generic: 产物
+  - button:
+    - generic: 控制台
+  - button:
+    - generic: 浏览器
+  - button:
+    - generic: 工作区
+  - button:
+  - button:
+  - button:
+    - generic: 当前对话
+  - searchbox
+  - list:
+    - button:
+      - generic: design-notes.md
+      - generic: 2026年10月27日 20:26
+    - button: 来源
+  - paragraph: 文件预览显示当前内容
+  - generic: design-notes.md
+  - link:
+    - /url: /__agentcanvas/pi/files/download?scope=assistant&path=design-notes.md&revision=%5B%22run-design-notes%22%2C%22artifactId%22%2C%22report%22%5D
+  - button:
+  - button:
+  - button: 另存为文档
+  - button: 编辑文档
+  - button: 引用到输入框
+  - heading [level=4]: 设计改进记录
+  - paragraph: 界面评审记录：清晰的任务状态、产物来源与上下文入口。
+- dialog "设置":
+  - navigation "设置":
+    - heading "设置" [level=2]
+    - button "模型服务":
+      - text: 模型服务
+    - button "权限":
+      - text: 权限
+    - button "IM 频道":
+      - text: IM 频道
+    - button "例行任务":
+      - text: 例行任务
+    - button "MCP 与 Skills":
+      - text: MCP 与 Skills
+    - button "记忆":
+      - text: 记忆
+    - button "模型用量":
+      - text: 模型用量
+    - button "Vault":
+      - text: Vault
+    - button "外观":
+      - text: 外观
+    - button "关于":
+      - text: 关于
+    - generic: v0.1.0
+  - region "例行任务":
+    - heading "例行任务" [level=2]
+    - button "关闭设置":
+    - paragraph: 任务由创建它的 Bot 按计划运行，每个任务有自己的对话。要新建，在聊天里对 Raer 说，例如「每个工作日 9 点帮我看一下……」。新任务默认关闭。
+    - paragraph: 机器人运行期间按时执行；沙箱暂停期间错过的场次会跳过，之后不补跑。
+    - button "按 Bot 筛选例行任务":
+      - generic: Raer
+    - generic: 每
+    - button "每周竞品研究 Raer 每周一 09:00 Asia/Shanghai" [expanded] [active]:
+      - strong: 每周竞品研究
+      - generic: Raer
+      - generic "0 9 * * 1": 每周一 09:00
+      - generic: Asia/Shanghai
+    - generic: 已完成
+    - switch "每周竞品研究 按计划运行"
+    - button "每周竞品研究" [expanded]:
+    - paragraph: 检查 Rakazo 的公开更新，整理功能与 UI/UX 上可学习的变化，附来源。
+    - paragraph: 已停用，不会按时运行。
+    - paragraph: 最近运行 10月28日 19:26
+    - button "编辑"
+    - button "立即运行" [disabled]
+    - button "打开对话"
+    - button "删除"
+    - heading "运行记录" [level=4]
+    - list:
+      - time: 10月28日 19:26
+      - generic: 已完成
+      - button "查看结果"
+      - time: 10月27日 20:26
+      - generic: 失败
+      - button "查看结果"
+      - paragraph: 测试数据：来源暂时不可用
+    - paragraph: 保留最近 20 次记录，完整结果在对话中。

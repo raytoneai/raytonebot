@@ -3,7 +3,7 @@ import type { AgentUXEvent } from "@agent-ux/protocol";
 
 import type { PiApprovalDecision } from "../harness/adapters/piAdapter.ts";
 import type { ChannelPatch, ChannelPlatform, ChannelView } from "./imChannels/types.ts";
-import type { RoutineView } from "./routineTypes.ts";
+import type { RoutineDefinitionPatch, RoutineView } from "./routineTypes.ts";
 import type { McpServerInput, McpServerView } from "./mcpTypes.ts";
 import type { MemoryState, MemoryView } from "./memoryTypes.ts";
 import type { VaultLoginInput, VaultState } from "./vaultTypes.ts";
@@ -372,6 +372,10 @@ export async function listRoutines(fetcher: typeof fetch = fetch, signal?: Abort
 
 export async function setRoutineEnabled(id: string, enabled: boolean, fetcher: typeof fetch = fetch): Promise<RoutineView> {
   return requestJson<RoutineView>(fetcher, `${PI_API_PREFIX}/routines/${encodeURIComponent(id)}`, { enabled }, AbortSignal.timeout(15_000));
+}
+
+export async function updateRoutine(id: string, patch: RoutineDefinitionPatch, fetcher: typeof fetch = fetch): Promise<RoutineView> {
+  return requestJson<RoutineView>(fetcher, `${PI_API_PREFIX}/routines/${encodeURIComponent(id)}`, patch, AbortSignal.timeout(15_000));
 }
 
 /** "Run now": the clock's own entry, with a one-off occurrence id. */

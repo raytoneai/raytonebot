@@ -6,8 +6,22 @@ import { project } from "../exported-project.ts";
 import { DEFAULT_AGENT_SETTINGS } from "../pi/harnessCatalog.ts";
 import { groupSessionHistory } from "./useSessionHistoryGroups.ts";
 import { mentionMatches, applyMention } from "./mentionCompletion.ts";
+import { applyBotRoleTemplate, botRoleTemplates } from "./botRoleTemplates.ts";
 
 const custom: BotProfile = { id: "bot_12345678-1234-1234-1234-123456789abc", presetId: "assistant", name: "  Muse  ", appearance: DEFAULT_BOTS.boy };
+
+test("role starting points preserve manual text, identity, model and capability choices", () => {
+  const [research, planning] = botRoleTemplates(true);
+  const draft = { ...custom, model: { provider: "existing", model: "selected" }, mcpServerIds: [], skillIds: ["chosen"] };
+  const filled = applyBotRoleTemplate(draft, research.persona);
+  const switched = applyBotRoleTemplate({ ...filled, role: "My own role" }, planning.persona, research.persona);
+  assert.equal(switched.role, "My own role");
+  assert.equal(switched.personality, planning.persona.personality);
+  assert.equal(switched.instructions, planning.persona.instructions);
+  for (const key of ["id", "presetId", "name", "appearance", "model", "mcpServerIds", "skillIds"] as const) assert.deepEqual(switched[key], draft[key]);
+  assert.equal(filled.role, research.persona.role);
+  assert.equal("role" in draft, false);
+});
 
 test("display and submission use the Bot override without changing defaults or falling back from disabled services", () => {
   const original = structuredClone(project.providers);

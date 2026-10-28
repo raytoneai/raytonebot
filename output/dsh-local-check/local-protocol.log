@@ -1,0 +1,2 @@
+DSH installation: /Users/rickyhuo/.npm-global/lib/node_modules/@deepseek-ai/dsh/package.json
+PASS: real DSH approval/rejection, host tool, missing context, stop/descendant cleanup, and restart/resume (8 model requests).

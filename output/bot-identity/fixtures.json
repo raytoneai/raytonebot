@@ -1,0 +1,102 @@
+[
+  {
+    "fixture": "欢迎页(无事件)",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Built-in demo",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Group chat",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Coding agent",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Reasoning kinds",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Tool approval",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Error block",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Artifact action",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Capability tray",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "HTML artifact stream",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Basic text",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Normal turn",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Streaming thinking + message",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Tool approval + completion",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "MCP success + interrupt",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Runtime boot + sync",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Retrying incident",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Exhausted incident",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Terminal incident",
+    "overflow": false,
+    "rendered": true
+  },
+  {
+    "fixture": "Config, spans, deletion",
+    "overflow": false,
+    "rendered": true
+  }
+]

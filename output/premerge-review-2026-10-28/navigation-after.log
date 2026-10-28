@@ -1,0 +1,2 @@
+PASS: delayed success preserves the latest current-chat target
+PASS: delayed failure preserves the latest current-chat target

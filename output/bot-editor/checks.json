@@ -1,0 +1,11 @@
+{
+  "checks": [
+    "Create Pi Bot; separate conversation ID, drafts, history group and active header",
+    "All three defaults and custom Bot share editor; cancel preserves identity",
+    "Keyboard edit, rename, refreshed profile and conversation ownership",
+    "Settings has no Bot editor",
+    "Quota failure is visible, keeps draft and leaves saved Bot intact",
+    "390px Logo create + edit button, no overflow, fixed save/cancel reachable"
+  ],
+  "errors": []
+}

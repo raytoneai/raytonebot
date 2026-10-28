@@ -42,6 +42,7 @@ import { sendWorkspaceFile } from "./workspaceDownload.ts";
 import { createConversationRecorder } from "./conversationRecorder.ts";
 import { assertPiSessionFile, openPiSession } from "./nativeSession.ts";
 import { conversationSearchPage, SearchPageError } from "./conversationSearchPage.ts";
+import { listArtifactCatalog, ArtifactCatalogError } from "./artifactCatalog.ts";
 import { ConversationBranchError, type NativeTurnCheckpoint } from "./conversationBranch.ts";
 import {
   createConversationStore,
@@ -1582,6 +1583,12 @@ export function createPiHttpHost(options: {
           }
           return true;
         }
+        if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/artifacts`) {
+          sendJson(res, 200, await listArtifactCatalog({ store, layout, excluded: privatePaths, bots: bots.catalog(),
+            query: url.searchParams.get("query") ?? undefined, conversationId: url.searchParams.get("conversationId") ?? undefined,
+            limit: Number(url.searchParams.get("limit") ?? 50), cursor: url.searchParams.get("cursor") ?? undefined }));
+          return true;
+        }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/conversations`) {
           const query = url.searchParams.get("query") ?? undefined;
           if (query && query.length > 200) sendJson(res, 400, { error: "Search query must be at most 200 characters." });
@@ -1771,7 +1778,7 @@ export function createPiHttpHost(options: {
         }
         sendJson(res, 404, { error: "Unknown Pi endpoint." });
       } catch (error) {
-        if (!res.headersSent) sendJson(res, error instanceof VaultRequestError ? error.statusCode : error instanceof VaultError || error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
+        if (!res.headersSent) sendJson(res, error instanceof VaultRequestError ? error.statusCode : error instanceof VaultError || error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError || error instanceof ArtifactCatalogError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
         else if (!res.destroyed) res.end();
       }
       return true;

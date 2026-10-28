@@ -7,8 +7,11 @@ import type { AgentUXEvent } from "@agent-ux/protocol";
 import type { AppLocale } from "../i18n/locales.ts";
 import type { ChannelModel } from "./imChannels/types.ts";
 import type { PiPermissionMode, PiRuntimeController } from "./piHost.ts";
-import { ROUTINE_FAILURE_LIMIT, type RoutineRunStatus, type RoutineView } from "./routineTypes.ts";
+import { ROUTINE_FAILURE_LIMIT, ROUTINE_HISTORY_LIMIT, type RoutineRun, type RoutineRunStatus, type RoutineView } from "./routineTypes.ts";
+import { cronMatches, cronProblem, nextCronOccurrence, timezoneProblem } from "../runtime/routineSchedule.ts";
 import { readSettingsFile } from "./settingsFile.ts";
+
+export { cronMatches, cronProblem } from "../runtime/routineSchedule.ts";
 
 /**
  * Routines (ADR-033): saved instructions the creating Bot runs on a schedule. The host keeps the definitions
@@ -17,7 +20,7 @@ import { readSettingsFile } from "./settingsFile.ts";
  * as that same Bot, with the host's default permission mode and the server's environment key, like an IM chat.
  */
 
-export type Routine = Omit<RoutineView, "model"> & {
+export type Routine = Omit<RoutineView, "model" | "nextRunAt"> & {
   /** The model service of the turn that created it; definitions hold no secrets. */
   model?: ChannelModel;
   locale?: AppLocale;
@@ -34,63 +37,23 @@ export class RoutineError extends Error {
   constructor(message: string, status: number) { super(message); this.status = status; }
 }
 
-const CRON_FIELDS = [[0, 59], [0, 23], [1, 31], [1, 12], [0, 7]] as const;
+const validRun = (run: RoutineRun) => run && typeof run.occurrenceId === "string" && Number.isFinite(run.at)
+  && ["running", "success", "error", "cancelled", "interrupted"].includes(run.status)
+  && (run.error === undefined || typeof run.error === "string") && (run.runId === undefined || typeof run.runId === "string")
+  && (run.textId === undefined || typeof run.textId === "string") && (run.finishedAt === undefined || Number.isFinite(run.finishedAt));
+const withRun = (routine: Routine, run: RoutineRun): Routine => ({ ...routine, lastRun: run,
+  history: [run, ...(routine.history ?? (routine.lastRun ? [routine.lastRun] : [])).filter(item => item.occurrenceId !== run.occurrenceId)].slice(0, ROUTINE_HISTORY_LIMIT) });
 
-/** Five-field cron (minute hour day month weekday): `*`, numbers, ranges, lists and steps. */
-export function cronProblem(expression: string): string | undefined {
-  const fields = expression.trim().split(/\s+/);
-  if (fields.length !== 5) return "Use five fields: minute hour day month weekday.";
-  for (const [index, field] of fields.entries()) {
-    const [min, max] = CRON_FIELDS[index];
-    for (const part of field.split(",")) {
-      const match = /^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/.exec(part);
-      if (!match) return `"${field}" is not a valid cron field.`;
-      const from = match[2] === undefined ? min : Number(match[2]);
-      const to = match[3] === undefined ? (match[2] === undefined ? max : from) : Number(match[3]);
-      const step = match[4] === undefined ? 1 : Number(match[4]);
-      if (from < min || to > max || from > to || step < 1) return `"${field}" is out of range ${min}-${max}.`;
-    }
-  }
-  return undefined;
-}
-
-/** The values a cron field allows, e.g. "1-5" → {1,2,3,4,5}. Assumes `cronProblem` passed. */
-function cronValues(field: string, index: number): Set<number> {
-  const [min, max] = CRON_FIELDS[index];
-  const values = new Set<number>();
-  for (const part of field.split(",")) {
-    const match = /^(\*|(\d+)(?:-(\d+))?)(?:\/(\d+))?$/.exec(part)!;
-    const from = match[2] === undefined ? min : Number(match[2]);
-    // "5/15" means from 5 to the end, as in Vixie cron.
-    const to = match[3] !== undefined ? Number(match[3]) : match[2] === undefined || match[4] !== undefined ? max : from;
-    for (let value = from; value <= to; value += Number(match[4] ?? 1)) values.add(index === 4 && value === 7 ? 0 : value);
-  }
-  return values;
-}
-
-const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
-const zoneFormats = new Map<string, Intl.DateTimeFormat>();
-
-/** Whether `expression` names the minute of `at` in `timezone`. Day of month and weekday follow
- *  cron: when both are restricted, either one matching is enough. */
-export function cronMatches(expression: string, timezone: string, at: Date): boolean {
-  let format = zoneFormats.get(timezone);
-  if (!format) {
-    format = new Intl.DateTimeFormat("en-US", { timeZone: timezone, hourCycle: "h23", weekday: "short",
-      month: "numeric", day: "numeric", hour: "numeric", minute: "numeric" });
-    zoneFormats.set(timezone, format);
-  }
-  const parts = Object.fromEntries(format.formatToParts(at).map((part) => [part.type, part.value]));
-  const fields = expression.trim().split(/\s+/);
-  const local = [Number(parts.minute), Number(parts.hour), Number(parts.day), Number(parts.month), WEEKDAYS.indexOf(parts.weekday)];
-  const hit = fields.map((field, index) => cronValues(field, index).has(local[index]));
-  const day = fields[2].startsWith("*") || fields[4].startsWith("*") ? hit[2] && hit[4] : hit[2] || hit[4];
-  return hit[0] && hit[1] && hit[3] && day;
-}
-
-function timezoneProblem(timezone: string): string | undefined {
-  try { new Intl.DateTimeFormat("en", { timeZone: timezone }); return undefined; }
-  catch { return `"${timezone}" is not an IANA timezone, e.g. Asia/Shanghai.`; }
+function definition(input: { title?: unknown; instructions?: unknown; schedule?: unknown; timezone?: unknown }): RoutineRequest {
+  const title = typeof input.title === "string" ? input.title.trim() : "";
+  const instructions = typeof input.instructions === "string" ? input.instructions.trim() : "";
+  const schedule = typeof input.schedule === "string" ? input.schedule.trim().split(/\s+/).join(" ") : "";
+  const timezone = typeof input.timezone === "string" ? input.timezone.trim() : "";
+  if (!title || title.length > 80) throw new RoutineError("A title of 1-80 characters is required.", 400);
+  if (!instructions || instructions.length > 4000) throw new RoutineError("Instructions of 1-4000 characters are required.", 400);
+  const problem = (schedule ? cronProblem(schedule) : "A schedule is required.") ?? (timezone ? timezoneProblem(timezone) : "A timezone is required.");
+  if (problem) throw new RoutineError(problem, 400);
+  return { title, instructions, schedule, timezone };
 }
 
 /** `routines.json` in the bot's data directory, written whole through a temp file. */
@@ -107,14 +70,19 @@ export class RoutineStore {
       && typeof routine.timezone === "string" && !timezoneProblem(routine.timezone)
       && typeof routine.enabled === "boolean" && Number.isFinite(routine.createdAt) && Number.isFinite(routine.failures)
       && typeof routine.conversationId === "string" && (routine.occurrences === undefined || Array.isArray(routine.occurrences) && routine.occurrences.every(id => typeof id === "string"))
-      && (routine.lastRun === undefined || routine.lastRun && typeof routine.lastRun.occurrenceId === "string"
-        && Number.isFinite(routine.lastRun.at) && ["running", "success", "error", "cancelled", "interrupted"].includes(routine.lastRun.status))));
+      && (routine.revision === undefined || Number.isSafeInteger(routine.revision) && routine.revision >= 0)
+      && (routine.lastRun === undefined || validRun(routine.lastRun))
+      && (routine.history === undefined || Array.isArray(routine.history) && routine.history.every(validRun))));
     this.error = loaded.error;
     if (loaded.data) {
       this.routines = loaded.data.routines
         // A run in flight when the host stopped is not resumed or replayed.
-        .map((routine) => routine.lastRun?.status === "running"
-          ? { ...routine, lastRun: { ...routine.lastRun, status: "interrupted" as const } } : routine);
+        .map((routine) => {
+          const interrupted = (run: RoutineRun): RoutineRun => run.status === "running" ? { ...run, status: "interrupted", waiting: undefined } : run;
+          return { ...routine, revision: routine.revision ?? 0,
+            ...(routine.lastRun ? { lastRun: interrupted(routine.lastRun) } : {}),
+            history: (routine.history ?? (routine.lastRun ? [routine.lastRun] : [])).slice(0, ROUTINE_HISTORY_LIMIT).map(interrupted) };
+        });
     }
   }
 
@@ -146,7 +114,7 @@ export class RoutineStore {
 }
 
 export function routineView({ model, locale: _locale, occurrences: _occurrences, ...routine }: Routine): RoutineView {
-  return { ...routine, ...(model ? { model: { provider: model.definition.id, model: model.model } } : {}) };
+  return { ...routine, revision: routine.revision ?? 0, ...(model ? { model: { provider: model.definition.id, model: model.model } } : {}) };
 }
 
 export function routinePrompt(routine: Routine, occurrenceId: string, now: Date): string {
@@ -178,8 +146,27 @@ export function createRoutineService(options: {
 }) {
   const store = new RoutineStore(options.dataDir ? join(options.dataDir, "routines.json") : undefined);
   const now = options.now ?? (() => new Date());
-  /** Routines between acceptance checks and their run's slot; a second call is busy at once. */
+  /** Includes accepted runs, even if recording their current state fails. */
   const starting = new Set<string>();
+  const nextRuns = new Map<string, { schedule: string; timezone: string; checkedAt: number; at?: number }>();
+  const viewOf = (routine: Routine): RoutineView => {
+    const view = routineView(routine);
+    if (routine.enabled) {
+      const at = now().getTime(), cached = nextRuns.get(routine.id);
+      if (!cached || cached.schedule !== routine.schedule || cached.timezone !== routine.timezone || at < cached.checkedAt
+        || (cached.at === undefined ? at - cached.checkedAt >= 86_400_000 : cached.at <= at)) {
+        nextRuns.set(routine.id, { schedule: routine.schedule, timezone: routine.timezone, checkedAt: at,
+          at: nextCronOccurrence(routine.schedule, routine.timezone, at) });
+      }
+      const nextRunAt = nextRuns.get(routine.id)?.at;
+      if (nextRunAt !== undefined) view.nextRunAt = nextRunAt;
+    }
+    if (view.lastRun?.status === "running" && options.runtime.awaitingUser?.(routine.conversationId)) {
+      view.lastRun = { ...view.lastRun, waiting: true };
+      view.history = view.history?.map(run => run.occurrenceId === view.lastRun!.occurrenceId ? { ...run, waiting: true } : run);
+    }
+    return view;
+  };
 
   const required = (id: string) => {
     const routine = store.get(id);
@@ -202,7 +189,7 @@ export function createRoutineService(options: {
     const failures = status === "error" ? routine.failures + 1 : status === "success" ? 0 : routine.failures;
     // "Auth fails twice means pause that clock and tell me": repeated failures switch it off.
     const stop = status === "error" && failures >= ROUTINE_FAILURE_LIMIT && routine.enabled;
-    if (!record({ ...routine, failures, lastRun: { ...routine.lastRun, status, ...(error ? { error } : {}) },
+    if (!record({ ...withRun(routine, { ...routine.lastRun, status, finishedAt: now().getTime(), ...(error ? { error } : {}) }), failures,
       ...(stop ? { enabled: false, disabledReason: error ?? "Failed twice in a row." } : {}) })) return;
     options.log?.("routine.finished", { routineId: id, status, ...(stop ? { disabled: true } : {}) });
   };
@@ -211,50 +198,47 @@ export function createRoutineService(options: {
   const failedToStart = (id: string, occurrenceId: string, error: string) => {
     const routine = store.get(id);
     if (!routine) return;
-    if (record({ ...routine, lastRun: { occurrenceId, at: now().getTime(), status: "running" } })) finish(id, occurrenceId, "error", error);
+    if (record(withRun(routine, { occurrenceId, at: now().getTime(), status: "running" }))) finish(id, occurrenceId, "error", error);
   };
 
   const service = {
-    list: () => store.list().map((routine) => {
-      const view = routineView(routine);
-      return view.lastRun?.status === "running" && options.runtime.awaitingUser?.(routine.conversationId)
-        ? { ...view, lastRun: { ...view.lastRun, waiting: true } } : view;
-    }),
+    list: () => store.list().map(viewOf),
 
     create(input: RoutineCreateInput): RoutineView {
-      const title = input.title?.trim(), instructions = input.instructions?.trim();
-      const schedule = input.schedule?.trim().split(/\s+/).join(" "), timezone = input.timezone?.trim();
+      const { title, instructions, schedule, timezone } = definition(input);
       if (input.fromConversationId.startsWith("routine-")) throw new RoutineError("A routine run cannot create routines.", 400);
-      if (!title || title.length > 80) throw new RoutineError("A title of 1-80 characters is required.", 400);
-      if (!instructions || instructions.length > 4000) throw new RoutineError("Instructions of 1-4000 characters are required.", 400);
-      const problem = (schedule ? cronProblem(schedule) : "A schedule is required.") ?? (timezone ? timezoneProblem(timezone) : "A timezone is required.");
-      if (problem) throw new RoutineError(problem, 400);
       // Never fall back to another model: a routine runs only on the service it was made with.
       if (!input.model) throw new RoutineError("This conversation has no configured model service. Choose one in Settings → Model services, then ask again.", 400);
       const botId = input.botId ?? "assistant";
       options.bots?.require(botId);
       const id = randomUUID().slice(0, 8);
       // Created switched off: "clocks stay Disabled until I hit Enable".
-      const routine: Routine = { id, botId, title, schedule: schedule!, timezone: timezone!, instructions, enabled: false,
-        createdAt: now().getTime(), conversationId: `routine-${id}`, failures: 0,
+      const routine: Routine = { id, botId, title, schedule, timezone, instructions, enabled: false,
+        createdAt: now().getTime(), revision: 1, history: [], conversationId: `routine-${id}`, failures: 0,
         model: input.model, ...(input.locale ? { locale: input.locale } : {}) };
       store.put(routine);
       options.log?.("routine.created", { routineId: id });
-      return routineView(routine);
+      return viewOf(routine);
     },
 
-    update(id: string, patch: { enabled?: unknown }): RoutineView {
+    update(id: string, patch: { enabled?: unknown; revision?: unknown; title?: unknown; instructions?: unknown; schedule?: unknown; timezone?: unknown }): RoutineView {
       const routine = required(id);
-      if (typeof patch.enabled !== "boolean") throw new RoutineError("enabled must be true or false.", 400);
-      const next: Routine = patch.enabled
+      if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new RoutineError("A routine update is required.", 400);
+      const editing = ["title", "instructions", "schedule", "timezone"].some(key => key in patch);
+      if (editing && (starting.has(id) || routine.lastRun?.status === "running")) throw new RoutineError("Stop this conversation before editing its routine.", 409);
+      if ((editing || patch.revision !== undefined) && patch.revision !== (routine.revision ?? 0)) throw new RoutineError("This routine changed. Reopen its editor before saving.", 409);
+      if ((!editing && typeof patch.enabled !== "boolean") || (patch.enabled !== undefined && typeof patch.enabled !== "boolean")) throw new RoutineError("enabled must be true or false.", 400);
+      let next: Routine = patch.enabled === true
         ? { ...routine, enabled: true, failures: 0, disabledReason: undefined }
-        : { ...routine, enabled: false };
+        : patch.enabled === false ? { ...routine, enabled: false } : routine;
+      if (editing) next = { ...next, ...definition(patch), revision: (routine.revision ?? 0) + 1 };
       store.put(next);
-      return routineView(next);
+      return viewOf(next);
     },
 
     remove(id: string) {
       if (!store.remove(id)) throw new RoutineError("Routine not found.", 404);
+      nextRuns.delete(id);
     },
 
     /**
@@ -289,12 +273,17 @@ export function createRoutineService(options: {
           const onEvent = (event: AgentUXEvent) => {
             if (!accepted) {
               accepted = true;
-              starting.delete(id);
               const current = store.get(id);
               // On a failed disk the conversation's saved turn still guards this occurrence; the run goes on.
-              if (current) record({ ...current, lastRun: { occurrenceId, at: now().getTime(), status: "running" },
+              if (current) record({ ...withRun(current, { occurrenceId, runId, at: now().getTime(), status: "running" }),
                 occurrences: [...(current.occurrences ?? []), occurrenceId].slice(-OCCURRENCE_MEMORY) });
               resolve();
+            }
+            if (event.type === "text.started" && event.payload.role === "user") {
+              const current = store.get(id);
+              if (current?.lastRun?.occurrenceId === occurrenceId && !current.lastRun.textId) {
+                record(withRun(current, { ...current.lastRun, textId: event.payload.textId }));
+              }
             }
             if (event.type === "run.finished") status = String((event.payload as { status?: unknown }).status ?? "success") as RoutineRunStatus;
             if (event.type === "run.error") {
@@ -306,8 +295,9 @@ export function createRoutineService(options: {
             prompt: routinePrompt(routine, occurrenceId, now()), permissionMode: options.permissionMode,
             provider: model.definition.id, model: model.model,
             ...(routine.locale ? { locale: routine.locale } : {}) }, onEvent, { title: routine.title }).then(
-            () => { if (accepted) finish(id, occurrenceId, status, error); else reject(new Error("The run ended before it started.")); },
+            () => { starting.delete(id); if (accepted) finish(id, occurrenceId, status, error); else reject(new Error("The run ended before it started.")); },
             (failure: unknown) => {
+              starting.delete(id);
               if (accepted) finish(id, occurrenceId, "error", failure instanceof Error ? failure.message : String(failure));
               else reject(failure);
             });

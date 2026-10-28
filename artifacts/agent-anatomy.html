@@ -1,0 +1,359 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent 的组成</title>
+<style>
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:28px 20px 72px;
+    font-family:var(--font-sans);
+    color:var(--color-text-primary);
+    background:var(--color-background-primary);
+    line-height:1.65;-webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:940px;margin:0 auto}
+  h1{font-size:26px;margin:0 0 8px;letter-spacing:-.01em;line-height:1.3}
+  .sub{color:var(--color-text-secondary);font-size:14px;margin:0 0 8px;max-width:60ch}
+  .sub + .sub{margin-bottom:32px}
+  h2{font-size:15px;font-weight:600;margin:40px 0 6px;color:var(--color-text-primary)}
+  .h2note{font-size:13px;color:var(--color-text-secondary);margin:0 0 16px}
+
+  /* ---------- 循环图 ---------- */
+  .loop{display:grid;grid-template-columns:minmax(0,1.05fr) minmax(0,.85fr);gap:24px;align-items:center}
+  @media (max-width:820px){.loop{grid-template-columns:1fr;gap:16px}}
+  .diagram{width:100%;height:auto;display:block}
+  .node{cursor:pointer}
+  .node circle{fill:var(--color-background-secondary);stroke:var(--color-border-primary);stroke-width:1.5;transition:fill .18s,stroke .18s,stroke-width .18s}
+  .node text{fill:var(--color-text-primary);text-anchor:middle;dominant-baseline:middle;pointer-events:none;font-family:var(--font-sans)}
+  .node:hover circle{stroke:var(--color-accent)}
+  .node.active circle{stroke:var(--color-accent);stroke-width:2.5;fill:color-mix(in srgb,var(--color-accent) 14%,var(--color-background-secondary))}
+  .node:focus{outline:none}
+  .node:focus-visible circle{stroke:var(--color-accent);stroke-width:3}
+  .arc{fill:none;stroke:var(--color-border-primary);stroke-width:1.5;marker-end:url(#arrow);transition:stroke .18s}
+  .arc.hot{stroke:var(--color-accent);marker-end:url(#arrowHot)}
+  .core circle{fill:color-mix(in srgb,var(--color-accent) 8%,var(--color-background-secondary));stroke:var(--color-border-primary);stroke-width:1.5;stroke-dasharray:4 4}
+  .spark{fill:var(--color-accent);opacity:.9}
+  @media (prefers-reduced-motion:reduce){.spark{display:none}}
+  .hint{font-size:12.5px;color:var(--color-text-secondary);margin:10px 0 0;text-align:center}
+
+  .panel{
+    background:var(--color-background-secondary);
+    border:1px solid var(--color-border-primary);
+    border-radius:var(--border-radius-md);
+    padding:20px 22px;min-height:260px;
+    display:flex;flex-direction:column;justify-content:center;
+  }
+  .panel .k{font-family:var(--font-mono);font-size:11.5px;letter-spacing:.05em;color:var(--color-accent);text-transform:uppercase}
+  .panel h3{margin:6px 0 10px;font-size:19px;line-height:1.35}
+  .panel p{margin:0;font-size:14px;color:var(--color-text-primary)}
+  .panel .kw{display:flex;flex-wrap:wrap;gap:6px;margin-top:16px}
+  .panel .kw span{font-family:var(--font-mono);font-size:11.5px;padding:3px 9px;border-radius:999px;border:1px solid var(--color-border-primary);color:var(--color-text-secondary)}
+
+  /* ---------- 六块组成 ---------- */
+  .parts{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
+  .part{border:1px solid var(--color-border-primary);border-radius:var(--border-radius-md);padding:16px 17px;transition:border-color .18s}
+  .part:hover{border-color:color-mix(in srgb,var(--color-accent) 50%,var(--color-border-primary))}
+  .part h3{margin:0 0 7px;font-size:15px;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+  .part h3 .en{font-family:var(--font-mono);font-size:10.5px;color:var(--color-text-secondary);font-weight:400}
+  .part p{margin:0;font-size:13.5px;color:var(--color-text-secondary)}
+  .part .q{display:block;margin-top:11px;font-size:12.5px;font-family:var(--font-mono);color:var(--color-accent);line-height:1.5}
+
+  /* ---------- 一次运行 ---------- */
+  .run{border:1px solid var(--color-border-primary);border-radius:var(--border-radius-md);overflow:hidden}
+  .step{display:grid;grid-template-columns:30px 1fr;gap:12px;padding:13px 17px;border-bottom:1px solid var(--color-border-primary);opacity:.3;transition:opacity .25s,background .25s}
+  .step:last-child{border-bottom:none}
+  .step.done{opacity:.62}
+  .step.on{opacity:1;background:var(--color-background-secondary)}
+  .step .n{font-family:var(--font-mono);font-size:12px;color:var(--color-text-secondary);padding-top:3px}
+  .step.done .n::after{content:" ✓"}
+  .step .layer{font-family:var(--font-mono);font-size:11px;color:var(--color-accent);margin-bottom:2px}
+  .step .t{font-size:13.5px;line-height:1.6}
+  .controls{display:flex;gap:8px;margin-top:14px;flex-wrap:wrap;align-items:center}
+  button{font:inherit;font-size:13px;padding:7px 15px;border-radius:8px;border:1px solid var(--color-border-primary);background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer;transition:border-color .15s,opacity .15s}
+  button:hover:not(:disabled){border-color:var(--color-accent)}
+  button:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button.primary{background:var(--color-accent);border-color:var(--color-accent);color:#fff}
+  .status{font-size:12.5px;color:var(--color-text-secondary);font-family:var(--font-mono);margin-left:auto}
+
+  .callout{margin-top:36px;padding:16px 18px;border-left:3px solid var(--color-accent);background:var(--color-background-secondary);border-radius:0 var(--border-radius-md) var(--border-radius-md) 0;font-size:13.5px}
+  .callout strong{font-weight:600}
+  .callout p{margin:0 0 8px}
+  .callout p:last-child{margin:0}
+  @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>一个 Agent 由什么组成</h1>
+  <p class="sub">常见误解：以为 agent 就是一个更聪明的大模型。其实模型只是引擎，真正让它在现实世界里干活的，是引擎外面那一圈东西。</p>
+  <p class="sub">点击图上的任意节点，看它负责哪一段。</p>
+
+  <h2>运行时循环</h2>
+  <p class="h2note">一次任务的每一"拍"，都绕这个圈走一遍。走得越久，干的活越多。</p>
+
+  <div class="loop">
+    <div>
+      <svg class="diagram" viewBox="0 0 520 500" role="img" aria-label="Agent 运行时循环图：目标进入思考，依次经过行动、观察、记忆，再回到思考。中心是模型内核。">
+
+        <defs>
+          <marker id="arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--color-border-primary)"/>
+          </marker>
+          <marker id="arrowHot" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+            <path d="M0 0 L10 5 L0 10 z" fill="var(--color-accent)"/>
+          </marker>
+          <path id="ring" d="M 260 145 A 145 145 0 1 1 260 435 A 145 145 0 1 1 260 145"/>
+        </defs>
+
+        <!-- 目标 -> 思考 -->
+        <g class="node" data-key="goal" tabindex="0" role="button" aria-label="目标">
+          <title>目标 Goal</title>
+          <circle cx="260" cy="44" r="32"/>
+          <text x="260" y="44" font-size="13">目标</text>
+        </g>
+        <path class="arc" d="M 260 78 L 260 92"/>
+
+        <!-- 环 -->
+        <path class="arc" id="arc-think" d="M 309.1 153.6 A 145 145 0 0 1 396.4 240.9"/>
+        <path class="arc" id="arc-act" d="M 396.4 339.1 A 145 145 0 0 1 309.1 426.4"/>
+        <path class="arc" id="arc-observe" d="M 210.9 426.4 A 145 145 0 0 1 123.6 339.1"/>
+        <path class="arc" id="arc-memory" d="M 123.6 240.9 A 145 145 0 0 1 210.9 153.6"/>
+
+        <!-- 光点 -->
+        <circle class="spark" r="4">
+          <animateMotion dur="9s" repeatCount="indefinite" rotate="auto">
+            <mpath href="#ring"/>
+          </animateMotion>
+        </circle>
+
+        <!-- 节点 -->
+        <g class="node" data-key="think" tabindex="0" role="button" aria-label="思考">
+          <circle cx="260" cy="145" r="50"/>
+          <text x="260" y="145" font-size="15">思考</text>
+        </g>
+        <g class="node" data-key="act" tabindex="0" role="button" aria-label="行动">
+          <circle cx="405" cy="290" r="50"/>
+          <text x="405" y="290" font-size="15">行动</text>
+        </g>
+        <g class="node" data-key="observe" tabindex="0" role="button" aria-label="观察">
+          <circle cx="260" cy="435" r="50"/>
+          <text x="260" y="435" font-size="15">观察</text>
+        </g>
+        <g class="node" data-key="memory" tabindex="0" role="button" aria-label="记忆">
+          <circle cx="115" cy="290" r="50"/>
+          <text x="115" y="290" font-size="15">记忆</text>
+        </g>
+
+        <!-- 中心 -->
+        <g class="core" pointer-events="none">
+          <circle cx="260" cy="290" r="62"/>
+          <text x="260" y="282" font-size="16" text-anchor="middle" dominant-baseline="middle" fill="var(--color-text-primary)" font-family="var(--font-sans)">模型</text>
+          <text x="260" y="304" font-size="10.5" text-anchor="middle" dominant-baseline="middle" fill="var(--color-text-secondary)" font-family="var(--font-mono)">LLM</text>
+        </g>
+      </svg>
+      <p class="hint">圈上的四步由中心那个模型驱动 —— 但模型本身不记住任何东西</p>
+    </div>
+
+    <div class="panel" aria-live="polite">
+      <div class="k" id="pKicker">GOAL</div>
+      <h3 id="pTitle">目标</h3>
+      <p id="pBody">一圈的起点。它不是一个模糊的念头，而是一句可验证的完成条件 —— 含糊的目标，会让后面每一步都在猜。</p>
+      <div class="kw" id="pKw"></div>
+    </div>
+  </div>
+
+  <h2>静态组成：搭一个 agent 要备齐的六样东西</h2>
+  <p class="h2note">上面那张图是"怎么转"，这六项是"拿什么转"。</p>
+
+  <div class="parts">
+    <div class="part">
+      <h3>模型 <span class="en">model</span></h3>
+      <p>唯一的决策者。它读上下文，决定下一步说什么或做什么。能力上限、成本、延迟全由它决定。</p>
+      <span class="q">→ 换个模型，agent 的性格和能力会变</span>
+    </div>
+    <div class="part">
+      <h3>指令与人设 <span class="en">system prompt</span></h3>
+      <p>告诉它它是谁、给谁干活、边界在哪、怎么交付。这是唯一能稳定约束它的东西 —— 聊出来的规矩不算。</p>
+      <span class="q">→ AGENTS.md / SOUL.md / 风格与格式约束</span>
+    </div>
+    <div class="part">
+      <h3>工具 <span class="en">tools</span></h3>
+      <p>读写文件、跑命令、搜网页、调 API。工具是 agent 唯一能改变世界的通道，也是它唯一能获得新事实的通道。</p>
+      <span class="q">→ 没有工具，它只能说话，不能做事</span>
+    </div>
+    <div class="part">
+      <h3>记忆 <span class="en">memory</span></h3>
+      <p>短期是上下文窗口，长期是落盘的偏好与事实。上下文有限，所以"记住什么"永远是一道取舍题。</p>
+      <span class="q">→ 没有记忆，它每次都从零开始</span>
+    </div>
+    <div class="part">
+      <h3>循环与编排 <span class="en">loop</span></h3>
+      <p>决定它能自己走多远：走一步就停，还是连续试错十次。上限设多少，直接决定它是工具还是同事。</p>
+      <span class="q">→ 单次问答 vs 自主推进，差别全在这</span>
+    </div>
+    <div class="part">
+      <h3>权限与沙箱 <span class="en">permissions</span></h3>
+      <p>哪些动作可以直接做、哪些要先问人、哪些路径永远不许碰。这是你敢放它跑多久的前提。</p>
+      <span class="q">→ 读文件放行，删数据和人点头</span>
+    </div>
+  </div>
+
+  <h2>一次真实运行，逐拍拆开</h2>
+  <p class="h2note">用"帮我看看这个项目为什么构建失败"举例，走一遍这八拍。</p>
+
+  <div class="run" id="run">
+    <div class="step" data-i="0"><div class="n">01</div><div><div class="layer">输入 · 上下文</div><div class="t">你发一句话。它变成 messages 里的一条 user 记录 —— 仅此而已。</div></div></div>
+    <div class="step" data-i="1"><div class="n">02</div><div><div class="layer">编排 · prompt 拼装</div><div class="t">指令、人设、长期记忆、历史、工具清单，被拼成一次请求。此刻模型看到的世界，就是你给它的全部。</div></div></div>
+    <div class="step" data-i="2"><div class="n">03</div><div><div class="layer">模型 · 推理</div><div class="t">它决定：先把构建日志读出来再说。于是输出一个结构化的工具调用，而不是答案。</div></div></div>
+    <div class="step" data-i="3"><div class="n">04</div><div><div class="layer">权限 · 检查</div><div class="t">读日志属于低风险，直接放行。换成删文件或对外发消息，流程会在这里停住等你点头。</div></div></div>
+    <div class="step" data-i="4"><div class="n">05</div><div><div class="layer">工具 · 执行</div><div class="t">真的去读了。可能成功，可能文件不存在，可能权限不够 —— 三种结果它都得自己面对。</div></div></div>
+    <div class="step" data-i="5"><div class="n">06</div><div><div class="layer">上下文 · 回填</div><div class="t">结果原样塞回 messages。注意：模型没有"记住"任何事，它只是重新读了一遍更长的上下文。</div></div></div>
+    <div class="step" data-i="6"><div class="n">07</div><div><div class="layer">循环 · 再走一圈</div><div class="t">回到第 03 拍。同一个模型、同一套工具，只比刚才多了一段日志。这就是 agent 和一次性问答的全部区别。</div></div></div>
+    <div class="step" data-i="7"><div class="n">08</div><div><div class="layer">交付</div><div class="t">给出结论，流式回到屏幕。值得留下的偏好写进长期记忆，下一轮才用得上。</div></div></div>
+  </div>
+
+  <div class="controls">
+    <button class="primary" id="btnPlay">从头播放</button>
+    <button id="btnNext">下一拍</button>
+    <button id="btnReset">重置</button>
+    <span class="status" id="status" role="status">未开始</span>
+  </div>
+
+  <div class="callout">
+    <p><strong>最反直觉的一点：模型本身是无状态的。</strong>它不"记得"上一句话，也不"知道"刚才调用了什么工具。所谓记忆、上下文、会话，全部是外面那一圈在维护的。所以 agent 出问题，八成不是模型不够聪明，而是外面那一圈把错的上下文喂给了它。</p>
+    <p style="color:var(--color-text-secondary)">判断一个 agent 好不好用，也别只问"用的什么模型"。问这四件事更准：给它的指令清不清楚、工具够不够用、上下文丢了什么、权限卡得合不合适。</p>
+  </div>
+
+</div>
+
+<script>
+(function(){
+  var NODES = {
+    goal: {
+      k:"GOAL", t:"目标",
+      b:"一圈的起点。它不是一个模糊的念头，而是一句可验证的完成条件 —— 含糊的目标，会让后面每一步都在猜。也别忘了写清「什么时候停」。",
+      kw:["任务描述","验收标准","停止条件"]
+    },
+    think: {
+      k:"THINK", t:"思考",
+      b:"模型读完整段上下文，产出下一步动作。注意这一步可能什么都不做、直接回答 —— 不是每个任务都需要调工具。",
+      kw:["推理","计划","决定下一步"]
+    },
+    act: {
+      k:"ACT", t:"行动",
+      b:"把决定翻译成一次真实的函数调用：读文件、跑命令、发请求。这是整个循环里唯一会接触真实世界的一步，也是唯一可能造成后果的一步。",
+      kw:["工具调用","参数","副作用"]
+    },
+    observe: {
+      k:"OBSERVE", t:"观察",
+      b:"工具返回的东西 —— 文件内容、报错堆栈、HTTP 200 —— 被原样塞回上下文。这是 agent 唯一的事实来源，所以工具返回的信息质量，直接决定它下一步的判断对不对。",
+      kw:["返回值","报错","截断丢信息"]
+    },
+    memory: {
+      k:"MEMORY", t:"记忆",
+      b:"上下文是有限的。什么保留、什么压缩成摘要、什么落盘到长期记忆，在这一步决定「哪些事能撑到下一拍」。上下文一满，agent 就开始忘事。",
+      kw:["上下文窗口","摘要压缩","长期记忆"]
+    }
+  };
+
+  var panelK = document.getElementById("pKicker");
+  var panelT = document.getElementById("pTitle");
+  var panelB = document.getElementById("pBody");
+  var panelW = document.getElementById("pKw");
+  var nodes = Array.prototype.slice.call(document.querySelectorAll(".node[data-key]"));
+  var arcByKey = {think:"arc-think", act:"arc-act", observe:"arc-observe", memory:"arc-memory"};
+
+  function select(key){
+    var d = NODES[key];
+    if(!d) return;
+    panelK.textContent = d.k;
+    panelT.textContent = d.t;
+    panelB.textContent = d.b;
+    panelW.innerHTML = "";
+    d.kw.forEach(function(w){
+      var s = document.createElement("span");
+      s.textContent = w;
+      panelW.appendChild(s);
+    });
+    nodes.forEach(function(n){
+      n.classList.toggle("active", n.getAttribute("data-key") === key);
+    });
+    Object.keys(arcByKey).forEach(function(k){
+      var a = document.getElementById(arcByKey[k]);
+      if(a) a.classList.toggle("hot", k === key);
+    });
+  }
+
+  nodes.forEach(function(n){
+    n.addEventListener("click", function(){ select(n.getAttribute("data-key")); });
+    n.addEventListener("keydown", function(e){
+      if(e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        select(n.getAttribute("data-key"));
+      }
+    });
+  });
+
+  /* ---------- 逐拍播放 ---------- */
+  var steps = Array.prototype.slice.call(document.querySelectorAll("#run .step"));
+  var status = document.getElementById("status");
+  var btnPlay = document.getElementById("btnPlay");
+  var btnNext = document.getElementById("btnNext");
+  var btnReset = document.getElementById("btnReset");
+  var cur = -1;
+  var timer = null;
+
+  function paint(){
+    steps.forEach(function(s, i){
+      s.classList.toggle("on", i === cur);
+      s.classList.toggle("done", i < cur);
+    });
+    if(cur < 0){
+      status.textContent = "未开始";
+    } else {
+      status.textContent = "第 " + (cur + 1) + " / " + steps.length + " 拍";
+    }
+    btnNext.disabled = cur >= steps.length - 1;
+    btnPlay.textContent = timer ? "暂停" : (cur >= steps.length - 1 ? "重播" : "自动播放");
+  }
+
+  function stop(){
+    if(timer){ clearInterval(timer); timer = null; }
+    paint();
+  }
+
+  function step(){
+    if(cur >= steps.length - 1){ stop(); return; }
+    cur++;
+    paint();
+    if(cur >= steps.length - 1) stop();
+  }
+
+  btnNext.addEventListener("click", function(){
+    stop();
+    step();
+  });
+
+  btnReset.addEventListener("click", function(){
+    stop();
+    cur = -1;
+    paint();
+  });
+
+  btnPlay.addEventListener("click", function(){
+    if(timer){ stop(); return; }
+    if(cur >= steps.length - 1) cur = -1;
+    timer = setInterval(step, 1100);
+    paint();
+    step();
+  });
+
+  paint();
+})();
+</script>
+</body>
+</html>

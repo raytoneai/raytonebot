@@ -1,0 +1,108 @@
+- complementary "会话历史":
+  - img "我的Agent"
+  - button "搜索对话":
+  - button "新建对话":
+    - generic: ＋
+  - button "收起侧边栏":
+  - region "Agent":
+    - heading "Agent" [level=4]
+    - button "Raer Pi":
+      - generic: Raer
+      - text: Pi
+    - button "Tonny Claude Code":
+      - generic: Tonny
+      - text: Claude Code
+    - button "Bob Codex CLI":
+      - generic: Bob
+      - text: Codex CLI
+    - button "Group 我 · Raer · Tonny · Bob":
+      - generic: 我
+      - generic: Group
+      - generic: 我 · Raer · Tonny · Bob
+  - button "聊天记录" [expanded]:
+    - generic: 聊天记录
+  - navigation:
+    - heading "更早" [level=4]
+    - button "Agent组成图文详解":
+      - generic: Agent组成图文详解
+    - button "用 apply_patch 工具（不要用 shell 命令）在工作区根目录新建 co…":
+      - generic: 用 apply_patch 工具（不要用 shell 命令）在工作区根目录新建 co…
+    - button "创建 collapsed-check.html 页面":
+      - generic: 创建 collapsed-check.html 页面
+    - button "打开 GitHub 登录页并请求接管":
+      - generic: 打开 GitHub 登录页并请求接管
+    - button "浏览器登录 GitHub 并请求接管":
+      - generic: 浏览器登录 GitHub 并请求接管
+    - button "查询 Playwright 仓库 star 数":
+      - generic: 查询 Playwright 仓库 star 数
+    - button "用浏览器打开 https://www.wikipedia.org ，在搜索框里搜 P…":
+      - generic: 用浏览器打开 https://www.wikipedia.org ，在搜索框里搜 P…
+    - button "打开HN查看头条帖子评论数":
+      - generic: 打开HN查看头条帖子评论数
+    - button "每日 daily.txt 日期":
+      - generic: 每日 daily.txt 日期
+    - button "每工作日9点写入daily.txt":
+      - generic: 每工作日9点写入daily.txt
+    - button "统计十万以内质数个数":
+      - generic: 统计十万以内质数个数
+    - button "本周周报骨架模板":
+      - generic: 本周周报骨架模板
+    - button "本周周报骨架模板":
+      - generic: 本周周报骨架模板
+    - button "周报三段式偏好":
+      - generic: 周报三段式偏好
+    - button "Python 质数统计脚本与单元测试":
+      - generic: Python 质数统计脚本与单元测试
+    - button "工作日 9 点检查订单 A1001 物流":
+      - generic: 工作日 9 点检查订单 A1001 物流
+    - button "订单 A1002 状态巡检":
+      - generic: 订单 A1002 状态巡检
+    - button "每2分钟查询订单A1002状态":
+      - generic: 每2分钟查询订单A1002状态
+  - button "设置":
+    - generic: 设置
+  - generic: v0.1.0
+- button "Raer DeepSeek · deepseek-flash":
+  - strong: Raer
+  - generic "DeepSeek · deepseek-flash"
+- article:
+  - generic: 我
+  - paragraph: Add input validation to the search box, then show me the patch.
+  - generic "用户消息操作":
+    - button "复制提示词":
+    - button "在新分支中编辑提示词" [disabled]:
+- generic "Agent 输出": Raer
+- button "已完成思考":
+  - generic: 已完成思考
+- paragraph: Read the current SearchInput, then add a validity check and loading state before wiring the request.
+- generic: 编辑文件 · 已完成
+- button "Expand tool":
+- article:
+  - paragraph: Validation and loading state added. The search button is disabled for invalid input and a spinner shows while results load.
+  - generic "Agent 消息操作":
+    - button "复制回复":
+    - button "在新分支中重新生成（保留已写文件）" [disabled]:
+- button "SearchInput.tsx 文件":
+  - strong: SearchInput.tsx
+  - generic: 文件
+  - generic: 打开
+- textbox "给 Raer 发消息…"
+- button "附加文件":
+- button "审批权限":
+  - generic: 请求权限
+- button "思考预算":
+  - generic: 中等
+- button "发送" [disabled]
+- button "展开右侧面板":
+- generic: 事件流(仅开发)
+- button "选择事件流" [active]:
+  - generic: Built-in demo
+- combobox "工作头像预览":
+  - option "工作头像预览" [selected]
+  - option "正在思考"
+  - option "正在查阅"
+  - option "正在修改"
+  - option "正在执行"
+  - option "正在回复"
+  - option "等你确认"
+  - option "结束 / 停止"

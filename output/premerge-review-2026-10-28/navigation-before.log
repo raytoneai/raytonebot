@@ -1,0 +1,20 @@
+node:internal/modules/run_main:107
+    triggerUncaughtException(
+    ^
+
+AssertionError [ERR_ASSERTION]: success: an older navigation must not replace the latest selection
++ actual - expected
+
++ 'older'
+- undefined
+
+    at file:///Users/rickyhuo/RaytoneBot/output/premerge-review-2026-10-28/navigation-race.mjs:44:10 {
+  generatedMessage: false,
+  code: 'ERR_ASSERTION',
+  actual: 'older',
+  expected: undefined,
+  operator: 'strictEqual',
+  diff: 'simple'
+}
+
+Node.js v24.14.0

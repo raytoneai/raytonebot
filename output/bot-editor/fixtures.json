@@ -1,0 +1,145 @@
+{
+  "results": [
+    {
+      "name": "欢迎页(无事件)",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 409,
+      "overflow": false
+    },
+    {
+      "name": "Built-in demo",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 741,
+      "overflow": false
+    },
+    {
+      "name": "Group chat",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 506,
+      "overflow": false
+    },
+    {
+      "name": "Coding agent",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 674,
+      "overflow": false
+    },
+    {
+      "name": "Reasoning kinds",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 477,
+      "overflow": false
+    },
+    {
+      "name": "Tool approval",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 632,
+      "overflow": false
+    },
+    {
+      "name": "Error block",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 478,
+      "overflow": false
+    },
+    {
+      "name": "Artifact action",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 431,
+      "overflow": false
+    },
+    {
+      "name": "Capability tray",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 511,
+      "overflow": false
+    },
+    {
+      "name": "HTML artifact stream",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 503,
+      "overflow": false
+    },
+    {
+      "name": "Basic text",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 419,
+      "overflow": false
+    },
+    {
+      "name": "Normal turn",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 494,
+      "overflow": false
+    },
+    {
+      "name": "Streaming thinking + message",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 464,
+      "overflow": false
+    },
+    {
+      "name": "Tool approval + completion",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 528,
+      "overflow": false
+    },
+    {
+      "name": "MCP success + interrupt",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 661,
+      "overflow": false
+    },
+    {
+      "name": "Runtime boot + sync",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 637,
+      "overflow": false
+    },
+    {
+      "name": "Retrying incident",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 556,
+      "overflow": false
+    },
+    {
+      "name": "Exhausted incident",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 583,
+      "overflow": false
+    },
+    {
+      "name": "Terminal incident",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 529,
+      "overflow": false
+    },
+    {
+      "name": "Config, spans, deletion",
+      "chat": 1,
+      "tools": 0,
+      "bodyLength": 577,
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

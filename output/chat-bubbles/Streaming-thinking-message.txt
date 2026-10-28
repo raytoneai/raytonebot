@@ -1,0 +1,12 @@
+Browser tab: 834999550, Title: "RaytoneBot", URL: "http://127.0.0.1:5188/?devtools=1".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+Removed element IDs: 114-115
+~				107 text 我 比较三个方案。
+~				112 button 已完成思考
+~				113 text 我比较了价格、实施风险和支持覆盖。
++			114 container
++				115 text 方案 B 在成本和交付风险之间最平衡。
++				116 container Agent 消息操作
++					117 button 复制回复
++					118 button (disabled) 在新分支中重新生成（保留已写文件）
+The focused UI element is 90 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_19_, Secondary Actions: Expand

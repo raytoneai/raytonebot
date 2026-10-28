@@ -1,11 +1,12 @@
 import * as Dialog from "@radix-ui/react-dialog";
 import { CircleSlash, X } from "lucide-react";
-import { useRef } from "react";
+import { useRef, useState } from "react";
 import { AgentAvatar, AgentPersonaProvider } from "../../avatars/AgentPersona";
 import { botPartSVG } from "../../avatars/botAvatar";
 import { useLocale } from "../../i18n/LocaleContext";
 import { BOT_OPTIONS, BOT_PALETTE, DEFAULT_BOTS, DEFAULT_NEW_BOT } from "../../runtime/botAppearance";
 import { BOT_KINDS, BOT_NAME_LIMIT, BOT_PERSONA_LIMITS, type BotProfile } from "../../runtime/botProfiles";
+import { applyBotRoleTemplate, botRoleTemplates, type BotRoleTemplate } from "../../runtime/botRoleTemplates";
 import { Button, Input } from "../ui";
 import "../settings/settings.css";
 import "./botEditor.css";
@@ -26,6 +27,7 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
   const kind = BOT_KINDS[draft.presetId];
   const opener = useRef(document.activeElement as HTMLElement | null);
   const nameInput = useRef<HTMLInputElement>(null);
+  const [template, setTemplate] = useState<BotRoleTemplate>();
   const labels = {
     face: zh ? "脸蛋" : "Face", hair: zh ? "头发" : "Hair", accessory: zh ? "配饰" : "Accessory",
     faceColor: zh ? "脸蛋颜色" : "Face colour", eyeColor: zh ? "眼睛颜色" : "Eye colour", hairColor: zh ? "头发颜色" : "Hair colour", accessoryColor: zh ? "配饰颜色" : "Accessory colour",
@@ -51,24 +53,29 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
                   <AgentAvatar size={160} kind={kind} appearance={draft.appearance} live interactive />
                 </AgentPersonaProvider>
                 <strong>{draft.name.trim() || (zh ? "新 Bot" : "New Bot")}</strong>
-                <Button type="button" variant="ghost" onClick={() => onChange({ ...draft, appearance: { ...(draft.id === draft.presetId ? DEFAULT_BOTS[kind] : DEFAULT_NEW_BOT) } })}>{zh ? "恢复默认头像" : "Default avatar"}</Button>
               </div>
               <div className="bot-creator-controls">
                 <label className="bot-editor-field">{zh ? "名字" : "Name"}<Input ref={nameInput} value={draft.name} required maxLength={BOT_NAME_LIMIT}
                   placeholder={zh ? "给 Bot 起个名字" : "Name your Bot"} autoComplete="off" onChange={event => onChange({ ...draft, name: event.target.value })} /></label>
-                <label className="bot-editor-field">{zh ? "引擎" : "Engine"}
-                  <select value={draft.presetId} disabled={!creating} onChange={event => onChange({ ...draft, presetId: event.target.value as BotProfile["presetId"] })}>
-                    <option value="assistant">Pi</option><option value="planner">Claude Code</option><option value="builder">Codex CLI</option><option value="dsh">DeepSeek Harness</option>
-                  </select>
-                  <span className="settings-row-sub">{zh ? "独立聊天记录，共用该引擎的工作区与权限。" : "Separate chats; shares this engine's workspace and permissions."}</span>
-                </label>
+                {creating ? <fieldset className="bot-options bot-role-templates" disabled={saving}>
+                  <legend>{zh ? "从一个职责开始" : "Start with a role"}</legend>
+                  <div>{botRoleTemplates(zh).map(option => <button key={option.id} type="button" aria-pressed={template?.id === option.id}
+                    onClick={() => { onChange(applyBotRoleTemplate(draft, option.persona, template?.persona)); setTemplate(option); }}>{option.label}</button>)}</div>
+                  <p className="settings-note">{zh ? "可选。填入参考内容，保留你已修改的文字。" : "Optional starting text. Your own edits are preserved."}</p>
+                </fieldset> : null}
                 {(["role", "personality", "instructions"] as const).map(key => <label key={key} className="bot-editor-field">
                   {({ role: zh ? "职责与专长" : "Role and expertise", personality: zh ? "性格与表达习惯" : "Personality and style", instructions: zh ? "长期要求" : "Standing instructions" })[key]}
                   <textarea rows={key === "role" ? 2 : 3} value={draft[key] ?? ""} maxLength={BOT_PERSONA_LIMITS[key]} disabled={saving}
                     placeholder={({ role: zh ? "例如：帮助我做产品研究，核实信息来源" : "For example: help with product research and check sources", personality: zh ? "例如：直接、耐心，先给结论，使用简洁中文" : "For example: direct and patient; lead with the answer", instructions: zh ? "例如：区分事实和假设，保留重要决定的依据" : "For example: separate facts from assumptions and cite key decisions" })[key]}
                     onChange={event => onChange({ ...draft, [key]: event.target.value })} />
                 </label>)}
-                <details className="bot-editor-capabilities"><summary>{zh ? "模型与能力" : "Model and capabilities"}</summary>
+                <details className="bot-editor-capabilities"><summary>{zh ? "引擎、模型与能力" : "Engine, model and capabilities"}</summary>
+                  <label className="bot-editor-field">{zh ? "引擎" : "Engine"}
+                    <select value={draft.presetId} disabled={!creating || saving} onChange={event => onChange({ ...draft, presetId: event.target.value as BotProfile["presetId"] })}>
+                      <option value="assistant">Pi</option><option value="planner">Claude Code</option><option value="builder">Codex CLI</option><option value="dsh">DeepSeek Harness</option>
+                    </select>
+                    <span className="settings-row-sub">{zh ? "独立聊天记录，共用该引擎的工作区与权限。" : "Separate chats; shares this engine's workspace and permissions."}</span>
+                  </label>
                   <label className="bot-editor-field">{zh ? "默认模型" : "Default model"}
                     <select value={draft.model ? JSON.stringify([draft.model.provider, draft.model.model]) : ""} disabled={saving}
                       onChange={event => { const pair = event.target.value ? JSON.parse(event.target.value) as [string, string] : undefined; onChange({ ...draft, model: pair ? { provider: pair[0], model: pair[1] } : undefined }); }}>
@@ -91,6 +98,8 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
                   </fieldset>
                   {draft.presetId === "builder" ? <p className="settings-note">{zh ? "Codex 新增工具需新建对话后使用；已有工具的撤销立即生效。" : "New Codex tools become available in a new conversation; revoking existing tools takes effect immediately."}</p> : null}
                 </details>
+                <details className="bot-editor-capabilities"><summary>{zh ? "头像与外观" : "Avatar and appearance"}</summary>
+                <Button type="button" variant="ghost" disabled={saving} onClick={() => onChange({ ...draft, appearance: { ...(draft.id === draft.presetId ? DEFAULT_BOTS[kind] : DEFAULT_NEW_BOT) } })}>{zh ? "恢复默认头像" : "Default avatar"}</Button>
                 {(Object.keys(BOT_OPTIONS) as (keyof typeof BOT_OPTIONS)[]).map(key => <fieldset key={key} className={`bot-options${key === "face" ? "" : " bot-part-options"}`} data-part={key}><legend>{labels[key]}</legend><div>
                   {BOT_OPTIONS[key].map(value => <button key={value} type="button" aria-label={zh ? optionNames[value] : value} aria-pressed={draft.appearance[key] === value}
                     onClick={() => onChange({ ...draft, appearance: { ...draft.appearance, [key]: value } })}>
@@ -103,6 +112,7 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
                 <fieldset className="bot-options"><legend>{zh ? "推荐发色" : "Hair palette"}</legend><div>{[BOT_PALETTE.ink, BOT_PALETTE.claudeOrange, "#71869B", "#A9917E", "#D9D5C9"].map((color, i) => <button type="button" className="bot-swatch" key={color} style={{ background: color }}
                   aria-label={(zh ? ["Raytone 深蓝", "Claude 橙", "灰蓝", "暖棕", "米白"] : ["Raytone navy", "Claude orange", "Slate", "Taupe", "Ivory"])[i]}
                   aria-pressed={draft.appearance.hairColor.toLowerCase() === color.toLowerCase()} onClick={() => onChange({ ...draft, appearance: { ...draft.appearance, hairColor: color } })} />)}</div></fieldset>
+                </details>
               </div>
             </div>
           </div>

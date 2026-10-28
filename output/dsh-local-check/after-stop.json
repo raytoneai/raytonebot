@@ -1,0 +1,113 @@
+[
+  {
+    "protocol": "agent-ux",
+    "version": "0.1",
+    "id": "evt_dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_run_started_1",
+    "runId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea",
+    "seq": 1,
+    "ts": 1792419767287,
+    "type": "run.started",
+    "payload": {
+      "title": "Pi session",
+      "metadata": {
+        "adapter": "pi"
+      }
+    }
+  },
+  {
+    "protocol": "agent-ux",
+    "version": "0.1",
+    "id": "evt_dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_user_text_started_2",
+    "runId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea",
+    "seq": 2,
+    "ts": 1792419767288,
+    "messageId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_user",
+    "type": "text.started",
+    "payload": {
+      "textId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_user_text",
+      "role": "user",
+      "format": "plain"
+    }
+  },
+  {
+    "protocol": "agent-ux",
+    "version": "0.1",
+    "id": "evt_dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_user_text_delta_3",
+    "runId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea",
+    "seq": 3,
+    "ts": 1792419767289,
+    "messageId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_user",
+    "type": "text.delta",
+    "payload": {
+      "textId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_user_text",
+      "delta": "停止验收已结束。现在继续本对话，不调用工具，只回复“DSH 已就绪”。"
+    }
+  },
+  {
+    "protocol": "agent-ux",
+    "version": "0.1",
+    "id": "evt_dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_user_text_finished_4",
+    "runId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea",
+    "seq": 4,
+    "ts": 1792419767290,
+    "messageId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_user",
+    "type": "text.finished",
+    "payload": {
+      "textId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_user_text"
+    }
+  },
+  {
+    "protocol": "agent-ux",
+    "version": "0.1",
+    "id": "evt_dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_text_started_m1_text_0_5",
+    "runId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea",
+    "seq": 5,
+    "ts": 1792419767291,
+    "messageId": "m1",
+    "type": "text.started",
+    "payload": {
+      "textId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_m1_text_0",
+      "role": "assistant",
+      "format": "markdown"
+    }
+  },
+  {
+    "protocol": "agent-ux",
+    "version": "0.1",
+    "id": "evt_dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_text_delta_dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_m1_text_0_6",
+    "runId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea",
+    "seq": 6,
+    "ts": 1792419767292,
+    "messageId": "m1",
+    "type": "text.delta",
+    "payload": {
+      "textId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_m1_text_0",
+      "delta": "DSH 已就绪"
+    }
+  },
+  {
+    "protocol": "agent-ux",
+    "version": "0.1",
+    "id": "evt_dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_text_finished_m1_text_0_7",
+    "runId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea",
+    "seq": 7,
+    "ts": 1792419767293,
+    "messageId": "m1",
+    "type": "text.finished",
+    "payload": {
+      "textId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_m1_text_0"
+    }
+  },
+  {
+    "protocol": "agent-ux",
+    "version": "0.1",
+    "id": "evt_dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea_run_finished_8",
+    "runId": "dsh-ready-0425d10d-7aa4-4c02-aa68-288c0bf944ea",
+    "seq": 8,
+    "ts": 1792419767294,
+    "type": "run.finished",
+    "payload": {
+      "status": "success"
+    }
+  }
+]

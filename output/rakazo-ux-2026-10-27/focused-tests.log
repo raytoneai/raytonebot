@@ -1,0 +1,43 @@
+✔ artifact retrieval searches all conversations before paging and keeps exact replay identities (21.513709ms)
+✔ catalog excludes hidden conversations, private/outside/link files and non-deliverables (7.353583ms)
+✔ history budgets report incomplete results and stop before loading or replaying beyond their limits (5.656541ms)
+✔ missing registered files and unreadable history are explicit; newer inserts do not duplicate seek pages (7.427417ms)
+✔ group artifact ownership permits only its actual member workspace and the shared workspace (3.969458ms)
+✔ branch catalog results match the source UI replay without inheriting excluded later runs (5.085041ms)
+✔ cron schedules are five fields within range (0.522167ms)
+✔ cron matches the minute in the routine's own timezone (3.3925ms)
+✔ the host's clock runs an enabled routine once per matching minute and never catches up (119.775833ms)
+✔ a routine created in chat is saved switched off, with the turn's model and no secret (30.742625ms)
+✔ a scheduled occurrence runs once as Raer in the routine's conversation, also after a restart (36.52075ms)
+✔ a run held for an approval shows as waiting on the user until it is answered (33.940417ms)
+✔ a busy routine refuses a second occurrence instead of queueing it, and a restart marks it interrupted (36.078958ms)
+✔ two failures in a row switch a routine off with the reason; turning it on again resets the count (41.957208ms)
+✔ a routine run cannot create routines, and a deleted routine is gone (31.751958ms)
+✔ without a configured model service nothing is created, and a routine without one never runs on a default model (16.373791ms)
+✔ an accepted occurrence stays done after its conversation is deleted (46.637542ms)
+✔ an accepted occurrence stays done after its conversation is reset (51.454417ms)
+✔ a model configuration failure counts towards switching the routine off (20.541875ms)
+✔ a failed disk while recording a finished run is logged and leaves the host running (87.111041ms)
+✔ routine definitions validate and compare revisions without changing model, identity or enabled state (23.254208ms)
+✔ routine edits are blocked before acceptance and while running, and failed saves are atomic (36.341042ms)
+✔ routine history is bounded, persists message anchors and preserves accepted occurrence deduplication (327.153708ms)
+✔ role starting points preserve manual text, identity, model and capability choices (0.617916ms)
+✔ display and submission use the Bot override without changing defaults or falling back from disabled services (0.379792ms)
+✔ independent persona, model and capabilities survive save/restore without changing legacy defaults (0.568542ms)
+✔ Bot profiles preserve legacy avatars until explicitly saved and keep identities separate from engines (0.198333ms)
+✔ Stored profiles reject unsafe avatars, blank names, invalid engines and orphan associations (0.165708ms)
+✔ Two Bots sharing Pi retain distinct history ownership through reload, rename and branches (0.190208ms)
+✔ Renamed group members still insert the host's stable routing handle (0.108125ms)
+✔ server display caches are never reimported as legacy Bot edits (0.216042ms)
+✔ next routine time uses its timezone, weekdays and an exclusive starting minute (16.857041ms)
+✔ next routine time skips DST gaps and preserves both repeated-clock occurrences (1.456208ms)
+✔ next routine time is bounded and invalid schedules remain unavailable (0.99275ms)
+✔ readable labels only summarize known schedules (0.245042ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2996.104709

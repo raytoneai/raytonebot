@@ -1,0 +1,10 @@
+Browser tab: 834999550, Title: "RaytoneBot", URL: "http://127.0.0.1:5188/?devtools=1".
+The following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.
+~				107 text 我 创建仪表盘摘要文件。
+~				112 text 修改文件 · 已完成 318ms
+~				113 button (collapsed) Description: Expand tool, Secondary Actions: Expand
+~				115 text 仪表盘摘要文件已准备好。已整理今日核心指标、异常趋势和待跟进事项，方便快速浏览支持团队的当前状态。下一步可以直接打开输出面板核对文件结构。
++			119 button dashboard.md 文件
++				120 text dashboard.md
++				121 text 文件
+The focused UI element is 90 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_19_, Secondary Actions: Expand

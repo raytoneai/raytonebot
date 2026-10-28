@@ -1,0 +1,97 @@
+[
+  {
+    "avatars": 16,
+    "name": "Built-in demo",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 18,
+    "name": "Group chat",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Coding agent",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Reasoning kinds",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Tool approval",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Error block",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Artifact action",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 21,
+    "name": "Capability tray",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "HTML artifact stream",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Basic text",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Normal turn",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Streaming thinking + message",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Tool approval + completion",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 17,
+    "name": "MCP success + interrupt",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Runtime boot + sync",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Retrying incident",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Exhausted incident",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Terminal incident",
+    "oldEffects": 0
+  },
+  {
+    "avatars": 16,
+    "name": "Config, spans, deletion",
+    "oldEffects": 0
+  }
+]

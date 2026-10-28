@@ -1,0 +1,122 @@
+[
+  {
+    "name": "欢迎页(无事件)",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 55
+  },
+  {
+    "name": "Built-in demo",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 344
+  },
+  {
+    "name": "Group chat",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 108
+  },
+  {
+    "name": "Coding agent",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 277
+  },
+  {
+    "name": "Reasoning kinds",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 80
+  },
+  {
+    "name": "Tool approval",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 118
+  },
+  {
+    "name": "Error block",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 80
+  },
+  {
+    "name": "Artifact action",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 34
+  },
+  {
+    "name": "Capability tray",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 54
+  },
+  {
+    "name": "HTML artifact stream",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 106
+  },
+  {
+    "name": "Basic text",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 21
+  },
+  {
+    "name": "Normal turn",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 96
+  },
+  {
+    "name": "Streaming thinking + message",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 66
+  },
+  {
+    "name": "Tool approval + completion",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 131
+  },
+  {
+    "name": "MCP success + interrupt",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 153
+  },
+  {
+    "name": "Runtime boot + sync",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 239
+  },
+  {
+    "name": "Retrying incident",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 158
+  },
+  {
+    "name": "Exhausted incident",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 185
+  },
+  {
+    "name": "Terminal incident",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 131
+  },
+  {
+    "name": "Config, spans, deletion",
+    "logoCount": 1,
+    "use": "/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo",
+    "contentLength": 180
+  }
+]

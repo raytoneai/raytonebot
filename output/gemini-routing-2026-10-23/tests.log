@@ -1,0 +1,17 @@
+✔ reset without environment credentials ignores the SDK placeholder and preserves a configured model (387.808667ms)
+✔ Pi resumes the exact native context, refuses missing history, and permits explicit recovery (349.296875ms)
+✔ Pi native selection never substitutes a different or damaged session for the saved ID (2.085875ms)
+✔ Pi refuses a branch with no native messages before binding an unusable child (1.598292ms)
+✔ model service edits survive restore without persisting untouched deployment defaults or session keys (1.062709ms)
+✔ disabling an added service retains its configuration and list membership across reload (0.2135ms)
+✔ old edited disabled providers remain discoverable and new added state is validated (0.1745ms)
+✔ draft validation identifies the exact invalid field without resetting the user's text (0.171125ms)
+✔ invalid saved settings cannot introduce services, change protocols/authentication, or retain credential-bearing addresses (0.287834ms)
+ℹ tests 9
+ℹ suites 0
+ℹ pass 9
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 1297.011417

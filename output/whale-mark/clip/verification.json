@@ -1,0 +1,354 @@
+{
+  "before": [
+    {
+      "accessoryTransform": "scale(4)",
+      "eyesTransform": "matrix(1, 0, 0, 1, 2.96684, 20)",
+      "headTransform": "scale(4)",
+      "motionLayers": [
+        {
+          "layer": "drag-group",
+          "transform": "none"
+        },
+        {
+          "layer": "follow-group",
+          "transform": "matrix(0.999999, -0.00162907, 0.0015639, 0.959999, 1.41278, 7.69231)"
+        },
+        {
+          "layer": "action-group",
+          "transform": "none"
+        },
+        {
+          "layer": "gesture-group",
+          "transform": "none"
+        },
+        {
+          "layer": "breath",
+          "transform": "matrix(1.00415, 0, 0, 1.00829, 0, 0)"
+        }
+      ],
+      "sameMotionParent": true,
+      "topLayer": true
+    },
+    {
+      "accessoryTransform": "scale(4)",
+      "eyesTransform": "matrix(1, 0, 0, 1, 0, 0)",
+      "headTransform": "scale(4)",
+      "motionLayers": [
+        {
+          "layer": "drag-group",
+          "transform": "none"
+        },
+        {
+          "layer": "follow-group",
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "layer": "action-group",
+          "transform": "none"
+        },
+        {
+          "layer": "gesture-group",
+          "transform": "none"
+        },
+        {
+          "layer": "breath",
+          "transform": "none"
+        }
+      ],
+      "sameMotionParent": true,
+      "topLayer": true
+    }
+  ],
+  "ordinaryClip": {
+    "accessoryTransform": "scale(4)",
+    "eyesTransform": "matrix(1, 0, 0, 1, 0, 0)",
+    "headTransform": "scale(4)",
+    "motionLayers": [
+      {
+        "layer": "drag-group",
+        "transform": "none"
+      },
+      {
+        "layer": "follow-group",
+        "transform": "matrix(1, 0, 0, 1, 0, 0)"
+      },
+      {
+        "layer": "action-group",
+        "transform": "none"
+      },
+      {
+        "layer": "gesture-group",
+        "transform": "none"
+      },
+      {
+        "layer": "breath",
+        "transform": "none"
+      }
+    ],
+    "sameMotionParent": true,
+    "topLayer": true
+  },
+  "after": [
+    {
+      "accessoryTransform": "scale(4)",
+      "eyesTransform": "matrix(1, 0, 0, 1, 3.63004, -1.76715)",
+      "headTransform": "scale(4)",
+      "motionLayers": [
+        {
+          "layer": "drag-group",
+          "transform": "none"
+        },
+        {
+          "layer": "follow-group",
+          "transform": "matrix(0.995413, 0.0956701, -0.0956701, 0.995413, 6.27416, -2.46697)"
+        },
+        {
+          "layer": "action-group",
+          "transform": "none"
+        },
+        {
+          "layer": "gesture-group",
+          "transform": "none"
+        },
+        {
+          "layer": "breath",
+          "transform": "matrix(1.00579, 0, 0, 1.01158, 0, 0)"
+        }
+      ],
+      "sameMotionParent": true,
+      "topLayer": true
+    },
+    {
+      "accessoryTransform": "scale(4)",
+      "eyesTransform": "matrix(1, 0, 0, 1, 0, 0)",
+      "headTransform": "scale(4)",
+      "motionLayers": [
+        {
+          "layer": "drag-group",
+          "transform": "none"
+        },
+        {
+          "layer": "follow-group",
+          "transform": "matrix(1, 0, 0, 1, 0, 0)"
+        },
+        {
+          "layer": "action-group",
+          "transform": "none"
+        },
+        {
+          "layer": "gesture-group",
+          "transform": "none"
+        },
+        {
+          "layer": "breath",
+          "transform": "none"
+        }
+      ],
+      "sameMotionParent": true,
+      "topLayer": true
+    }
+  ],
+  "workingStates": [
+    {
+      "requested": "thinking",
+      "samples": [
+        {
+          "accessoryOnTop": true,
+          "accessoryTransform": "scale(4)",
+          "breath": "none",
+          "headTransform": "scale(4)",
+          "motion": "matrix(0.991278, -0.131789, 0.131789, 0.991278, -1.05432, -7.93022)",
+          "sameMotionParent": true,
+          "state": "thinking"
+        }
+      ]
+    },
+    {
+      "requested": "reading",
+      "samples": [
+        {
+          "accessoryOnTop": true,
+          "accessoryTransform": "scale(4)",
+          "breath": "none",
+          "headTransform": "scale(4)",
+          "motion": "matrix(0.994809, -0.101756, 0.101756, 0.994809, -0.759159, -7.06106)",
+          "sameMotionParent": true,
+          "state": "reading"
+        }
+      ]
+    },
+    {
+      "requested": "editing",
+      "samples": [
+        {
+          "accessoryOnTop": true,
+          "accessoryTransform": "scale(4)",
+          "breath": "none",
+          "headTransform": "scale(4)",
+          "motion": "matrix(0.994749, -0.102339, 0.102339, 0.994749, -0.737167, -6.50888)",
+          "sameMotionParent": true,
+          "state": "editing"
+        }
+      ]
+    },
+    {
+      "requested": "working",
+      "samples": [
+        {
+          "accessoryOnTop": true,
+          "accessoryTransform": "scale(4)",
+          "breath": "none",
+          "headTransform": "scale(4)",
+          "motion": "matrix(0.995049, -0.0993755, 0.0993755, 0.995049, -0.715748, -6.08732)",
+          "sameMotionParent": true,
+          "state": "working"
+        }
+      ]
+    },
+    {
+      "requested": "writing",
+      "samples": [
+        {
+          "accessoryOnTop": true,
+          "accessoryTransform": "scale(4)",
+          "breath": "none",
+          "headTransform": "scale(4)",
+          "motion": "matrix(0.99545, -0.0952803, 0.0952803, 0.99545, -0.686161, -5.73742)",
+          "sameMotionParent": true,
+          "state": "writing"
+        }
+      ]
+    },
+    {
+      "requested": "asking",
+      "samples": [
+        {
+          "accessoryOnTop": true,
+          "accessoryTransform": "scale(4)",
+          "breath": "none",
+          "headTransform": "scale(4)",
+          "motion": "matrix(0.995087, -0.0990018, 0.0990018, 0.995087, -0.658351, -5.50488)",
+          "sameMotionParent": true,
+          "state": "asking"
+        }
+      ]
+    },
+    {
+      "requested": "asking-settled",
+      "samples": [
+        {
+          "accessoryOnTop": true,
+          "accessoryTransform": "scale(4)",
+          "breath": "none",
+          "headTransform": "scale(4)",
+          "motion": "matrix(0.966339, -0.257273, 0.257273, 0.966339, -0.019653, -0.0738181)",
+          "sameMotionParent": true,
+          "state": "asking"
+        }
+      ]
+    }
+  ],
+  "fixtures": [
+    {
+      "name": "欢迎页(无事件)",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Built-in demo",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Group chat",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Coding agent",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Reasoning kinds",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Tool approval",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Error block",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Artifact action",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Capability tray",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "HTML artifact stream",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Basic text",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Normal turn",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Streaming thinking + message",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Tool approval + completion",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "MCP success + interrupt",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Runtime boot + sync",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Retrying incident",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Exhausted incident",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Terminal incident",
+      "rendered": true,
+      "overflow": false
+    },
+    {
+      "name": "Config, spans, deletion",
+      "rendered": true,
+      "overflow": false
+    }
+  ],
+  "errors": []
+}

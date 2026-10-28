@@ -1,0 +1,44 @@
+Browser tab: 834999550, Title: "RaytoneBot", URL: "http://127.0.0.1:5188/?devtools=1".
+0 AXWebArea RaytoneBot, URL: 127.0.0.1:5188/?devtools=1
+	1 container
+		101 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand
+		48 container
+			49 pop up button (collapsed) Description: Rae, Pi, Secondary Actions: Expand
+				50 text Rae
+			102 container Agent 输出
+				103 text Raer
+			104 container
+				105 button 已完成思考
+				106 text Planning changes and checking the current SearchInput implementation before editing.
+			107 button (collapsed) 读取了 1 个文件, Secondary Actions: Expand
+			108 container
+				109 text 编辑文件 · 已完成
+				110 button (collapsed) Description: Expand tool, Secondary Actions: Expand
+			111 container
+				112 text Validation and loading state added. The search button is disabled for invalid input and a spinner shows while results are loading.
+				113 container Agent 消息操作
+					114 button 复制回复
+					115 button (disabled) 在新分支中重新生成（保留已写文件）
+			116 button SearchInput.tsx 文件
+				117 text SearchInput.tsx
+				118 text 文件
+			83 text entry area (settable)
+			84 button 附加文件
+			85 pop up button (collapsed) Description: 审批权限, ID: radix-_r_a_, Secondary Actions: Expand
+			86 pop up button (collapsed) Description: 思考预算, ID: radix-_r_c_, Secondary Actions: Expand
+			87 button (disabled) 发送
+		88 button 展开右侧面板
+		89 text 事件流(仅开发)
+		90 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_19_, Secondary Actions: Expand
+		91 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand
+			92 menu
+				93 (selected) 工作头像预览
+				94 正在思考
+				95 正在查阅
+				96 正在修改
+				97 正在执行
+				98 正在回复
+				99 等你确认
+				100 结束 / 停止
+
+The focused UI element is 90 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_19_, Secondary Actions: Expand

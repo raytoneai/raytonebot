@@ -1,0 +1,446 @@
+{
+  "resume": {
+    "nativeId": "7f8566fc-8a1c-489a-a765-b977101d896f",
+    "answer": "DSH native tool verified",
+    "runId": "pi_export_0a420f7a-2bb3-4650-a344-48e70197b1e7"
+  },
+  "rejection": [
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_run_started_1",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 1,
+      "ts": 1792419727120,
+      "type": "run.started",
+      "payload": {
+        "title": "Pi session",
+        "metadata": {
+          "adapter": "pi"
+        }
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_user_text_started_2",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 2,
+      "ts": 1792419727121,
+      "messageId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_user",
+      "type": "text.started",
+      "payload": {
+        "textId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_user_text",
+        "role": "user",
+        "format": "plain"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_user_text_delta_3",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 3,
+      "ts": 1792419727122,
+      "messageId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_user",
+      "type": "text.delta",
+      "payload": {
+        "textId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_user_text",
+        "delta": "继续本地权限验收：只使用 edit 工具把 output/dsh-local-check/note.txt 中的 DSH native tool verified 替换成 REJECTED_CHANGE。不得使用 write、bash 或其他替代工具。如果审批被拒绝，立即停止修改，不要重试，只回复未修改。"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_user_text_finished_4",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 4,
+      "ts": 1792419727123,
+      "messageId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_user",
+      "type": "text.finished",
+      "payload": {
+        "textId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_user_text"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_reasoning_status_m1_reasoning_0_5",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 5,
+      "ts": 1792419727124,
+      "messageId": "m1",
+      "type": "reasoning.status",
+      "payload": {
+        "reasoningId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m1_reasoning_0",
+        "status": "thinking",
+        "label": "Thinking"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_reasoning_delta_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m1_reasoning_0_6",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 6,
+      "ts": 1792419727125,
+      "messageId": "m1",
+      "type": "reasoning.delta",
+      "payload": {
+        "reasoningId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m1_reasoning_0",
+        "kind": "thinking",
+        "delta": "The user wants me to use edit tool to replace content. I read the file earlier in this session, so editing is fine. Let me do the edit."
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_reasoning_finished_m1_reasoning_0_7",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 7,
+      "ts": 1792419727126,
+      "messageId": "m1",
+      "type": "reasoning.finished",
+      "payload": {
+        "reasoningId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m1_reasoning_0"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_tool_started_call_00_nv1mXWdoOUsiPxrWwvhU9355_8",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 8,
+      "ts": 1792419727127,
+      "type": "tool.call.started",
+      "payload": {
+        "toolCallId": "call_00_nv1mXWdoOUsiPxrWwvhU9355",
+        "name": "edit",
+        "title": "edit",
+        "safety": "safe"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_tool_awaiting_call_00_nv1mXWdoOUsiPxrWwvhU9355_9",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 9,
+      "ts": 1792419727128,
+      "type": "tool.call.awaiting_approval",
+      "payload": {
+        "toolCallId": "call_00_nv1mXWdoOUsiPxrWwvhU9355",
+        "argsPreview": {
+          "file_path": "output/dsh-local-check/note.txt",
+          "old_string": "DSH native tool verified",
+          "new_string": "REJECTED_CHANGE",
+          "path": "output/dsh-local-check/note.txt",
+          "oldText": "DSH native tool verified",
+          "newText": "REJECTED_CHANGE"
+        }
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_tool_denied_call_00_nv1mXWdoOUsiPxrWwvhU9355_10",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 10,
+      "ts": 1792419727129,
+      "type": "tool.call.error",
+      "payload": {
+        "toolCallId": "call_00_nv1mXWdoOUsiPxrWwvhU9355",
+        "code": "approval_denied",
+        "message": "Tool execution was denied by the user."
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_tool_finished_call_00_nv1mXWdoOUsiPxrWwvhU9355_11",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 11,
+      "ts": 1792419727130,
+      "type": "tool.call.finished",
+      "payload": {
+        "toolCallId": "call_00_nv1mXWdoOUsiPxrWwvhU9355",
+        "status": "cancelled"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_reasoning_status_m2_reasoning_0_12",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 12,
+      "ts": 1792419727131,
+      "messageId": "m2",
+      "type": "reasoning.status",
+      "payload": {
+        "reasoningId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m2_reasoning_0",
+        "status": "thinking",
+        "label": "Thinking"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_reasoning_delta_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m2_reasoning_0_13",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 13,
+      "ts": 1792419727132,
+      "messageId": "m2",
+      "type": "reasoning.delta",
+      "payload": {
+        "reasoningId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m2_reasoning_0",
+        "kind": "thinking",
+        "delta": "The edit was denied. Per instructions: stop, don't retry, reply \"未修改\".\n\nAlso should I verify without tools? No — user said don't use write/bash/other alternatives. Reply briefly: 未修改."
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_reasoning_finished_m2_reasoning_0_14",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 14,
+      "ts": 1792419727133,
+      "messageId": "m2",
+      "type": "reasoning.finished",
+      "payload": {
+        "reasoningId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m2_reasoning_0"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_text_started_m3_text_0_15",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 15,
+      "ts": 1792419727134,
+      "messageId": "m3",
+      "type": "text.started",
+      "payload": {
+        "textId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m3_text_0",
+        "role": "assistant",
+        "format": "markdown"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_text_delta_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m3_text_0_16",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 16,
+      "ts": 1792419727135,
+      "messageId": "m3",
+      "type": "text.delta",
+      "payload": {
+        "textId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m3_text_0",
+        "delta": "未修改。edit 操作被拒绝，已按要求立即停止，未重试，也未改用其他工具。"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_text_finished_m3_text_0_17",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 17,
+      "ts": 1792419727136,
+      "messageId": "m3",
+      "type": "text.finished",
+      "payload": {
+        "textId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_m3_text_0"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da_run_finished_18",
+      "runId": "dsh-deny-45884ab6-409c-4dad-ad3f-68d3f71ad2da",
+      "seq": 18,
+      "ts": 1792419727137,
+      "type": "run.finished",
+      "payload": {
+        "status": "success"
+      }
+    }
+  ],
+  "stop": [
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_run_started_1",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 1,
+      "ts": 1792419729802,
+      "type": "run.started",
+      "payload": {
+        "title": "Pi session",
+        "metadata": {
+          "adapter": "pi"
+        }
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_user_text_started_2",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 2,
+      "ts": 1792419729803,
+      "messageId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_user",
+      "type": "text.started",
+      "payload": {
+        "textId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_user_text",
+        "role": "user",
+        "format": "plain"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_user_text_delta_3",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 3,
+      "ts": 1792419729804,
+      "messageId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_user",
+      "type": "text.delta",
+      "payload": {
+        "textId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_user_text",
+        "delta": "继续本地停止验收：仅调用一次 bash 工具执行下面的原样命令，不做其他操作，也不要使用后台模式；之后等待工具返回。\nsleep 30 & echo $! > '/Users/rickyhuo/RaytoneBot/output/dsh-local-check/live-child-36bb67ec-4b6f-4208-9b45-920d4e759df6.pid'; wait"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_user_text_finished_4",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 4,
+      "ts": 1792419729805,
+      "messageId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_user",
+      "type": "text.finished",
+      "payload": {
+        "textId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_user_text"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_reasoning_status_m1_reasoning_0_5",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 5,
+      "ts": 1792419729806,
+      "messageId": "m1",
+      "type": "reasoning.status",
+      "payload": {
+        "reasoningId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_m1_reasoning_0",
+        "status": "thinking",
+        "label": "Thinking"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_reasoning_delta_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_m1_reasoning_0_6",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 6,
+      "ts": 1792419729807,
+      "messageId": "m1",
+      "type": "reasoning.delta",
+      "payload": {
+        "reasoningId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_m1_reasoning_0",
+        "kind": "thinking",
+        "delta": "The user wants me to run a bash command exactly: sleep 30 & echo $! > pidfile; wait. This is a test of the stop/cancellation behavior. It's harmless. Run it once with bash tool, and wait for return. Timeout: default may be shorter than 30s. I should set timeoutMs maybe 60000 to let it complete. But the test seems to be about \"stop acceptance\" — the user may stop it. Instructions say don't use background mode. Just run.\n\nI'll set timeoutMs to something like 45000 to allow 30s sleep."
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_reasoning_finished_m1_reasoning_0_7",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 7,
+      "ts": 1792419729808,
+      "messageId": "m1",
+      "type": "reasoning.finished",
+      "payload": {
+        "reasoningId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_m1_reasoning_0"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_tool_started_call_00_mUaHC4HLgCWGAQOg3RoH5751_8",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 8,
+      "ts": 1792419729809,
+      "type": "tool.call.started",
+      "payload": {
+        "toolCallId": "call_00_mUaHC4HLgCWGAQOg3RoH5751",
+        "name": "bash",
+        "title": "bash",
+        "safety": "safe"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_tool_awaiting_call_00_mUaHC4HLgCWGAQOg3RoH5751_9",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 9,
+      "ts": 1792419729810,
+      "type": "tool.call.awaiting_approval",
+      "payload": {
+        "toolCallId": "call_00_mUaHC4HLgCWGAQOg3RoH5751",
+        "argsPreview": {
+          "description": "Run sleep and wait test command",
+          "command": "sleep 30 & echo $! > '/Users/rickyhuo/RaytoneBot/output/dsh-local-check/live-child-36bb67ec-4b6f-4208-9b45-920d4e759df6.pid'; wait",
+          "timeoutMs": 60000,
+          "cwd": "/Users/rickyhuo/RaytoneBot"
+        }
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_tool_running_call_00_mUaHC4HLgCWGAQOg3RoH5751_10",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 10,
+      "ts": 1792419729811,
+      "type": "tool.call.running",
+      "payload": {
+        "toolCallId": "call_00_mUaHC4HLgCWGAQOg3RoH5751",
+        "args": {
+          "description": "Run sleep and wait test command",
+          "command": "sleep 30 & echo $! > '/Users/rickyhuo/RaytoneBot/output/dsh-local-check/live-child-36bb67ec-4b6f-4208-9b45-920d4e759df6.pid'; wait",
+          "timeoutMs": 60000,
+          "cwd": "/Users/rickyhuo/RaytoneBot"
+        }
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_tool_finished_call_00_mUaHC4HLgCWGAQOg3RoH5751_11",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 11,
+      "ts": 1792419729812,
+      "type": "tool.call.finished",
+      "payload": {
+        "toolCallId": "call_00_mUaHC4HLgCWGAQOg3RoH5751",
+        "status": "cancelled"
+      }
+    },
+    {
+      "protocol": "agent-ux",
+      "version": "0.1",
+      "id": "evt_dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd_run_finished_12",
+      "runId": "dsh-stop-42f814c3-f518-4051-930d-ea89fc03c0dd",
+      "seq": 12,
+      "ts": 1792419729813,
+      "type": "run.finished",
+      "payload": {
+        "status": "cancelled"
+      }
+    }
+  ]
+}

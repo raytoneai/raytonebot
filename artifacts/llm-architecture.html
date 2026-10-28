@@ -1,0 +1,533 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>LLM 架构解剖：MoE、MTP 和它们在解决什么</title>
+<style>
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:28px 20px 72px;
+    font-family:var(--font-sans);color:var(--color-text-primary);
+    background:var(--color-background-primary);line-height:1.68;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:940px;margin:0 auto}
+
+  h1{font-size:26px;margin:0 0 10px;line-height:1.32;letter-spacing:-.01em}
+  .sub{color:var(--color-text-secondary);font-size:14px;margin:0 0 8px;max-width:62ch}
+  .sub:last-of-type{margin-bottom:34px}
+
+  h2{font-size:17px;font-weight:600;margin:44px 0 4px;letter-spacing:-.01em}
+  h2 .idx{font-family:var(--font-mono);font-size:12px;color:var(--color-accent);margin-right:8px;font-weight:400}
+  .h2note{font-size:13px;color:var(--color-text-secondary);margin:0 0 18px;max-width:64ch}
+
+  .card{border:1px solid var(--color-border-primary);border-radius:var(--border-radius-md);padding:18px 20px;background:var(--color-background-primary)}
+  .card + .card{margin-top:12px}
+  .cardhead{font-size:12px;font-family:var(--font-mono);color:var(--color-accent);letter-spacing:.04em;margin-bottom:10px}
+
+  /* ---- block 图 ---- */
+  .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:26px;align-items:center}
+  @media (max-width:800px){.split{grid-template-columns:1fr;gap:14px}}
+  .diagram{width:100%;height:auto;display:block}
+  .dbox{fill:var(--color-background-secondary);stroke:var(--color-border-primary);stroke-width:1.4}
+  .dbox-hi{fill:color-mix(in srgb,var(--color-accent) 12%,var(--color-background-secondary));stroke:var(--color-accent);stroke-width:1.6}
+  .dtext{fill:var(--color-text-primary);font-family:var(--font-sans);font-size:13px;text-anchor:middle;dominant-baseline:middle}
+  .dsmall{fill:var(--color-text-secondary);font-family:var(--font-mono);font-size:10.5px;text-anchor:middle;dominant-baseline:middle}
+  .dline{stroke:var(--color-border-primary);stroke-width:1.4;fill:none;marker-end:url(#darrow)}
+  .dres{stroke:var(--color-text-secondary);stroke-width:1.3;fill:none;marker-end:url(#darrowg);opacity:.75}
+
+  ul.facts{margin:0;padding-left:0;list-style:none}
+  ul.facts li{padding:9px 0;border-bottom:1px solid var(--color-border-primary);font-size:13.5px}
+  ul.facts li:last-child{border-bottom:none}
+  ul.facts b{font-weight:600}
+  ul.facts span{color:var(--color-text-secondary)}
+
+  /* ---- 控件 ---- */
+  .ctlrow{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:16px 22px;margin-bottom:6px}
+  .ctl{display:flex;justify-content:space-between;align-items:baseline;font-size:12.5px;color:var(--color-text-secondary);margin-bottom:2px}
+  .ctl output{font-family:var(--font-mono);color:var(--color-text-primary);font-size:13px}
+  input[type=range]{width:100%;accent-color:var(--color-accent);margin:0 0 4px;height:22px}
+
+  .stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-top:16px}
+  .stat{border:1px solid var(--color-border-primary);border-radius:var(--border-radius-md);padding:12px 14px}
+  .stat .lab{font-size:11.5px;color:var(--color-text-secondary);line-height:1.4}
+  .stat .val{font-family:var(--font-mono);font-size:18px;margin-top:3px;line-height:1.3}
+  .stat .unit{font-family:var(--font-sans);font-size:11.5px;color:var(--color-text-secondary);margin-left:3px}
+  .stat.hi{border-color:color-mix(in srgb,var(--color-accent) 55%,var(--color-border-primary))}
+  .stat.hi .val{color:var(--color-accent)}
+
+  button{font:inherit;font-size:13px;padding:7px 15px;border-radius:8px;border:1px solid var(--color-border-primary);background:var(--color-background-secondary);color:var(--color-text-primary);cursor:pointer;transition:border-color .15s,opacity .15s}
+  button:hover:not(:disabled){border-color:var(--color-accent)}
+  button:focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}
+  button:disabled{opacity:.35;cursor:not-allowed}
+  button.primary{background:var(--color-accent);border-color:var(--color-accent);color:#fff}
+
+  /* ---- KV 条形 ---- */
+  .kvrow{display:grid;grid-template-columns:118px 1fr 96px;gap:12px;align-items:center;padding:7px 0;font-size:13px}
+  @media (max-width:520px){.kvrow{grid-template-columns:86px 1fr 78px;font-size:12px;gap:8px}}
+  .kvrow .nm{font-family:var(--font-mono);font-size:12px;color:var(--color-text-primary)}
+  .barwrap{background:var(--color-background-secondary);border-radius:5px;height:24px;overflow:hidden}
+  .bar{height:100%;background:var(--color-accent);border-radius:5px;min-width:3px;transition:width .35s ease}
+  .bar.dim{background:var(--color-text-secondary);opacity:.55}
+  .kvrow .vl{font-family:var(--font-mono);font-size:12px;color:var(--color-text-secondary);text-align:right}
+
+  /* ---- MTP 流程 ---- */
+  .flow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin:10px 0}
+  .fbox{border:1px solid var(--color-border-primary);border-radius:8px;padding:8px 12px;font-size:12.5px;background:var(--color-background-secondary);font-family:var(--font-mono)}
+  .fbox.acc{border-color:var(--color-accent);color:var(--color-accent)}
+  .fbox.out{background:color-mix(in srgb,var(--color-success) 14%,var(--color-background-secondary));border-color:var(--color-success)}
+  .farrow{color:var(--color-text-secondary);font-size:14px}
+  .flownote{font-size:12px;color:var(--color-text-secondary);margin:2px 0 16px;padding-left:2px}
+
+  .big{font-family:var(--font-mono);font-size:22px;color:var(--color-accent)}
+
+  table{width:100%;border-collapse:collapse;font-size:13px;margin-top:4px}
+  th,td{text-align:left;padding:9px 10px;border-bottom:1px solid var(--color-border-primary);vertical-align:top}
+  th{font-size:11.5px;font-weight:600;color:var(--color-text-secondary);letter-spacing:.03em}
+  td:first-child{font-family:var(--font-mono);font-size:12px;white-space:nowrap;color:var(--color-text-primary)}
+  td:last-child{color:var(--color-text-secondary)}
+  tbody tr:last-child td{border-bottom:none}
+  @media (max-width:560px){
+    td:first-child{white-space:normal}
+    th:nth-child(3),td:nth-child(3){display:none}
+  }
+
+  .callout{margin-top:34px;padding:16px 18px;border-left:3px solid var(--color-accent);background:var(--color-background-secondary);border-radius:0 var(--border-radius-md) var(--border-radius-md) 0;font-size:13.5px}
+  .callout p{margin:0 0 9px}
+  .callout p:last-child{margin:0}
+  .src{font-size:11.5px;color:var(--color-text-secondary);margin-top:30px;line-height:1.7}
+  .src a{color:var(--color-accent);text-decoration:none}
+  @media (prefers-reduced-motion:reduce){*{transition-duration:.01ms!important;animation-duration:.01ms!important}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <h1>LLM 架构解剖：MoE、MTP 和它们到底在解决什么</h1>
+  <p class="sub">先把话说清楚：现在的大模型架构骨架几乎没变过 —— 一串相同的 Transformer 块叠起来。真正在变的只有三处：<b>FFN 层怎么放参数</b>（MoE）、<b>注意力怎么省显存</b>（MQA/GQA/MLA）、<b>训练目标怎么加料</b>（MTP）。</p>
+  <p class="sub">下面每个板块都能动手调。数字是<b>教学示例</b>，不是某个真实模型的规格 —— 除非标了出处。</p>
+
+  <!-- ============ 1. Block ============ -->
+  <h2><span class="idx">01</span>先看一个 Block</h2>
+  <p class="h2note">不管是 7B 还是 671B，都是这个积木重复几十层。所有架构创新，都是在这几个格子里动手脚。</p>
+
+  <div class="split">
+    <svg class="diagram" viewBox="0 0 480 400" role="img" aria-label="Transformer 块结构图">
+      <defs>
+        <marker id="darrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--color-border-primary)"/>
+        </marker>
+        <marker id="darrowg" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="5" markerHeight="5" orient="auto-start-reverse">
+          <path d="M0 0 L10 5 L0 10 z" fill="var(--color-text-secondary)"/>
+        </marker>
+      </defs>
+
+      <text x="240" y="24" class="dsmall">输入 x</text>
+      <path class="dline" d="M 240 32 L 240 52"/>
+
+      <rect class="dbox" x="170" y="56" width="140" height="28" rx="6"/>
+      <text x="240" y="70" class="dsmall" style="fill:var(--color-text-primary);font-size:12px">RMSNorm</text>
+
+      <path class="dline" d="M 240 86 L 240 100"/>
+      <rect class="dbox-hi" x="150" y="104" width="180" height="58" rx="8"/>
+      <text x="240" y="124" class="dtext">自注意力</text>
+      <text x="240" y="144" class="dsmall">Attention</text>
+
+      <path class="dline" d="M 240 164 L 240 176"/>
+      <rect class="dbox" x="170" y="180" width="140" height="28" rx="6"/>
+      <text x="240" y="194" class="dsmall" style="fill:var(--color-text-primary);font-size:12px">RMSNorm</text>
+
+      <path class="dline" d="M 240 210 L 240 224"/>
+      <rect class="dbox-hi" x="150" y="228" width="180" height="58" rx="8"/>
+      <text x="240" y="248" class="dtext">前馈网络</text>
+      <text x="240" y="268" class="dsmall">FFN / MoE</text>
+
+      <path class="dline" d="M 240 288 L 240 316"/>
+      <text x="240" y="336" class="dsmall">输出到下一层（再重复 N 次）</text>
+
+      <!-- 残差 1 -->
+      <path class="dres" d="M 170 70 L 118 70 L 118 162 L 168 162"/>
+      <text x="94" y="116" class="dsmall" transform="rotate(-90 94 116)">残差</text>
+      <!-- 残差 2 -->
+      <path class="dres" d="M 170 194 L 134 194 L 134 286 L 166 286"/>
+      <text x="112" y="240" class="dsmall" transform="rotate(-90 112 240)">残差</text>
+    </svg>
+
+    <ul class="facts">
+      <li><b>RMSNorm</b> <span>—— 每层开头把数值拉回稳定范围。省掉均值计算，比 LayerNorm 便宜，现在几乎是默认选择。</span></li>
+      <li><b>自注意力</b> <span>—— 让每个 token 读到前面的 token。这里的变化最多（下一节讲），因为它决定了长上下文要多少显存。</span></li>
+      <li><b>FFN / MoE</b> <span>—— 占了全部参数的 <b>2/3 以上</b>，是真正的知识仓库。MoE 就是把这一块拆成很多份，每次只用其中一部分。</span></li>
+      <li><b>残差连接</b> <span>—— 让梯度能直着流回去。没有它，几十层根本训不动。</span></li>
+    </ul>
+  </div>
+
+  <!-- ============ 2. MoE ============ -->
+  <h2><span class="idx">02</span>MoE：把参数和计算量拆开</h2>
+  <p class="h2note">稠密模型里，"模型有多大"和"每算一个 token 要多少算力"是绑死的。MoE 的全部意义就是在两者之间插一刀：<b>参数决定显存，激活的专家决定算力</b>。</p>
+
+  <div class="card">
+    <div class="cardhead">动手调一下</div>
+    <div class="ctlrow">
+      <div>
+        <div class="ctl"><span>专家数 E</span><output id="eOut">64</output></div>
+        <input type="range" id="eRange" min="1" max="128" step="1" value="64" aria-label="专家数">
+      </div>
+      <div>
+        <div class="ctl"><span>每 token 激活 k</span><output id="kOut">6</output></div>
+        <input type="range" id="kRange" min="1" max="8" step="1" value="6" aria-label="每 token 激活专家数">
+      </div>
+      <div>
+        <div class="ctl"><span>单个专家维度 d<sub>ff</sub></span><output id="dOut">2048</output></div>
+        <input type="range" id="dRange" min="512" max="6144" step="256" value="2048" aria-label="专家中间维度">
+      </div>
+    </div>
+
+    <div class="stats">
+      <div class="stat hi">
+        <div class="lab">MoE 总参数（FFN 部分）</div>
+        <div class="val" id="stTotal">—</div>
+      </div>
+      <div class="stat">
+        <div class="lab">每 token 实际动用</div>
+        <div class="val" id="stActive">—</div>
+      </div>
+      <div class="stat">
+        <div class="lab">参考：稠密 FFN</div>
+        <div class="val" id="stDense">—</div>
+      </div>
+      <div class="stat">
+        <div class="lab">参数 / 算力 比</div>
+        <div class="val" id="stRatio">—</div>
+      </div>
+    </div>
+    <p class="flownote" style="margin-top:14px;margin-bottom:0">按 32 层、隐藏维度 4096、SwiGLU（3 个矩阵）估算，只统计 FFN。注意力部分两种方案相同，所以不列入对比。</p>
+  </div>
+
+  <div class="card">
+    <div class="cardhead">路由：一个 token 怎么选专家</div>
+    <p style="margin:0 0 12px;font-size:13.5px;color:var(--color-text-secondary)">每个 token 过一遍路由器（一个小线性层 + softmax），打分最高的 k 个专家被激活，其余专家的权重这轮完全不参与计算。为了看清，下图每个 token 固定画 2 条线。</p>
+    <svg class="diagram" id="routeSvg" viewBox="0 0 480 300" role="img" aria-label="MoE 路由示意图：8 个 token 各自路由到 2 个专家"></svg>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px">
+      <button id="reshuffle">换一批 token</button>
+      <span class="flownote" id="routeNote" style="margin:0" role="status"></span>
+    </div>
+  </div>
+
+  <div class="callout" style="margin-top:14px">
+    <p><strong>MoE 的代价是什么？</strong>三个，都很实际：</p>
+    <p><strong>① 显存不省。</strong>671B 参数就得按 671B 存。省的是算力和带宽，不是显存 —— 这是最常见的误解。</p>
+    <p><strong>② 专家负载不均。</strong>路由如果偏爱某几个专家，训练会塌成"只用几个专家"，推理时那几张卡就成了瓶颈。DeepSeek-V3 的做法是给每个专家挂一个偏置项动态调整（auxiliary-loss-free），不靠额外的均衡损失去干扰主目标。</p>
+    <p><strong>③ 通信开销。</strong>专家分布在不同 GPU 上，token 得被发送过去再收回来（all-to-all）。批次小的时候，通信反而成主导成本 —— 所以 MoE 天生适合大吞吐服务，不适合本地单机小批量。</p>
+  </div>
+
+  <!-- ============ 3. 注意力 ============ -->
+  <h2><span class="idx">03</span>注意力：所有努力都在救 KV cache</h2>
+  <p class="h2note">推理时最贵的不是算力，是显存带宽 —— 每生成一个 token，都要把之前所有 token 的 Key/Value 读一遍。所以过去几年注意力的主线只有一件事：<b>把 KV 缓存压小</b>。</p>
+
+  <div class="card">
+    <div class="cardhead">每 token 每层的 KV 缓存大小（bf16，示例配置 d=4096 / 32 头 × 128 维）</div>
+    <div id="kvList"></div>
+    <p class="flownote" id="kvNote" style="margin-top:14px;margin-bottom:0"></p>
+  </div>
+
+  <div class="split" style="margin-top:14px">
+    <ul class="facts">
+      <li><b>MHA</b> <span>—— 每个头独立存 K/V。表达力最强，缓存最大。</span></li>
+      <li><b>MQA</b> <span>—— 所有头共享一份 K/V。缓存降到 1/32，但质量掉得明显。</span></li>
+      <li><b>GQA</b> <span>—— 折中：8 个 query 头共享一组 K/V。Llama 2/3 的选择，性价比最高。</span></li>
+      <li><b>MLA</b> <span>—— 不存 K/V，存一个压缩后的 latent（512 维）+ 一小段解耦的 RoPE 维度（64 维），用时再投影回去。DeepSeek-V2 报告 KV 缓存减少 93%，效果反而比 MHA 好。</span></li>
+    </ul>
+    <div style="font-size:13px;color:var(--color-text-secondary)">
+      <p style="margin:0 0 10px">MLA 的关键 trick 是<b>解耦 RoPE</b>：位置信息必须和内容分开存，否则压缩后的 latent 一旦被旋转就无法再还原。所以它保留 64 维专门装位置，剩下的装内容。</p>
+      <p style="margin:0">另一条路线是干脆<b>不全都看</b>：滑动窗口注意力、DeepSeek 的稀疏注意力（DSA）用一个小索引器先挑出相关 token，只算这一小撮。代价是实现复杂度，收益是长上下文成本接近线性。</p>
+    </div>
+  </div>
+
+  <!-- ============ 4. MTP ============ -->
+  <h2><span class="idx">04</span>MTP：一次不只猜一个 token</h2>
+  <p class="h2note">先说清楚归属：<b>MTP = Multi-Token Prediction</b>，是一种训练目标，不是网络结构。它不改模型主干，只是在旁边多接几个预测头。</p>
+
+  <div class="card">
+    <div class="cardhead">结构：在主干旁边多挂一个模块</div>
+    <div class="flow">
+      <div class="fbox">主干隐状态 h<sub>t</sub></div>
+      <div class="farrow">→</div>
+      <div class="fbox acc">预测头</div>
+      <div class="farrow">→</div>
+      <div class="fbox out">t<sub>1</sub></div>
+    </div>
+    <div class="flownote">这是普通语言模型：h<sub>t</sub> 只能预测下一个 token。</div>
+
+    <div class="flow">
+      <div class="fbox">h<sub>t</sub> ⊕ t<sub>1</sub></div>
+      <div class="farrow">→</div>
+      <div class="fbox acc">MTP 模块</div>
+      <div class="farrow">→</div>
+      <div class="fbox out">t<sub>2</sub></div>
+    </div>
+    <div class="flownote">MTP 模块 = 一个 Transformer 块 + 投影，把「已经确定的 t₁」和「h<sub>t</sub>」拼起来，再预测 t₂。这个模块可以顺序串 D 个，一路预测到 t<sub>D+1</sub>（DeepSeek-V3 用 D=1）。</div>
+  </div>
+
+  <div class="split" style="margin-top:12px">
+    <div>
+      <p style="margin:0 0 10px;font-size:13.5px"><b>为什么它对训练有好处？</b>逼模型在做预测之前就"想到后面几步"。如果 t₂ 都要预测对，h<sub>t</sub> 里就不能只有 t₁ 的信息，必须提前编码计划的走向。这是把「规划」压进了表示本身。</p>
+      <p style="margin:0;font-size:13.5px"><b>为什么它对推理有好处？</b>MTP 模块本身就是一个免费的草稿模型（draft model），可以直接拿去做投机解码。</p>
+    </div>
+    <div>
+      <p style="margin:0 0 10px;font-size:13.5px"><b>关键：MTP 模块是可丢弃的。</b>丢掉它，主干仍然是完整可用的语言模型。它不是架构的一部分，是挂在旁边的脚手架。</p>
+      <p style="margin:0;font-size:13.5px;color:var(--color-text-secondary)">DeepSeek-V3 报告第二个 token 的接受率约 85%–90%，对应约 1.8 倍解码速度。</p>
+    </div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="cardhead">投机解码：接受率怎么变成速度</div>
+    <div class="ctl" style="max-width:420px"><span>草稿 token 被接受的概率 α</span><output id="aOut">0.85</output></div>
+    <input type="range" id="aRange" min="0" max="0.98" step="0.01" value="0.85" aria-label="接受率">
+    <div class="stats" style="margin-top:14px">
+      <div class="stat">
+        <div class="lab">每次前向平均产出</div>
+        <div class="val"><span id="outTok">1.85</span><span class="unit">token</span></div>
+      </div>
+      <div class="stat hi">
+        <div class="lab">理论解码加速</div>
+        <div class="val"><span id="outSpeed">1.85</span><span class="unit">×</span></div>
+      </div>
+    </div>
+    <p class="flownote" style="margin-top:12px;margin-bottom:0">算法：主模型出 t₁，MTP 顺手猜 t₂；然后把 [t₁,t₂] 一起送进主模型做一次前向 —— 这一次同时验证了 t₂、并顺带算出 t₃ 的分布。猜对就白赚一个 token，猜错就退回去只保留 t₁（主干结果永远正确，所以这叫"无损加速"）。</p>
+  </div>
+
+  <!-- ============ 5. 速查 ============ -->
+  <h2><span class="idx">05</span>剩下的零件，一张表看完</h2>
+  <p class="h2note">这些不出现在新闻标题里，但缺一个模型就跑不起来。</p>
+
+  <div class="card">
+    <table>
+      <thead><tr><th>组件</th><th>解决什么</th><th>备注</th></tr></thead>
+      <tbody>
+        <tr><td>SwiGLU</td><td>FFN 的激活函数</td><td>三矩阵结构，比 ReLU 版效果好，几乎所有新模型都用</td></tr>
+        <tr><td>RoPE / YaRN</td><td>位置编码</td><td>旋转式编码，外推靠 YaRN 之类方法拉长上下文</td></tr>
+        <tr><td>Pre-Norm</td><td>深层训练稳定性</td><td>Norm 放在子层之前，残差通路保持干净</td></tr>
+        <tr><td>QK-Norm</td><td>防止注意力 logits 爆炸</td><td>训练不稳定时的常见补丁</td></tr>
+        <tr><td>FP8 训练</td><td>训练成本</td><td>DeepSeek-V3 全程 FP8，2.788M H800 小时</td></tr>
+        <tr><td>专家并行 / 张量并行</td><td>把模型摊到多卡</td><td>MoE 走 all-to-all，稠密走 all-reduce</td></tr>
+        <tr><td>线性注意力 / SSM</td><td>长上下文的另一条路</td><td>Mamba-2 等；Qwen3-Next 用门控 DeltaNet 和门控注意力混搭，80B 总参 / 3B 激活</td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <div class="callout">
+    <p><strong>三个容易搞混的点：</strong></p>
+    <p><strong>① MoE 不等于更小的模型。</strong>它省算力不省显存。一个 671B 的 MoE 跑起来，显存账单还是 671B 的。</p>
+    <p><strong>② MTP 不是架构，是训练目标 + 加速手段。</strong>看到"某模型用了 MTP"，别以为是新的网络结构；主干和普通 Transformer 没区别。</p>
+    <p><strong>③ 激活参数 ≠ 能力。</strong>37B 激活的模型打平几百 B 稠密模型，靠的是总参数里存的知识 + 路由选对了专家。所以别只比激活参数，那是成本指标，不是能力指标。</p>
+  </div>
+
+  <p class="src">
+    数据来源：<a href="https://arxiv.org/abs/2412.19437" target="_blank" rel="noopener">DeepSeek-V3 Technical Report (arXiv:2412.19437)</a> —— 671B 总参 / 37B 激活、MLA、DeepSeekMoE、auxiliary-loss-free 负载均衡、MTP 训练目标、14.8T token、2.788M H800 小时。<br>
+    其余为通用架构说明；页面中的参数量和 KV 缓存数字均为按公式估算的教学示例。
+  </p>
+
+</div>
+
+<script>
+(function(){
+  /* ---------------- MoE 计算器 ---------------- */
+  var L = 32, D = 4096, DENSE_DFF = 14336;
+
+  var eR = document.getElementById("eRange"),
+      kR = document.getElementById("kRange"),
+      dR = document.getElementById("dRange"),
+      eO = document.getElementById("eOut"),
+      kO = document.getElementById("kOut"),
+      dO = document.getElementById("dOut");
+
+  function fmt(n){
+    if (!isFinite(n)) return "—";
+    if (n >= 1e12) return (n/1e12).toFixed(2) + " 万亿";
+    if (n >= 1e8)  return (n/1e8).toFixed(1) + " 亿";
+    if (n >= 1e4)  return (n/1e4).toFixed(1) + " 万";
+    return Math.round(n).toString();
+  }
+
+  function updateMoe(){
+    var E = Number(eR.value),
+        k = Math.min(Number(kR.value), E),
+        dff = Number(dR.value);
+
+    kR.value = k;
+    eO.textContent = E;
+    kO.textContent = k;
+    dO.textContent = dff;
+
+    var perExpert = 3 * D * dff * L;
+    var total  = perExpert * E;
+    var active = perExpert * k;
+    var dense  = 3 * D * DENSE_DFF * L;
+
+    document.getElementById("stTotal").textContent  = fmt(total);
+    document.getElementById("stActive").textContent = fmt(active);
+    document.getElementById("stDense").textContent  = fmt(dense);
+    document.getElementById("stRatio").textContent  = E + " : " + k;
+  }
+
+  [eR, kR, dR].forEach(function(el){ el.addEventListener("input", updateMoe); });
+  updateMoe();
+
+  /* ---------------- 路由图 ---------------- */
+  var SVGNS = "http://www.w3.org/2000/svg";
+  var svg = document.getElementById("routeSvg");
+  var note = document.getElementById("routeNote");
+  var TOKENS = 8, EXPERTS = 8, PICK = 2;
+
+  function el(name, attrs){
+    var n = document.createElementNS(SVGNS, name);
+    for (var key in attrs) n.setAttribute(key, attrs[key]);
+    return n;
+  }
+
+  function drawRouting(){
+    while (svg.firstChild) svg.removeChild(svg.firstChild);
+
+    var W = 480, topY = 34, botY = 248;
+    var tx = function(i){ return 34 + i * ((W - 68) / (TOKENS - 1)); };
+    var ex = function(i){ return 34 + i * ((W - 68) / (EXPERTS - 1)); };
+
+    var picks = [];
+    var load = [];
+    for (var j = 0; j < EXPERTS; j++) load.push(0);
+
+    for (var i = 0; i < TOKENS; i++){
+      var chosen = [];
+      while (chosen.length < Math.min(PICK, EXPERTS)){
+        var c = Math.floor(Math.random() * EXPERTS);
+        if (chosen.indexOf(c) === -1) chosen.push(c);
+      }
+      picks.push(chosen);
+      chosen.forEach(function(c){ load[c]++; });
+    }
+
+    var maxLoad = Math.max.apply(null, load);
+
+    // 连线
+    picks.forEach(function(chosen, i){
+      chosen.forEach(function(c){
+        var x1 = tx(i), y1 = topY + 14, x2 = ex(c), y2 = botY - 22;
+        var d = "M " + x1 + " " + y1 + " C " + x1 + " " + (y1 + 90) + ", " + x2 + " " + (y2 - 90) + ", " + x2 + " " + y2;
+        svg.appendChild(el("path", {
+          d: d, fill: "none",
+          stroke: "var(--color-accent)", "stroke-width": 1.3, opacity: 0.45
+        }));
+      });
+    });
+
+    // token
+    picks.forEach(function(chosen, i){
+      var x = tx(i);
+      svg.appendChild(el("rect", {
+        x: x - 20, y: topY - 14, width: 40, height: 28, rx: 6,
+        fill: "var(--color-background-secondary)", stroke: "var(--color-border-primary)", "stroke-width": 1.3
+      }));
+      var t = el("text", { x: x, y: topY, "text-anchor": "middle", "dominant-baseline": "middle",
+        "font-size": 11.5, "font-family": "var(--font-mono)", fill: "var(--color-text-primary)" });
+      t.textContent = "t" + (i + 1);
+      svg.appendChild(t);
+    });
+
+    // 专家
+    load.forEach(function(cnt, j){
+      var x = ex(j);
+      var hot = cnt === maxLoad && cnt > 0;
+      svg.appendChild(el("rect", {
+        x: x - 20, y: botY - 22, width: 40, height: 44, rx: 7,
+        fill: hot ? "color-mix(in srgb, var(--color-accent) 16%, var(--color-background-secondary))" : "var(--color-background-secondary)",
+        stroke: hot ? "var(--color-accent)" : "var(--color-border-primary)",
+        "stroke-width": hot ? 1.8 : 1.3
+      }));
+      var nm = el("text", { x: x, y: botY - 4, "text-anchor": "middle", "dominant-baseline": "middle",
+        "font-size": 11, "font-family": "var(--font-mono)", fill: "var(--color-text-primary)" });
+      nm.textContent = "E" + (j + 1);
+      svg.appendChild(nm);
+      var ld = el("text", { x: x, y: botY + 12, "text-anchor": "middle", "dominant-baseline": "middle",
+        "font-size": 9.5, "font-family": "var(--font-mono)", fill: "var(--color-text-secondary)" });
+      ld.textContent = cnt + " 个";
+      svg.appendChild(ld);
+    });
+
+    var busiest = load.indexOf(maxLoad) + 1;
+    var lightest = load.indexOf(Math.min.apply(null, load)) + 1;
+    note.textContent = "这轮 E" + busiest + " 最忙（" + maxLoad + " 个 token），E" + lightest + " 最闲。真实模型里这种不均是训练要专门对付的问题。";
+  }
+
+  document.getElementById("reshuffle").addEventListener("click", drawRouting);
+  drawRouting();
+
+  /* ---------------- KV cache ---------------- */
+  var LAYERS = 32, CTX = 8192;
+  var kv = [
+    { nm: "MHA",     floats: 2 * 4096,        cls: ""    },
+    { nm: "GQA(8)",  floats: 2 * 8 * 128,     cls: "dim" },
+    { nm: "MLA",     floats: 512 + 64,        cls: ""    },
+    { nm: "MQA",     floats: 2 * 128,         cls: "dim" }
+  ];
+
+  var maxBytes = 0;
+  kv.forEach(function(r){
+    r.bytes = r.floats * 2 * LAYERS * CTX; // bf16 = 2 bytes
+    if (r.bytes > maxBytes) maxBytes = r.bytes;
+  });
+
+  function fmtBytes(b){
+    if (b >= 1e9) return (b/1e9).toFixed(2) + " GB";
+    if (b >= 1e6) return (b/1e6).toFixed(0) + " MB";
+    return (b/1e3).toFixed(0) + " KB";
+  }
+
+  var list = document.getElementById("kvList");
+  kv.forEach(function(r){
+    var row = document.createElement("div");
+    row.className = "kvrow";
+
+    var nm = document.createElement("div");
+    nm.className = "nm";
+    nm.textContent = r.nm;
+
+    var bw = document.createElement("div");
+    bw.className = "barwrap";
+    var bar = document.createElement("div");
+    bar.className = "bar" + (r.cls ? " " + r.cls : "");
+    bar.style.width = Math.max(1, (r.bytes / maxBytes) * 100) + "%";
+    bw.appendChild(bar);
+
+    var vl = document.createElement("div");
+    vl.className = "vl";
+    vl.textContent = fmtBytes(r.bytes);
+
+    row.appendChild(nm); row.appendChild(bw); row.appendChild(vl);
+    list.appendChild(row);
+  });
+
+  document.getElementById("kvNote").textContent =
+    "按 " + LAYERS + " 层、" + CTX.toLocaleString() + " token 上下文、bf16 估算的总 KV 缓存。MHA 那一行在多并发下会直接吃光显存 —— 这就是 GQA 和 MLA 存在的全部理由。";
+
+  /* ---------------- MTP 加速 ---------------- */
+  var aR = document.getElementById("aRange"),
+      aO = document.getElementById("aOut"),
+      outTok = document.getElementById("outTok"),
+      outSpeed = document.getElementById("outSpeed");
+
+  function updateAlpha(){
+    var a = Number(aR.value);
+    if (!isFinite(a)) a = 0;
+    a = Math.min(Math.max(a, 0), 0.98);
+    aO.textContent = a.toFixed(2);
+    outTok.textContent = (1 + a).toFixed(2);
+    outSpeed.textContent = (1 + a).toFixed(2);
+  }
+
+  aR.addEventListener("input", updateAlpha);
+  updateAlpha();
+})();
+</script>
+</body>
+</html>

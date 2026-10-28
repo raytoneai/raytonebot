@@ -1,0 +1,95 @@
+- complementary "会话历史":
+  - button "创建 Bot":
+    - img "我的Agent"
+  - button "搜索对话":
+  - button "收起侧边栏":
+  - region "Agent":
+    - heading "Agent" [level=4]
+    - button "Raer Pi":
+      - generic: Raer
+      - text: Pi
+    - button "编辑 Raer":
+    - button "Tonny Claude Code":
+      - generic: Tonny
+      - text: Claude Code
+    - button "编辑 Tonny":
+    - button "Bob Codex CLI":
+      - generic: Bob
+      - text: Codex CLI
+    - button "编辑 Bob":
+  - button "聊天记录" [expanded]:
+    - generic: 聊天记录
+  - navigation:
+    - button "Raer 3" [expanded]:
+      - generic: Raer
+      - generic: "3"
+    - button "设计改进记录":
+      - generic: 设计改进记录
+    - 'button "删除对话: 设计改进记录"':
+    - 'button "重命名对话: 设计改进记录"':
+    - button "整理下一步":
+      - generic: 整理下一步
+    - 'button "删除对话: 整理下一步"':
+    - 'button "重命名对话: 整理下一步"':
+    - button "竞品研究周报":
+      - generic: 竞品研究周报
+    - 'button "删除对话: 竞品研究周报"':
+    - 'button "重命名对话: 竞品研究周报"':
+  - button "设置":
+    - generic: 设置
+  - generic: v0.1.0
+- button "Raer, Pi":
+  - strong: Raer
+  - generic "Pi":
+- button "添加 Agent":
+- article:
+  - paragraph: 界面评审记录：清晰的任务状态、产物来源与上下文入口。
+  - generic "Agent 消息操作":
+    - button "复制回复":
+    - button "在新分支中重新生成（保留已写文件）":
+- button "design-notes.md 文件":
+  - strong: design-notes.md
+  - generic: 文件
+  - generic: 打开
+- textbox "给 Raer 发消息…"
+- button "附加文件":
+- button "引用对话":
+- button "工作区文件":
+- button "审批权限":
+  - generic: 请求权限
+- button "思考预算":
+  - generic: 中等
+- button "发送" [disabled]
+- separator
+- complementary:
+  - generic "产物":
+    - group "输出视图":
+      - button "产物" [pressed]:
+        - generic: 产物
+      - button "控制台日志":
+        - generic: 控制台
+      - button "浏览器":
+        - generic: 浏览器
+      - button "工作区":
+        - generic: 工作区
+    - button "展开输出":
+    - button "收起输出":
+  - button "产物范围":
+    - generic: 当前对话
+  - searchbox "查找产物"
+  - list:
+    - button "design-notes.md 2026年10月27日 20:26":
+      - generic: design-notes.md
+      - generic: 2026年10月27日 20:26
+    - 'button "查看来源: 设计改进记录" [active]': 来源
+  - paragraph: 文件预览显示当前内容
+  - generic "/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/raytone-rakazo-ux-gAco0u/workspace/agents/assistant/design-notes.md": design-notes.md
+  - link "下载":
+    - /url: /__agentcanvas/pi/files/download?scope=assistant&path=design-notes.md&revision=%5B%22run-design-notes%22%2C%22artifactId%22%2C%22report%22%5D
+  - button "重新加载预览":
+  - button "关闭 design-notes.md":
+  - button "另存为文档"
+  - button "编辑文档"
+  - button "引用到输入框"
+  - heading "设计改进记录" [level=4]
+  - paragraph: 界面评审记录：清晰的任务状态、产物来源与上下文入口。

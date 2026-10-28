@@ -1,0 +1,135 @@
+[
+  {
+    "name": "Built-in demo",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Group chat",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Coding agent",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Reasoning kinds",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Tool approval",
+    "codeBlocks": 1,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Error block",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Artifact action",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Capability tray",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 0,
+    "timelineWidth": 0,
+    "wideItems": []
+  },
+  {
+    "name": "HTML artifact stream",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Basic text",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Normal turn",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Streaming thinking + message",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Tool approval + completion",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "MCP success + interrupt",
+    "codeBlocks": 1,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Runtime boot + sync",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Retrying incident",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Exhausted incident",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Terminal incident",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  },
+  {
+    "name": "Config, spans, deletion",
+    "codeBlocks": 0,
+    "timelineScrollWidth": 390,
+    "timelineWidth": 390,
+    "wideItems": []
+  }
+]

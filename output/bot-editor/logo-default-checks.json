@@ -1,0 +1,9 @@
+{
+  "checks": [
+    "Logo palette and plain round face initialize new Bots",
+    "Switching engine and restoring keeps the shared logo default",
+    "Saved custom Bot keeps avatar through reload and edit/reset",
+    "Built-in Raer still restores its own default"
+  ],
+  "errors": []
+}

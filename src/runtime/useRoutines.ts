@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { deleteRoutine, listRoutines, runRoutineNow, setRoutineEnabled } from "../pi/piClient";
-import type { RoutineView } from "../pi/routineTypes";
+import { deleteRoutine, listRoutines, runRoutineNow, setRoutineEnabled, updateRoutine } from "../pi/piClient";
+import type { RoutineDefinitionPatch, RoutineView } from "../pi/routineTypes";
 
 export type RoutinesState = {
   routines?: RoutineView[];
@@ -11,6 +11,7 @@ export type RoutinesState = {
   setEnabled(id: string, enabled: boolean): Promise<void>;
   runNow(id: string): Promise<void>;
   remove(id: string): Promise<void>;
+  update(id: string, patch: RoutineDefinitionPatch): Promise<boolean>;
 };
 
 /**
@@ -22,36 +23,50 @@ export function useRoutines(active: boolean): RoutinesState {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState<string>();
   const [actionError, setActionError] = useState<RoutinesState["actionError"]>();
+  const loadSequence = useRef(0);
+  const acting = useRef(false);
 
-  const load = useCallback(() => listRoutines().then((value) => {
-    setRoutines(value);
-    setError(undefined);
-  }, (failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure))), []);
+  const load = useCallback(() => {
+    const sequence = ++loadSequence.current;
+    return listRoutines().then((value) => {
+      if (sequence !== loadSequence.current) return;
+      setRoutines(value);
+      setError(undefined);
+    }, (failure: unknown) => { if (sequence === loadSequence.current) setError(failure instanceof Error ? failure.message : String(failure)); });
+  }, []);
 
   useEffect(() => {
     if (!active) return;
     void load();
     const timer = window.setInterval(() => void load(), 3_000);
-    return () => window.clearInterval(timer);
+    return () => { window.clearInterval(timer); loadSequence.current++; };
   }, [active, load]);
 
   const act = useCallback(async (id: string, action: () => Promise<unknown>) => {
+    if (acting.current) return false;
+    acting.current = true;
+    loadSequence.current++;
     setBusy(id);
     setActionError(undefined);
     try {
       await action();
       await load();
+      return true;
     } catch (failure) {
       setActionError({ id, message: failure instanceof Error ? failure.message : String(failure) });
+      await load(); // A conflict refreshes authoritative data, without replacing the editor's draft.
+      return false;
     } finally {
+      acting.current = false;
       setBusy(undefined);
     }
   }, [load]);
 
   return {
     routines, error, busy, actionError,
-    setEnabled: (id, enabled) => act(id, () => setRoutineEnabled(id, enabled)),
-    runNow: (id) => act(id, () => runRoutineNow(id)),
-    remove: (id) => act(id, () => deleteRoutine(id)),
+    setEnabled: async (id, enabled) => { await act(id, () => setRoutineEnabled(id, enabled)); },
+    runNow: async (id) => { await act(id, () => runRoutineNow(id)); },
+    remove: async (id) => { await act(id, () => deleteRoutine(id)); },
+    update: (id, patch) => act(id, () => updateRoutine(id, patch)),
   };
 }
