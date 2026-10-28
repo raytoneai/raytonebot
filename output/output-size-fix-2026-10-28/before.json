@@ -1,0 +1,46 @@
+[
+  {
+    "display": "grid",
+    "height": 742.734375,
+    "inset": "50.64px 31.2px",
+    "margin": "0px",
+    "overflow": false,
+    "source": "artifact",
+    "width": 327.609375,
+    "x": 31.1953125,
+    "y": 50.6328125
+  },
+  {
+    "display": "flex",
+    "height": 844,
+    "inset": "50.64px 31.2px",
+    "margin": "0px",
+    "overflow": false,
+    "source": "console",
+    "width": 327.609375,
+    "x": 31.1953125,
+    "y": 50.6328125
+  },
+  {
+    "display": "flex",
+    "height": 742.734375,
+    "inset": "50.64px 31.2px",
+    "margin": "0px",
+    "overflow": false,
+    "source": "browser",
+    "width": 327.609375,
+    "x": 31.1953125,
+    "y": 50.6328125
+  },
+  {
+    "display": "flex",
+    "height": 812,
+    "inset": "0px",
+    "margin": "0px",
+    "overflow": false,
+    "source": "workspace",
+    "width": 366,
+    "x": 12,
+    "y": 16
+  }
+]

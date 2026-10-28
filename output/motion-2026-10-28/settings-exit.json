@@ -1,0 +1,385 @@
+{
+  "result": {
+    "type": "object",
+    "value": {
+      "before": {
+        "opacity": "1",
+        "scale": "1",
+        "transition": "opacity 0.16s cubic-bezier(0.16, 1, 0.3, 1), scale 0.16s cubic-bezier(0.16, 1, 0.3, 1)"
+      },
+      "exit": [
+        {
+          "animation": "surface-exit",
+          "opacity": "1",
+          "present": true,
+          "state": "closed",
+          "t": 11
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "1",
+          "present": true,
+          "state": "closed",
+          "t": 15
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.636311",
+          "present": true,
+          "state": "closed",
+          "t": 23
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.405359",
+          "present": true,
+          "state": "closed",
+          "t": 31
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.150631",
+          "present": true,
+          "state": "closed",
+          "t": 52
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.0926154",
+          "present": true,
+          "state": "closed",
+          "t": 57
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.0559737",
+          "present": true,
+          "state": "closed",
+          "t": 64
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.0313405",
+          "present": true,
+          "state": "closed",
+          "t": 73
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.0178008",
+          "present": true,
+          "state": "closed",
+          "t": 81
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.00950252",
+          "present": true,
+          "state": "closed",
+          "t": 90
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.00461687",
+          "present": true,
+          "state": "closed",
+          "t": 98
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.00190935",
+          "present": true,
+          "state": "closed",
+          "t": 106
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.000612823",
+          "present": true,
+          "state": "closed",
+          "t": 115
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0.000112195",
+          "present": true,
+          "state": "closed",
+          "t": 123
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "2.30329e-06",
+          "present": true,
+          "state": "closed",
+          "t": 132
+        },
+        {
+          "animation": "surface-exit",
+          "opacity": "0",
+          "present": true,
+          "state": "closed",
+          "t": 141
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 148
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 156
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 165
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 173
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 181
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 190
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 198
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 207
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 214
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 223
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 231
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 240
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 248
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 257
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 265
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 273
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 282
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 290
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 299
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 307
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 315
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 323
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 333
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 341
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 349
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 357
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 367
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 374
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 382
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 390
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 399
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 406
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 415
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 423
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 432
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 439
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 448
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 457
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 466
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 473
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 482
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 490
+        },
+        {
+          "animation": null,
+          "opacity": null,
+          "present": false,
+          "t": 504
+        }
+      ],
+      "focus": null
+    }
+  }
+}

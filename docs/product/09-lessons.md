@@ -103,6 +103,12 @@
 
 ## 界面
 
+- **切到工作区时输出弹层突然放大**（2026-10-28，用户纠正）→ 来源专属的 expanded 宽高/inset 覆盖通用弹层，控制台的停靠 `height: 100%` 也影响展开状态 → 四个输出 Tab 共用外层边界；来源只决定内部布局。验收需逐项比较 x/y/width/height，并检查底边不超视口。
+
+- **产物搜索图标压住文字**（2026-10-28）→ 只复用带绝对定位图标的 wrapper，却给 input 单独写 `padding: 6px 0` → 复用已有搜索 input / clear 样式，空值和长查询都检查两端间距；不能只验收“搜索接口正常”。
+
+- **Radix 弹层改用 transition 后，关闭仍直接消失**（2026-10-28）→ 当前 Presence 用 animation-name / animationend 决定延迟卸载，不等待 transitionend。现有设置和菜单使用 closed 状态的空 CSS animation 作为卸载时钟，让视觉由可反向的 opacity/scale transition 控制。必须逐帧检查关闭后卸载、关闭中重开仍是同一节点、减少动态效果不留透明层；不要只看 CSS 数值。
+
 - **设置弹层看不见** → 输入栏 `.composer-tools` 裁切溢出，欢迎页上弹层还会超出视口顶部 → 用 Radix Popover 渲染到 body 并开启碰撞处理。
 - **复制控件只有图标，或点击失败却无提示** → 消息按钮没有 onClick/原文，其他入口忽略 Clipboard Promise 拒绝 → 把对应消息原文传到既有控件，共用等待浏览器写入、失败反馈及卸载清理。不要从渲染后 DOM 收集文本，否则会丢 Markdown 或混入其他消息/按钮；验收需读回实际剪贴板，并模拟拒绝与 API 不存在。
 - **HTML 产物“只去掉 `<script>`”仍会执行代码** → `onerror`/`onclick` 等事件属性与 `javascript:` URL 在 `allow-scripts` 的 iframe 里照样运行（Codex review 复现）→ 不能执行的内容用不含 `unsafe-inline` 的 nonce CSP，让浏览器拒绝，再在惰性 `<template>` 里清洗作第二道（`htmlStreamDocument`）。

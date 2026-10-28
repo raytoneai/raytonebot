@@ -1,0 +1,2567 @@
+{
+  "result": {
+    "type": "object",
+    "value": [
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0",
+        "origin": "101.094px 34.25px",
+        "scale": "0.98",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 0,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0",
+        "origin": "101.094px 0px",
+        "scale": "0.98",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 5,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0",
+        "origin": "101.094px 0px",
+        "scale": "0.98",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 5,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0",
+        "origin": "101.094px 0px",
+        "scale": "0.98",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 6,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0",
+        "origin": "101.094px 0px",
+        "scale": "0.98",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 6,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.293802",
+        "origin": "101.094px 0px",
+        "scale": "0.985876",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 10,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.293802",
+        "origin": "101.094px 0px",
+        "scale": "0.985876",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 10,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.510273",
+        "origin": "101.094px 0px",
+        "scale": "0.990205",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 19,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.510273",
+        "origin": "101.094px 0px",
+        "scale": "0.990205",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 19,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.663565",
+        "origin": "101.094px 0px",
+        "scale": "0.993271",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 28,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.663565",
+        "origin": "101.094px 0px",
+        "scale": "0.993271",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 28,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.766098",
+        "origin": "101.094px 0px",
+        "scale": "0.995322",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 36,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.766098",
+        "origin": "101.094px 0px",
+        "scale": "0.995322",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 36,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.831739",
+        "origin": "101.094px 0px",
+        "scale": "0.996635",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 43,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.831739",
+        "origin": "101.094px 0px",
+        "scale": "0.996635",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 43,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.888069",
+        "origin": "101.094px 0px",
+        "scale": "0.997761",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 52,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.888069",
+        "origin": "101.094px 0px",
+        "scale": "0.997761",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 52,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.922499",
+        "origin": "101.094px 0px",
+        "scale": "0.99845",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 61,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.922499",
+        "origin": "101.094px 0px",
+        "scale": "0.99845",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 61,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.947043",
+        "origin": "101.094px 0px",
+        "scale": "0.998941",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 69,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.947043",
+        "origin": "101.094px 0px",
+        "scale": "0.998941",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 69,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.96399",
+        "origin": "101.094px 0px",
+        "scale": "0.99928",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 77,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.96399",
+        "origin": "101.094px 0px",
+        "scale": "0.99928",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 77,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.975126",
+        "origin": "101.094px 0px",
+        "scale": "0.999503",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 85,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.975126",
+        "origin": "101.094px 0px",
+        "scale": "0.999503",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 85,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.984685",
+        "origin": "101.094px 0px",
+        "scale": "0.999694",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 94,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.984685",
+        "origin": "101.094px 0px",
+        "scale": "0.999694",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 94,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.990501",
+        "origin": "101.094px 0px",
+        "scale": "0.99981",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 102,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.990501",
+        "origin": "101.094px 0px",
+        "scale": "0.99981",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 102,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.994447",
+        "origin": "101.094px 0px",
+        "scale": "0.999889",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 111,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.994447",
+        "origin": "101.094px 0px",
+        "scale": "0.999889",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 111,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.996967",
+        "origin": "101.094px 0px",
+        "scale": "0.999939",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 119,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.996967",
+        "origin": "101.094px 0px",
+        "scale": "0.999939",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 119,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.998427",
+        "origin": "101.094px 0px",
+        "scale": "0.999969",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 127,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.998427",
+        "origin": "101.094px 0px",
+        "scale": "0.999969",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 127,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.9994",
+        "origin": "101.094px 0px",
+        "scale": "0.999988",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 136,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.9994",
+        "origin": "101.094px 0px",
+        "scale": "0.999988",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 136,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.999815",
+        "origin": "101.094px 0px",
+        "scale": "0.999996",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 144,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.999815",
+        "origin": "101.094px 0px",
+        "scale": "0.999996",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 144,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.999972",
+        "origin": "101.094px 0px",
+        "scale": "0.999999",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 152,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "0.999972",
+        "origin": "101.094px 0px",
+        "scale": "0.999999",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 152,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 161,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 161,
+        "transitions": [
+          "CSSTransition",
+          "CSSTransition"
+        ]
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 169,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 169,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 177,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 177,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 185,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 186,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 194,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 194,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 202,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 202,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 210,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 211,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 229,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 229,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 230,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 230,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 235,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 235,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 244,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 244,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 252,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 252,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 262,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 262,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 269,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 269,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 279,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 279,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 286,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 286,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 295,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 295,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 303,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 303,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 310,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 311,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 319,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 319,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 327,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 328,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 336,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 336,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 343,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 344,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 352,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 352,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 360,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 360,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 369,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 369,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 376,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 377,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 385,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 386,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 394,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 394,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 402,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 403,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 410,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 410,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 418,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 418,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 427,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 427,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 435,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 435,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 444,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 444,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 452,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 452,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 461,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 461,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 469,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 469,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 477,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 477,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 485,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 485,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 494,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 494,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 502,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 502,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 510,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 511,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 519,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 519,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 526,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 527,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 535,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 536,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 544,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 544,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 552,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 552,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 561,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 561,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 569,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 569,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 577,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 577,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 585,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 585,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 593,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 593,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 602,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 602,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 610,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 610,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 619,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 619,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 627,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 627,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 635,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 636,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 644,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 644,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 652,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 652,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 661,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 661,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 669,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 669,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 677,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 677,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 685,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 686,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 693,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 694,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 702,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 702,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 710,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 711,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 719,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 719,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 728,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 729,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 736,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 736,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 744,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 744,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 752,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 752,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 761,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 761,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 769,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 769,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 777,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 777,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 786,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 786,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 794,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 795,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 802,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 802,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 811,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 811,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 820,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 820,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 827,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 828,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 836,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 836,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 844,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 844,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 852,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 852,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 862,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 862,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 869,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 869,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 876,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 876,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 886,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 887,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 895,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 895,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 902,
+        "transitions": []
+      },
+      {
+        "animation": "none",
+        "connected": true,
+        "opacity": "1",
+        "origin": "101.094px 0px",
+        "scale": "1",
+        "state": "open",
+        "surface": "shell-popover shell-model-popover",
+        "t": 902,
+        "transitions": []
+      }
+    ]
+  }
+}

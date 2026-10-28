@@ -1,0 +1,17 @@
+{
+  "result": {
+    "type": "object",
+    "value": {
+      "clearGap": null,
+      "iconGap": -24,
+      "iconRight": 73.1953125,
+      "inputHeight": 28,
+      "inputWidth": 291.609375,
+      "overflow": false,
+      "paddingLeft": "0px",
+      "paddingRight": "0px",
+      "textStart": 49.1953125,
+      "viewport": 390
+    }
+  }
+}

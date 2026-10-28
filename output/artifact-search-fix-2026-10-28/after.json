@@ -1,0 +1,36 @@
+{
+  "searchAfter": {
+    "result": {
+      "type": "object",
+      "value": {
+        "clearGap": null,
+        "iconGap": 8.5,
+        "iconRight": 73.1953125,
+        "inputHeight": 34,
+        "inputWidth": 291.609375,
+        "overflow": false,
+        "paddingLeft": "32px",
+        "paddingRight": "10px",
+        "textStart": 81.6953125,
+        "viewport": 390
+      }
+    }
+  },
+  "searchTyped": {
+    "result": {
+      "type": "object",
+      "value": {
+        "clearGap": 10.5,
+        "iconGap": 8.5,
+        "iconRight": 73.1953125,
+        "inputHeight": 34,
+        "inputWidth": 291.609375,
+        "overflow": false,
+        "paddingLeft": "32px",
+        "paddingRight": "38px",
+        "textStart": 81.6953125,
+        "viewport": 390
+      }
+    }
+  }
+}

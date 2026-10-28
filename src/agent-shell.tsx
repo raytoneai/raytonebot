@@ -261,11 +261,13 @@ export function AgentApp() {
   const editBot = (bot: BotProfile) => { setBotError(undefined); setBotDraft({ draft: { ...bot, appearance: { ...bot.appearance } }, creating: false, revision: botRevision }); };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsFromDrawer = useRef(false);
+  const settingsOpener = useRef<HTMLElement | null>(null);
   /** Mounted from the first open on, so later opens and closes keep their animation. */
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("providers");
   const openSettings = (section: SettingsSectionId = "providers") => {
     settingsFromDrawer.current = drawerOpen;
+    settingsOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSettingsMounted(true);
     setDrawerOpen(false);
     setSettingsSection(section);
@@ -1838,10 +1840,14 @@ export function AgentApp() {
               open={settingsOpen}
               onOpenChange={setSettingsOpen}
               onCloseAutoFocus={event => {
-                if (!settingsFromDrawer.current) return;
+                const opener = settingsOpener.current;
+                const trigger = !settingsFromDrawer.current && opener !== document.body
+                  && opener?.isConnected && opener.getClientRects().length && !opener.closest("[inert]")
+                  ? opener
+                  : frameRef.current?.querySelector<HTMLElement>('.preview-rail-float[data-side="left"]')
+                    ?? frameRef.current?.querySelector<HTMLElement>('.shell-footer-button');
                 settingsFromDrawer.current = false;
-                const trigger = frameRef.current?.querySelector<HTMLElement>('.preview-rail-float[data-side="left"]')
-                  ?? frameRef.current?.querySelector<HTMLElement>('.shell-footer-button');
+                settingsOpener.current = null;
                 if (trigger) { event.preventDefault(); trigger.focus({ preventScroll: true }); }
               }}
               initialSection={settingsSection}

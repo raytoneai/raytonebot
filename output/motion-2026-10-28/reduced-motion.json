@@ -1,0 +1,22 @@
+{
+  "reducedSettings": {
+    "result": {
+      "type": "object",
+      "value": {
+        "animation": "none",
+        "scale": "none",
+        "transition": "none"
+      }
+    }
+  },
+  "reducedAfter": {
+    "result": {
+      "type": "object",
+      "value": {
+        "bodyPointer": "auto",
+        "focus": "展开侧边栏",
+        "overlay": false
+      }
+    }
+  }
+}

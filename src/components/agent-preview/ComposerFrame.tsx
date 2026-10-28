@@ -429,12 +429,12 @@ export function ComposerFrame({
       ) : null}
       {composerActivity && (!isWelcome || workingPersona) ? (
         <div className="composer-activity-slot" key={composerActivity.scope}>
-          <AnimatePresence>
+          <AnimatePresence initial={false}>
             {workingPersona ? (
               <motion.div className="composer-activity" key="working" data-state={activityState}
                 initial={{ opacity: 0, transform: reduceMotion ? "none" : "translateY(6px)" }}
                 animate={{ opacity: 1, transform: reduceMotion ? "none" : "translateY(0px)" }}
-                exit={{ opacity: 0, transform: reduceMotion ? "none" : "translateY(6px)" }}
+                exit={{ opacity: 0, transform: reduceMotion ? "none" : "translateY(3px)", transition: { duration: 0.12 } }}
                 transition={{ duration: 0.18, ease: [0.16, 1, 0.3, 1] }}>
                 <AgentPersonaProvider persona={workingPersona}>
                   <span className="composer-activity-face" aria-hidden="true">

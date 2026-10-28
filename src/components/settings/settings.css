@@ -4,7 +4,6 @@
   inset: 0;
   z-index: var(--z-overlay, 80);
   background: var(--overlay);
-  animation: settings-fade 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
 }
 
 .settings-dialog {
@@ -26,12 +25,9 @@
   color: var(--text-primary);
   font-size: var(--text-md);
   transform: translate(-50%, -50%);
-  animation: settings-fade var(--motion-base) var(--ease-out);
 }
 
 .settings-dialog:focus-visible { outline: none; }
-
-@keyframes settings-fade { from { opacity: 0; } }
 
 .settings-rail {
   display: flex;

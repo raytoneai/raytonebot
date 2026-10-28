@@ -1,0 +1,122 @@
+[
+  {
+    "name": "欢迎页(无事件)",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\n\t2 container\n\t\t113 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t114 container\n\t\t\t115 heading 今天想让我帮你做些什么？, Value: 2\n\t\t\t\t116 text 今天想让我帮你做些什么？\n\t\t\t117 text entry area (settable)\n\t\t\t118 button 附加文件\n\t\t\t119 pop up button (collapsed) Description: 引用对话, ID: radix-_r_fd_, Secondary Actions: Expand\n\t\t\t120 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t121 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t122 button (disabled) 发送\n\t\t104 button 展开右侧面板\n\t\t39 text 事件流(仅开发)\n\t\t40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand\n\t\t41 pop up button (collapsed, settable) Description: 工作头像预览, Value: 结束 / 停止, Secondary Actions: Expand\n\t\t\t42 menu\n\t\t\t\t43 工作头像预览\n\t\t\t\t44 正在思考\n\t\t\t\t45 正在查阅\n\t\t\t\t46 正在修改\n\t\t\t\t47 正在执行\n\t\t\t\t48 正在回复\n\t\t\t\t49 等你确认\n\t\t\t\t50 (selected) 结束 / 停止\n\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Built-in demo",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\n\t2 container\n\t\t113 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t114 container\n\t\t\t115 container\n\t\t\t\t116 pop up button (collapsed) Description: Raer, Pi, Secondary Actions: Expand\n\t\t\t\t\t117 text Raer\n\t\t\t\t118 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t119 container\n\t\t\t\t120 text Add input validation to the search box, then show me the patch.\n\t\t\t\t121 container 用户消息操作\n\t\t\t\t\t122 button 复制提示词\n\t\t\t\t\t123 button (disabled) 重发消息\n\t\t\t124 container\n\t\t\t\t125 button 已完成思考\n\t\t\t\t126 text Read the current SearchInput, then add a validity check and loading state before wiring the request.\n\t\t\t127 container\n\t\t\t\t128 text 编辑文件：已完成\n\t\t\t\t129 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n\t\t\t130 container\n\t\t\t\t131 text Validation and loading state added. The search button is disabled for invalid input and a spinner shows while results load.\n\t\t\t\t132 container Agent 消息操作\n\t\t\t\t\t133 button 复制回复\n\t\t\t\t\t134 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t135 button SearchInput.tsx 文件\n\t\t\t\t136 text SearchInput.tsx\n\t\t\t\t137 text 文件\n\t\t\t138 text entry area (settable)\n\t\t\t139 button 附加文件\n\t\t\t140 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t141 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t142 button (disabled) 发送\n\t\t104 button 展开右侧面板\n\t\t39 text 事件流(仅开发)\n\t\t40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand\n\t\t41 pop up button (collapsed, settable) Description: 工作头像预览, Value: 结束 / 停止, Secondary Actions: Expand\n\t\t\t42 menu\n\t\t\t\t43 工作头像预览\n\t\t\t\t44 正在思考\n\t\t\t\t45 正在查阅\n\t\t\t\t46 正在修改\n\t\t\t\t47 正在执行\n\t\t\t\t48 正在回复\n\t\t\t\t49 等你确认\n\t\t\t\t50 (selected) 结束 / 停止\n\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Group chat",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\n\t2 container\n\t\t113 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t114 container\n\t\t\t115 container\n\t\t\t\t116 pop up button (collapsed) Description: Raer, Pi, Secondary Actions: Expand\n\t\t\t\t\t117 text Raer\n\t\t\t\t118 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t143 container\n\t\t\t\t144 text 大家看一下附件里的网页方案，Tonny 先评审，Bob 再实现。\n\t\t\t\t145 container 用户消息操作\n\t\t\t\t\t146 button 复制提示词\n\t\t\t\t\t147 button (disabled) 重发消息\n\t\t\t148 container Agent 输出\n\t\t\t\t149 text Raer\n\t\t\t150 container\n\t\t\t\t151 text 我会协调评审和实现，并回收结果。\n\t\t\t\t152 container Agent 消息操作\n\t\t\t\t\t153 button 复制回复\n\t\t\t\t\t154 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t155 container Agent 输出\n\t\t\t\t156 text Tonny\n\t\t\t157 container\n\t\t\t\t158 text 方案已检查：先完成交互，再验证窄屏。\n\t\t\t\t159 container Agent 消息操作\n\t\t\t\t\t160 button 复制回复\n\t\t\t\t\t161 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t162 container Agent 输出\n\t\t\t\t163 text Bob\n\t\t\t164 container\n\t\t\t\t165 text 已完成实现并通过检查。\n\t\t\t\t166 container Agent 消息操作\n\t\t\t\t\t167 button 复制回复\n\t\t\t\t\t168 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t138 text entry area (settable)\n\t\t\t139 button 附加文件\n\t\t\t140 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t141 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t142 button (disabled) 发送\n\t\t104 button 展开右侧面板\n\t\t39 text 事件流(仅开发)\n\t\t40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand\n\t\t41 pop up button (collapsed, settable) Description: 工作头像预览, Value: 结束 / 停止, Secondary Actions: Expand\n\t\t\t42 menu\n\t\t\t\t43 工作头像预览\n\t\t\t\t44 正在思考\n\t\t\t\t45 正在查阅\n\t\t\t\t46 正在修改\n\t\t\t\t47 正在执行\n\t\t\t\t48 正在回复\n\t\t\t\t49 等你确认\n\t\t\t\t50 (selected) 结束 / 停止\n\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Coding agent",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 146-149, 157-168\n~\t\t\t\t144 button 已完成思考\n~\t\t\t\t145 text Planning changes and checking the current SearchInput implementation before editing.\n+\t\t\t146 button (collapsed) 1 项操作, Help: 查看操作详情, Secondary Actions: Expand\n+\t\t\t147 container\n+\t\t\t\t148 text 编辑文件：已完成\n+\t\t\t\t149 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n~\t\t\t\t151 text Validation and loading state added. The search button is disabled for invalid input and a spinner shows while results are loading.\n~\t\t\t155 button SearchInput.tsx 文件\n~\t\t\t\t156 text SearchInput.tsx\n+\t\t\t\t157 text 文件\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Reasoning kinds",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 146-157\n~\t\t\t\t145 text Public summary can be shown in ordinary reasoning mode.\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Tool approval",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~\t\t\t\t144 text 移除临时缓存：等待审批 rm -rf .agent/tmp-cache\n~\t\t\t\t145 button (expanded) Description: Collapse tool, Secondary Actions: Collapse\n+\t\t\t\t146 text 输入 rm -rf .agent/tmp-cache\n+\t\t\t147 container\n+\t\t\t\t148 text Fetch release metadata：已完成 200 OK · v1.8.0\n+\t\t\t\t149 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n+\t\t\t150 container 工具审批操作\n+\t\t\t\t151 text 需要权限\n+\t\t\t\t152 text 递归移除 .agent/tmp-cache？\n+\t\t\t\t153 工具审批操作\n+\t\t\t\t\t154 container\n+\t\t\t\t\t\t155 radio button (settable, integer) Description: 允许一次, Value: 1\n+\t\t\t\t\t\t156 text 允许一次\n+\t\t\t\t\t157 container\n+\t\t\t\t\t\t158 radio button (settable, integer) Description: 始终允许, Value: 0\n+\t\t\t\t\t\t159 text 始终允许\n+\t\t\t\t\t160 container\n+\t\t\t\t\t\t161 radio button (settable, integer) Description: 拒绝, Value: 0\n+\t\t\t\t\t\t162 text 拒绝\n+\t\t\t\t163 button 确认\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Error block",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 145-163\n~\t\t\t\t144 text E_WRITE_FILE EACCES: permission denied, open /repo/src/SearchInput.tsx\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Artifact action",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~\t\t\t143 button Contact action form 文件\n~\t\t\t\t144 text Contact action form\n+\t\t\t\t145 text 文件\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Capability tray",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\n\t2 container\n\t\t113 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t114 container\n\t\t\t143 container\n\t\t\t\t144 heading 能力, Value: 3\n\t\t\t\t\t145 text 能力\n\t\t\t\t146 text AgentUX 能力事件\n\t\t\t147 container\n\t\t\t\t148 text Filesystem Filesystem tools and allowed-root descriptors available to this run. 3\n\t\t\t149 heading 今天想让我帮你做些什么？, Value: 2\n\t\t\t\t150 text 今天想让我帮你做些什么？\n\t\t\t138 text entry area (settable)\n\t\t\t139 button 附加文件\n\t\t\t140 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t141 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t142 button (disabled) 发送\n\t\t104 button 展开右侧面板\n\t\t39 text 事件流(仅开发)\n\t\t40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand\n\t\t41 pop up button (collapsed, settable) Description: 工作头像预览, Value: 结束 / 停止, Secondary Actions: Expand\n\t\t\t42 menu\n\t\t\t\t43 工作头像预览\n\t\t\t\t44 正在思考\n\t\t\t\t45 正在查阅\n\t\t\t\t46 正在修改\n\t\t\t\t47 正在执行\n\t\t\t\t48 正在回复\n\t\t\t\t49 等你确认\n\t\t\t\t50 (selected) 结束 / 停止\n\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "HTML artifact stream",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\n\t2 container\n\t\t113 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t114 container\n\t\t\t143 container\n\t\t\t\t144 pop up button (collapsed) Description: Raer, Pi, Secondary Actions: Expand\n\t\t\t\t\t145 text Raer\n\t\t\t\t146 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t147 container\n\t\t\t\t148 text Writing a comparison page you can open in the output panel.\n\t\t\t\t149 container Agent 消息操作\n\t\t\t\t\t150 button 复制回复\n\t\t\t\t\t151 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t152 container\n\t\t\t\t153 text 修改文件：准备参数\n\t\t\t\t154 button (expanded) Description: Collapse tool, Secondary Actions: Collapse\n\t\t\t\t155 text 正在修改\n\t\t\t\t156 button compare-plans.html\n\t\t\t138 text entry area (settable)\n\t\t\t139 button 附加文件\n\t\t\t140 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t141 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t142 button (disabled) 发送\n\t\t104 button 展开右侧面板\n\t\t39 text 事件流(仅开发)\n\t\t40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand\n\t\t41 pop up button (collapsed, settable) Description: 工作头像预览, Value: 结束 / 停止, Secondary Actions: Expand\n\t\t\t42 menu\n\t\t\t\t43 工作头像预览\n\t\t\t\t44 正在思考\n\t\t\t\t45 正在查阅\n\t\t\t\t46 正在修改\n\t\t\t\t47 正在执行\n\t\t\t\t48 正在回复\n\t\t\t\t49 等你确认\n\t\t\t\t50 (selected) 结束 / 停止\n\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Basic text",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 152-156\n~\t\t\t\t148 text Hello world\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Normal turn",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~\t\t\t\t148 text 你都有什么功能？\n~\t\t\t\t149 container 用户消息操作\n~\t\t\t\t\t150 button 复制提示词\n~\t\t\t\t\t151 button (disabled) 重发消息\n+\t\t\t152 container\n+\t\t\t\t153 text 我可以回答问题、总结信息，并起草清晰内容。 我可以查看文件、解释代码，并协助规划或应用修改。 我可以跟踪任务、提示错误，并在完成后展示输出或产物。\n+\t\t\t\t154 container Agent 消息操作\n+\t\t\t\t\t155 button 复制回复\n+\t\t\t\t\t156 button (disabled) 在新分支中重新生成（保留已写文件）\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Streaming thinking + message",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 155-156\n~\t\t\t\t148 text 比较三个方案。\n~\t\t\t\t153 button 已完成思考\n~\t\t\t\t154 text 我比较了价格、实施风险和支持覆盖。\n+\t\t\t155 container\n+\t\t\t\t156 text 方案 B 在成本和交付风险之间最平衡。\n+\t\t\t\t157 container Agent 消息操作\n+\t\t\t\t\t158 button 复制回复\n+\t\t\t\t\t159 button (disabled) 在新分支中重新生成（保留已写文件）\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Tool approval + completion",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~\t\t\t\t148 text 创建仪表盘摘要文件。\n~\t\t\t\t153 text 修改文件：已完成 318ms\n~\t\t\t\t154 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n~\t\t\t\t156 text 仪表盘摘要文件已准备好。已整理今日核心指标、异常趋势和待跟进事项，方便快速浏览支持团队的当前状态。下一步可以直接打开输出面板核对文件结构。\n+\t\t\t160 button dashboard.md 文件\n+\t\t\t\t161 text dashboard.md\n+\t\t\t\t162 text 文件\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "MCP success + interrupt",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 152-162\n~\t\t\t\t148 text 运行发布检查。\n+\t\t\t\t152 button (collapsed) 1 项操作, Help: 查看操作详情, Secondary Actions: Expand\n+\t\t\t\t153 text Publish the release.\n+\t\t\t\t154 container 用户消息操作\n+\t\t\t\t\t155 button 复制提示词\n+\t\t\t\t\t156 button (disabled) 重发消息\n+\t\t\t\t157 container\n+\t\t\t\t\t158 text Publish production release · release-tools (MCP)：等待审批 {\n+\t\t\t\t\t159 button (expanded) Description: Collapse tool, Secondary Actions: Collapse\n+\t\t\t\t160 text 输入\n+\t\t\t\t161 text {\n  \"environment\": \"production\"\n}\n+\t\t\t162 container 工具审批操作\n+\t\t\t\t163 text 需要权限\n+\t\t\t\t164 text Approve publish?\n+\t\t\t\t165 工具审批操作\n+\t\t\t\t\t166 container\n+\t\t\t\t\t\t167 radio button (settable, integer) Description: 允许一次, Value: 1\n+\t\t\t\t\t\t168 text 允许一次\n+\t\t\t\t\t169 container\n+\t\t\t\t\t\t170 radio button (settable, integer) Description: 始终允许, Value: 0\n+\t\t\t\t\t\t171 text 始终允许\n+\t\t\t\t\t172 container\n+\t\t\t\t\t\t173 radio button (settable, integer) Description: 拒绝, Value: 0\n+\t\t\t\t\t\t174 text 拒绝\n+\t\t\t\t175 button 确认\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Runtime boot + sync",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 149-175\n~\t\t\t\t148 text runtime Runtime booting boot started\n+\t\t\t149 container\n+\t\t\t\t150 text runtime workspace sync hydrate\n+\t\t\t151 container\n+\t\t\t\t152 text runtime workspace sync 3/8\n+\t\t\t153 container\n+\t\t\t\t154 text runtime One optional resource was unavailable and was skipped.\n+\t\t\t155 container\n+\t\t\t\t156 text runtime workspace sync 8/8\n+\t\t\t157 container\n+\t\t\t\t158 text runtime Runtime ready boot completed\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Retrying incident",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 149-158\n~\t\t\t\t148 text Generate the launch brief.\n+\t\t\t\t149 container 用户消息操作\n+\t\t\t\t\t150 button 复制提示词\n+\t\t\t\t\t151 button (disabled) 重发消息\n+\t\t\t152 container\n+\t\t\t\t153 text model_rate_limited_error The model provider is temporarily rate limited.\n+\t\t\t154 container\n+\t\t\t\t155 text session 已安排自动重试\n+\t\t\t156 container\n+\t\t\t\t157 text The launch brief is ready.\n+\t\t\t\t158 container Agent 消息操作\n+\t\t\t\t\t159 button 复制回复\n+\t\t\t\t\t160 button (disabled) 在新分支中重新生成（保留已写文件）\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Exhausted incident",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 156-160\n~\t\t\t\t148 text Summarize the release risks.\n~\t\t\t\t153 text model_request_failed_error The model provider did not return a valid response after the allowed retries.\n~\t\t\t\t155 text retries_exhausted Retries exhausted\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Terminal incident",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 149-155\n~\t\t\t\t148 text runtime_resume_unrecoverable_error The previous sandbox can no longer be resumed.\n+\t\t\t149 container\n+\t\t\t\t150 text session_terminated Session terminated\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "name": "Config, spans, deletion",
+    "heading": "Raer",
+    "overflow": false,
+    "state": "Browser tab: 4, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5193/?devtools=1&stream=scenario:tool-approval\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~\t\t\t\t148 text config Config updated (rev 2) tool_permission_mode, skill_refs\n~\t\t\t\t150 text runtime 上下文已压缩 91842 → 28400 tokens\n+\t\t\t151 container\n+\t\t\t\t152 text model Model claude-sonnet-4-20250514 anthropic\n+\t\t\t153 container\n+\t\t\t\t154 text session Session 已删除\nThe focused UI element is 40 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_g_, Secondary Actions: Expand"
+  }
+]

@@ -751,6 +751,11 @@ textarea:focus-visible {
   box-shadow: var(--shadow-lg);
   animation: overlay-pop-in var(--motion-base) var(--ease-out);
 }
+/* Every output tab shares the overlay bounds, including sources whose docked
+   layout fills its parent. Let the common inset determine the expanded height. */
+.artifact-frame[data-expanded="true"][data-output-source] {
+  height: auto;
+}
 /* Overlay corner radius follows the active style. */
 .preview-frame[data-style-preset="native"] .artifact-frame[data-expanded="true"] {
   border-radius: var(--nr-4, 24px);
@@ -4900,12 +4905,10 @@ textarea:focus-visible {
   line-height: 1.5;
 }
 
-/* Assistant text is revealed progressively in JS (see WritingText.tsx) so it
-   types out character/word/chunk-wise, flowing line by line. A subtle fade
-   softens each re-render; the typewriter caret marks the insertion point. */
+/* WritingText owns progressive reveal. Keep paragraphs still as Markdown grows
+   or a completed conversation is restored. */
 .message-bubble[data-role="assistant"] .msg-surface p {
   white-space: pre-line;
-  animation: assistant-stream-in var(--motion-base) var(--ease-out) both;
 }
 
 .writing-caret {
@@ -11880,17 +11883,6 @@ pre {
   }
 }
 
-@keyframes assistant-stream-in {
-  from {
-    opacity: 0.35;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @keyframes assistant-typewriter-in {
   from {
     clip-path: inset(0 100% 0 0);
@@ -12729,12 +12721,6 @@ pre {
   min-height: 0;
   height: 100%;
 }
-.artifact-frame[data-output-source="workspace"][data-expanded="true"] {
-  inset: 0;
-  width: min(880px, calc(100vw - 48px));
-  height: min(760px, calc(100dvh - 64px));
-  margin: auto;
-}
 .artifact-frame[data-output-source="workspace"] > .output-header { flex: none; }
 .artifact-frame[data-output-source="workspace"] > .opened-output {
   flex: 1;
@@ -12763,8 +12749,8 @@ pre {
 .workspace-files-toolbar .rail-icon-btn { width: 34px; height: 34px; }
 .workspace-search-field { display: flex; align-items: center; position: relative; min-width: 0; }
 .workspace-search-field > svg { position: absolute; left: 10px; color: var(--text-muted); pointer-events: none; }
-.workspace-search-field .workspace-search-clear { position: absolute; right: 0; }
-.workspace-search-field:has(.workspace-search-clear) input { padding-right: 38px; }
+.workspace-search-field .workspace-search-clear, .output-artifact-search > .rail-icon-btn { position: absolute; right: 0; }
+.workspace-search-field:has(.workspace-search-clear) input, .output-artifact-search:has(> .rail-icon-btn) input { padding-right: 38px; }
 .workspace-search-field input::-webkit-search-cancel-button { -webkit-appearance: none; }
 .workspace-files-path {
   display: flex;
@@ -12818,12 +12804,6 @@ pre {
   .workspace-files-toolbar { grid-template-columns: minmax(0, 1fr) auto; }
   .workspace-files-toolbar .workspace-scope-select { width: min(180px, 100%); }
   .workspace-search-field { grid-row: 2; grid-column: 1 / -1; }
-}
-@media (max-width: 600px) {
-  .artifact-frame[data-output-source="workspace"][data-expanded="true"] {
-    width: calc(100vw - 24px);
-    height: calc(100dvh - 32px);
-  }
 }
 @media (pointer: coarse) {
   .workspace-files .workspace-file-list button,
@@ -13156,9 +13136,70 @@ pre {
 .document-actions button, .structured-artifact button { border: var(--border-width) solid var(--border-color, #ddd); border-radius: 6px; padding: 6px 10px; background: transparent; color: inherit; cursor: pointer; }
 .document-actions :disabled, .structured-artifact :disabled { opacity: .55; cursor: default; }
 .document-copy-controls input, .structured-artifact input:not([type=checkbox]), .structured-artifact select { min-width: 0; max-width: 100%; box-sizing: border-box; padding: 8px; border: var(--border-width) solid var(--border-color, #ddd); border-radius: 6px; background: transparent; color: inherit; }
-.workspace-document-search { width: 100%; min-width: 0; height: var(--control-md); padding: 0 10px 0 32px; border: var(--border-width) solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-panel); color: var(--text-primary); font-family: inherit; font-size: var(--text-md); line-height: 20px; }
-.workspace-document-search::placeholder { color: var(--text-muted); opacity: 1; }
-.workspace-document-search:focus-visible { outline: 2px solid transparent; border-color: var(--accent); box-shadow: var(--focus-ring); }
+.workspace-document-search, .output-artifact-search input { width: 100%; min-width: 0; height: var(--control-md); padding: 0 10px 0 32px; border: var(--border-width) solid var(--border-strong); border-radius: var(--radius-sm); background: var(--surface-panel); color: var(--text-primary); font-family: inherit; font-size: var(--text-md); line-height: 20px; }
+.workspace-document-search::placeholder, .output-artifact-search input::placeholder { color: var(--text-muted); opacity: 1; }
+.workspace-document-search:focus-visible, .output-artifact-search input:focus-visible { outline: 2px solid transparent; border-color: var(--accent); box-shadow: var(--focus-ring); }
 .structured-artifact input:focus-visible, .document-editor textarea:focus-visible { outline: 2px solid currentColor; outline-offset: 2px; }
-@media (pointer: coarse) { .workspace-document-search { min-height: 44px; font-size: var(--text-lg); } }
+@media (pointer: coarse) { .workspace-document-search, .output-artifact-search input { min-height: 44px; font-size: var(--text-lg); } }
 .opened-output-item:has(.document-editor) > .markdown-preview, .opened-output-item:has(.document-editor) > pre { display: none; }
+
+/* Interruptible Radix surfaces. The empty exit animation only holds Presence open
+   until transitions finish; it must not animate opacity/scale itself, or reversing
+   an in-flight close would restart from a keyframe instead of the current frame. */
+@keyframes surface-exit { from {} to {} }
+
+:is(.settings-dialog, .shell-popover, .settings-overlay)[data-state] {
+  opacity: 1;
+  transition: opacity var(--motion-base) var(--ease-out),
+    scale var(--motion-base) var(--ease-out);
+}
+
+:is(.settings-dialog, .shell-popover)[data-state] {
+  scale: 1;
+}
+
+.shell-popover[data-state] {
+  transform-origin: var(--radix-popover-content-transform-origin);
+}
+
+:is(.settings-dialog, .shell-popover, .settings-overlay)[data-state="closed"] {
+  opacity: 0;
+  pointer-events: none;
+  transition-duration: var(--motion-fast);
+  animation: surface-exit var(--motion-fast) linear;
+}
+
+:is(.settings-dialog, .shell-popover)[data-state="closed"] {
+  scale: 0.98;
+}
+
+@starting-style {
+  :is(.settings-dialog, .shell-popover, .settings-overlay)[data-state="open"] {
+    opacity: 0;
+  }
+  :is(.settings-dialog, .shell-popover)[data-state="open"] {
+    scale: 0.98;
+  }
+}
+
+/* Keep search, permission/model menus and transcript updates immediate. */
+@media (prefers-reduced-motion: reduce) {
+  :is(.settings-dialog, .shell-popover, .settings-overlay)[data-state] {
+    scale: none;
+    transition: none;
+    animation: none;
+  }
+}
+
+/* Touch gets immediate press feedback without moving the surrounding layout. */
+@media (pointer: coarse) and (prefers-reduced-motion: no-preference) {
+  .exported-shell :is(.send-button, .composer-upload, .rail-icon-btn) {
+    transition-property: background-color, color, opacity, scale;
+    transition-duration: var(--motion-fast);
+    transition-timing-function: var(--ease-out);
+  }
+  .exported-shell :is(.send-button, .composer-upload, .rail-icon-btn):active:not(:disabled) {
+    scale: 0.96;
+    transition-duration: 60ms;
+  }
+}

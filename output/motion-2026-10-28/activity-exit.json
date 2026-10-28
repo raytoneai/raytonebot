@@ -1,0 +1,421 @@
+{
+  "result": {
+    "type": "object",
+    "value": [
+      {
+        "opacity": "1",
+        "present": true,
+        "t": 0,
+        "transform": "matrix(1, 0, 0, 1, 0, 0)"
+      },
+      {
+        "opacity": "1",
+        "present": true,
+        "t": 2,
+        "transform": "matrix(1, 0, 0, 1, 0, 0)"
+      },
+      {
+        "opacity": "1",
+        "present": true,
+        "t": 2,
+        "transform": "matrix(1, 0, 0, 1, 0, 0)"
+      },
+      {
+        "opacity": "0.924438",
+        "present": true,
+        "t": 5,
+        "transform": "matrix(1, 0, 0, 1, 0, 0.226686)"
+      },
+      {
+        "opacity": "0.8178",
+        "present": true,
+        "t": 15,
+        "transform": "matrix(1, 0, 0, 1, 0, 0.546599)"
+      },
+      {
+        "opacity": "0.714295",
+        "present": true,
+        "t": 22,
+        "transform": "matrix(1, 0, 0, 1, 0, 0.857116)"
+      },
+      {
+        "opacity": "0.620722",
+        "present": true,
+        "t": 30,
+        "transform": "matrix(1, 0, 0, 1, 0, 1.13783)"
+      },
+      {
+        "opacity": "0.525543",
+        "present": true,
+        "t": 39,
+        "transform": "matrix(1, 0, 0, 1, 0, 1.42337)"
+      },
+      {
+        "opacity": "0.438146",
+        "present": true,
+        "t": 47,
+        "transform": "matrix(1, 0, 0, 1, 0, 1.68556)"
+      },
+      {
+        "opacity": "0.357483",
+        "present": true,
+        "t": 56,
+        "transform": "matrix(1, 0, 0, 1, 0, 1.92755)"
+      },
+      {
+        "opacity": "0.282879",
+        "present": true,
+        "t": 65,
+        "transform": "matrix(1, 0, 0, 1, 0, 2.15136)"
+      },
+      {
+        "opacity": "0.214861",
+        "present": true,
+        "t": 72,
+        "transform": "matrix(1, 0, 0, 1, 0, 2.35542)"
+      },
+      {
+        "opacity": "0.156853",
+        "present": true,
+        "t": 80,
+        "transform": "matrix(1, 0, 0, 1, 0, 2.52944)"
+      },
+      {
+        "opacity": "0.100308",
+        "present": true,
+        "t": 89,
+        "transform": "matrix(1, 0, 0, 1, 0, 2.69907)"
+      },
+      {
+        "opacity": "0.0589892",
+        "present": true,
+        "t": 100,
+        "transform": "matrix(1, 0, 0, 1, 0, 2.82303)"
+      },
+      {
+        "opacity": "0.0243752",
+        "present": true,
+        "t": 106,
+        "transform": "matrix(1, 0, 0, 1, 0, 2.92687)"
+      },
+      {
+        "opacity": "0.00476964",
+        "present": true,
+        "t": 117,
+        "transform": "matrix(1, 0, 0, 1, 0, 2.98569)"
+      },
+      {
+        "opacity": "0",
+        "present": true,
+        "t": 123,
+        "transform": "matrix(1, 0, 0, 1, 0, 3)"
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 133,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 139,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 147,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 156,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 165,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 171,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 180,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 188,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 197,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 205,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 212,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 221,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 229,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 238,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 246,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 255,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 264,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 271,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 280,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 288,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 297,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 305,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 313,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 322,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 330,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 338,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 348,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 355,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 366,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 372,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 380,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 389,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 397,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 405,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 414,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 423,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 430,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 438,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 453,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 455,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 463,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 471,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 480,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 488,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 496,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 505,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 513,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 521,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 530,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 538,
+        "transform": null
+      },
+      {
+        "opacity": null,
+        "present": false,
+        "t": 546,
+        "transform": null
+      }
+    ]
+  }
+}

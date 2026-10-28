@@ -1,0 +1,36 @@
+{
+  "searchTouch": {
+    "result": {
+      "type": "object",
+      "value": {
+        "clearGap": null,
+        "iconGap": 8.5,
+        "iconRight": 73.1953125,
+        "inputHeight": 44,
+        "inputWidth": 291.609375,
+        "overflow": false,
+        "paddingLeft": "32px",
+        "paddingRight": "10px",
+        "textStart": 81.6953125,
+        "viewport": 390
+      }
+    }
+  },
+  "searchDesktop": {
+    "result": {
+      "type": "object",
+      "value": {
+        "clearGap": null,
+        "iconGap": 8.5,
+        "iconRight": 144.3984375,
+        "inputHeight": 34,
+        "inputWidth": 1039.203125,
+        "overflow": false,
+        "paddingLeft": "32px",
+        "paddingRight": "10px",
+        "textStart": 152.8984375,
+        "viewport": 1280
+      }
+    }
+  }
+}

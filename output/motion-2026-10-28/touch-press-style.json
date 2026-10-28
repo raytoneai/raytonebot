@@ -1,0 +1,10 @@
+{
+  "result": {
+    "type": "object",
+    "value": {
+      "coarse": true,
+      "duration": "0.06s",
+      "scale": "0.96"
+    }
+  }
+}
