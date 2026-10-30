@@ -250,6 +250,8 @@ AgentSphere 沙箱
 
 ## 目录所有权
 
+群聊的路由规则、模型路由请求与计划类型在 `src/pi/groupChatRouting.ts`，提示词构造在 `groupChatPrompts.ts`；`groupChat.ts` 保留公共导出、事件归属与运行状态机。规则/提示词模块不反向依赖控制器。
+
 `src/runtime/useOutputPanel.ts` 持有输出标签、选中项、来源、全屏开关与右栏折叠状态；shell 继续负责文件 URL、实时产物投影、自动预览和会话运行。打开操作使用当次面板可用性；导航重置仅清空标签/选中项/产物弹层，沿用原有来源和其他表面状态。
 
 `src/pi/piHost.ts` 是兼容导出入口。`piRuntimeController.ts` 管理会话、运行、审批与各引擎；`piHttpHost.ts` 组合主机服务并处理 HTTP，直接依赖控制器；`piSdkBridge.ts` 管理 Pi SDK 会话、模型注册、工具包装与模型租约。共同的记录/错误/会话 ID 校验在 `piHostUtils.ts`。原公共导出保持可用，SDK 与可选工具继续动态加载，不改变原生会话绑定、审批或隔离边界。
