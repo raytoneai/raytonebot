@@ -3,6 +3,7 @@ import { useLearning } from "./runtime/useLearning";
 import { useVault } from "./runtime/useVault";
 import { useTaskRecovery } from "./runtime/useTaskRecovery";
 import { useAppViewport } from "./runtime/useAppViewport";
+import { useOutputPanel } from "./runtime/useOutputPanel";
 import { useCompactDrawer } from "./runtime/useCompactDrawer";
 import { artifactTimestamps } from "./runtime/artifactCatalog";
 import { outputPanelItemFromRenderedArtifact } from "./components/agent-preview/outputframe/artifactPreview";
@@ -145,7 +146,6 @@ import {
   type EphemeralPiConversation,
 } from "./pi/piConversationState";
 import { piErrorTurnEvents, PROMPT_REJECTED } from "./pi/piErrorTurn";
-import type { OutputPanelSource } from "./components/agent-preview/outputframe/types";
 import { workspaceFileUrl } from "./runtime/filePreview";
 import { artifactAuthor, artifactEventForReplay, refreshArtifactItems } from "./runtime/artifactContent";
 import { displayTaskPlans } from "./runtime/taskPlan";
@@ -219,18 +219,9 @@ export function AgentApp() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
-  // Closed until asked for, matching the configurator: a run with nothing to show should not
-  // hand half the canvas to an empty output panel. Opens on the drawer toggle or on clicking an
-  // artifact in the conversation.
-  const [rightCollapsed, setRightCollapsed] = useState(true);
   const [autoHiddenRails, setAutoHiddenRails] = useState({ left: false, right: false });
-  const [outputPanelItems, setOutputPanelItems] = useState<OutputPanelItem[]>([]);
-  const [activeOutputPanelItemId, setActiveOutputPanelItemId] = useState<string | undefined>(undefined);
-  const [outputModalOpen, setOutputModalOpen] = useState(false);
-  const [workspaceModalOpen, setWorkspaceModalOpen] = useState(false);
-  const [toolLogTarget, setToolLogTarget] = useState<{ id: string; nonce: number }>();
-  const [outputSource, setOutputSource] = useState<OutputPanelSource>(project.output.source);
-  const [browserAvailable, setBrowserAvailable] = useState(false);
+  const outputPanel = useOutputPanel(project.output.source);
+  const { rightCollapsed, setRightCollapsed } = outputPanel;
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
   const [providerSelectionError, setProviderSelectionError] = useState<string>();
   const providerSelectionPending = useRef(false);
@@ -362,7 +353,7 @@ export function AgentApp() {
   const pendingQuestion = useMemo(() => pendingUserInput(events), [events]);
   useEffect(() => {
     if (!piRuntimeState || streamId) return;
-    void getBrowserState().then((state) => setBrowserAvailable(state.available), () => setBrowserAvailable(false));
+    void getBrowserState().then((state) => outputPanel.setBrowserAvailable(state.available), () => outputPanel.setBrowserAvailable(false));
   }, [Boolean(piRuntimeState), streamId]);
   const questionProps = useUserInput(pendingQuestion, activePiConversationId, locale, isGroupConversation(activePiConversation));
   const pendingSetup = useMemo(() => pendingChannelSetup(events), [events]);
@@ -399,18 +390,18 @@ export function AgentApp() {
     },
   }), [replayEvents, reasoningRenderPolicy, toolRenderPolicy]);
   const displayViewModel = useMemo(() => displayTaskPlans(localizePreviewViewModel(viewModel, locale), events, locale, Object.fromEntries(knownBots.map(bot => [bot.id, bot.name]))), [locale, viewModel, events, knownBots]);
-  const liveOutputPanelItems = useMemo(() => refreshArtifactItems(outputPanelItems, displayViewModel.timeline), [outputPanelItems, displayViewModel]);
+  const liveOutputPanelItems = useMemo(() => refreshArtifactItems(outputPanel.items, displayViewModel.timeline), [outputPanel.items, displayViewModel]);
   const isWelcome = displayViewModel.timeline.length === 0;
 
   const activeProject = useMemo(
     () => ({ ...configuredProject,
       layout: { ...configuredProject.layout, slots: configuredProject.layout.slots.map((slot) => enabledSlots?.includes(slot.id) ? { ...slot, enabled: true } : slot) },
-      output: { ...configuredProject.output, source: outputSource === "console" ? "console" as const : "artifact" as const },
+      output: { ...configuredProject.output, source: outputPanel.source === "console" ? "console" as const : "artifact" as const },
       conversation: streamId && !activityPreview ? configuredProject.conversation : {
         ...configuredProject.conversation, agentAvatar: false, userAvatar: false, speakerLabels: false,
       },
     }),
-    [configuredProject, outputSource, streamId, activityPreview, enabledSlots],
+    [configuredProject, outputPanel.source, streamId, activityPreview, enabledSlots],
   );
   const modelBot = streamId || isGroupConversation(activePiConversation) ? undefined : activeBot;
   const activeModel = botModelConfiguration(activeProject, agentSettings, modelBot);
@@ -549,7 +540,7 @@ export function AgentApp() {
       navigatedRef.current = true;
       activeConversationIdRef.current = conversation.id;
       setActivePiConversationId(conversation.id); setPiEvents([...conversation.events]);
-      setOutputPanelItems([]); setActiveOutputPanelItemId(undefined); setOutputModalOpen(false);
+      outputPanel.reset();
       setComposerFocus(conversation.id);
       if (action === "regenerate") void submitToPi(draft.prompt, { ...options, attachments: draft.attachments,
         draftSnapshot: { prompt: draft.prompt, attachmentIds: draft.attachments.map(file => file.id) } }, conversation);
@@ -717,24 +708,7 @@ export function AgentApp() {
       const author = artifactAuthor(item.id);
       item.downloadUrl = workspaceFileUrl(path, author ? presetBot(author).presetId : agentSettings.presetId, piRuntimeState?.workspace);
     }
-    setOutputPanelItems((current) => {
-      const index = current.findIndex((entry) => entry.id === item.id || Boolean(item.workspacePath && entry.workspacePath === item.workspacePath));
-      if (index >= 0) {
-        const next = [...current];
-        next[index] = item;
-        return next;
-      }
-      return [...current, item];
-    });
-    setWorkspaceModalOpen(false);
-    setActiveOutputPanelItemId(item.id);
-    setOutputSource("artifact");
-    if (rightPanelAvailable) {
-      setOutputModalOpen(false);
-      setRightCollapsed(false);
-      return;
-    }
-    setOutputModalOpen(true);
+    outputPanel.openItem(item, rightPanelAvailable);
   }
 
   useEffect(() => {
@@ -770,7 +744,7 @@ export function AgentApp() {
   useEffect(() => {
     const previous = lastTimeline.current;
     lastTimeline.current = { conversationId: activePiConversationId, timeline: displayViewModel.timeline };
-    if (previous.conversationId !== activePiConversationId || previous.timeline === displayViewModel.timeline || outputSource !== "artifact") return;
+    if (previous.conversationId !== activePiConversationId || previous.timeline === displayViewModel.timeline || outputPanel.source !== "artifact") return;
     const live = new Set(replayEvents.flatMap((event) => event.type.startsWith("tool.call.") && event.runId && liveRunIds.current.has(event.runId)
       ? [String(event.payload.toolCallId)] : []));
     for (const file of finishedHtmlEdits(previous.timeline, displayViewModel.timeline, (id) => live.has(id))) {
@@ -780,32 +754,18 @@ export function AgentApp() {
 
   /** Shows the browser's live view in the Output panel, opening the panel if needed. */
   function showBrowser() {
-    setOutputSource("browser");
-    setOutputModalOpen(false);
-    if (rightPanelAvailable) setRightCollapsed(false);
-    else setWorkspaceModalOpen(true);
+    outputPanel.showSource("browser", rightPanelAvailable);
   }
   // An agent asking the user to take over brings the browser into view once per request.
   const takeoverRequest = pendingQuestion?.questions.some((question) => question.id === "browser_takeover") ? pendingQuestion.requestId : undefined;
   const shownTakeover = useRef<string>(undefined);
   useEffect(() => {
-    if (!takeoverRequest || shownTakeover.current === takeoverRequest || !browserAvailable) return;
+    if (!takeoverRequest || shownTakeover.current === takeoverRequest || !outputPanel.browserAvailable) return;
     shownTakeover.current = takeoverRequest;
     showBrowser();
-  }, [takeoverRequest, browserAvailable]);
+  }, [takeoverRequest, outputPanel.browserAvailable]);
 
-  function closeOutputPanelItem(id: string) {
-    setOutputPanelItems((current) => {
-      const next = current.filter((entry) => entry.id !== id);
-      if (next.length === 0) {
-        setOutputModalOpen(false);
-        setActiveOutputPanelItemId(undefined);
-      } else if (activeOutputPanelItemId === id) {
-        setActiveOutputPanelItemId(next[0].id);
-      }
-      return next;
-    });
-  }
+  const closeOutputPanelItem = outputPanel.closeItem;
 
   async function refreshPiRuntime() {
     const state = await getPiRuntimeState();
@@ -1363,9 +1323,7 @@ export function AgentApp() {
       .then(setPiRuntimeState)
       .then(() => synchronizePiRuntime(activeProject, conversation.id, undefined, group ? undefined : bot))
       .catch(() => undefined);
-    setOutputPanelItems([]);
-    setActiveOutputPanelItemId(undefined);
-    setOutputModalOpen(false);
+    outputPanel.reset();
     setLeftCollapsed(false);
     // Collapsed, not opened: a fresh conversation has no output yet.
     setRightCollapsed(true);
@@ -1458,9 +1416,7 @@ export function AgentApp() {
     // which on finished history showed a spinner and replayed every answer's typing.
     if (followProblems[conversation.id]) void followRun(conversation);
     else if (conversation.stored || conversation.events.length) void refreshPiConversation(conversation);
-    setOutputPanelItems([]);
-    setActiveOutputPanelItemId(undefined);
-    setOutputModalOpen(false);
+    outputPanel.reset();
     const selectedBot = isGroupConversation(conversation) ? undefined : knownBots.find(bot => bot.id === conversationBotId(botStore, conversation));
     void synchronizePiRuntime(activeProject, conversation.id, undefined, selectedBot).catch(() => undefined);
   }
@@ -1495,10 +1451,10 @@ export function AgentApp() {
     onCollapseRight: () => setRightCollapsed(true),
     onOpenArtifact: openArtifact,
     outputPanelItems: liveOutputPanelItems,
-    activeOutputPanelItemId,
-    onSelectOutputPanelItem: setActiveOutputPanelItemId,
+    activeOutputPanelItemId: outputPanel.activeItemId,
+    onSelectOutputPanelItem: outputPanel.setActiveItemId,
     onCloseOutputPanelItem: closeOutputPanelItem,
-    onOutputSourceChange: (source: "artifact" | "console") => { setOutputSource(source); },
+    onOutputSourceChange: (source: "artifact" | "console") => { outputPanel.selectSource(source); },
     // Not a no-op: starting a new conversation needs no backend, it just clears the transcript
     // and returns to the welcome screen. Wiring it to `noop` made the button look broken —
     // the one control in the shell a user is guaranteed to try.
@@ -1597,11 +1553,8 @@ export function AgentApp() {
     runActive: streamId ? undefined : new Set(piRunning ? displayViewModel.timeline.slice(
       displayViewModel.timeline.map((item) => item.kind === "message" && item.role === "user").lastIndexOf(true) + 1,
     ).map((item) => item.id) : []),
-    toolLog: streamId ? undefined : { targetId: toolLogTarget?.id, revision: toolLogTarget?.nonce, open: (id) => {
-      setToolLogTarget((previous) => ({ id, nonce: (previous?.nonce ?? 0) + 1 })); setOutputSource("console");
-      setOutputModalOpen(false);
-      if (rightPanelAvailable) setRightCollapsed(false);
-      else setWorkspaceModalOpen(true);
+    toolLog: streamId ? undefined : { targetId: outputPanel.toolLogTarget?.id, revision: outputPanel.toolLogTarget?.nonce, open: (id) => {
+      outputPanel.showConsole(id, rightPanelAvailable);
     } },
     messageBranch,
     composerFocus: activePiConversationId === composerFocus ? composerFocus : undefined,
@@ -1703,15 +1656,13 @@ export function AgentApp() {
     },
     workspaceScope: agentSettings.presetId,
     workspaceBotName: activeBot.name,
-    outputPanel: streamId ? undefined : { source: outputSource, browserAvailable, select: setOutputSource },
+    outputPanel: streamId ? undefined : { source: outputPanel.source, browserAvailable: outputPanel.browserAvailable, select: outputPanel.selectSource },
     workspaceRevision: piRunning,
     workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),
     workspace: piRuntimeState?.workspace,
     onOpenFile: openArtifact,
     onBrowseWorkspace: streamId ? undefined : () => {
-      setOutputSource("workspace"); setOutputModalOpen(false);
-      if (rightPanelAvailable) setRightCollapsed(false);
-      else setWorkspaceModalOpen(true);
+      outputPanel.showSource("workspace", rightPanelAvailable);
     },
     onAttachWorkspaceFile: streamId ? undefined : async (file) => {
       await composer.update(activePiConversation, (draft) => {
@@ -1719,7 +1670,7 @@ export function AgentApp() {
         if (draft.attachments.length >= 10) throw new Error(featureText(locale, "At most 10 attachments"));
         return { ...draft, attachments: [...draft.attachments, { id: crypto.randomUUID(), name: file.name, isImage: false, reference: file }] };
       });
-      setOutputModalOpen(false); setWorkspaceModalOpen(false);
+      outputPanel.setOutputModalOpen(false); outputPanel.setWorkspaceModalOpen(false);
       setComposerFocus(activePiConversation.id);
     },
     artifactForms: streamId ? undefined : {
@@ -1854,25 +1805,25 @@ export function AgentApp() {
               data-side="right"
               inert={compact && drawerOpen}
               aria-label={copy.shell.editor.expandPanel}
-              onClick={() => autoHiddenRails.right ? setWorkspaceModalOpen(true) : setRightCollapsed(false)}
+              onClick={() => autoHiddenRails.right ? outputPanel.setWorkspaceModalOpen(true) : setRightCollapsed(false)}
             >
               <span className="native-rail-icon"><RightSidebarRailIcon size={15} /></span>
               <span className="legacy-rail-icon"><PanelRight size={15} /></span>
             </button>
           ) : null}
-          {workspaceModalOpen ? (
+          {outputPanel.workspaceModalOpen ? (
             <Suspense fallback={null}>
-              <OutputFrame project={activeProject} viewModel={displayViewModel} fullscreen openItems={liveOutputPanelItems} activeOpenItemId={activeOutputPanelItemId} onSelectOpenItem={setActiveOutputPanelItemId} onCloseOpenItem={closeOutputPanelItem} onSourceChange={(source) => { setOutputSource(source); }} onCollapse={() => setWorkspaceModalOpen(false)} />
+              <OutputFrame project={activeProject} viewModel={displayViewModel} fullscreen openItems={liveOutputPanelItems} activeOpenItemId={outputPanel.activeItemId} onSelectOpenItem={outputPanel.setActiveItemId} onCloseOpenItem={closeOutputPanelItem} onSourceChange={(source) => { outputPanel.selectSource(source); }} onCollapse={() => outputPanel.setWorkspaceModalOpen(false)} />
             </Suspense>
           ) : null}
-          {outputModalOpen ? (
+          {outputPanel.outputModalOpen ? (
             <Suspense fallback={null}>
               <OutputPanelModal
                 items={liveOutputPanelItems}
-                activeId={activeOutputPanelItemId}
-                onSelectItem={setActiveOutputPanelItemId}
+                activeId={outputPanel.activeItemId}
+                onSelectItem={outputPanel.setActiveItemId}
                 onCloseItem={closeOutputPanelItem}
-                onClose={() => setOutputModalOpen(false)}
+                onClose={() => outputPanel.setOutputModalOpen(false)}
               />
             </Suspense>
           ) : null}

@@ -32,3 +32,9 @@
 基线 `c13d7d1`。`piHost.ts` 变为 7 行兼容导出入口，`piRuntimeController.ts` 1,196 行、`piHttpHost.ts` 746 行、共同校验 `piHostUtils.ts` 16 行。16 个原函数/类型声明经 AST 对比一致且无重复。HTTP 直接依赖 controller，没有反向运行时依赖，路由顺序/主机服务组合/释放不变。
 
 构建、typecheck、相关文件未使用声明检查、`check:local` 和 `cloud-preview --check` 通过。首次完整测试 641/642：`browserWorkflow.test.ts` 的 popup 点击超过原 4 秒期限；该测试直接调用未改动的 browserService/browserWorker，不经过拆分模块。单独复跑 1/1（约 1.3 秒），未改代码或超时，完整复跑 642/642。保留 [首次输出](host-tests.log)、[单项复跑](host-browser-recheck.log) 和 [完整复跑](host-tests-recheck.log)；偶发超时具体原因未确定，不宣称已修复。未验证真实模型或线上部署。
+
+## 第五批：输出面板状态
+
+基线 `1c8d6ce`。92 行 `useOutputPanel` 聚合显示状态和标签/来源操作；shell 仍有 1,941 行，这只是首个边界提取，会话运行逻辑尚未拆分。主代理逐项审查 item id/path 合并、active/last close、当次面板可用性及三个 reset 的范围，并撤回额外的 effect 依赖调整，保留原触发语义。
+
+构建、完整测试 642/642 和 diff 检查通过。IAB 实测：390px 临时 HTML 文件预览、重复打开只有一个标签、关闭最后项收起弹层；1280px 侧栏打开与控制台/工作区切换；新会话回到欢迎页并折叠输出。全部 20 个场景无横向溢出，检查开始后的浏览器 error 为 0。[结果](output-ui.json)、[产物弹层](output-after.png)。使用临时目录内合成 HTML，无模型调用；真实任务自动预览、浏览器接管本次未重新端到端验证。

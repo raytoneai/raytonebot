@@ -1,0 +1,88 @@
+{
+  "verifiedSince": "2026-10-30T16:35:38.911Z",
+  "mobileFilePreview": true,
+  "reopenDoesNotDuplicate": true,
+  "lastCloseHidesModal": true,
+  "desktopInlineOutput": true,
+  "consoleAndWorkspaceSwitch": true,
+  "newConversationFoldsOutput": true,
+  "fixtures": [
+    {
+      "name": "Built-in demo",
+      "overflow": false
+    },
+    {
+      "name": "Group chat",
+      "overflow": false
+    },
+    {
+      "name": "Coding agent",
+      "overflow": false
+    },
+    {
+      "name": "Reasoning kinds",
+      "overflow": false
+    },
+    {
+      "name": "Tool approval",
+      "overflow": false
+    },
+    {
+      "name": "Error block",
+      "overflow": false
+    },
+    {
+      "name": "Artifact action",
+      "overflow": false
+    },
+    {
+      "name": "Capability tray",
+      "overflow": false
+    },
+    {
+      "name": "HTML artifact stream",
+      "overflow": false
+    },
+    {
+      "name": "Basic text",
+      "overflow": false
+    },
+    {
+      "name": "Normal turn",
+      "overflow": false
+    },
+    {
+      "name": "Streaming thinking + message",
+      "overflow": false
+    },
+    {
+      "name": "Tool approval + completion",
+      "overflow": false
+    },
+    {
+      "name": "MCP success + interrupt",
+      "overflow": false
+    },
+    {
+      "name": "Runtime boot + sync",
+      "overflow": false
+    },
+    {
+      "name": "Retrying incident",
+      "overflow": false
+    },
+    {
+      "name": "Exhausted incident",
+      "overflow": false
+    },
+    {
+      "name": "Terminal incident",
+      "overflow": false
+    },
+    {
+      "name": "Config, spans, deletion",
+      "overflow": false
+    }
+  ],
+  "errors": []
+}
