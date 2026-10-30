@@ -138,10 +138,11 @@ PDF 沿用 `filePreview.ts` / `useFilePreview.ts` 的鉴权读取、20 MiB 上�
 
 ```
 Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
-  → runtime/eventNormalizer + admissionReport → agentmatrix/viewModel → slots/slotRegistry → 组件
+  → @agent-ux/runtime replayAgentUXEvents → @agent-ux/render-core createAgentUXViewModel
+  → slots/slotRegistry → 组件
 ```
 
-界面上缺东西时，先查 `piAdapter.ts` 发出的事件和 `admissionReport`，不是加组件。
+界面上缺东西时，先查 `piAdapter.ts` 发出的事件和回放结果，不是加组件。`runtime/eventNormalizer` 与 `admissionReport` 保留为诊断模块，不在当前 shell 的实际回放调用链上。
 
 浏览器断线不停止服务端任务。前端共享历史加载，断线后退避重接；连续 5 次失败后停止本地等待，并提示主机任务状态尚未确认。连接握手、历史/停止请求及事件流无心跳的超时为 15 秒；正常流每 5 秒的心跳维持连接，不限制任务总时长。若 `/live` 返回 409（任务刚结束），再读落盘历史补齐尾部事件，不重放 prompt；记录中缺少本次 `requestId` 时保留用户消息并报错。停止操作收到服务端确认后才取消本地订阅。服务端启动时为没有终态的轮次补「已中断」，包括尚未产生首个 token 的轮次；沙箱暂停/恢复仍走整机快照。
 
@@ -261,7 +262,8 @@ AgentSphere 沙箱
 | `src/components/**`、`src/slots/**` | 自有，按所有者扩展 | 修缺陷，或按 AGENTS.md 白名单扩展所属组件（ADR-025）；不新增并行组件、不改 slot 布局；`slotRegistry` 必须完整 |
 | `vendor/**` | 冻结的第三方构建产物（MIT） | 不改；需要改时按 [04](04-dependency-exit.md) 先迁入 |
 | `src/fixtures/**`、`demo-events.ts` | 测试数据 | 只供 `?devtools=1` 和测试 |
-| `src/agentmatrix/**`、`src/export/**`、`src/preview-runner/**` | 导出残留 | 不扩展；按 [04](04-dependency-exit.md) 处理 |
+| `src/agentmatrix/**` | 自有的协议、图标与开发场景适配 | 保留实际消费者；旧客户端/投影器已清理，见 [04](04-dependency-exit.md) |
+| `src/export/scaffoldManifest.ts`、`src/preview-runner/PreviewRunner.ts` | 类型兼容入口 | 满足穷举 registry 的类型引用，不包含旧导出/预览运行逻辑 |
 | `scripts/**` | 自有 | 检查与部署脚本 |
 
 ## 安全边界

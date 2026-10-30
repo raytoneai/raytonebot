@@ -1,6 +1,5 @@
 import { chatCopy } from "./copy/chat";
 import { composerCopy } from "./copy/composer";
-import { previewCopy } from "./copy/preview";
 import { shellCopy } from "./copy/shell";
 import { workspaceCopy } from "./copy/workspace";
 import { APP_LOCALES, type AppLocale } from "./locales";
@@ -21,7 +20,6 @@ const compose = (locale: AppLocale) => ({
   composer: composerCopy[locale],
   chat: chatCopy[locale],
   workspace: workspaceCopy[locale],
-  preview: previewCopy[locale],
   // Back-compat alias for the original top-level namespace.
   reasoning: chatCopy[locale].reasoning,
 });

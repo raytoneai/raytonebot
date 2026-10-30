@@ -1,0 +1,105 @@
+{
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "welcomeChecked": true,
+  "scenarios": [
+    {
+      "name": "Built-in demo",
+      "overflow": false,
+      "stateLength": 1921
+    },
+    {
+      "name": "Group chat",
+      "overflow": false,
+      "stateLength": 1073
+    },
+    {
+      "name": "Coding agent",
+      "overflow": false,
+      "stateLength": 1823
+    },
+    {
+      "name": "Reasoning kinds",
+      "overflow": false,
+      "stateLength": 1315
+    },
+    {
+      "name": "Tool approval",
+      "overflow": false,
+      "stateLength": 1832
+    },
+    {
+      "name": "Error block",
+      "overflow": false,
+      "stateLength": 1276
+    },
+    {
+      "name": "Artifact action",
+      "overflow": false,
+      "stateLength": 1260
+    },
+    {
+      "name": "Capability tray",
+      "overflow": false,
+      "stateLength": 1216
+    },
+    {
+      "name": "HTML artifact stream",
+      "overflow": false,
+      "stateLength": 1526
+    },
+    {
+      "name": "Basic text",
+      "overflow": false,
+      "stateLength": 422
+    },
+    {
+      "name": "Normal turn",
+      "overflow": false,
+      "stateLength": 1484
+    },
+    {
+      "name": "Streaming thinking + message",
+      "overflow": false,
+      "stateLength": 615
+    },
+    {
+      "name": "Tool approval + completion",
+      "overflow": false,
+      "stateLength": 656
+    },
+    {
+      "name": "MCP success + interrupt",
+      "overflow": false,
+      "stateLength": 1166
+    },
+    {
+      "name": "Runtime boot + sync",
+      "overflow": false,
+      "stateLength": 1567
+    },
+    {
+      "name": "Retrying incident",
+      "overflow": false,
+      "stateLength": 1600
+    },
+    {
+      "name": "Exhausted incident",
+      "overflow": false,
+      "stateLength": 606
+    },
+    {
+      "name": "Terminal incident",
+      "overflow": false,
+      "stateLength": 1353
+    },
+    {
+      "name": "Config, spans, deletion",
+      "overflow": false,
+      "stateLength": 1455
+    }
+  ],
+  "errors": []
+}

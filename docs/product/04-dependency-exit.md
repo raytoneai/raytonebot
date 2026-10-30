@@ -39,10 +39,11 @@
 
 | 模块 | 说明 | 建议 |
 | --- | --- | --- |
-| `src/agentmatrix/viewModel.ts`、`projector.ts`、`protocol.ts` 及头像组件 | 在渲染路径上 | 保留，视为自有 |
-| `src/agentmatrix/client.ts`、`mockSse.ts`、`legacyAdapter.ts`、`stateDemo.ts`、`useSession.ts` | AgentMatrix 后端协议与演示场景 | 冻结；devtools 场景不再需要时一并删 |
-| `src/harness/adapters/` 中 claude/codex/opencode 映射、`jsonlImport`、`anthropicAdapter` | 其他后端的转译 | 冻结；不影响包体积时不急于删 |
-| `src/export/`、`src/preview-runner/` | 配置器导出/预览脚手架 | 确认无引用后删除 |
+| `src/agentmatrix/protocol.ts`、`icons.tsx`、`fixtures/`、`legacyAdapter.ts` 及头像组件 | AgentMatrix 协议类型、图标、场景和兼容转换 | 保留，视为自有 |
+| `src/agentmatrix/client.ts`、`mockSse.ts`、`projector.ts`、`stateDemo.ts`、`useSession.ts`、`viewModel.ts` | 未被应用引用的 AgentMatrix 客户端、演示和视图模型 | 已删除；barrel 仅导出保留模块 |
+| `src/harness/adapters/` 中非 Pi 的映射与通用转换模块 | 未被应用或测试引用的其他后端转译 | 已删除；保留 `piAdapter` 及其测试 |
+| `src/preview-runner/PreviewRunner.ts` | Git 预览状态类型入口，`GitFrame` 与穷举 slot registry 仍引用 | 保留为 `GitPreviewState` 类型转出；其余预览脚手架已删除 |
+| `src/export/scaffoldManifest.ts` | 仅为 slot registry 提供类型的导出管线 stub | 保留；真实导出管线未发布 |
 | `src/fixtures/**`、`demo-events.ts` | 测试数据（动态 import，不进生产路径） | 保留给测试与 `?devtools=1` |
 | `src/components/agent-preview/ExportFrame.tsx` | 为满足注册表存在的空壳 | 保留 |
 | 接口前缀 `/__agentcanvas/pi`、插件名 `agentcanvas-pi-runtime` | 命名残留，仍为当前接口 | 保留兼容；改名是可选清理（T1.7），不作为功能前置 |
