@@ -20,3 +20,9 @@
 - 桌面实测模型 Base URL 临时草稿在分区切换后保留；关闭出现拦截，继续编辑、放弃恢复原值。没有保存 Provider 配置或调用模型。
 - 390px 全部分区与 20 个场景通过；[UI 记录](settings-ui.json)、[拆分后截图](settings-after.png)。模块移动期间出现过 HMR 导出错误，最终代码重新加载后的 error 为 0。
 - 例行任务草稿跨分区存续由函数主体与 owner 状态位置的对比确认；本次没有新增真实计划任务或验证外部 IM/MCP/Vault 服务。
+
+## 第三批：Pi SDK 桥接
+
+基线 `d270484`。`piHost.ts` 2,246 → 1,928 行，新增 `piSdkBridge.ts` 340 行。原 20 个顶层函数主体经 AST 逐一比较一致；原公开 `PiSessionBridge` / `registerEditorProvider` 导出路径保留。SDK 动态加载、原生 session/preflight 绑定、stopEpoch、模型租约 finally 释放与审批/隔离工具包装不变。
+
+构建、完整测试 642/642、相关文件 noUnusedLocals、`check:local`（12 tools）、`cloud-preview --check`、diff 检查通过。主代理审查没有发现未解决问题。未调用真实模型或重新验证云端实际部署。
