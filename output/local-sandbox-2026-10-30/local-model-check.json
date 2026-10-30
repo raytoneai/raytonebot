@@ -1,0 +1,10 @@
+{
+  "url": "http://127.0.0.1:5188/",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "terminal": [
+    "success"
+  ],
+  "reply": "连接正常",
+  "toolCalls": 0
+}

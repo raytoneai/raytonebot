@@ -50,6 +50,8 @@ node control/server.ts import --owner <用户 id>   # 把 .agentsphere/ 里现�
 - 运行 `~/.venvs/agentsphere/bin/python scripts/agentsphere/sandbox.py status` 查询实际状态；公网地址按上表由端口与 sandboxId 组成，暂停后的恢复见下文。
 - 历史实例与部署结果保留在进度和验收日志中，不再把固定 URL 当作当前入口。AgentMatrix 使用独立的 `.agentmatrix/deployment.json` 与 `npm run am:status`。
 
+2026-10-30 已认领实例的本机权威状态位于 `.agentsphere/control-dev/bots/bd8639aea7f/`；本次 backup/deploy 使用该 `--state-dir`，保留访问密码和交接身份。仓库根 `.agentsphere/deployment.json` 是较早记录，不用它覆盖 control 的访问状态。最新应用与真实模型检查见[本次记录](../../output/local-sandbox-2026-10-30/README.md)；实际运行状态仍须查询。
+
 ## 持久化（2026-10-03 实测）
 
 | 选项 | 结果 |

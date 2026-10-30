@@ -11,6 +11,7 @@ import { ensureWorkspaceLayout, resolveWorkspaceLayout } from '../../src/pi/work
 import { ProviderStore } from '../../src/pi/providerStore.ts';
 import { project } from '../../src/exported-project.ts';
 
+if (process.env.RAYTONEBOT_ENABLE_TEST_ENGINE !== '1') throw new Error('This is a fixed-response test engine. Run npm run dev for the real app, or explicitly set RAYTONEBOT_ENABLE_TEST_ENGINE=1 for disposable verification.');
 const root = mkdtempSync(join(tmpdir(), 'raytone-task-flow-'));
 const port = Number(process.env.TASK_FLOW_PORT ?? 5194);
 const dataDir = join(root, 'data'); mkdirSync(dataDir);
@@ -60,8 +61,15 @@ const bridgeFactory = async ({ approvalGate }) => {
 };
 const host = createPiHttpHost({ cwd: layout.agents.assistant, dataDir, layout, appRoot: process.cwd(), bridgeFactory, routineClock: false });
 const server = await createServer({ ...config, configFile: false, server: { host: '127.0.0.1', port, strictPort: true },
-  plugins: [...config.plugins.filter(plugin => plugin.name !== 'agentcanvas-pi-runtime'), { name: 'task-flow-test-host', configureServer(server) { server.middlewares.use((req, res, next) => {
-    if (!req.url?.startsWith('/__agentcanvas/pi')) return next(); void host.handle(req, res).then(handled => { if (!handled) next(); }).catch(next);
+  plugins: [...config.plugins.filter(plugin => plugin.name !== 'agentcanvas-pi-runtime'), { name: 'task-flow-test-host',
+  transformIndexHtml(html) { return html.replace('<title>RaytoneBot</title>', '<title>RaytoneBot · 验收演示</title>').replace('<body>', '<body><aside role="status" style="position:fixed;top:0;left:0;right:0;z-index:2147483647;padding:6px;background:#ffe08a;color:#241a00;text-align:center;font:14px sans-serif;pointer-events:none">验收演示：固定回复，不调用模型 API。真实本地服务请使用 127.0.0.1:5188。</aside>'); },
+  configureServer(server) { server.middlewares.use((req, res, next) => {
+    if (!req.url?.startsWith('/__agentcanvas/pi')) return next();
+    if (req.method === 'POST' && req.url?.split('?')[0] === '/__agentcanvas/pi/providers') {
+      res.statusCode = 409; res.setHeader('content-type', 'application/json');
+      res.end(JSON.stringify({ error: '验收演示不保存真实模型密钥。请在 http://127.0.0.1:5188/ 配置真实服务。' })); return;
+    }
+    void host.handle(req, res).then(handled => { if (!handled) next(); }).catch(next);
   }); } }] });
 await server.listen();
 writeFileSync('output/task-flow-2026-10-29/test-env.json', JSON.stringify({ root, dataDir, workRoot: join(root, 'workspace') }, null, 2));

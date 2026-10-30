@@ -1,0 +1,15 @@
+{
+  "url": "https://5188-id705on7k0a1ya1d90icj.agentsphere.run",
+  "version": "3fa24de",
+  "conversationId": "sandbox_connection_check_1793349658732",
+  "provider": "deepseek",
+  "model": "deepseek-flash",
+  "terminal": [
+    {
+      "type": "run.finished",
+      "status": "success"
+    }
+  ],
+  "reply": "连接正常",
+  "toolCalls": 0
+}
