@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
 
-import { createPiHttpHost, type PiBridgeFactory } from "./piHost.ts";
+import { createPiHttpHost, type PiBridgeFactory, type PiRuntimeController } from "./piHost.ts";
 import { createRoutineService, cronMatches, cronProblem } from "./routines.ts";
 import type { RoutineView } from "./routineTypes.ts";
 import { ROUTINE_HISTORY_LIMIT } from "./routineTypes.ts";
@@ -108,6 +108,88 @@ test("cron schedules are five fields within range", () => {
   for (const bad of ["0 9 * *", "60 9 * * *", "0 24 * * *", "0 9 0 * *", "0 9 * 13 *", "0 9 * * 8", "a 9 * * *", "5-1 * * * *", "*/0 * * * *"]) {
     assert.ok(cronProblem(bad), bad);
   }
+});
+
+test("a scheduled time missed across restart is visible without replaying it", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-missed-"));
+  let at = new Date("2026-10-09T00:58:00Z");
+  let calls = 0;
+  const runtime = { configure: async () => ({} as never), getConversation: () => undefined,
+    runPrompt: async () => { calls++; } };
+  const create = () => createRoutineService({ dataDir, runtime, permissionMode: "request", now: () => at });
+  try {
+    let service = create();
+    const routine = service.create({ ...request, fromConversationId: "chat", model: { definition, model: "flash" } });
+    service.update(routine.id, { enabled: true });
+    at = new Date("2026-10-09T01:10:00Z");
+    service = create();
+    await service.tick();
+    assert.equal(calls, 0);
+    assert.deepEqual(service.list()[0].lastSkipped, { at: Date.parse("2026-10-09T01:00:00Z"), detectedAt: at.getTime(), reason: "offline" });
+    assert.equal(create().list()[0].lastSkipped?.reason, "offline");
+    service.update(routine.id, { enabled: false });
+    at = new Date("2026-10-12T01:10:00Z");
+    await service.tick();
+    assert.equal(service.list()[0].lastSkipped?.at, Date.parse("2026-10-09T01:00:00Z"), "disabled time is not a missed schedule");
+  } finally { rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("a scheduled run refused for capacity is recorded as not run, without queueing or failure count", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-routine-capacity-"));
+  let at = new Date("2026-10-09T00:58:30Z"), calls = 0;
+  const service = createRoutineService({ dataDir, permissionMode: "request", now: () => at, runtime: {
+    configure: async () => ({}), getConversation: () => undefined,
+    runPrompt: async () => { calls++; throw new Error("4 conversations are already running. Wait for one to finish or stop it."); },
+  } as unknown as PiRuntimeController });
+  try {
+    const routine = service.create({ ...request, fromConversationId: "chat", model: { definition, model: "flash" } });
+    service.update(routine.id, { enabled: true });
+    at = new Date("2026-10-09T01:00:00Z");
+    await service.tick();
+    assert.deepEqual(service.list()[0].lastSkipped, { at: at.getTime(), detectedAt: at.getTime(), reason: "busy" });
+    assert.equal(service.list()[0].failures, 0);
+    assert.equal(service.list()[0].lastRun, undefined);
+    await service.tick();
+    assert.equal(calls, 1, "no automatic retry when capacity frees up");
+  } finally { rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("an externally accepted scheduled occurrence is not reported as missed after restart", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-routine-accepted-clock-"));
+  const bridge = engine();
+  const api = await hostFor(dataDir, bridge);
+  let at = new Date("2026-10-09T00:58:00Z");
+  const clock = () => createRoutineService({ dataDir, runtime: api.host.controller, permissionMode: "request", now: () => at });
+  try {
+    const routine = await createFromChat(api, bridge);
+    let service = clock();
+    service.update(routine.id, { enabled: true });
+    at = new Date("2026-10-09T01:00:00Z");
+    await service.run(routine.id, "at-20261009T0100Z");
+    await until(() => service.list()[0].lastRun?.status === "success");
+    at = new Date("2026-10-09T01:10:00Z");
+    service = clock();
+    await service.tick();
+    assert.equal(service.list()[0].lastSkipped, undefined);
+    assert.equal(bridge.calls.length, 2, "accepted occurrence is not replayed");
+  } finally { await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("unreadable occurrence history cannot stop the routine clock or invent a missed status", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-routine-unreadable-clock-"));
+  let at = new Date("2026-10-09T00:58:00Z");
+  const logs: string[] = [];
+  const runtime = { configure: async () => ({}), getConversation: () => { throw new Error("Saved conversation could not be read"); } } as unknown as PiRuntimeController;
+  const clock = () => createRoutineService({ dataDir, runtime, permissionMode: "request", now: () => at, log: event => logs.push(event) });
+  try {
+    let service = clock();
+    const routine = service.create({ ...request, fromConversationId: "chat", model: { definition, model: "flash" } });
+    service.update(routine.id, { enabled: true });
+    at = new Date("2026-10-09T01:10:00Z"); service = clock();
+    await assert.doesNotReject(service.tick());
+    assert.equal(service.list()[0].lastSkipped, undefined);
+    assert.ok(logs.includes("routine.clock_history_failed"));
+  } finally { rmSync(dataDir, { recursive: true, force: true }); }
 });
 
 test("cron matches the minute in the routine's own timezone", () => {

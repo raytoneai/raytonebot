@@ -21,6 +21,8 @@ export { cronMatches, cronProblem } from "../runtime/routineSchedule.ts";
  */
 
 export type Routine = Omit<RoutineView, "model" | "nextRunAt"> & {
+  /** Persist the next expected time, so restart can report a missed schedule without replaying it. */
+  nextScheduledAt?: number;
   /** The model service of the turn that created it; definitions hold no secrets. */
   model?: ChannelModel;
   locale?: AppLocale;
@@ -71,6 +73,8 @@ export class RoutineStore {
       && typeof routine.enabled === "boolean" && Number.isFinite(routine.createdAt) && Number.isFinite(routine.failures)
       && typeof routine.conversationId === "string" && (routine.occurrences === undefined || Array.isArray(routine.occurrences) && routine.occurrences.every(id => typeof id === "string"))
       && (routine.revision === undefined || Number.isSafeInteger(routine.revision) && routine.revision >= 0)
+      && (routine.nextScheduledAt === undefined || Number.isFinite(routine.nextScheduledAt))
+      && (routine.lastSkipped === undefined || Number.isFinite(routine.lastSkipped.at) && Number.isFinite(routine.lastSkipped.detectedAt) && ["offline", "busy"].includes(routine.lastSkipped.reason))
       && (routine.lastRun === undefined || validRun(routine.lastRun))
       && (routine.history === undefined || Array.isArray(routine.history) && routine.history.every(validRun))));
     this.error = loaded.error;
@@ -113,7 +117,7 @@ export class RoutineStore {
   }
 }
 
-export function routineView({ model, locale: _locale, occurrences: _occurrences, ...routine }: Routine): RoutineView {
+export function routineView({ model, locale: _locale, occurrences: _occurrences, nextScheduledAt: _nextScheduledAt, ...routine }: Routine): RoutineView {
   return { ...routine, revision: routine.revision ?? 0, ...(model ? { model: { provider: model.definition.id, model: model.model } } : {}) };
 }
 
@@ -131,6 +135,7 @@ const OCCURRENCE_MEMORY = 500;
 /** Refusals that are not the routine's fault: they never count towards switching it off. */
 const BUSY = /already|in progress|Stop this conversation/i;
 const MINUTE = 60_000;
+const scheduledOccurrenceId = (at: number) => `at-${new Date(at).toISOString().slice(0, 16).replace(/[-:]/g, "")}Z`;
 /** Checked twice a minute, so a step is never more than half a minute late. */
 const CLOCK_INTERVAL = 30_000;
 /** Minutes a late step still covers; anything older counts as slept through. */
@@ -232,6 +237,8 @@ export function createRoutineService(options: {
         ? { ...routine, enabled: true, failures: 0, disabledReason: undefined }
         : patch.enabled === false ? { ...routine, enabled: false } : routine;
       if (editing) next = { ...next, ...definition(patch), revision: (routine.revision ?? 0) + 1 };
+      if (editing || next.enabled !== routine.enabled) next.nextScheduledAt = next.enabled
+        ? nextCronOccurrence(next.schedule, next.timezone, Math.floor(now().getTime() / MINUTE) * MINUTE - 1) : undefined;
       store.put(next);
       return viewOf(next);
     },
@@ -329,13 +336,43 @@ export function createRoutineService(options: {
     const current = Math.floor(now().getTime() / MINUTE);
     const from = Math.max(checked + 1, current - CLOCK_LOOKBACK + 1);
     checked = Math.max(checked, current);
+    for (const routine of store.list()) {
+      if (!routine.enabled) continue;
+      const due = routine.nextScheduledAt;
+      if (due === undefined || due <= current * MINUTE) {
+        let missed = due;
+        // External schedulers share occurrence identities with this clock. Accepted work is
+        // not a missed occurrence, even if the host clock had not advanced before restart.
+        if (missed !== undefined && missed < from * MINUTE) {
+          let conversation: ReturnType<PiRuntimeController["getConversation"]>;
+          try { conversation = options.runtime.getConversation(routine.conversationId); }
+          catch {
+            options.log?.("routine.clock_history_failed", { routineId: routine.id });
+            continue; // Unknown history is neither a missed occurrence nor permission to replay.
+          }
+          const turns = conversation?.turns ?? [];
+          while (missed !== undefined && missed < from * MINUTE) {
+            const occurrence = scheduledOccurrenceId(missed);
+            if (!routine.occurrences?.includes(occurrence) && !turns.some(turn => turn.runId === `routine_${routine.id}_${occurrence}`)) break;
+            missed = nextCronOccurrence(routine.schedule, routine.timezone, missed);
+          }
+        }
+        record({ ...routine, nextScheduledAt: nextCronOccurrence(routine.schedule, routine.timezone, current * MINUTE),
+          ...(missed !== undefined && missed < from * MINUTE ? { lastSkipped: { at: missed, detectedAt: now().getTime(), reason: "offline" as const } } : {}) });
+      }
+    }
     const runs: Promise<unknown>[] = [];
     for (let minute = from; minute <= current; minute += 1) {
       const at = new Date(minute * MINUTE);
       for (const routine of store.list()) {
         if (!routine.enabled || !cronMatches(routine.schedule, routine.timezone, at)) continue;
-        const occurrenceId = `at-${at.toISOString().slice(0, 16).replace(/[-:]/g, "")}Z`;
+        const occurrenceId = scheduledOccurrenceId(at.getTime());
         runs.push(service.run(routine.id, occurrenceId).catch((failure: unknown) => {
+          const message = failure instanceof Error ? failure.message : String(failure);
+          const currentRoutine = store.get(routine.id);
+          if (currentRoutine && BUSY.test(message) && !/already (run|been submitted)\b/i.test(message)) {
+            record({ ...currentRoutine, lastSkipped: { at: at.getTime(), detectedAt: now().getTime(), reason: "busy" } });
+          }
           // Refusals (busy, already run, switched off) are expected; failures are already on the routine.
           options.log?.("routine.clock_skipped", { routineId: routine.id, occurrenceId, error: failure instanceof Error ? failure.message : String(failure) });
         }));

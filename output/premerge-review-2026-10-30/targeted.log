@@ -1,0 +1,45 @@
+✔ conversation lists expose the latest result and its source after restart, without treating a new run as finished (2.036125ms)
+✔ conversations survive a new store instance (a server restart) (1.617708ms)
+✔ ids cannot escape the store directory (0.438ms)
+✔ creating more than 200 conversations never silently deletes history (42.855ms)
+✔ unreadable history is reported alongside healthy records and cannot be overwritten as a new conversation (1.760833ms)
+✔ failed writes do not publish new conversation metadata or native session bindings to the cache (0.954667ms)
+✔ browsing and searching old history cannot evict buffered events from concurrent conversations (16.339208ms)
+✔ failed writes discard buffered metadata even after other histories displace saved bodies (10.1765ms)
+✔ an evicted transcript's read failure also invalidates its warm summary until repair (10.443292ms)
+✔ cron schedules are five fields within range (0.589791ms)
+✔ a scheduled time missed across restart is visible without replaying it (6.702667ms)
+✔ a scheduled run refused for capacity is recorded as not run, without queueing or failure count (2.539125ms)
+✔ an externally accepted scheduled occurrence is not reported as missed after restart (105.780791ms)
+✔ unreadable occurrence history cannot stop the routine clock or invent a missed status (1.394458ms)
+✔ cron matches the minute in the routine's own timezone (0.180083ms)
+✔ the host's clock runs an enabled routine once per matching minute and never catches up (39.328041ms)
+✔ a routine created in chat is saved switched off, with the turn's model and no secret (28.761875ms)
+✔ a scheduled occurrence runs once as Raer in the routine's conversation, also after a restart (36.941916ms)
+✔ a run held for an approval shows as waiting on the user until it is answered (30.549ms)
+✔ a busy routine refuses a second occurrence instead of queueing it, and a restart marks it interrupted (34.726125ms)
+✔ two failures in a row switch a routine off with the reason; turning it on again resets the count (44.423583ms)
+✔ a routine run cannot create routines, and a deleted routine is gone (31.709292ms)
+✔ without a configured model service nothing is created, and a routine without one never runs on a default model (15.45475ms)
+✔ an accepted occurrence stays done after its conversation is deleted (45.259875ms)
+✔ an accepted occurrence stays done after its conversation is reset (45.858917ms)
+✔ a model configuration failure counts towards switching the routine off (19.462125ms)
+✔ a failed disk while recording a finished run is logged and leaves the host running (81.852459ms)
+✔ routine definitions validate and compare revisions without changing model, identity or enabled state (22.522292ms)
+✔ routine edits are blocked before acceptance and while running, and failed saves are atomic (29.466458ms)
+✔ routine history is bounded, persists message anchors and preserves accepted occurrence deduplication (330.867792ms)
+✔ only the viewed result is read; a later result and an unresolved approval stay visible (0.365791ms)
+✔ configuration failures offer the right destination only for the latest turn (0.82825ms)
+✔ tool authentication failures keep their owning connection instead of opening model settings (0.894333ms)
+✔ continuing an accepted task asks to check progress; an unaccepted prompt is preserved exactly (0.109334ms)
+✔ a successful retry clears the resolved connection failure but leaves other failures actionable (0.337042ms)
+✔ an old visible window cannot replace the newer result read in another window (0.414ms)
+✔ equal and backward host timestamps cannot undo another result's read state (0.373333ms)
+ℹ tests 37
+ℹ suites 0
+ℹ pass 37
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 2864.827375

@@ -1,5 +1,8 @@
 import { useLearning } from "./runtime/useLearning";
 import { useVault } from "./runtime/useVault";
+import { activityKey, attentionLabel, conversationActivity, conversationAttention, type AttentionStatus, type ConversationActivity } from "./runtime/conversationActivity";
+import { useAttentionRead } from "./runtime/useAttentionRead";
+import { useTaskRecovery } from "./runtime/useTaskRecovery";
 import { useAppViewport } from "./runtime/useAppViewport";
 import { useCompactDrawer } from "./runtime/useCompactDrawer";
 import { artifactTimestamps } from "./runtime/artifactCatalog";
@@ -254,6 +257,9 @@ export function AgentApp() {
   const [historyProblems, setHistoryProblems] = useState<Record<string, "failed" | "missing" | "incomplete" | undefined>>({});
   const [followProblems, setFollowProblems] = useState<Record<string, HistoryNotice | undefined>>({});
   const [historyListFailed, setHistoryListFailed] = useState(false);
+  const [conversationSummaries, setConversationSummaries] = useState<StoredConversationSummary[]>([]);
+  const summaryRequest = useRef(0);
+  const attentionRead = useAttentionRead();
   const [sourceNotice, setSourceNotice] = useState<{ conversationId: string; message: string }>();
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
   const [runOutcome, setRunOutcome] = useState<RunOutcomeFace>();
@@ -270,13 +276,15 @@ export function AgentApp() {
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("providers");
   const [settingsBotId, setSettingsBotId] = useState<string>();
-  const openSettings = (section: SettingsSectionId = "providers", botId?: string) => {
+  const [settingsRoutineId, setSettingsRoutineId] = useState<string>();
+  const openSettings = (section: SettingsSectionId = "providers", botId?: string, routineId?: string) => {
     settingsFromDrawer.current = drawerOpen;
     settingsOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSettingsMounted(true);
     setDrawerOpen(false);
     setSettingsSection(section);
     setSettingsBotId(botId);
+    setSettingsRoutineId(routineId);
     setSettingsOpen(true);
   };
   const [themePreset, setThemePreset] = useState<ThemePresetId>(() =>
@@ -409,7 +417,7 @@ export function AgentApp() {
     return config.providerDefinition && config.model ? { definition: config.providerDefinition, model: config.model } : undefined;
   }, [configuredProject]);
   const imChannels = useImChannels(settingsOpen && Boolean(piRuntimeState), channelModel);
-  const routines = useRoutines(settingsOpen && Boolean(piRuntimeState));
+  const routines = useRoutines(Boolean(piRuntimeState) && !streamId, settingsOpen);
   const mcpServers = useMcpServers((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
   const memories = useMemories(settingsOpen && Boolean(piRuntimeState));
   const skills = useSkills((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
@@ -587,8 +595,12 @@ export function AgentApp() {
 
   // Conversations saved by the host (earlier visits, other browsers, before a restart) appear in
   // the sidebar at once; their transcripts load when opened.
-  const syncStoredConversations = () => listStoredConversations()
+  const syncStoredConversations = () => {
+    const request = ++summaryRequest.current;
+    return listStoredConversations()
     .then(({ conversations: stored, unreadable }) => {
+      if (request !== summaryRequest.current) return;
+      setConversationSummaries(stored);
       setHistoryListFailed(unreadable.length > 0);
       const stubs = stored.filter((entry) => entry.eventCount > 0).map(storedStub);
       setPiConversations((current) => {
@@ -611,14 +623,18 @@ export function AgentApp() {
       setAwaitingConversationIds((current) => stored.reduce((next, entry) => entry.awaitingUser ? toggleIn(next, entry.id, true)
         : !entry.running ? toggleIn(next, entry.id, false) : next, current));
     })
-    .catch(() => setHistoryListFailed(true));
+    .catch(() => { if (request === summaryRequest.current) setHistoryListFailed(true); });
+  };
   const syncStoredRef = useRef(syncStoredConversations);
   syncStoredRef.current = syncStoredConversations;
   useEffect(() => {
     void syncStoredRef.current();
     // While the page is open, runs the host starts on its own appear within a quarter minute.
     const timer = window.setInterval(() => { if (document.visibilityState === "visible") void syncStoredRef.current(); }, 15_000);
-    return () => window.clearInterval(timer);
+    const focused = () => { if (document.visibilityState === "visible") void syncStoredRef.current(); };
+    window.addEventListener("focus", focused);
+    document.addEventListener("visibilitychange", focused);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", focused); document.removeEventListener("visibilitychange", focused); };
   }, []);
 
   useEffect(() => {
@@ -870,7 +886,7 @@ export function AgentApp() {
     return next;
   };
 
-  async function submitToPi(prompt: string, context?: ComposerSubmitContext, target = activePiConversation,
+  async function submitToPi(prompt: string, context?: ComposerSubmitContext & { requestId?: string }, target = activePiConversation,
     queued?: { requestId: string; agentPreset: AgentPresetId; artifactSubmission?: import("./runtime/artifactForm").ArtifactSubmission }) {
     if (runningConversationIds.has(target.id)) return false;
     const normalizedPrompt = prompt.trim();
@@ -898,7 +914,7 @@ export function AgentApp() {
     const showIfActive = (conversation: EphemeralPiConversation) => {
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
     };
-    const runId = queued?.requestId ?? "pi_export_" + crypto.randomUUID();
+    const runId = queued?.requestId ?? context?.requestId ?? "pi_export_" + crypto.randomUUID();
     messageSubmissions.current.set(runId, { prompt: normalizedPrompt, attachments: (context?.attachments ?? [])
       .map((file, index) => ({ ...file, id: context?.draftSnapshot?.attachmentIds[index] ?? crypto.randomUUID() })) });
     liveRunIds.current.add(runId);
@@ -1513,6 +1529,54 @@ export function AgentApp() {
     permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
     budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
   } satisfies ComposerRunOptions;
+  const recovery = useTaskRecovery({ conversation: activePiConversation, enabled: !streamId && !historyMessage, running: piRunning, zh: locale === "zh",
+    submissions: messageSubmissions.current,
+    isCurrent: id => activeConversationIdRef.current === id && !activeStreamIdRef.current,
+    configure: destination => destination === "browser" ? showBrowser() : openSettings(destination, activeBot.id),
+    submit: async (draft, conversation, requestId) => {
+      const current = composer.drafts[conversation.id];
+      const sameDraft = current?.prompt === draft.prompt && current.attachments.length === draft.attachments.length
+        && current.attachments.every(file => draft.attachments.some(original => original.id === file.id));
+      await submitToPi(draft.prompt, { ...composerRunOptions, requestId, attachments: draft.attachments,
+        ...(sameDraft ? { draftSnapshot: { prompt: current.prompt, attachmentIds: current.attachments.map(file => file.id) } } : {}) }, conversation);
+    },
+  });
+  type AttentionEntry = { status: AttentionStatus; conversationId: string; botId: string; activity?: ConversationActivity; routineId?: string; token?: string };
+  const attentionEntries = new Map<string, AttentionEntry>();
+  for (const conversation of piConversations) {
+    const summary = conversationSummaries.find(row => row.id === conversation.id);
+    const activity = summary && summary.eventCount > conversation.events.length ? summary.activity : conversationActivity(conversation.events);
+    const live = runningConversationIds.has(conversation.id) || Boolean(summary?.running && (summary.eventCount > conversation.events.length || !activity));
+    const status = conversationAttention({ activity, running: live, awaitingUser: live && (awaitingConversationIds.has(conversation.id)
+      || Boolean(summary?.awaitingUser && summary.eventCount > conversation.events.length)) }, attentionRead.seen[conversation.id]);
+    if (status) attentionEntries.set(conversation.id, { status, conversationId: conversation.id, activity,
+      botId: conversation.groupHostId ?? conversationBotId(botStore, conversation) ?? conversation.agentPreset ?? "assistant" });
+  }
+  for (const routine of routines.routines ?? []) {
+    const missed = routine.lastSkipped && routine.lastSkipped.at > (routine.lastRun?.at ?? 0) ? routine.lastSkipped : undefined;
+    const failed = routine.lastRun?.status === "interrupted" || routine.lastRun?.status === "error" && !routine.lastRun.runId ? routine.lastRun : undefined;
+    if (!missed && !failed) continue;
+    const token = JSON.stringify(missed ?? failed);
+    if (attentionRead.seen[`routine:${routine.id}`]?.includes(token) || attentionEntries.get(routine.conversationId)?.status === "needs-you") continue;
+    attentionEntries.set(routine.conversationId, { conversationId: routine.conversationId, botId: routine.botId ?? "assistant",
+      routineId: routine.id, token, status: missed ? "missed" : "error" });
+  }
+  const openAttention = (entry: AttentionEntry) => {
+    setDrawerOpen(false);
+    if (entry.routineId) openSettings("routines", entry.botId, entry.routineId);
+    else openStoredConversation(entry.conversationId, entry.activity);
+  };
+  const attentionPriority: AttentionStatus[] = ["needs-you", "error", "missed", "new-result", "running"];
+  const botAttention: Record<string, { status: AttentionStatus; label: string; onOpen(): void }> = {};
+  for (const bot of bots) {
+    const entries = [...attentionEntries.values()].filter(entry => entry.botId === bot.id && entry.status !== "running")
+      .sort((a, b) => attentionPriority.indexOf(a.status) - attentionPriority.indexOf(b.status) || (b.activity?.at ?? 0) - (a.activity?.at ?? 0));
+    if (entries.length) botAttention[bot.id] = { status: entries[0].status,
+      label: `${attentionLabel(entries[0].status, locale === "zh")}${entries.some(entry => entry.status !== entries[0].status) ? (locale === "zh" ? "等" : " + others") : ""}${entries.length > 1 ? ` · ${entries.length}` : ""}`,
+      onOpen: () => openAttention(entries[0]) };
+  }
+  const visibleActivity = !streamId && !historyMessage && !settingsOpen && !outputModalOpen && !workspaceModalOpen && !botDraft && !(compact && drawerOpen)
+    ? conversationActivity(events) : undefined;
   const workingMember = isGroupConversation(activePiConversation) ? workingGroupMember(events) : undefined;
   const botEditor: BotEditorState | undefined = botDraft ? {
     ...botDraft, models: configuredProject.providers.connections.filter(p => p.enabled).flatMap(p => [...new Set([p.defaultModel, ...p.models])].map(model => ({ provider: p.id, model, label: `${p.label} / ${model}` }))), mcpServers: mcpServers.servers, skills: skills.state?.skills, error: botError ?? botLoadError, saving: botSaving, ready: botRevision !== undefined,
@@ -1531,6 +1595,12 @@ export function AgentApp() {
     },
   } : undefined;
   const shellExtras: ShellExtras = {
+    taskRecovery: recovery,
+    resultRead: visibleActivity ? { key: `${activePiConversationId}:${activityKey(visibleActivity)}`,
+      onVisible: () => attentionRead.mark(activePiConversationId, activityKey(visibleActivity)) } : undefined,
+    sessionAttention: streamId ? undefined : Object.fromEntries([...attentionEntries].map(([id, entry]) => [id, { status: entry.status,
+      label: attentionLabel(entry.status, locale === "zh"), onOpen: () => openAttention(entry) }])),
+    attentionUnavailable: !streamId && (historyListFailed || Boolean(routines.error)) ? (locale === "zh" ? "任务状态暂未更新，请检查连接" : "Task status is unavailable. Check the connection.") : undefined,
     artifactCatalog: streamId ? undefined : { conversationId: activePiConversationId, conversationTitle: activePiConversation.title,
       timestamps: artifactTimes, openSource: entry => openStoredConversation(entry.conversationId, { artifactId: entry.artifactId }) },
     chatReferences: streamId ? undefined : piConversations.filter(c => c.id !== activePiConversationId && c.stored && !c.id.includes(".m.")).map(c => ({ id: c.id, title: c.title })),
@@ -1577,6 +1647,7 @@ export function AgentApp() {
         onEditBot={streamId ? undefined : editBot}
         activeId={agentSettings.presetId}
         statuses={agentStatuses}
+        attention={streamId ? undefined : botAttention}
         harnesses={piRuntimeState?.harnesses}
         onSelect={startConversationWith}
         groupActive={isGroupConversation(activePiConversation)}
@@ -1913,7 +1984,12 @@ export function AgentApp() {
               }}
               initialSection={settingsSection}
               initialBotId={settingsBotId}
+              initialRoutineId={settingsRoutineId}
               initialMemoryScope={settingsBotId ? { kind: "bot", id: settingsBotId } : undefined}
+              onInspectRoutine={id => {
+                const entry = [...attentionEntries.values()].find(entry => entry.routineId === id);
+                if (entry?.token) attentionRead.mark(`routine:${id}`, entry.token);
+              }}
             project={activeProject}
             providerSettingsStatus={providerSettingsStatus}
             runtime={piRuntimeState}

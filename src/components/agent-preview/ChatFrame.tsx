@@ -9,7 +9,7 @@ const GROUP_AUTHORS: Record<string, { kind: AvatarKind; name: string }> = {
 // Tool and artifact ids are wrapped as JSON [runId, field, id] by replayIdentity, so match inside too.
 const itemAuthor = (item: AgentUXTimelineItem) => /(?:^|")(assistant|planner|builder|dsh|bot_[a-f0-9-]{36})~/.exec(String(item.id))?.[1];
 import { useShellExtras } from "../shell/ShellExtras";
-import { cloneElement, type ReactElement } from "react";
+import { cloneElement, useEffect, useRef, type ReactElement } from "react";
 import { useTranscriptScroll } from "../../runtime/useTranscriptScroll";
 
 import { StateIcon, errorDomainSlot, incidentSlot, runtimeOpSlot, useIconSet, type IconSlot } from "../../agentmatrix";
@@ -67,8 +67,18 @@ export function ChatFrame({
   const copy = useCopy();
   const promptHistory = previewPrompts?.filter((prompt) => prompt.trim().length > 0);
 
-  const { headerAgent, transcriptScroll, transcriptTarget, groupTyping, groupHostId, composerActivity } = useShellExtras();
+  const { headerAgent, transcriptScroll, transcriptTarget, groupTyping, groupHostId, composerActivity, taskRecovery, resultRead } = useShellExtras();
   const listRef = useTranscriptScroll(viewModel.timeline, transcriptScroll, transcriptTarget);
+  const resultEnd = useRef<HTMLSpanElement>(null);
+  useEffect(() => {
+    if (!resultRead || !resultEnd.current || !listRef.current) return;
+    let visible = false;
+    const mark = () => { if (visible && document.visibilityState === "visible") resultRead.onVisible(); };
+    const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); mark(); }, { root: listRef.current });
+    observer.observe(resultEnd.current);
+    document.addEventListener("visibilitychange", mark);
+    return () => { observer.disconnect(); document.removeEventListener("visibilitychange", mark); };
+  }, [resultRead?.key, resultRead?.onVisible]);
   return (
     <section
       className="chat-frame"
@@ -103,6 +113,13 @@ export function ChatFrame({
           )
         )}
         {groupTyping && !composerActivity ? <GroupTypingRow member={groupTyping} /> : null}
+        {taskRecovery ? <div className="task-recovery" data-preview-anchor="task-recovery">
+          <p>{taskRecovery.message}</p>
+          <div><button type="button" disabled={taskRecovery.busy} onClick={taskRecovery.configure}>{taskRecovery.configureLabel}</button>
+            {taskRecovery.ready ? <button type="button" disabled={taskRecovery.busy} onClick={() => void taskRecovery.resume()}>{taskRecovery.continueLabel}</button> : null}</div>
+          {taskRecovery.error ? <p role="status">{taskRecovery.error}</p> : null}
+        </div> : null}
+        {resultRead ? <span ref={resultEnd} className="result-read-marker" aria-hidden="true" /> : null}
       </div>
     </section>
   );

@@ -112,6 +112,8 @@ export type SettingsDialogProps = {
   vault?: VaultSettingsState;
   /** Opens a routine's conversation and closes the dialog. */
   onOpenConversation?: (conversationId: string, target?: Pick<RoutineRun, "runId" | "textId">) => void;
+  initialRoutineId?: string;
+  onInspectRoutine?: (id: string) => void;
 };
 
 export function SettingsDialog(props: SettingsDialogProps) {
@@ -194,7 +196,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </fieldset> : null}
               {section === "permissions" ? <PermissionsSection {...props} t={t} /> : null}
               {section === "channels" && props.imChannels ? <ChannelsSection t={t} state={props.imChannels} /> : null}
-              {section === "routines" && props.routines ? <RoutinesSection key={props.initialBotId ?? "all"} t={t} state={props.routines} initialBotId={props.initialBotId} onOpenConversation={props.onOpenConversation}
+              {section === "routines" && props.routines ? <RoutinesSection key={`${props.initialBotId ?? "all"}:${props.initialRoutineId ?? ""}`} t={t} state={props.routines} initialBotId={props.initialBotId} initialRoutineId={props.initialRoutineId} onInspect={props.onInspectRoutine} onOpenConversation={props.onOpenConversation}
                 drafts={routineDrafts} onDraft={(id, draft) => setRoutineDrafts(current => ({ ...current, [id]: draft }))} /> : null}
               {section === "mcp" && props.mcpServers ? <McpSection t={t} state={props.mcpServers} /> : null}
               {section === "mcp" && props.skills ? <SkillsSection state={props.skills} /> : null}
@@ -826,15 +828,16 @@ function CopyButton({ t, value }: { t: { copy: string; copied: string }; value: 
   );
 }
 
-function RoutinesSection({ t, state, initialBotId, onOpenConversation, drafts, onDraft }: {
+function RoutinesSection({ t, state, initialBotId, initialRoutineId, onInspect, onOpenConversation, drafts, onDraft }: {
   t: SettingsCopy; state: RoutinesState; initialBotId?: string; onOpenConversation?: SettingsDialogProps["onOpenConversation"];
+  initialRoutineId?: string; onInspect?: (id: string) => void;
   drafts: Record<string, RoutineDefinitionPatch | undefined>; onDraft: (id: string, draft?: RoutineDefinitionPatch) => void;
 }) {
   const botNames = useBotNames();
   const { locale } = useLocale();
   const [botId, setBotId] = useState(initialBotId ?? "all");
   const filtered = state.routines?.filter(routine => botId === "all" || (routine.botId ?? "assistant") === botId);
-  const [expanded, setExpanded] = useState<string | undefined>(() => Object.keys(drafts).find(id => drafts[id]));
+  const [expanded, setExpanded] = useState<string | undefined>(() => initialRoutineId ?? Object.keys(drafts).find(id => drafts[id]));
   return (
     <>
       <p className="settings-intro">{t.routines.intro.replaceAll("{assistant}", botNames.assistant)}</p>
@@ -853,6 +856,8 @@ function RoutinesSection({ t, state, initialBotId, onOpenConversation, drafts, o
             onDraft={draft => onDraft(routine.id, draft)}
             state={state}
             open={expanded === routine.id}
+            locate={initialRoutineId === routine.id}
+            onInspect={onInspect}
             onToggleOpen={() => setExpanded((current) => (current === routine.id ? undefined : routine.id))}
             onOpenConversation={onOpenConversation}
           />
@@ -862,11 +867,13 @@ function RoutinesSection({ t, state, initialBotId, onOpenConversation, drafts, o
   );
 }
 
-function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation, draft, onDraft }: {
+function RoutineRow({ t, routine, state, open, locate, onInspect, onToggleOpen, onOpenConversation, draft, onDraft }: {
   t: SettingsCopy;
   routine: RoutineView;
   state: RoutinesState;
   open: boolean;
+  locate?: boolean;
+  onInspect?: (id: string) => void;
   onToggleOpen: () => void;
   onOpenConversation?: SettingsDialogProps["onOpenConversation"];
   draft?: RoutineDefinitionPatch;
@@ -878,6 +885,18 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
   const [confirming, setConfirming] = useState(false);
   const [allRuns, setAllRuns] = useState(false);
   const [customSchedule, setCustomSchedule] = useState(false);
+  const row = useRef<HTMLDivElement>(null);
+  const detail = useRef<HTMLDivElement>(null);
+  useEffect(() => { if (locate) row.current?.scrollIntoView({ block: "start" }); }, [locate]);
+  useEffect(() => {
+    if (!open || !detail.current || !onInspect) return;
+    let visible = false;
+    const mark = () => { if (visible && document.visibilityState === "visible") onInspect(routine.id); };
+    const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); mark(); });
+    observer.observe(detail.current);
+    document.addEventListener("visibilitychange", mark);
+    return () => { observer.disconnect(); document.removeEventListener("visibilitychange", mark); };
+  }, [open, routine.id, onInspect]);
   const zh = locale === "zh";
   const busy = Boolean(state.busy);
   const failure = state.actionError?.id === routine.id ? state.actionError.message : undefined;
@@ -885,6 +904,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
     ? (draft && draft.revision !== (routine.revision ?? 0)
       ? (zh ? "任务已在其他页面修改，草稿仍保留。请放弃更改后重新编辑，以载入最新内容。" : "This routine changed elsewhere. Your draft is kept. Discard changes and edit again to load the latest version.") : undefined) : failure;
   const last = routine.lastRun;
+  const skipped = routine.lastSkipped && routine.lastSkipped.at > (last?.at ?? 0) ? routine.lastSkipped : undefined;
   const tone = !last ? "muted" : { running: "warn", success: "ok", error: "error", cancelled: "muted", interrupted: "warn" }[last.status];
   const when = last ? new Date(last.at).toLocaleString(locale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : undefined;
   const date = (at: number) => new Date(at).toLocaleString(locale, { timeZone: routine.timezone, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
@@ -908,7 +928,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
   };
 
   return (
-    <div className="settings-provider" data-open={open}>
+    <div ref={row} className="settings-provider" data-open={open}>
       <div className="settings-row routine-row-header">
         <ProviderMark label={routine.title} />
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
@@ -918,7 +938,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
             <span title={routine.schedule}>{routineScheduleLabel(routine.schedule, locale)}</span><span>{routine.timezone}</span>
           </span>
         </button>
-        <span className="settings-key-pill" data-tone={last?.waiting ? "warn" : tone}><Dot />{last?.waiting ? c.waiting : last ? c.status[last.status] : c.neverRun}</span>
+        <span className="settings-key-pill" data-tone={last?.waiting || skipped ? "warn" : tone}><Dot />{last?.waiting ? c.waiting : skipped ? (zh ? "未运行" : "Not run") : last ? c.status[last.status] : c.neverRun}</span>
         <Switch
           size="sm"
           aria-label={`${routine.title} ${c.enable}`}
@@ -931,7 +951,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
         </button>
       </div>
       {open ? (
-        <div className="settings-provider-editor">
+        <div ref={detail} className="settings-provider-editor">
           {draft ? <form className="routine-edit-form" onSubmit={async event => { event.preventDefault(); if (!problem && !busy && !running && await state.update(routine.id, draft)) onDraft(); }}>
             <label className="settings-field">{zh ? "名称" : "Name"}<Input value={draft.title} maxLength={80} required disabled={busy} onChange={event => onDraft({ ...draft, title: event.target.value })} /></label>
             <label className="settings-field">{zh ? "任务指令" : "Instructions"}<textarea value={draft.instructions} rows={4} maxLength={4000} required disabled={busy} onChange={event => onDraft({ ...draft, instructions: event.target.value })} /></label>
@@ -953,6 +973,9 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
           <p className="settings-note">{routine.enabled ? routine.nextRunAt ? `${zh ? "下次计划" : "Next planned"} ${date(routine.nextRunAt)} (${routine.timezone})`
             : (zh ? "未来一年内没有匹配的计划时间。" : "No matching time within the next year.") : (zh ? "已停用，不会按时运行。" : "Disabled; scheduled runs are paused.")}</p>
           {when ? <p className="settings-note">{zh ? "最近运行" : "Last run"} {date(last!.at)}</p> : null}
+          {routine.lastSkipped ? <p className="settings-status" data-tone="warn" role="status">{date(routine.lastSkipped.at)} · {routine.lastSkipped.reason === "busy"
+            ? (zh ? "运行资源被占用，本次未运行，未自动补跑。" : "The host was busy. This occurrence was skipped and was not replayed.")
+            : (zh ? "主机未及时检查该计划时间，本次未运行，未自动补跑。" : "The host missed this scheduled time. This occurrence was not replayed.")}</p> : null}
           {routine.disabledReason && !routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{c.switchedOff(routine.disabledReason)}</span> : null}
           {last?.status === "error" && last.error && routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{last.error}</span> : null}
           {last?.waiting ? <span className="settings-status" data-tone="warn" role="status"><Dot />{c.waitingNote}</span> : null}

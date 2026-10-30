@@ -1,0 +1,13 @@
+{
+  "acceptedTurns": 2,
+  "continuationCount": 1,
+  "preservedAttachments": [
+    {
+      "scope": "assistant",
+      "path": "source.txt",
+      "name": "source.txt"
+    }
+  ],
+  "requestId": "continue_24d663f932c3872755270bab7a00371f9563b11e8f52ee3db1f179312d87ff2c",
+  "completed": "run.finished"
+}

@@ -1,4 +1,5 @@
 import type { ConversationSummary, StoredConversation } from "./conversationStore.ts";
+import { conversationActivity } from "../runtime/conversationActivity.ts";
 
 /** Metadata stays available without retaining every transcript. Buffered events may not be evicted. */
 export function createConversationCache() {
@@ -14,7 +15,11 @@ export function createConversationCache() {
     summary: (id: string) => summaries.get(id),
     set(value: StoredConversation, buffered = false) {
       const { events, cliSession: _cli, piSessionId: _pi, turns: _turns, branch: _branch, ...summary } = value;
-      summaries.set(value.id, { ...summary, eventCount: events.length });
+      const previous = summaries.get(value.id);
+      const last = events.at(-1);
+      const activity = buffered && previous && last && !["run.started", "run.finished", "run.error"].includes(last.type)
+        ? previous.activity : conversationActivity(events);
+      summaries.set(value.id, { ...summary, eventCount: events.length, activity });
       clean.delete(value.id);
       pending.delete(value.id);
       (buffered ? pending : clean).set(value.id, value);

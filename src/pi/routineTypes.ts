@@ -30,6 +30,8 @@ export type RoutineView = {
   failures: number;
   disabledReason?: string;
   lastRun?: RoutineRun;
+  /** A due time was skipped, without creating or replaying a turn. */
+  lastSkipped?: { at: number; detectedAt: number; reason: "offline" | "busy" };
   /** Most recent first, at most ROUTINE_HISTORY_LIMIT entries. */
   history?: RoutineRun[];
   model?: { provider: string; model: string };

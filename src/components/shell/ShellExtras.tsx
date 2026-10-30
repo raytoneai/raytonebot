@@ -5,6 +5,8 @@ import type { TranscriptScroll } from "../../runtime/useTranscriptScroll";
 import type { BranchAction } from "../../runtime/useMessageBranch";
 import type { ConversationSearch, SearchSession } from "../../runtime/useConversationSearch";
 import type { useSessionHistoryGroups } from "../../runtime/useSessionHistoryGroups";
+import type { TaskRecoveryActions } from "../../runtime/useTaskRecovery";
+import type { AttentionStatus } from "../../runtime/conversationActivity";
 
 import { AgentAvatar, type AgentPersona, type AvatarKind } from "../../avatars/AgentPersona";
 import { GroupFace } from "../../avatars/GroupFace";
@@ -42,6 +44,10 @@ import { BOT_NAMES, type BotProfile } from "../../runtime/botProfiles";
  * sidebar and header render exactly as exported.
  */
 export type ShellExtras = {
+  taskRecovery?: TaskRecoveryActions;
+  resultRead?: { key: string; onVisible(): void };
+  sessionAttention?: Record<string, { status: AttentionStatus; label: string; onOpen(): void }>;
+  attentionUnavailable?: string;
   artifactCatalog?: ArtifactCatalogContext;
   botEditor?: BotEditorState;
   bots?: readonly BotProfile[];
@@ -164,7 +170,9 @@ export function AgentSwitcher({
   activeBotId,
   onSelectBot,
   onEditBot,
+  attention,
 }: {
+  attention?: Record<string, { status: AttentionStatus; label: string; onOpen(): void }>;
   bots?: readonly BotProfile[];
   activeBotId?: string;
   onSelectBot?: (bot: BotProfile) => void;
@@ -219,6 +227,8 @@ export function AgentSwitcher({
               </span>
             </span>
           </button>
+          {attention?.[bot.id] ? <button type="button" className="shell-agent-attention" data-status={attention[bot.id].status}
+            aria-label={`${bot.name}：${attention[bot.id].label}`} onClick={attention[bot.id].onOpen}>{attention[bot.id].label}</button> : null}
           {onEditBot && bot.appearance ? <button type="button" className="shell-agent-edit" aria-label={`${locale === "zh" ? "编辑" : "Edit"} ${bot.name}`}
             onClick={() => onEditBot(bot as BotProfile)}><Pencil size={14} /></button> : null}
           </div>

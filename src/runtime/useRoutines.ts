@@ -15,10 +15,10 @@ export type RoutinesState = {
 };
 
 /**
- * Routines (ADR-033), read from the host while the settings page is open. Polled there, since
- * runs start and finish on the server; Raer creates them from chat.
+ * Routines (ADR-033) run on the host. Refresh attention in the visible app and poll
+ * more often while settings is open; Raer creates routines from chat.
  */
-export function useRoutines(active: boolean): RoutinesState {
+export function useRoutines(active: boolean, foreground = true): RoutinesState {
   const [routines, setRoutines] = useState<RoutineView[]>();
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState<string>();
@@ -38,9 +38,12 @@ export function useRoutines(active: boolean): RoutinesState {
   useEffect(() => {
     if (!active) return;
     void load();
-    const timer = window.setInterval(() => void load(), 3_000);
-    return () => { window.clearInterval(timer); loadSequence.current++; };
-  }, [active, load]);
+    const refresh = () => { if (document.visibilityState === "visible") void load(); };
+    const timer = window.setInterval(refresh, foreground ? 3_000 : 15_000);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); loadSequence.current++; };
+  }, [active, foreground, load]);
 
   const act = useCallback(async (id: string, action: () => Promise<unknown>) => {
     if (acting.current) return false;

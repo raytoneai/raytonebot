@@ -8,6 +8,7 @@ import { isAgentPresetId, type AgentHarnessId, type AgentPresetId } from "./harn
 import { branchPrefix, ConversationBranchError, validBranchMetadata, type ConversationBranch, type NativeTurnCheckpoint, type StoredTurn } from "./conversationBranch.ts";
 import { matchConversationText, type ConversationTextMatch } from "./conversationSearch.ts";
 import { createConversationCache } from "./conversationCache.ts";
+import { conversationActivity, type ConversationActivity } from "../runtime/conversationActivity.ts";
 
 /**
  * Conversations on disk, so a reload, a server restart or a redeploy keeps the sidebar and
@@ -38,7 +39,7 @@ export type StoredConversation = {
   events: AgentUXEvent[];
 };
 
-export type ConversationSummary = Omit<StoredConversation, "events" | "cliSession" | "piSessionId" | "turns" | "branch"> & { eventCount: number; snippet?: string; textId?: string; matches?: ConversationTextMatch[] };
+export type ConversationSummary = Omit<StoredConversation, "events" | "cliSession" | "piSessionId" | "turns" | "branch"> & { eventCount: number; activity?: ConversationActivity; snippet?: string; textId?: string; matches?: ConversationTextMatch[] };
 
 const ID_PATTERN = /^[a-zA-Z0-9._:-]{1,160}$/;
 
@@ -115,7 +116,7 @@ export function createConversationStore(dataDir = defaultDataDir()) {
         if (!conversation) continue;
         const { events, cliSession: _cliSession, piSessionId: _piSessionId, turns: _turns, branch: _branch, ...summary } = conversation;
         const match = query ? matchConversationText(summary.title, events, query) : {};
-        if (match) summaries.push({ ...summary, eventCount: events.length, ...match });
+        if (match) summaries.push({ ...summary, eventCount: events.length, activity: conversationActivity(events), ...match });
       } catch { unreadable.add(id); }
     }
     return summaries.sort((a, b) => b.updatedAt - a.updatedAt);

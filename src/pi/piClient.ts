@@ -163,6 +163,7 @@ export async function testProviderConnection(
 }
 
 export type StoredConversationSummary = {
+  activity?: import("../runtime/conversationActivity.ts").ConversationActivity;
   botId?: string;
   availableBots?: import("./groupParticipants.ts").GroupParticipant[];
   group?: { members: string[]; participants?: import("./groupParticipants.ts").GroupParticipant[]; hostId?: string; preview?: { author: string; text: string } };
@@ -200,7 +201,7 @@ export async function getStoredConversation(
   id: string,
   fetcher: typeof fetch = fetch,
   signal?: AbortSignal,
-): Promise<StoredConversationSummary & { events: AgentUXEvent[]; incomplete?: boolean; turns?: { runId: string; prompt: string; attachments?: PiPromptAttachment[] }[] }> {
+): Promise<StoredConversationSummary & { events: AgentUXEvent[]; incomplete?: boolean; turns?: { runId: string; prompt: string; attachments?: PiPromptAttachment[]; referencedConversationIds?: string[] }[] }> {
   const timeout = AbortSignal.timeout(15_000);
   return requestJson(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, undefined,
     signal ? AbortSignal.any([signal, timeout]) : timeout);
