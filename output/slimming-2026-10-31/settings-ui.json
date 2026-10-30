@@ -1,0 +1,138 @@
+{
+  "verifiedSince": "2026-10-30T16:22:53.091Z",
+  "draftRetainedAfterSectionSwitch": true,
+  "unsavedCloseGuard": true,
+  "discardRestoredOriginal": true,
+  "settings": [
+    {
+      "name": "IM 频道",
+      "overflow": false,
+      "stateLength": 1715
+    },
+    {
+      "name": "例行任务",
+      "overflow": false,
+      "stateLength": 779
+    },
+    {
+      "name": "MCP 与 Skills",
+      "overflow": false,
+      "stateLength": 936
+    },
+    {
+      "name": "记忆",
+      "overflow": false,
+      "stateLength": 968
+    },
+    {
+      "name": "模型用量",
+      "overflow": false,
+      "stateLength": 758
+    },
+    {
+      "name": "Vault",
+      "overflow": false,
+      "stateLength": 612
+    },
+    {
+      "name": "外观",
+      "overflow": false,
+      "stateLength": 763
+    },
+    {
+      "name": "开发者模式",
+      "overflow": false,
+      "stateLength": 1120
+    },
+    {
+      "name": "关于",
+      "overflow": false,
+      "stateLength": 980
+    },
+    {
+      "name": "模型服务",
+      "overflow": false,
+      "stateLength": 1071
+    }
+  ],
+  "fixtures": [
+    {
+      "name": "Built-in demo",
+      "overflow": false
+    },
+    {
+      "name": "Group chat",
+      "overflow": false
+    },
+    {
+      "name": "Coding agent",
+      "overflow": false
+    },
+    {
+      "name": "Reasoning kinds",
+      "overflow": false
+    },
+    {
+      "name": "Tool approval",
+      "overflow": false
+    },
+    {
+      "name": "Error block",
+      "overflow": false
+    },
+    {
+      "name": "Artifact action",
+      "overflow": false
+    },
+    {
+      "name": "Capability tray",
+      "overflow": false
+    },
+    {
+      "name": "HTML artifact stream",
+      "overflow": false
+    },
+    {
+      "name": "Basic text",
+      "overflow": false
+    },
+    {
+      "name": "Normal turn",
+      "overflow": false
+    },
+    {
+      "name": "Streaming thinking + message",
+      "overflow": false
+    },
+    {
+      "name": "Tool approval + completion",
+      "overflow": false
+    },
+    {
+      "name": "MCP success + interrupt",
+      "overflow": false
+    },
+    {
+      "name": "Runtime boot + sync",
+      "overflow": false
+    },
+    {
+      "name": "Retrying incident",
+      "overflow": false
+    },
+    {
+      "name": "Exhausted incident",
+      "overflow": false
+    },
+    {
+      "name": "Terminal incident",
+      "overflow": false
+    },
+    {
+      "name": "Config, spans, deletion",
+      "overflow": false
+    }
+  ],
+  "errors": [],
+  "priorErrors": "HMR errors occurred during module moves; final reload verified with no module loading errors."
+}

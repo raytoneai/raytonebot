@@ -11,3 +11,12 @@
 - 隔离临时数据/工作区，IAB 390 × 844 欢迎页及 19 个事件场景通过；[结果](cleanup-fixtures.json)，[截图](cleanup-fixture.png)。
 
 保留 `vendor/`、穷举 slot registry、ExportFrame/scaffoldManifest stub、GitPreviewState 类型入口、Pi 事件适配和所有开发场景。修正架构文档中旧视图模型仍在使用的过时说明。未调用真实模型，未部署或推送。
+
+## 第二批：Settings 分区
+
+基线 `9def198`。SettingsDialog 从 1,362 行降至 212 行；各分区仍位于原 owner 目录，最大分区约 250 行。主代理 review 修正多余导出、未使用声明和常量归属，收窄分区 props；24 个迁出函数主体与基线一致。Provider editor/关闭拦截、routineDrafts、routine/memory keys 与 Vault open-only 挂载不变。
+
+- 构建通过；完整测试 642/642；TypeScript 检查所有 settings 模块无未使用声明；diff 检查通过。
+- 桌面实测模型 Base URL 临时草稿在分区切换后保留；关闭出现拦截，继续编辑、放弃恢复原值。没有保存 Provider 配置或调用模型。
+- 390px 全部分区与 20 个场景通过；[UI 记录](settings-ui.json)、[拆分后截图](settings-after.png)。模块移动期间出现过 HMR 导出错误，最终代码重新加载后的 error 为 0。
+- 例行任务草稿跨分区存续由函数主体与 owner 状态位置的对比确认；本次没有新增真实计划任务或验证外部 IM/MCP/Vault 服务。
