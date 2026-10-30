@@ -355,7 +355,6 @@ export function SessionSidebar({
       ) : null}
 
       {extras.botError ? <p className="shell-bot-error" role="alert">{extras.botError}</p> : null}
-      {extras.attentionUnavailable ? <p className="shell-bot-error" role="status">{extras.attentionUnavailable}</p> : null}
       {extras.sidebarFooter ?? (footer ? <p className="session-footer">{footerLabel}</p> : null)}
     </aside>
   );
@@ -519,7 +518,7 @@ function SessionGroup({
   const avatars = useShellExtras().sessionAvatars;
   const groupFaces = useShellExtras().groupFaces;
   const groupPreviews = useShellExtras().groupPreviews;
-  const { bots, sessionBotIds, onEditBot, sessionAttention } = useShellExtras();
+  const { bots, sessionBotIds, onEditBot } = useShellExtras();
   const c = useCopy().workspace.sessionSidebar;
   const pattern = conversationSearchPattern(query ?? "");
   return (
@@ -590,7 +589,7 @@ function SessionGroup({
               data-search-index={row?.index}
               aria-current={active ? "true" : undefined}
               title={preview ? `${title}\n${preview}` : undefined}
-              onClick={() => onSelectResult ? onSelectResult(session) : sessionAttention?.[id] ? sessionAttention[id].onOpen() : onSelect?.(id)}
+              onClick={() => onSelectResult ? onSelectResult(session) : onSelect?.(id)}
             >
               {disclosure ? null : groupFaces?.[id] ? (
                 <span className="session-item-avatar" data-group="true" aria-hidden="true"><GroupFace size={20} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
@@ -600,7 +599,6 @@ function SessionGroup({
               <span className="session-item-label">{preview || title}{role ? <span className="session-search-author"> {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
                 match ? <>{snippet.slice(0, match.index)}<mark>{match[0]}</mark>{snippet.slice(match.index + match[0].length)}</> : snippet
               }</span> : null}</span>
-              {sessionAttention?.[id] ? <span className="session-attention" data-status={sessionAttention[id].status}>{sessionAttention[id].label}</span> : null}
             </button>
             {deletion?.available ? (
               <button type="button" className="session-item-delete" tabIndex={-1} disabled={running}

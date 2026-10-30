@@ -112,8 +112,6 @@ export type SettingsDialogProps = {
   vault?: VaultSettingsState;
   /** Opens a routine's conversation and closes the dialog. */
   onOpenConversation?: (conversationId: string, target?: Pick<RoutineRun, "runId" | "textId">) => void;
-  initialRoutineId?: string;
-  onInspectRoutine?: (id: string) => void;
 };
 
 export function SettingsDialog(props: SettingsDialogProps) {
@@ -196,7 +194,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               </fieldset> : null}
               {section === "permissions" ? <PermissionsSection {...props} t={t} /> : null}
               {section === "channels" && props.imChannels ? <ChannelsSection t={t} state={props.imChannels} /> : null}
-              {section === "routines" && props.routines ? <RoutinesSection key={`${props.initialBotId ?? "all"}:${props.initialRoutineId ?? ""}`} t={t} state={props.routines} initialBotId={props.initialBotId} initialRoutineId={props.initialRoutineId} onInspect={props.onInspectRoutine} onOpenConversation={props.onOpenConversation}
+              {section === "routines" && props.routines ? <RoutinesSection key={props.initialBotId ?? "all"} t={t} state={props.routines} initialBotId={props.initialBotId} onOpenConversation={props.onOpenConversation}
                 drafts={routineDrafts} onDraft={(id, draft) => setRoutineDrafts(current => ({ ...current, [id]: draft }))} /> : null}
               {section === "mcp" && props.mcpServers ? <McpSection t={t} state={props.mcpServers} /> : null}
               {section === "mcp" && props.skills ? <SkillsSection state={props.skills} /> : null}
@@ -828,16 +826,15 @@ function CopyButton({ t, value }: { t: { copy: string; copied: string }; value: 
   );
 }
 
-function RoutinesSection({ t, state, initialBotId, initialRoutineId, onInspect, onOpenConversation, drafts, onDraft }: {
+function RoutinesSection({ t, state, initialBotId, onOpenConversation, drafts, onDraft }: {
   t: SettingsCopy; state: RoutinesState; initialBotId?: string; onOpenConversation?: SettingsDialogProps["onOpenConversation"];
-  initialRoutineId?: string; onInspect?: (id: string) => void;
   drafts: Record<string, RoutineDefinitionPatch | undefined>; onDraft: (id: string, draft?: RoutineDefinitionPatch) => void;
 }) {
   const botNames = useBotNames();
   const { locale } = useLocale();
   const [botId, setBotId] = useState(initialBotId ?? "all");
   const filtered = state.routines?.filter(routine => botId === "all" || (routine.botId ?? "assistant") === botId);
-  const [expanded, setExpanded] = useState<string | undefined>(() => initialRoutineId ?? Object.keys(drafts).find(id => drafts[id]));
+  const [expanded, setExpanded] = useState<string | undefined>(() => Object.keys(drafts).find(id => drafts[id]));
   return (
     <>
       <p className="settings-intro">{t.routines.intro.replaceAll("{assistant}", botNames.assistant)}</p>
@@ -856,8 +853,6 @@ function RoutinesSection({ t, state, initialBotId, initialRoutineId, onInspect, 
             onDraft={draft => onDraft(routine.id, draft)}
             state={state}
             open={expanded === routine.id}
-            locate={initialRoutineId === routine.id}
-            onInspect={onInspect}
             onToggleOpen={() => setExpanded((current) => (current === routine.id ? undefined : routine.id))}
             onOpenConversation={onOpenConversation}
           />
@@ -867,13 +862,11 @@ function RoutinesSection({ t, state, initialBotId, initialRoutineId, onInspect, 
   );
 }
 
-function RoutineRow({ t, routine, state, open, locate, onInspect, onToggleOpen, onOpenConversation, draft, onDraft }: {
+function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation, draft, onDraft }: {
   t: SettingsCopy;
   routine: RoutineView;
   state: RoutinesState;
   open: boolean;
-  locate?: boolean;
-  onInspect?: (id: string) => void;
   onToggleOpen: () => void;
   onOpenConversation?: SettingsDialogProps["onOpenConversation"];
   draft?: RoutineDefinitionPatch;
@@ -885,18 +878,6 @@ function RoutineRow({ t, routine, state, open, locate, onInspect, onToggleOpen, 
   const [confirming, setConfirming] = useState(false);
   const [allRuns, setAllRuns] = useState(false);
   const [customSchedule, setCustomSchedule] = useState(false);
-  const row = useRef<HTMLDivElement>(null);
-  const detail = useRef<HTMLDivElement>(null);
-  useEffect(() => { if (locate) row.current?.scrollIntoView({ block: "start" }); }, [locate]);
-  useEffect(() => {
-    if (!open || !detail.current || !onInspect) return;
-    let visible = false;
-    const mark = () => { if (visible && document.visibilityState === "visible") onInspect(routine.id); };
-    const observer = new IntersectionObserver(entries => { visible = entries.some(entry => entry.isIntersecting); mark(); });
-    observer.observe(detail.current);
-    document.addEventListener("visibilitychange", mark);
-    return () => { observer.disconnect(); document.removeEventListener("visibilitychange", mark); };
-  }, [open, routine.id, onInspect]);
   const zh = locale === "zh";
   const busy = Boolean(state.busy);
   const failure = state.actionError?.id === routine.id ? state.actionError.message : undefined;
@@ -928,7 +909,7 @@ function RoutineRow({ t, routine, state, open, locate, onInspect, onToggleOpen, 
   };
 
   return (
-    <div ref={row} className="settings-provider" data-open={open}>
+    <div className="settings-provider" data-open={open}>
       <div className="settings-row routine-row-header">
         <ProviderMark label={routine.title} />
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
@@ -951,7 +932,7 @@ function RoutineRow({ t, routine, state, open, locate, onInspect, onToggleOpen, 
         </button>
       </div>
       {open ? (
-        <div ref={detail} className="settings-provider-editor">
+        <div className="settings-provider-editor">
           {draft ? <form className="routine-edit-form" onSubmit={async event => { event.preventDefault(); if (!problem && !busy && !running && await state.update(routine.id, draft)) onDraft(); }}>
             <label className="settings-field">{zh ? "名称" : "Name"}<Input value={draft.title} maxLength={80} required disabled={busy} onChange={event => onDraft({ ...draft, title: event.target.value })} /></label>
             <label className="settings-field">{zh ? "任务指令" : "Instructions"}<textarea value={draft.instructions} rows={4} maxLength={4000} required disabled={busy} onChange={event => onDraft({ ...draft, instructions: event.target.value })} /></label>

@@ -1,7 +1,5 @@
 import { useLearning } from "./runtime/useLearning";
 import { useVault } from "./runtime/useVault";
-import { activityKey, attentionLabel, conversationActivity, conversationAttention, type AttentionStatus, type ConversationActivity } from "./runtime/conversationActivity";
-import { useAttentionRead } from "./runtime/useAttentionRead";
 import { useTaskRecovery } from "./runtime/useTaskRecovery";
 import { useAppViewport } from "./runtime/useAppViewport";
 import { useCompactDrawer } from "./runtime/useCompactDrawer";
@@ -257,9 +255,7 @@ export function AgentApp() {
   const [historyProblems, setHistoryProblems] = useState<Record<string, "failed" | "missing" | "incomplete" | undefined>>({});
   const [followProblems, setFollowProblems] = useState<Record<string, HistoryNotice | undefined>>({});
   const [historyListFailed, setHistoryListFailed] = useState(false);
-  const [conversationSummaries, setConversationSummaries] = useState<StoredConversationSummary[]>([]);
   const summaryRequest = useRef(0);
-  const attentionRead = useAttentionRead();
   const [sourceNotice, setSourceNotice] = useState<{ conversationId: string; message: string }>();
   const [agentSettings, setAgentSettings] = useState<AgentSettings>(loadAgentSettings);
   const [runOutcome, setRunOutcome] = useState<RunOutcomeFace>();
@@ -276,15 +272,13 @@ export function AgentApp() {
   const [settingsMounted, setSettingsMounted] = useState(false);
   const [settingsSection, setSettingsSection] = useState<SettingsSectionId>("providers");
   const [settingsBotId, setSettingsBotId] = useState<string>();
-  const [settingsRoutineId, setSettingsRoutineId] = useState<string>();
-  const openSettings = (section: SettingsSectionId = "providers", botId?: string, routineId?: string) => {
+  const openSettings = (section: SettingsSectionId = "providers", botId?: string) => {
     settingsFromDrawer.current = drawerOpen;
     settingsOpener.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSettingsMounted(true);
     setDrawerOpen(false);
     setSettingsSection(section);
     setSettingsBotId(botId);
-    setSettingsRoutineId(routineId);
     setSettingsOpen(true);
   };
   const [themePreset, setThemePreset] = useState<ThemePresetId>(() =>
@@ -417,7 +411,7 @@ export function AgentApp() {
     return config.providerDefinition && config.model ? { definition: config.providerDefinition, model: config.model } : undefined;
   }, [configuredProject]);
   const imChannels = useImChannels(settingsOpen && Boolean(piRuntimeState), channelModel);
-  const routines = useRoutines(Boolean(piRuntimeState) && !streamId, settingsOpen);
+  const routines = useRoutines(settingsOpen && Boolean(piRuntimeState));
   const mcpServers = useMcpServers((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
   const memories = useMemories(settingsOpen && Boolean(piRuntimeState));
   const skills = useSkills((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
@@ -600,7 +594,6 @@ export function AgentApp() {
     return listStoredConversations()
     .then(({ conversations: stored, unreadable }) => {
       if (request !== summaryRequest.current) return;
-      setConversationSummaries(stored);
       setHistoryListFailed(unreadable.length > 0);
       const stubs = stored.filter((entry) => entry.eventCount > 0).map(storedStub);
       setPiConversations((current) => {
@@ -1541,33 +1534,6 @@ export function AgentApp() {
         ...(sameDraft ? { draftSnapshot: { prompt: current.prompt, attachmentIds: current.attachments.map(file => file.id) } } : {}) }, conversation);
     },
   });
-  type AttentionEntry = { status: AttentionStatus; conversationId: string; botId: string; activity?: ConversationActivity; routineId?: string; token?: string };
-  const attentionEntries = new Map<string, AttentionEntry>();
-  for (const conversation of piConversations) {
-    const summary = conversationSummaries.find(row => row.id === conversation.id);
-    const activity = summary && summary.eventCount > conversation.events.length ? summary.activity : conversationActivity(conversation.events);
-    const live = runningConversationIds.has(conversation.id) || Boolean(summary?.running && (summary.eventCount > conversation.events.length || !activity));
-    const status = conversationAttention({ activity, running: live, awaitingUser: live && (awaitingConversationIds.has(conversation.id)
-      || Boolean(summary?.awaitingUser && summary.eventCount > conversation.events.length)) }, attentionRead.seen[conversation.id]);
-    if (status) attentionEntries.set(conversation.id, { status, conversationId: conversation.id, activity,
-      botId: conversation.groupHostId ?? conversationBotId(botStore, conversation) ?? conversation.agentPreset ?? "assistant" });
-  }
-  for (const routine of routines.routines ?? []) {
-    const missed = routine.lastSkipped && routine.lastSkipped.at > (routine.lastRun?.at ?? 0) ? routine.lastSkipped : undefined;
-    const failed = routine.lastRun?.status === "interrupted" || routine.lastRun?.status === "error" && !routine.lastRun.runId ? routine.lastRun : undefined;
-    if (!missed && !failed) continue;
-    const token = JSON.stringify(missed ?? failed);
-    if (attentionRead.seen[`routine:${routine.id}`]?.includes(token) || attentionEntries.get(routine.conversationId)?.status === "needs-you") continue;
-    attentionEntries.set(routine.conversationId, { conversationId: routine.conversationId, botId: routine.botId ?? "assistant",
-      routineId: routine.id, token, status: missed ? "missed" : "error" });
-  }
-  const openAttention = (entry: AttentionEntry) => {
-    setDrawerOpen(false);
-    if (entry.routineId) openSettings("routines", entry.botId, entry.routineId);
-    else openStoredConversation(entry.conversationId, entry.activity);
-  };
-  const visibleActivity = !streamId && !historyMessage && !settingsOpen && !outputModalOpen && !workspaceModalOpen && !botDraft && !(compact && drawerOpen)
-    ? conversationActivity(events) : undefined;
   const workingMember = isGroupConversation(activePiConversation) ? workingGroupMember(events) : undefined;
   const botEditor: BotEditorState | undefined = botDraft ? {
     ...botDraft, models: configuredProject.providers.connections.filter(p => p.enabled).flatMap(p => [...new Set([p.defaultModel, ...p.models])].map(model => ({ provider: p.id, model, label: `${p.label} / ${model}` }))), mcpServers: mcpServers.servers, skills: skills.state?.skills, error: botError ?? botLoadError, saving: botSaving, ready: botRevision !== undefined,
@@ -1587,11 +1553,6 @@ export function AgentApp() {
   } : undefined;
   const shellExtras: ShellExtras = {
     taskRecovery: recovery,
-    resultRead: visibleActivity ? { key: `${activePiConversationId}:${activityKey(visibleActivity)}`,
-      onVisible: () => attentionRead.mark(activePiConversationId, activityKey(visibleActivity)) } : undefined,
-    sessionAttention: streamId ? undefined : Object.fromEntries([...attentionEntries].map(([id, entry]) => [id, { status: entry.status,
-      label: attentionLabel(entry.status, locale === "zh"), onOpen: () => openAttention(entry) }])),
-    attentionUnavailable: !streamId && (historyListFailed || Boolean(routines.error)) ? (locale === "zh" ? "任务状态暂未更新，请检查连接" : "Task status is unavailable. Check the connection.") : undefined,
     artifactCatalog: streamId ? undefined : { conversationId: activePiConversationId, conversationTitle: activePiConversation.title,
       timestamps: artifactTimes, openSource: entry => openStoredConversation(entry.conversationId, { artifactId: entry.artifactId }) },
     chatReferences: streamId ? undefined : piConversations.filter(c => c.id !== activePiConversationId && c.stored && !c.id.includes(".m.")).map(c => ({ id: c.id, title: c.title })),
@@ -1974,12 +1935,7 @@ export function AgentApp() {
               }}
               initialSection={settingsSection}
               initialBotId={settingsBotId}
-              initialRoutineId={settingsRoutineId}
               initialMemoryScope={settingsBotId ? { kind: "bot", id: settingsBotId } : undefined}
-              onInspectRoutine={id => {
-                const entry = [...attentionEntries.values()].find(entry => entry.routineId === id);
-                if (entry?.token) attentionRead.mark(`routine:${id}`, entry.token);
-              }}
             project={activeProject}
             providerSettingsStatus={providerSettingsStatus}
             runtime={piRuntimeState}

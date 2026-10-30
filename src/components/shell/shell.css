@@ -225,17 +225,11 @@ button.shell-member-chip { cursor: pointer; }
 .session-brand-create { border: 0; background: transparent; cursor: pointer; text-align: left; border-radius: 8px; }
 .session-brand-create:focus-visible, .shell-agent-edit:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
 .shell-agent-row { position: relative; min-width: 0; }
-.session-attention { flex-shrink: 0; margin-left: auto; font-size: 10px; color: var(--text-muted); }
-.session-item:has(> .session-attention) { display: flex; gap: 6px; }
-.session-item:has(> .session-attention) .session-item-label { overflow: hidden; text-overflow: ellipsis; }
-.session-attention[data-status="error"] { color: var(--danger); }
-.session-attention[data-status="needs-you"], .session-attention[data-status="missed"] { color: var(--warning); }
 .task-recovery { margin: 10px 0 16px; padding: 10px 14px; border-left: 2px solid var(--border-subtle); color: var(--text-secondary); font-size: 13px; }
 .task-recovery p { margin: 0 0 8px; line-height: 1.5; }
 .task-recovery > div { display: flex; gap: 8px; flex-wrap: wrap; }
 .task-recovery button { border: 1px solid var(--border-subtle); border-radius: 7px; padding: 6px 10px; background: var(--surface-hover); color: var(--text-primary); font: inherit; cursor: pointer; }
 .task-recovery button:disabled { opacity: 0.5; cursor: default; }
-.result-read-marker { display: block; height: 1px; flex-shrink: 0; }
 @media (max-width: 760px), (hover: none) and (pointer: coarse) { .task-recovery button { min-height: 44px; } }
 .shell-agent-row > .shell-agent { width: 100%; padding-right: 34px; }
 .shell-agent[aria-disabled="true"] { cursor: not-allowed; opacity: 0.55; }

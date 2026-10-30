@@ -6,7 +6,6 @@ import type { BranchAction } from "../../runtime/useMessageBranch";
 import type { ConversationSearch, SearchSession } from "../../runtime/useConversationSearch";
 import type { useSessionHistoryGroups } from "../../runtime/useSessionHistoryGroups";
 import type { TaskRecoveryActions } from "../../runtime/useTaskRecovery";
-import type { AttentionStatus } from "../../runtime/conversationActivity";
 
 import { AgentAvatar, type AgentPersona, type AvatarKind } from "../../avatars/AgentPersona";
 import { GroupFace } from "../../avatars/GroupFace";
@@ -45,9 +44,6 @@ import { BOT_NAMES, type BotProfile } from "../../runtime/botProfiles";
  */
 export type ShellExtras = {
   taskRecovery?: TaskRecoveryActions;
-  resultRead?: { key: string; onVisible(): void };
-  sessionAttention?: Record<string, { status: AttentionStatus; label: string; onOpen(): void }>;
-  attentionUnavailable?: string;
   artifactCatalog?: ArtifactCatalogContext;
   botEditor?: BotEditorState;
   bots?: readonly BotProfile[];

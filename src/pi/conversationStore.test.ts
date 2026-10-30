@@ -8,22 +8,6 @@ import { conversationTitle, createConversationStore } from "./conversationStore.
 
 const event = (type: string, seq: number) => ({ type, seq, id: `e${seq}`, runId: "r", ts: seq, payload: {} }) as import("@agent-ux/protocol").AgentUXEvent;
 
-test("conversation lists expose the latest result and its source after restart, without treating a new run as finished", () => {
-  const dir = mkdtempSync(join(tmpdir(), "rtb-result-"));
-  try {
-    const store = createConversationStore(dir);
-    store.begin("work", "assistant", "Research");
-    store.append("work", { ...event("text.started", 1), payload: { textId: "request", role: "user" } } as never);
-    store.append("work", { ...event("run.finished", 2), payload: { status: "success" } } as never);
-    store.flush("work");
-    for (const saved of [store, createConversationStore(dir)]) {
-      assert.deepEqual(saved.list()[0].activity, { runId: "r", eventId: "e2", status: "success", at: 2, textId: "request" });
-    }
-    store.append("work", { ...event("run.started", 3), runId: "next" } as never);
-    assert.equal(store.list()[0].activity, undefined);
-  } finally { rmSync(dir, { recursive: true, force: true }); }
-});
-
 test("conversations survive a new store instance (a server restart)", () => {
   const dir = mkdtempSync(join(tmpdir(), "rtb-store-"));
   try {

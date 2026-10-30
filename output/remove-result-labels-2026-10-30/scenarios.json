@@ -1,0 +1,125 @@
+{
+  "scenarios": [
+    {
+      "name": "Built-in demo",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Group chat",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Coding agent",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Reasoning kinds",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Tool approval",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Error block",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Artifact action",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Capability tray",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "HTML artifact stream",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Basic text",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Normal turn",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Streaming thinking + message",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Tool approval + completion",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "MCP success + interrupt",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Runtime boot + sync",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Retrying incident",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Exhausted incident",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Terminal incident",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "Config, spans, deletion",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    },
+    {
+      "name": "欢迎页(无事件)",
+      "scrollWidth": 1280,
+      "statusLabels": 0,
+      "width": 1280
+    }
+  ],
+  "errors": []
+}
