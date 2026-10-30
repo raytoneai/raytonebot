@@ -1,0 +1,44 @@
+✔ browser actions are judged from the host's snapshot, never the model's label (1.739375ms)
+✔ a submit button's own formmethod decides, for clicks and for Enter in a field (0.35225ms)
+✔ an element whose facts never arrived is asked about, not assumed to be an ordinary click (0.089709ms)
+✔ interactive elements past the read limit are treated as unknown, not as ordinary clicks (0.263292ms)
+✔ the egress proxy refuses private addresses, other ports and names that resolve privately (16.799542ms)
+✔ a download never follows a link out of the workspace, and only a folder the bot made gets its mode (4.548959ms)
+✔ account discovery groups related sites without claiming an active login or revealing URL data (5.757042ms)
+✔ account discovery reads current host records without starting Chrome, and clears immediately (3.15875ms)
+✔ a stopped turn never runs the browser action it queued (0.510542ms)
+✔ a real browser: snapshot refs, secret fields refused, takeover, per-site sign-in and downloads (5866.881083ms)
+✔ login shortcuts accept Apple and custom web URLs, reject invalid destinations (0.28825ms)
+✔ related login domains ask in auto mode, but always-allow stays on the exact origin (0.594084ms)
+✔ Login Vault binds exact live fields, never submits, and hides model output (5205.356ms)
+✔ Login Vault refuses HTTP without its explicit loopback test hook (657.039375ms)
+✔ Vault username a keeps browser handles usable and page echoes hidden (3585.008ms)
+✔ Vault username e keeps browser handles usable and page echoes hidden (3610.922167ms)
+▶ browser worker lifecycle through real Chromium and IPC
+  ✔ popups become active, receive input, switch tabs and close back to their opener (1354.03875ms)
+  ✔ cross-origin iframe boundaries are explicit and never retarget parent refs (489.681334ms)
+  ✔ embedded navigation preserves main-frame refs and ordinary frame-named selectors work (1137.397167ms)
+  ✔ replaced and cleared page owners release their completed task callbacks (475.738958ms)
+  ✔ input receipts carry a frame captured after dispatch and survive screencast reconnect (617.023958ms)
+  ✔ disconnect and handoff cleanup release held modifiers instead of leaking them into the next driver (281.036167ms)
+  ✔ repeated popup initialization does not leave a five-second unrelated-page wait (1859.583833ms)
+  ✔ snapshot IDs bind actions to the exact snapshot and user input invalidates them (478.597292ms)
+  ✔ live formmethod and accessible name changes refuse previously approved actions (1745.819792ms)
+  ✔ click result includes a deferred SPA render without waiting for network idle (624.839291ms)
+  ✔ a continuously changing DOM returns within its budget without repeating the action (1294.242334ms)
+  ✔ slow SPA text waits and explicit timeouts work with a persistent SSE connection (1147.584667ms)
+  ✔ text wait finds a visible duplicate after a hidden first match (254.390083ms)
+  ✔ hidden wait refuses success while any duplicate remains visible (444.931375ms)
+  ✔ closing a tab during wait reports its real failure rather than a timeout (897.269875ms)
+  ✔ user input remains responsive while an agent is waiting (1756.237833ms)
+  ✔ scoped full, interactive and content snapshots keep usable links and redact secrets (778.450459ms)
+  ✔ controls past the safety read limit stay unresolved and their values are redacted (409.870708ms)
+✔ browser worker lifecycle through real Chromium and IPC (16342.282334ms)
+ℹ tests 35
+ℹ suites 0
+ℹ pass 35
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16432.2965

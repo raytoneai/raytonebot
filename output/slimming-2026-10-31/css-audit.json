@@ -1,0 +1,25 @@
+{
+  "rulesRemoved": 269,
+  "keyframesRemoved": [
+    "preset-skeleton-shimmer",
+    "pv-blink",
+    "pv-dot-bounce",
+    "pv-pulse",
+    "pv-spin",
+    "pv-shimmer",
+    "pv-bar"
+  ],
+  "keyframesPreserved": [
+    "preset-skel-shimmer",
+    "preset-accordion-in"
+  ],
+  "allRetainedRulesDeclarationsOrderAndContextsMatch": true,
+  "before": {
+    "bytes": 354853,
+    "lines": 13205
+  },
+  "after": {
+    "bytes": 306415,
+    "lines": 11330
+  }
+}

@@ -1,0 +1,108 @@
+{
+  "startedAt": "2026-10-30T16:45:46.880Z",
+  "viewport": {
+    "width": 390,
+    "height": 844
+  },
+  "welcomeChecked": true,
+  "fixtures": [
+    {
+      "name": "Built-in demo",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Group chat",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Coding agent",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Reasoning kinds",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Tool approval",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Error block",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Artifact action",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Capability tray",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "HTML artifact stream",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Basic text",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Normal turn",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Streaming thinking + message",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Tool approval + completion",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "MCP success + interrupt",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Runtime boot + sync",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Retrying incident",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Exhausted incident",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Terminal incident",
+      "overflow": false,
+      "oldClasses": []
+    },
+    {
+      "name": "Config, spans, deletion",
+      "overflow": false,
+      "oldClasses": []
+    }
+  ],
+  "desktopSettingsChecked": true,
+  "htmlArtifactModalChecked": true,
+  "errors": []
+}
