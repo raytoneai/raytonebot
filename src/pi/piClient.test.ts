@@ -2,7 +2,40 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setImmediate } from "node:timers/promises";
 import type { AgentUXEvent } from "@agent-ux/protocol";
-import { abortPiRun, followPiTurn, PiRequestError, resolvePiApproval, runPiTurn } from "./piClient.ts";
+import { abortPiRun, followPiTurn, PiRequestError, resolvePiApproval, submitPiApproval, runPiTurn } from "./piClient.ts";
+
+test("approval delivery checks the exact request after losing a receipt and only resends while still pending", async () => {
+  for (const pending of [false, true]) {
+    const calls: string[] = [];
+    const input = { toolCallId: "tool", decision: "no" as const, conversationId: "conversation", runId: "run" };
+    await submitPiApproval(input, { fetcher: async (url, init) => {
+      calls.push(init?.method ?? "GET");
+      if (calls.length === 1) throw new TypeError("Failed to fetch");
+      if (!init?.method) {
+        const query = new URL(String(url), "http://test").searchParams;
+        assert.deepEqual(Object.fromEntries(query), { toolCallId: "tool", conversationId: "conversation", runId: "run" });
+        return Response.json({ pending });
+      }
+      assert.deepEqual(JSON.parse(init.body as string), input);
+      return Response.json({ ok: true });
+    } });
+    assert.deepEqual(calls, pending ? ["POST", "GET", "POST"] : ["POST", "GET"]);
+  }
+});
+
+test("leaving an approval stops delivery even if a pending-status response arrives late", async () => {
+  const controller = new AbortController(), methods: string[] = [];
+  await assert.rejects(submitPiApproval({ toolCallId: "tool", decision: "yes", conversationId: "chat", runId: "run" }, {
+    signal: controller.signal,
+    fetcher: async (_url, init) => {
+      methods.push(init?.method ?? "GET");
+      if (methods.length === 1) return Response.json({ error: "Disconnected" }, { status: 503 });
+      controller.abort(new Error("left approval"));
+      return Response.json({ pending: true });
+    },
+  }), /left approval/);
+  assert.deepEqual(methods, ["POST", "GET"]);
+});
 
 test("stop sends the observed run identity and does not retry a stale rejection", async () => {
   let calls = 0;
@@ -35,9 +68,13 @@ test("approval has a deadline without retrying an uncertain decision", async (t)
 });
 
 test("approval distinguishes accepted or stale decisions from retryable transport failures", async () => {
-  assert.equal(await resolvePiApproval("tool", "no", "conversation", "run", async () => Response.json({})), true);
+  assert.equal(await resolvePiApproval("tool", "no", "conversation", "run", async () => Response.json({ ok: true })), true);
+  await assert.rejects(resolvePiApproval("tool", "no", "conversation", "run", async () => Response.json({})), /acknowledgement/);
   assert.equal(await resolvePiApproval("tool", "no", "conversation", "run", async () => Response.json({}, { status: 409 })), false);
-  await assert.rejects(resolvePiApproval("tool", "no", "conversation", "run", async () => Response.json({ error: "offline" }, { status: 503 })), /offline/);
+  await assert.rejects(resolvePiApproval("tool", "no", "conversation", "run", async () => Response.json({ error: "offline" }, { status: 503 })),
+    (error: unknown) => error instanceof PiRequestError && error.status === 503 && error.message === "offline");
+  await assert.rejects(resolvePiApproval("tool", "no", "conversation", "run", async () => { throw new TypeError("Failed to fetch"); }),
+    (error: unknown) => error instanceof PiRequestError && error.status === 0 && error.message === "Failed to fetch");
 });
 
 test("invalid prompt HTTP errors are distinguishable from a dropped connection", async () => {

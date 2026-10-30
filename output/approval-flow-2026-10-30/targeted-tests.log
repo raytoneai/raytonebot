@@ -1,0 +1,19 @@
+✔ HTTP group approval replay cannot approve a newer run reusing the native tool id (135.722416ms)
+✔ member changes do not run models, reject active conversations, and keep custom approvals routed (22.69ms)
+✔ approval delivery checks the exact request after losing a receipt and only resends while still pending (17.215875ms)
+✔ leaving an approval stops delivery even if a pending-status response arrives late (0.5485ms)
+✔ approval has a deadline without retrying an uncertain decision (0.27275ms)
+✔ approval distinguishes accepted or stale decisions from retryable transport failures (1.144791ms)
+✔ HTTP approvals cannot resolve a later run reusing the same native tool id (93.315583ms)
+✔ conversations run in parallel; stop and approval stay inside their own conversation (110.71275ms)
+✔ an approval is answered only inside the conversation it is sent for (34.415458ms)
+✔ an approval wait that starts after its run was stopped fails at once (0.309208ms)
+✔ waiting for approval pauses the execution budget, which resumes after the decision (14.190792ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 865.040625

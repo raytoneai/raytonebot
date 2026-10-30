@@ -1,0 +1,28 @@
+✔ stop sends the observed run identity and does not retry a stale rejection (11.66725ms)
+✔ approval has a deadline without retrying an uncertain decision (0.328958ms)
+✔ approval distinguishes accepted or stale decisions from retryable transport failures (0.376292ms)
+✔ invalid prompt HTTP errors are distinguishable from a dropped connection (0.21975ms)
+✔ reattachment cannot silently accept an older turn for a lost submission (1.855292ms)
+✔ a submission accepted before losing its response is identified in saved history (0.33375ms)
+✔ an unresponsive live stream times out so reattachment can consume its retry budget (2.330959ms)
+✔ heartbeats keep a quiet long-running turn connected (0.817292ms)
+✔ a stalled live connection handshake has a deadline (0.239167ms)
+✔ a turn finishing between history and live subscription still delivers its final events (0.377709ms)
+▶ approval surfaces explain failures without blindly resending decisions
+  ✔ inline (1733.241875ms)
+  ✔ external (1014.538ms)
+  ✔ zh: 401 explains how to recover instead of resubmitting (1466.72425ms)
+  ✔ en: 403 explains how to recover instead of resubmitting (1434.597292ms)
+  ✔ ja: 400 explains how to recover instead of resubmitting (1495.457542ms)
+  ✔ a lost response retains the choice, blocks duplicate clicks and retries only on request (772.772875ms)
+  ✔ a deadline explains uncertain delivery and keeps the original request visible (800.352833ms)
+✔ approval surfaces explain failures without blindly resending decisions (8898.146459ms)
+✔ dismissal identity distinguishes real approvals with reused tool ids across conversations and turns (1.092917ms)
+ℹ tests 19
+ℹ suites 0
+ℹ pass 19
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9162.577541

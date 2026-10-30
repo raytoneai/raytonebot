@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import type { ApprovalDecision } from "../components/agent-preview/ToolCallCard";
 
@@ -11,17 +11,23 @@ export function approvalRequestKey(conversationId: string, toolCallId: string, e
   return JSON.stringify([conversationId, null, toolCallId]);
 }
 
-/** Both existing approval surfaces use the same pending, failure and duplicate-click semantics. */
-export function useApprovalSubmission(onConfirm?: (decision: ApprovalDecision) => void | Promise<void>) {
-  const [status, setStatus] = useState<"idle" | "pending" | "failed">("idle");
-  const sending = useRef(false);
+/** Keep the selected decision visible until the host confirms its delivery. */
+export function useApprovalSubmission(onConfirm?: (decision: ApprovalDecision, signal?: AbortSignal) => void | Promise<void>) {
+  const [decision, setDecision] = useState<ApprovalDecision>();
+  const request = useRef<AbortController | undefined>(undefined);
+  useEffect(() => () => request.current?.abort(), []);
   async function submit(decision: ApprovalDecision) {
-    if (sending.current || !onConfirm) return;
-    sending.current = true;
-    setStatus("pending");
-    try { await onConfirm(decision); setStatus("idle"); }
-    catch { setStatus("failed"); }
-    finally { sending.current = false; }
+    if (request.current || !onConfirm) return;
+    const controller = new AbortController();
+    request.current = controller;
+    setDecision(decision);
+    try { await onConfirm(decision, controller.signal); }
+    catch (error) {
+      if (!controller.signal.aborted && !(error instanceof DOMException && error.name === "AbortError")) console.warn("Approval confirmation interrupted", error);
+    } finally {
+      if (!controller.signal.aborted) setDecision(undefined);
+      if (request.current === controller) request.current = undefined;
+    }
   }
-  return { pending: status === "pending", failed: status === "failed", submit };
+  return { pending: decision !== undefined, decision, submit };
 }

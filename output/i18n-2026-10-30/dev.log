@@ -1,0 +1,58 @@
+
+> raytonebot@0.1.0 dev
+> vite --port 5195
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../locales" without a file extension (src/i18n/copy/vaultRequest.ts:1:32). Add the file extension
+  - import "../schema/agentuxConfig" without a file extension (src/pi/piProviderSync.ts:1:41). Add the file extension
+  - import "../../pi/vaultRequestTypes" without a file extension (src/i18n/copy/vaultRequest.ts:2:37). Add the file extension
+  - import "./piClient" without a file extension (src/pi/piProviderSync.ts:2:67). Add the file extension
+  - import "./schema/agentuxConfig" without a file extension (src/exported-project.ts:1:43). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/composer.ts:6:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/vault.ts:1:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/settings.ts:1:32). Add the file extension
+  - import "../theme/themeTokens" without a file extension (src/schema/agentuxConfig.ts:9:36). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+  VITE v8.3.2  ready in 2495 ms
+
+  ➜  Local:   http://127.0.0.1:5195/
+
+> raytonebot@0.1.0 dev
+> vite --port 5195
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../locales" without a file extension (src/i18n/copy/vaultRequest.ts:1:32). Add the file extension
+  - import "../schema/agentuxConfig" without a file extension (src/pi/piProviderSync.ts:1:41). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/vault.ts:1:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/composer.ts:6:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/settings.ts:1:32). Add the file extension
+  - import "../../pi/vaultRequestTypes" without a file extension (src/i18n/copy/vaultRequest.ts:2:37). Add the file extension
+  - import "./piClient" without a file extension (src/pi/piProviderSync.ts:2:67). Add the file extension
+  - import "./schema/agentuxConfig" without a file extension (src/exported-project.ts:1:43). Add the file extension
+  - import "../theme/themeTokens" without a file extension (src/schema/agentuxConfig.ts:9:36). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+  VITE v8.3.2  ready in 823 ms
+
+  ➜  Local:   http://127.0.0.1:5195/
+10:39:01 PM [vite] (client) hmr update /src/avatars/GroupFace.tsx
+10:42:10 PM [vite] (client) hmr update /src/agent-shell.tsx, /src/components/agent-preview/SessionSidebar.tsx
+10:42:10 PM [vite] src/pi/piClient.ts changed, restarting server...
+10:42:10 PM [vite] (client) hmr update /src/agent-shell.tsx
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../locales" without a file extension (src/i18n/copy/vaultRequest.ts:1:32). Add the file extension
+  - import "../schema/agentuxConfig" without a file extension (src/pi/piProviderSync.ts:1:41). Add the file extension
+  - import "../../pi/vaultRequestTypes" without a file extension (src/i18n/copy/vaultRequest.ts:2:37). Add the file extension
+  - import "./piClient" without a file extension (src/pi/piProviderSync.ts:2:67). Add the file extension
+  - import "./schema/agentuxConfig" without a file extension (src/exported-project.ts:1:43). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/vault.ts:1:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/composer.ts:6:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/settings.ts:1:32). Add the file extension
+  - import "../theme/themeTokens" without a file extension (src/schema/agentuxConfig.ts:9:36). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+10:42:10 PM [vite] server restarted.
+10:42:39 PM [vite] (client) hmr update /src/agent-shell.tsx
+10:43:53 PM [vite] (client) hmr update /src/i18n/LocaleContext.tsx
+10:43:53 PM [vite] (client) hmr invalidate /src/i18n/LocaleContext.tsx Could not Fast Refresh ("useCopy" export is incompatible). Learn more at https://github.com/vitejs/vite-plugin-react/tree/main/packages/plugin-react#consistent-components-exports
+10:43:53 PM [vite] (client) page reload src/i18n/LocaleContext.tsx

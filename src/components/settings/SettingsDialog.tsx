@@ -1,3 +1,4 @@
+import { featureText, featureCopy } from "../../i18n/copy/features.ts";
 import type { LearningSettings } from "../../runtime/useLearning";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { Brain, CalendarClock, Check, ChevronDown, CircleAlert, Copy, Info, KeyRound, MessagesSquare, Palette, Plug, Plus, Server, ShieldCheck, X } from "lucide-react";
@@ -148,12 +149,12 @@ export function SettingsDialog(props: SettingsDialogProps) {
     { id: "permissions", label: t.nav.permissions, Icon: ShieldCheck },
     ...(props.imChannels ? [{ id: "channels" as const, label: t.nav.channels, Icon: MessagesSquare }] : []),
     ...(props.routines ? [{ id: "routines" as const, label: t.nav.routines, Icon: CalendarClock }] : []),
-    ...(props.mcpServers || props.skills ? [{ id: "mcp" as const, label: props.skills ? (locale === "zh" ? "MCP 与 Skills" : "MCP & Skills") : t.nav.mcp, Icon: Plug }] : []),
+    ...(props.mcpServers || props.skills ? [{ id: "mcp" as const, label: props.skills ? (featureText(locale, "MCP & Skills")) : t.nav.mcp, Icon: Plug }] : []),
     ...(props.memories ? [{ id: "memory" as const, label: t.nav.memory, Icon: Brain }] : []),
-    ...(props.usage ? [{ id: "usage" as const, label: locale === "zh" ? "模型用量" : "Model usage", Icon: Info }] : []),
+    ...(props.usage ? [{ id: "usage" as const, label: featureText(locale, "Model usage"), Icon: Info }] : []),
     ...(props.vault ? [{ id: "vault" as const, label: vaultCopy[locale].nav, Icon: KeyRound }] : []),
     { id: "appearance", label: t.nav.appearance, Icon: Palette },
-    ...(props.learning ? [{ id: "developer" as const, label: locale === "zh" ? "开发者模式" : "Developer", Icon: Brain }] : []),
+    ...(props.learning ? [{ id: "developer" as const, label: featureText(locale, "Developer"), Icon: Brain }] : []),
     { id: "about", label: t.nav.about, Icon: Info },
   ];
 
@@ -209,7 +210,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               <p className="settings-note">{t.providers.saveScope}</p>
               <div className="settings-save-actions">
                 <span className="settings-status" role="status" data-tone={editor.invalid || editor.status === "failed" || editor.status === "conflict" ? "error" : editor.status === "saved" ? "ok" : "muted"}>
-                  {editor.invalid ? `${editor.invalid.provider.label}：${editor.invalid.field === "modelOptions" ? (locale === "zh" ? "请检查模型参数，输出上限不能超过上下文窗口。" : "Check model options. Output cannot exceed the context window.") : t.providers.validation[editor.invalid.field!]}`
+                  {editor.invalid ? `${editor.invalid.provider.label}：${editor.invalid.field === "modelOptions" ? (featureText(locale, "Check model options. Output cannot exceed the context window.")) : t.providers.validation[editor.invalid.field!]}`
                     : editor.status === "failed" ? t.providers.saveFailed : editor.status === "conflict" ? t.providers.saveConflict
                     : saving ? t.providers.saving : confirmClose ? t.providers.unsavedClose : props.isRunning ? t.providers.runningHint
                     : editor.dirty ? t.providers.unsaved : editor.status === "saved" ? t.providers.saved : ""}
@@ -840,8 +841,8 @@ function RoutinesSection({ t, state, initialBotId, onOpenConversation, drafts, o
       <p className="settings-intro">{t.routines.intro.replaceAll("{assistant}", botNames.assistant)}</p>
       <p className="settings-note">{t.routines.clockNote}</p>
       {state.error ? <p className="settings-status" data-tone="error" role="status"><Dot />{t.routines.loadFailed(state.error)}</p> : null}
-      <div className="settings-memory-controls"><SelectMenu ariaLabel={locale === "zh" ? "按 Bot 筛选例行任务" : "Filter routines by Bot"} value={botId} onValueChange={setBotId}
-        options={[{ value: "all", label: locale === "zh" ? "全部 Bot" : "All Bots" }, ...Object.entries(botNames).map(([value, label]) => ({ value, label }))]} /></div>
+      <div className="settings-memory-controls"><SelectMenu ariaLabel={featureText(locale, "Filter routines by Bot")} value={botId} onValueChange={setBotId}
+        options={[{ value: "all", label: featureText(locale, "All Bots") }, ...Object.entries(botNames).map(([value, label]) => ({ value, label }))]} /></div>
       {filtered?.length === 0 ? <p className="settings-note">{t.routines.empty}</p> : null}
       <div className="settings-list">
         {(filtered ?? []).map((routine) => (
@@ -878,12 +879,11 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
   const [confirming, setConfirming] = useState(false);
   const [allRuns, setAllRuns] = useState(false);
   const [customSchedule, setCustomSchedule] = useState(false);
-  const zh = locale === "zh";
   const busy = Boolean(state.busy);
   const failure = state.actionError?.id === routine.id ? state.actionError.message : undefined;
   const failureText = failure?.startsWith("This routine changed.")
     ? (draft && draft.revision !== (routine.revision ?? 0)
-      ? (zh ? "任务已在其他页面修改，草稿仍保留。请放弃更改后重新编辑，以载入最新内容。" : "This routine changed elsewhere. Your draft is kept. Discard changes and edit again to load the latest version.") : undefined) : failure;
+      ? (featureText(locale, "This routine changed elsewhere. Your draft is kept. Discard changes and edit again to load the latest version.")) : undefined) : failure;
   const last = routine.lastRun;
   const skipped = routine.lastSkipped && routine.lastSkipped.at > (last?.at ?? 0) ? routine.lastSkipped : undefined;
   const tone = !last ? "muted" : { running: "warn", success: "ok", error: "error", cancelled: "muted", interrupted: "warn" }[last.status];
@@ -895,10 +895,10 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
   const simple = /^\d+$/.test(fields[0]) && /^\d+$/.test(fields[1]) && fields[2] === "*" && fields[3] === "*";
   const frequency = customSchedule || !simple ? "custom" : fields[4] === "*" ? "daily" : fields[4] === "1-5" ? "weekdays" : /^[0-7]$/.test(fields[4]) ? "weekly" : "custom";
   const time = simple ? `${fields[1].padStart(2, "0")}:${fields[0].padStart(2, "0")}` : "09:00";
-  const problem = draft ? !draft.title.trim() ? (zh ? "请填写任务名称。" : "Enter a task name.")
-    : !draft.instructions.trim() ? (zh ? "请填写任务指令。" : "Enter task instructions.")
-    : cronProblem(draft.schedule) ? (zh ? "请检查时间规则，需要五段有效 cron。" : "Enter a valid five-field cron expression.")
-    : timezoneProblem(draft.timezone) ? (zh ? "请填写有效时区，例如 Asia/Shanghai。" : "Enter a valid time zone, such as Asia/Shanghai.") : undefined : undefined;
+  const problem = draft ? !draft.title.trim() ? (featureText(locale, "Enter a task name."))
+    : !draft.instructions.trim() ? (featureText(locale, "Enter task instructions."))
+    : cronProblem(draft.schedule) ? (featureText(locale, "Enter a valid five-field cron expression."))
+    : timezoneProblem(draft.timezone) ? (featureText(locale, "Enter a valid time zone, such as Asia/Shanghai.")) : undefined : undefined;
   const changeSchedule = (kind: string, value = time, day = /^[0-7]$/.test(fields[4]) ? fields[4] : "1") => {
     if (!draft) return;
     setCustomSchedule(kind === "custom");
@@ -919,7 +919,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
             <span title={routine.schedule}>{routineScheduleLabel(routine.schedule, locale)}</span><span>{routine.timezone}</span>
           </span>
         </button>
-        <span className="settings-key-pill" data-tone={last?.waiting || skipped ? "warn" : tone}><Dot />{last?.waiting ? c.waiting : skipped ? (zh ? "未运行" : "Not run") : last ? c.status[last.status] : c.neverRun}</span>
+        <span className="settings-key-pill" data-tone={last?.waiting || skipped ? "warn" : tone}><Dot />{last?.waiting ? c.waiting : skipped ? (featureText(locale, "Not run")) : last ? c.status[last.status] : c.neverRun}</span>
         <Switch
           size="sm"
           aria-label={`${routine.title} ${c.enable}`}
@@ -934,34 +934,34 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
       {open ? (
         <div className="settings-provider-editor">
           {draft ? <form className="routine-edit-form" onSubmit={async event => { event.preventDefault(); if (!problem && !busy && !running && await state.update(routine.id, draft)) onDraft(); }}>
-            <label className="settings-field">{zh ? "名称" : "Name"}<Input value={draft.title} maxLength={80} required disabled={busy} onChange={event => onDraft({ ...draft, title: event.target.value })} /></label>
-            <label className="settings-field">{zh ? "任务指令" : "Instructions"}<textarea value={draft.instructions} rows={4} maxLength={4000} required disabled={busy} onChange={event => onDraft({ ...draft, instructions: event.target.value })} /></label>
+            <label className="settings-field">{featureText(locale, "Name")}<Input value={draft.title} maxLength={80} required disabled={busy} onChange={event => onDraft({ ...draft, title: event.target.value })} /></label>
+            <label className="settings-field">{featureText(locale, "Instructions")}<textarea value={draft.instructions} rows={4} maxLength={4000} required disabled={busy} onChange={event => onDraft({ ...draft, instructions: event.target.value })} /></label>
             <div className="routine-schedule-fields">
-              <label className="settings-field">{zh ? "重复" : "Repeat"}<select value={frequency} disabled={busy} onChange={event => changeSchedule(event.target.value)}>
-                <option value="daily">{zh ? "每天" : "Daily"}</option><option value="weekdays">{zh ? "工作日" : "Weekdays"}</option><option value="weekly">{zh ? "每周" : "Weekly"}</option><option value="custom">{zh ? "自定义" : "Custom"}</option>
+              <label className="settings-field">{featureText(locale, "Repeat")}<select value={frequency} disabled={busy} onChange={event => changeSchedule(event.target.value)}>
+                <option value="daily">{featureText(locale, "Daily")}</option><option value="weekdays">{featureText(locale, "Weekdays")}</option><option value="weekly">{featureText(locale, "Weekly")}</option><option value="custom">{featureText(locale, "Custom")}</option>
               </select></label>
-              {frequency !== "custom" ? <label className="settings-field">{zh ? "时间" : "Time"}<input type="time" value={time} disabled={busy} onChange={event => changeSchedule(frequency, event.target.value)} /></label> : null}
-              {frequency === "weekly" ? <label className="settings-field">{zh ? "星期" : "Day"}<select value={fields[4] === "7" ? "0" : fields[4]} disabled={busy} onChange={event => changeSchedule("weekly", time, event.target.value)}>
-                {(zh ? ["周日", "周一", "周二", "周三", "周四", "周五", "周六"] : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]).map((label, value) => <option key={value} value={value}>{label}</option>)}
+              {frequency !== "custom" ? <label className="settings-field">{featureText(locale, "Time")}<input type="time" value={time} disabled={busy} onChange={event => changeSchedule(frequency, event.target.value)} /></label> : null}
+              {frequency === "weekly" ? <label className="settings-field">{featureText(locale, "Day")}<select value={fields[4] === "7" ? "0" : fields[4]} disabled={busy} onChange={event => changeSchedule("weekly", time, event.target.value)}>
+                {(locale === "ja" ? ["日曜日", "月曜日", "火曜日", "水曜日", "木曜日", "金曜日", "土曜日"] : locale === "zh" ? ["周日", "周一", "周二", "周三", "周四", "周五", "周六"] : ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"]).map((label, value) => <option key={value} value={value}>{label}</option>)}
               </select></label> : null}
             </div>
-            {frequency === "custom" ? <label className="settings-field">{zh ? "时间规则（cron）" : "Schedule (cron)"}<Input value={draft.schedule} maxLength={160} disabled={busy} placeholder="0 9 * * 1-5" onChange={event => onDraft({ ...draft, schedule: event.target.value })} /></label> : null}
-            <label className="settings-field">{zh ? "时区" : "Time zone"}<Input value={draft.timezone} disabled={busy} maxLength={100} placeholder="Asia/Shanghai" onChange={event => onDraft({ ...draft, timezone: event.target.value })} /></label>
-            <div className="settings-provider-actions"><Button type="submit" size="sm" disabled={busy || running || Boolean(problem)}>{busy ? (zh ? "保存中…" : "Saving…") : (zh ? "保存更改" : "Save changes")}</Button>
-              <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { onDraft(); setCustomSchedule(false); }}>{zh ? "放弃更改" : "Discard changes"}</Button></div>
-            <p className="settings-note" role="status">{problem ?? (running ? (zh ? "任务运行中，结束后可保存。" : "Wait for this run to finish before saving.") : zh ? "尚未保存。关闭设置会暂存此页的编辑内容。" : "Unsaved. Closing settings keeps this draft on this page.")}</p>
+            {frequency === "custom" ? <label className="settings-field">{featureText(locale, "Schedule (cron)")}<Input value={draft.schedule} maxLength={160} disabled={busy} placeholder="0 9 * * 1-5" onChange={event => onDraft({ ...draft, schedule: event.target.value })} /></label> : null}
+            <label className="settings-field">{featureText(locale, "Time zone")}<Input value={draft.timezone} disabled={busy} maxLength={100} placeholder="Asia/Shanghai" onChange={event => onDraft({ ...draft, timezone: event.target.value })} /></label>
+            <div className="settings-provider-actions"><Button type="submit" size="sm" disabled={busy || running || Boolean(problem)}>{busy ? (featureText(locale, "Saving…")) : (featureText(locale, "Save changes"))}</Button>
+              <Button type="button" size="sm" variant="ghost" disabled={busy} onClick={() => { onDraft(); setCustomSchedule(false); }}>{featureText(locale, "Discard changes")}</Button></div>
+            <p className="settings-note" role="status">{problem ?? (running ? (featureText(locale, "Wait for this run to finish before saving.")) : featureText(locale, "Unsaved. Closing settings keeps this draft on this page."))}</p>
           </form> : <p className="settings-note routine-instructions">{routine.instructions}</p>}
-          <p className="settings-note">{routine.enabled ? routine.nextRunAt ? `${zh ? "下次计划" : "Next planned"} ${date(routine.nextRunAt)} (${routine.timezone})`
-            : (zh ? "未来一年内没有匹配的计划时间。" : "No matching time within the next year.") : (zh ? "已停用，不会按时运行。" : "Disabled; scheduled runs are paused.")}</p>
-          {when ? <p className="settings-note">{zh ? "最近运行" : "Last run"} {date(last!.at)}</p> : null}
+          <p className="settings-note">{routine.enabled ? routine.nextRunAt ? `${featureText(locale, "Next planned")} ${date(routine.nextRunAt)} (${routine.timezone})`
+            : (featureText(locale, "No matching time within the next year.")) : (featureText(locale, "Disabled; scheduled runs are paused."))}</p>
+          {when ? <p className="settings-note">{featureText(locale, "Last run")} {date(last!.at)}</p> : null}
           {routine.lastSkipped ? <p className="settings-status" data-tone="warn" role="status">{date(routine.lastSkipped.at)} · {routine.lastSkipped.reason === "busy"
-            ? (zh ? "运行资源被占用，本次未运行，未自动补跑。" : "The host was busy. This occurrence was skipped and was not replayed.")
-            : (zh ? "主机未及时检查该计划时间，本次未运行，未自动补跑。" : "The host missed this scheduled time. This occurrence was not replayed.")}</p> : null}
+            ? (featureText(locale, "The host was busy. This occurrence was skipped and was not replayed."))
+            : (featureText(locale, "The host missed this scheduled time. This occurrence was not replayed."))}</p> : null}
           {routine.disabledReason && !routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{c.switchedOff(routine.disabledReason)}</span> : null}
           {last?.status === "error" && last.error && routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{last.error}</span> : null}
           {last?.waiting ? <span className="settings-status" data-tone="warn" role="status"><Dot />{c.waitingNote}</span> : null}
           <div className="settings-provider-actions">
-            {!draft ? <Button size="sm" variant="ghost" disabled={busy || running} onClick={() => { setCustomSchedule(false); onDraft({ title: routine.title, instructions: routine.instructions, schedule: routine.schedule, timezone: routine.timezone, revision: routine.revision ?? 0 }); }}>{zh ? "编辑" : "Edit"}</Button> : null}
+            {!draft ? <Button size="sm" variant="ghost" disabled={busy || running} onClick={() => { setCustomSchedule(false); onDraft({ title: routine.title, instructions: routine.instructions, schedule: routine.schedule, timezone: routine.timezone, revision: routine.revision ?? 0 }); }}>{featureText(locale, "Edit")}</Button> : null}
             <Button size="sm" disabled={busy || Boolean(draft) || !routine.enabled || running} title={routine.enabled ? undefined : c.turnOnFirst}
               onClick={() => void state.runNow(routine.id)}>{c.runNow}</Button>
             {onOpenConversation ? (
@@ -974,14 +974,14 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
             {failureText ? <span className="settings-status" data-tone="error" role="status"><Dot />{failureText}</span> : null}
           </div>
           {history.length ? <div className="routine-history">
-            <h4>{zh ? "运行记录" : "Run history"}</h4>
+            <h4>{featureText(locale, "Run history")}</h4>
             <ol>{history.slice(0, allRuns ? history.length : 5).map(run => <li key={run.occurrenceId}>
               <div><time dateTime={new Date(run.at).toISOString()}>{date(run.at)}</time><span className="settings-key-pill" data-tone={run.status === "error" ? "error" : run.status === "success" ? "ok" : "muted"}>{run.waiting ? c.waiting : c.status[run.status]}</span>
-                {onOpenConversation && (run.textId || run.runId) ? <Button size="sm" variant="ghost" onClick={() => onOpenConversation(routine.conversationId, run)}>{zh ? "查看结果" : "View result"}</Button> : null}</div>
+                {onOpenConversation && (run.textId || run.runId) ? <Button size="sm" variant="ghost" onClick={() => onOpenConversation(routine.conversationId, run)}>{featureText(locale, "View result")}</Button> : null}</div>
               {run.error ? <p className="settings-note" data-tone="error">{run.error}</p> : null}
             </li>)}</ol>
-            {history.length > 5 ? <Button size="sm" variant="ghost" onClick={() => setAllRuns(value => !value)}>{allRuns ? (zh ? "收起" : "Show less") : (zh ? `查看全部 ${history.length} 次` : `Show all ${history.length} runs`)}</Button> : null}
-            <p className="settings-note">{zh ? "保留最近 20 次记录，完整结果在对话中。" : "The latest 20 runs are listed; full results stay in the conversation."}</p>
+            {history.length > 5 ? <Button size="sm" variant="ghost" onClick={() => setAllRuns(value => !value)}>{allRuns ? (featureText(locale, "Show less")) : (featureText(locale, "Show all {count} runs", { count: history.length }))}</Button> : null}
+            <p className="settings-note">{featureText(locale, "The latest 20 runs are listed; full results stay in the conversation.")}</p>
           </div> : null}
         </div>
       ) : null}
@@ -1035,7 +1035,7 @@ function McpRow({ t, server, state, open, onToggleOpen, onAdded }: {
   const [url, setUrl] = useState(server?.url ?? "");
   const [token, setToken] = useState("");
   const [confirming, setConfirming] = useState(false);
-  const busy = state.busy === key;
+  const busy = Boolean(state.busy);
   const failure = state.actionError?.id === key ? state.actionError.message : undefined;
   const title = server?.name ?? c.newServer;
   const tone = !server ? "muted" : { off: "muted", ready: "ok", error: "error" }[server.status];
@@ -1091,7 +1091,7 @@ function McpRow({ t, server, state, open, onToggleOpen, onAdded }: {
           ) : server?.status === "ready" ? <p className="settings-note">{c.noTools}</p> : null}
           {server?.status === "error" && server.error ? <span className="settings-status" data-tone="error"><Dot />{server.error}</span> : null}
           <div className="settings-provider-actions">
-            <Button size="sm" disabled={busy || !name.trim() || !url.trim()} onClick={() => void save()}>{busy ? c.saving : c.save}</Button>
+            <Button size="sm" disabled={busy || !name.trim() || !url.trim()} onClick={() => void save()}>{state.busy === key ? c.saving : c.save}</Button>
             {server ? (
               <>
                 <Button size="sm" variant="ghost" disabled={busy || !server.enabled} onClick={() => void state.refresh(server.id)}>{c.refresh}</Button>
@@ -1118,17 +1118,16 @@ type MemoryScopeOption = { scope: MemoryScope; label: string; available: boolean
 function MemorySection({ t, state, scopes = [], initialScope }: { t: SettingsCopy; state: MemoriesState; scopes?: SettingsDialogProps["memoryScopes"]; initialScope?: MemoryScope }) {
   const c = t.memory;
   const { locale } = useLocale();
-  const zh = locale === "zh";
   const [draft, setDraft] = useState("");
   const [filter, setFilter] = useState(initialScope ? memoryScopeKey(initialScope) : "all");
   const [addScope, setAddScope] = useState(memoryScopeKey(initialScope));
   const memory = state.memory;
-  const options = new Map<string, MemoryScopeOption>([["global", { scope: { kind: "global" }, label: zh ? "全局" : "Global", available: true }]]);
+  const options = new Map<string, MemoryScopeOption>([["global", { scope: { kind: "global" }, label: featureText(locale, "Global"), available: true }]]);
   for (const option of scopes) options.set(memoryScopeKey(option.scope), { ...option, available: true });
   for (const item of memory?.memories ?? []) {
     const scope = item.scope ?? { kind: "global" as const };
-    if (!options.has(memoryScopeKey(scope))) options.set(memoryScopeKey(scope), { scope, label: scope.kind === "global" ? (zh ? "全局" : "Global")
-      : `${scope.kind === "bot" ? "Bot" : zh ? "群聊" : "Group"} · ${scope.id} (${zh ? "已不可用" : "unavailable"})`, available: false });
+    if (!options.has(memoryScopeKey(scope))) options.set(memoryScopeKey(scope), { scope, label: scope.kind === "global" ? (featureText(locale, "Global"))
+      : `${scope.kind === "bot" ? "Bot" : featureText(locale, "Group")} · ${scope.id} (${featureText(locale, "unavailable")})`, available: false });
   }
   const scopeOptions = [...options.values()];
   const available = scopeOptions.filter(option => option.available);
@@ -1138,24 +1137,24 @@ function MemorySection({ t, state, scopes = [], initialScope }: { t: SettingsCop
   const add = async () => { if (!state.busy && draft.trim() && selectedAddScope && await state.save(undefined, draft, selectedAddScope)) setDraft(""); };
   return (
     <>
-      <p className="settings-intro">{zh ? "记忆可供所有 Bot、指定 Bot 或指定群聊使用。聊天中保存时默认归当前 Bot 或群聊，全局记忆供所有对话使用。" : "Memories can be shared globally, with one Bot, or within one group. Chat saves default to the current Bot or group; global memories are available in every conversation."}</p>
+      <p className="settings-intro">{featureText(locale, "Memories can be shared globally, with one Bot, or within one group. Chat saves default to the current Bot or group; global memories are available in every conversation.")}</p>
       {state.error ? <p className="settings-status" data-tone="error" role="status"><Dot />{c.loadFailed(state.error)}</p> : null}
       {memory ? (
         <div className="settings-list">
           <div className="settings-row">
             <span className="settings-row-main"><span className="settings-row-title"><strong>{c.enable}</strong></span>
               <span className="settings-row-sub">{c.count(memory.memories.length, MEMORY_COUNT_LIMIT)}</span></span>
-            <Switch size="sm" aria-label={c.enable} checked={memory.enabled} disabled={state.busy === "settings"}
+            <Switch size="sm" aria-label={c.enable} checked={memory.enabled} disabled={Boolean(state.busy)}
               onCheckedChange={(checked) => void state.setEnabled(checked)} />
           </div>
         </div>
       ) : null}
       {memory ? <div className="settings-memory-controls">
-        <SelectMenu ariaLabel={zh ? "按范围筛选记忆" : "Filter memories by scope"} value={filter} onValueChange={setFilter}
-          options={[{ value: "all", label: zh ? "全部范围" : "All scopes" }, ...scopeOptions.map(option => ({ value: memoryScopeKey(option.scope), label: option.label }))]} />
+        <SelectMenu ariaLabel={featureText(locale, "Filter memories by scope")} value={filter} onValueChange={setFilter}
+          options={[{ value: "all", label: featureText(locale, "All scopes") }, ...scopeOptions.map(option => ({ value: memoryScopeKey(option.scope), label: option.label }))]} />
       </div> : null}
       {memory && !memory.enabled ? <p className="settings-status" data-tone="warn" role="note"><Dot />{c.off}</p> : null}
-      {memory && memories.length === 0 ? <p className="settings-note">{filter === "all" ? c.empty : zh ? "这个范围还没有记忆。" : "No memories in this scope."}</p> : null}
+      {memory && memories.length === 0 ? <p className="settings-note">{filter === "all" ? c.empty : featureText(locale, "No memories in this scope.")}</p> : null}
       {memories.length ? (
         <div className="settings-list">
           {memories.map((item) => <MemoryRow key={item.id} t={t} memory={item} state={state} scopes={scopeOptions} />)}
@@ -1166,7 +1165,7 @@ function MemorySection({ t, state, scopes = [], initialScope }: { t: SettingsCop
           <Input value={draft} disabled={Boolean(state.busy)} maxLength={MEMORY_TEXT_LIMIT} placeholder={c.addPlaceholder} aria-label={c.addPlaceholder}
             onChange={(event) => setDraft(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Enter" && !event.nativeEvent.isComposing) void add(); }} />
-          <SelectMenu ariaLabel={zh ? "新记忆的范围" : "New memory scope"} value={addScope} onValueChange={setAddScope} disabled={Boolean(state.busy)}
+          <SelectMenu ariaLabel={featureText(locale, "New memory scope")} value={addScope} onValueChange={setAddScope} disabled={Boolean(state.busy)}
             options={available.map(option => ({ value: memoryScopeKey(option.scope), label: option.label }))} />
           <Button size="sm" disabled={!draft.trim() || Boolean(state.busy) || !selectedAddScope} onClick={() => void add()}>{c.add}</Button>
         </div>
@@ -1203,7 +1202,7 @@ function MemoryRow({ t, memory, state, scopes }: { t: SettingsCopy; memory: Memo
               if (event.key === "Enter" && !event.nativeEvent.isComposing) void save();
             }} />
         ) : <span className="settings-row-title">{memory.text}</span>}
-        {editing ? <SelectMenu ariaLabel={locale === "zh" ? "记忆范围" : "Memory scope"} value={scopeKey} disabled={busy}
+        {editing ? <SelectMenu ariaLabel={featureText(locale, "Memory scope")} value={scopeKey} disabled={busy}
           onValueChange={value => { setScopeKey(value); setScopeChanged(value !== memoryScopeKey(memory.scope)); }}
           options={scopes.map(option => ({ value: memoryScopeKey(option.scope), label: option.label, disabled: !option.available }))} /> : null}
         <span className="settings-row-sub">{scopeLabel} · {memory.source ? c.savedBy(botNames[memory.source.botId ?? memory.source.agent] ?? botNames[memory.source.agent], when) : c.addedByYou(when)}</span>
@@ -1337,27 +1336,26 @@ function hostOf(baseUrl: string): string {
 
 function LearningSection({ learning }: { learning: LearningSettings }) {
   const { locale } = useLocale();
-  const zh = locale === "zh";
   const { state, busy, error } = learning;
   const settings = (patch: Partial<Pick<NonNullable<typeof state>, "enabled" | "reuse" | "dailyLimit">>) => {
     if (state) void learning.update({ action: "settings", revision: state.revision, enabled: state.enabled, reuse: state.reuse, dailyLimit: state.dailyLimit, ...patch });
   };
   return <section className="settings-section">
-    <h3>{zh ? "自学习（RSL）" : "Self-learning (RSL)"}</h3>
-    <p className="settings-note">{zh ? "空闲时分析复杂任务与纠正，只生成文字建议。不会修改引擎、代码、人设或用户记忆。候选需审核；未启用时不产生学习调用。" : "Reviews complex tasks and corrections while idle. Text proposals only: engines, code, persona and user memory stay unchanged. Candidates require review. Disabled means no learning calls."}</p>
+    <h3>{featureText(locale, "Self-learning (RSL)")}</h3>
+    <p className="settings-note">{featureText(locale, "Reviews complex tasks and corrections while idle. Text proposals only: engines, code, persona and user memory stay unchanged. Candidates require review. Disabled means no learning calls.")}</p>
     {error || state?.storageError ? <p role="alert">{error || state?.storageError}</p> : null}
-    {!state ? <Button size="sm" onClick={() => void learning.refresh()}>{zh ? "重新加载" : "Reload"}</Button> : <>
-      <label className="settings-row"><span>{zh ? "启用后台学习" : "Enable background learning"}</span><Switch size="sm" aria-label="RSL" checked={state.enabled} disabled={busy || Boolean(state.storageError)} onCheckedChange={enabled => settings({ enabled })} /></label>
-      <label className="settings-row"><span>{zh ? "复用已审核经验" : "Reuse approved lessons"}</span><Switch size="sm" aria-label={zh ? "复用已审核经验" : "Reuse approved lessons"} checked={state.reuse} disabled={busy || !state.enabled || Boolean(state.storageError)} onCheckedChange={reuse => settings({ reuse })} /></label>
-      <p className="settings-note">{zh ? "仅同 Bot、同引擎的相关任务使用。停用不清除原生会话已看到的内容，恢复干净基线请新建对话。" : "Only relevant tasks for the same Bot and engine. Disabling cannot erase native session context; start a new conversation for a clean baseline."}</p>
-      <label className="settings-row"><span>{zh ? "每日调用上限（UTC）" : "Daily call limit (UTC)"}</span><input aria-label={zh ? "每日调用上限" : "Daily call limit"} type="number" min={1} max={20} value={state.dailyLimit} disabled={busy || Boolean(state.storageError)} onChange={event => { const dailyLimit = Number(event.target.value); if (dailyLimit >= 1 && dailyLimit <= 20) settings({ dailyLimit }); }} /></label>
-      <p className="settings-note">{zh ? "本日" : "Today"}: {state.calls}/{state.dailyLimit} · input {state.inputTokens} · output {state.outputTokens} · {zh ? "用量未知" : "Unknown usage"} {state.unknownUsage}</p>
-      <p className="settings-note">{zh ? "排队" : "Queued"}: {state.queued} · {state.running ? (zh ? "分析中" : "Reviewing") : (zh ? "空闲" : "Idle")} · {state.lastResult}</p>
-      <p className="settings-note">{zh ? "额外调用使用原任务模型，最多约 6000 字符输入、500 tokens 输出；每日次数是硬限制，token 为已报告部分，不是账单。队列不跨重启恢复。" : "Uses the task model: about 6000 input characters and 500 output tokens per call. Daily calls are capped; reported tokens may be incomplete and are not a bill. Queues do not survive restarts."}</p>
-      {state.candidates.length === 0 ? <p>{zh ? "暂无候选经验。开启后，符合条件的新任务会在空闲时分析。" : "No candidates. Eligible new tasks are reviewed while idle once enabled."}</p> : state.candidates.slice().reverse().map(candidate => <div key={candidate.id} className="settings-provider-card">
+    {!state ? <Button size="sm" onClick={() => void learning.refresh()}>{featureText(locale, "Reload")}</Button> : <>
+      <label className="settings-row"><span>{featureText(locale, "Enable background learning")}</span><Switch size="sm" aria-label="RSL" checked={state.enabled} disabled={busy || Boolean(state.storageError)} onCheckedChange={enabled => settings({ enabled })} /></label>
+      <label className="settings-row"><span>{featureText(locale, "Reuse approved lessons")}</span><Switch size="sm" aria-label={featureText(locale, "Reuse approved lessons")} checked={state.reuse} disabled={busy || !state.enabled || Boolean(state.storageError)} onCheckedChange={reuse => settings({ reuse })} /></label>
+      <p className="settings-note">{featureText(locale, "Only relevant tasks for the same Bot and engine. Disabling cannot erase native session context; start a new conversation for a clean baseline.")}</p>
+      <label className="settings-row"><span>{featureText(locale, "Daily call limit (UTC)")}</span><input aria-label={featureText(locale, "Daily call limit")} type="number" min={1} max={20} value={state.dailyLimit} disabled={busy || Boolean(state.storageError)} onChange={event => { const dailyLimit = Number(event.target.value); if (dailyLimit >= 1 && dailyLimit <= 20) settings({ dailyLimit }); }} /></label>
+      <p className="settings-note">{featureText(locale, "Today")}: {state.calls}/{state.dailyLimit} · {featureText(locale, "Input tokens")} {state.inputTokens} · {featureText(locale, "Output tokens")} {state.outputTokens} · {featureText(locale, "Unknown usage")} {state.unknownUsage}</p>
+      <p className="settings-note">{featureText(locale, "Queued")}: {state.queued} · {state.running ? (featureText(locale, "Reviewing")) : (featureText(locale, "Idle"))} · {state.lastResult && Object.hasOwn(featureCopy, state.lastResult) ? featureText(locale, state.lastResult as keyof typeof featureCopy) : state.lastResult}</p>
+      <p className="settings-note">{featureText(locale, "Uses the task model: about 6000 input characters and 500 output tokens per call. Daily calls are capped; reported tokens may be incomplete and are not a bill. Queues do not survive restarts.")}</p>
+      {state.candidates.length === 0 ? <p>{featureText(locale, "No candidates. Eligible new tasks are reviewed while idle once enabled.")}</p> : state.candidates.slice().reverse().map(candidate => <div key={candidate.id} className="settings-provider-card">
         <strong>{candidate.title}</strong><p>{candidate.trigger}</p><p style={{ whiteSpace: "pre-wrap" }}>{candidate.lesson}</p>
-        <p className="settings-note">{candidate.botId} · {candidate.harness} · {candidate.status} · {candidate.conversationId} / {candidate.runId}</p>
-        <div className="settings-provider-actions"><Button size="sm" disabled={busy || candidate.status === "approved" || Boolean(state.storageError)} onClick={() => void learning.update({ action: "review", revision: state.revision, id: candidate.id, status: "approved" })}>{zh ? "批准" : "Approve"}</Button><Button size="sm" disabled={busy || candidate.status === "rejected" || Boolean(state.storageError)} onClick={() => void learning.update({ action: "review", revision: state.revision, id: candidate.id, status: "rejected" })}>{zh ? "拒绝 / 停用" : "Reject / Disable"}</Button><Button size="sm" disabled={busy || Boolean(state.storageError)} onClick={() => void learning.update({ action: "remove", revision: state.revision, id: candidate.id })}>{zh ? "删除" : "Delete"}</Button></div>
+        <p className="settings-note">{candidate.botId} · {candidate.harness} · {featureText(locale, ({ pending: "Awaiting review", approved: "Approved", rejected: "Rejected" } as const)[candidate.status])} · {candidate.conversationId} / {candidate.runId}</p>
+        <div className="settings-provider-actions"><Button size="sm" disabled={busy || candidate.status === "approved" || Boolean(state.storageError)} onClick={() => void learning.update({ action: "review", revision: state.revision, id: candidate.id, status: "approved" })}>{featureText(locale, "Approve")}</Button><Button size="sm" disabled={busy || candidate.status === "rejected" || Boolean(state.storageError)} onClick={() => void learning.update({ action: "review", revision: state.revision, id: candidate.id, status: "rejected" })}>{featureText(locale, "Reject / Disable")}</Button><Button size="sm" disabled={busy || Boolean(state.storageError)} onClick={() => void learning.update({ action: "remove", revision: state.revision, id: candidate.id })}>{featureText(locale, "Delete")}</Button></div>
       </div>)}
     </>}
   </section>;

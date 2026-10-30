@@ -15,7 +15,7 @@ export function identityEventForReplay(event: AgentUXEvent): AgentUXEvent {
 export function approvalForReplay(toolId: string, events: readonly AgentUXEvent[]) {
   for (let index = events.length - 1; index >= 0; index--) {
     const event = events[index];
-    if (event.type === "tool.call.awaiting_approval" && replayId(event, "toolCallId") === toolId) {
+    if (event.type === "tool.call.awaiting_approval" && event.runId && replayId(event, "toolCallId") === toolId) {
       return { toolCallId: event.payload.toolCallId, runId: event.runId };
     }
   }

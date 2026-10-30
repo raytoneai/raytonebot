@@ -1,0 +1,150 @@
+[
+  {
+    "name": "ウェルカム（イベントなし）",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Built-in demo",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Group chat",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Coding agent",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Reasoning kinds",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Tool approval",
+    "approvalButtons": [
+      "今回のみ許可",
+      "常に許可",
+      "拒否"
+    ],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Error block",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Artifact action",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Capability tray",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "HTML artifact stream",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Basic text",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Normal turn",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Streaming thinking + message",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Tool approval + completion",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "MCP success + interrupt",
+    "approvalButtons": [
+      "今回のみ許可",
+      "常に許可",
+      "拒否"
+    ],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Runtime boot + sync",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Retrying incident",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Exhausted incident",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Terminal incident",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  },
+  {
+    "name": "Config, spans, deletion",
+    "approvalButtons": [],
+    "radioCount": 0,
+    "scrollWidth": 390,
+    "width": 390
+  }
+]

@@ -1,3 +1,5 @@
+import { HTML_LANG } from "../../i18n/locales";
+import { featureText } from "../../i18n/copy/features.ts";
 import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, ListPlus, MessageSquareText, Mic, Paperclip, Pencil, Plus, Rocket, Search, Send, ShieldCheck, ShieldHalf, ShieldOff, Sparkles, Square, X } from "lucide-react";
 import { AgentAvatar, AgentPersonaProvider } from "../../avatars/AgentPersona";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
@@ -165,7 +167,7 @@ export function ComposerFrame({
   const promptValue = draft.prompt;
   const attachedFiles = draft.attachments;
   const attachedChats = new Set(attachedFiles.flatMap(attachment => attachment.chatReference ? [attachment.chatReference.conversationId] : []));
-  const chatReferenceLabel = locale === "zh" ? "引用对话" : "Reference chat";
+  const chatReferenceLabel = featureText(locale, "Reference chat");
   const setPromptValue = (value: SetStateAction<string>) => updateDraft((current) => ({
     ...current, prompt: typeof value === "function" ? value(current.prompt) : value,
   }));
@@ -380,7 +382,7 @@ export function ComposerFrame({
     speechRecognitionRef.current = recognition;
     recognition.continuous = true;
     recognition.interimResults = true;
-    recognition.lang = "zh-CN";
+    recognition.lang = HTML_LANG[locale];
     recognition.onstart = () => setIsListening(true);
     recognition.onend = () => setIsListening(false);
     recognition.onerror = () => setIsListening(false);
@@ -644,7 +646,7 @@ export function ComposerFrame({
                 <MessageSquareText size={14} aria-hidden="true" />
                 <span className="ui-dropdown-menu__item-label" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.title || chat.id}</span>
                 {attachedChats.has(chat.id) ? <span aria-hidden="true">✓</span> : null}
-              </DropdownMenuItem>) : <DropdownMenuItem disabled>{locale === "zh" ? "暂无可引用的已保存对话" : "No saved chats to reference"}</DropdownMenuItem>}
+              </DropdownMenuItem>) : <DropdownMenuItem disabled>{featureText(locale, "No saved chats to reference")}</DropdownMenuItem>}
             </DropdownMenuContent>
           </DropdownMenu> : null}
           {!isWelcome && onBrowseWorkspace ? <IconButton type="button" label={copy.workspace.outputFrame.files} disabled={restoringDrafts} onClick={onBrowseWorkspace}><FileText size={16} /></IconButton> : null}
@@ -837,7 +839,7 @@ export function ComposerFrame({
               </IconButton>
             ) : null}
             {canQueue && composerQueue?.onSteer && attachedFiles.length === 0 ? (
-              <Button className="composer-steer" variant="ghost" size="sm" type="button" disabled={steering} aria-label={steerLabel} title={locale === "zh" ? "在下一次模型调用前接收补充，不会立即停止当前输出" : "Applies before the next model call; does not stop current output"} onClick={() => void submitSteering(promptValue)}>{locale === "zh" ? "插话" : locale === "ja" ? "補足" : "Adjust"}</Button>
+              <Button className="composer-steer" variant="ghost" size="sm" type="button" disabled={steering} aria-label={steerLabel} title={featureText(locale, "Applies before the next model call; does not stop current output")} onClick={() => void submitSteering(promptValue)}>{locale === "zh" ? "插话" : locale === "ja" ? "補足" : "Adjust"}</Button>
             ) : null}
             {canQueue ? (
               <Button className="composer-queue-add" variant="primary" size="sm" type="submit" disabled={steering}>

@@ -17,3 +17,12 @@ test("refresh retains input and request identity but changed source cannot reuse
   assert.equal(restoreArtifactFormDraft(source, '{"bad":1}', () => "form_new").submitted, undefined);
   assert.match(artifactSubmissionPrompt(parseArtifactForm(source)!, saved.values), /Amount: 12.5/);
 });
+
+test("form validation uses the interface language and preserves author-supplied field names", () => {
+  const form = parseArtifactForm(source)!;
+  for (const [locale, required, invalid] of [["en", "required", "invalid value"], ["zh", "必填", "值无效"], ["ja", "必須です", "値が無効です"]] as const) {
+    assert.throws(() => validateArtifactValues(form, {}, locale), error => error instanceof Error && error.message.includes("Amount") && error.message.includes(required));
+    assert.throws(() => validateArtifactValues(form, { amount: -1 }, locale), error => error instanceof Error && error.message.includes(invalid));
+  }
+  assert.throws(() => parseArtifactForm('{"kind":"raytone-form"}', "ja"), /フォームの構造が無効です/);
+});

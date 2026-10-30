@@ -5,6 +5,8 @@ export type EphemeralPiConversation = {
   availableBots?: import("./groupParticipants.ts").GroupParticipant[];
   id: string;
   title: string;
+  titleSource?: "summary" | "user";
+  groupTitlePreserved?: boolean;
   events: readonly AgentUXEvent[];
   createdAt: number;
   /** The preset role that answered; restored with the conversation. */

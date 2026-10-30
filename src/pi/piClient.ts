@@ -165,14 +165,14 @@ export async function testProviderConnection(
 export type StoredConversationSummary = {
   botId?: string;
   availableBots?: import("./groupParticipants.ts").GroupParticipant[];
-  group?: { members: string[]; participants?: import("./groupParticipants.ts").GroupParticipant[]; hostId?: string; preview?: { author: string; text: string } };
+  group?: { members: string[]; participants?: import("./groupParticipants.ts").GroupParticipant[]; hostId?: string; preserveTitle?: boolean; preview?: { author: string; text: string } };
   id: string;
   title: string;
   createdAt: number;
   updatedAt: number;
   agentPreset: AgentPresetId;
-  /** "summary": the host's model wrote the title. */
-  titleSource?: "summary";
+  /** Explicit titles are content, never automatic localized roster labels. */
+  titleSource?: "summary" | "user";
   eventCount: number;
   snippet?: string;
   textId?: string;
@@ -416,16 +416,55 @@ export async function resolvePiApproval(
   conversationId?: string,
   runId?: string,
   fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
 ): Promise<boolean> {
+  const timeout = AbortSignal.timeout(15_000);
   const response = await fetcher(`${PI_API_PREFIX}/approval`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ toolCallId, decision, conversationId, runId }),
-    signal: AbortSignal.timeout(15_000),
+    signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
+  }).catch((error: unknown) => {
+    // Only fetch's TypeError means a connection failure; UI bugs must not be classified as offline.
+    if (error instanceof TypeError) throw new PiRequestError(0, error.message);
+    throw error;
   });
   if (response.status === 409) return false;
-  if (!response.ok) throw new Error(await responseError(response, "Pi request failed"));
+  if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Pi request failed"));
+  const receipt = await response.json() as { ok?: boolean };
+  if (receipt?.ok !== true) throw new PiRequestError(response.status, "Missing approval acknowledgement.");
   return true;
+}
+
+/** One user decision, reconciled against the same live request before another delivery attempt. */
+export async function submitPiApproval(
+  input: { toolCallId: string; decision: PiApprovalDecision; conversationId: string; runId: string },
+  options: { signal?: AbortSignal; fetcher?: typeof fetch } = {},
+): Promise<void> {
+  const { signal, fetcher = fetch } = options;
+  const send = () => { signal?.throwIfAborted(); return resolvePiApproval(input.toolCallId, input.decision, input.conversationId, input.runId, fetcher, signal); };
+  try { signal?.throwIfAborted(); await send(); return; }
+  catch { signal?.throwIfAborted(); }
+  let delay = 500;
+  for (;;) {
+    signal?.throwIfAborted();
+    try {
+      const timeout = AbortSignal.timeout(15_000);
+      const query = new URLSearchParams({ toolCallId: input.toolCallId, conversationId: input.conversationId, runId: input.runId });
+      const result = await requestJson<{ pending: boolean }>(fetcher, `${PI_API_PREFIX}/approval?${query}`, undefined,
+        signal ? AbortSignal.any([signal, timeout]) : timeout);
+      if (result.pending === false) return; // Answered elsewhere, stopped, or the host restarted.
+      if (result.pending === true) { await send(); return; }
+    } catch { signal?.throwIfAborted(); }
+    // Only reconciliation polls during disconnection. Never infer approval from a failed read.
+    await new Promise<void>((resolve, reject) => {
+      const abort = () => { clearTimeout(timer); signal?.removeEventListener("abort", abort); reject(signal?.reason); };
+      const timer = setTimeout(() => { signal?.removeEventListener("abort", abort); resolve(); }, delay);
+      signal?.addEventListener("abort", abort, { once: true });
+      if (signal?.aborted) abort();
+    });
+    delay = Math.min(delay * 2, 10_000);
+  }
 }
 
 /** Stream one real Pi turn. Each line is already an AgentUX event, never a Pi SDK object. */
@@ -477,7 +516,7 @@ export async function* followPiTurn(
   if (response.status === 409) {
     const saved = await getStoredConversation(conversationId, options.fetcher, options.signal);
     if (options.requestId && !saved.events.some((event) => event.runId === options.requestId)) {
-      throw new PiRequestError(409, "无法确认这条消息已被主机接收；未自动重发，请检查任务后重试。");
+      throw new PiRequestError(409, "Message receipt is unconfirmed. It was not resent automatically. Check the task before retrying.");
     }
     for (const event of saved.events.slice(Math.max(0, after))) {
       if (options.signal?.aborted) return;
@@ -492,7 +531,7 @@ export async function* followPiTurn(
     yield event;
   }
   if (!received && !options.signal?.aborted) {
-    throw new PiRequestError(409, "无法确认这条消息已被主机接收；未自动重发，请检查任务后重试。");
+    throw new PiRequestError(409, "Message receipt is unconfirmed. It was not resent automatically. Check the task before retrying.");
   }
 }
 

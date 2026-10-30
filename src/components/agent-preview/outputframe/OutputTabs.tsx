@@ -1,4 +1,4 @@
-import { useCopy } from "../../../i18n/LocaleContext";
+import { useCopy, useLocale } from "../../../i18n/LocaleContext";
 import { DocumentActions } from "./DocumentActions";
 import { StructuredArtifact } from "./StructuredArtifact";
 import { parseArtifactForm } from "../../../runtime/artifactForm";
@@ -77,6 +77,7 @@ export function OutputTabs({
 }
 
 export function OpenedOutputItem({ item, copy, onClose }: { item: OutputPanelItem; copy: OutputFrameCopy; onClose?: (id: string) => void }) {
+  const { locale } = useLocale();
   const { workspace, workspaceScope, artifactForms } = useShellExtras();
   const downloadUrl = item.downloadUrl ?? (item.workspacePath && workspaceScope ? workspaceFileUrl(item.workspacePath, workspaceScope, workspace) : undefined);
   const preview = useFilePreview(item, downloadUrl);
@@ -85,7 +86,7 @@ export function OpenedOutputItem({ item, copy, onClose }: { item: OutputPanelIte
   const language = item.language ?? languageFromTitle(item.title);
   const renderKind = outputItemRenderKind(item);
   let form, formError;
-  try { form = preview.body ? parseArtifactForm(preview.body) : undefined; } catch (error) { formError = error instanceof Error ? error.message : String(error); }
+  try { form = preview.body ? parseArtifactForm(preview.body, locale) : undefined; } catch (error) { formError = error instanceof Error ? error.message : String(error); }
   return (
     <div className="opened-output-item" data-kind={item.kind} data-render-kind={renderKind}>
       <div className="artifact-title">

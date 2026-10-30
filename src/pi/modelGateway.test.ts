@@ -5,6 +5,25 @@ import { connect as tlsConnect } from "node:tls";
 import { request as httpRequest } from "node:http";
 import { once } from "node:events";
 import { clientHelloServerName, createModelGateway, isPublicAddress } from "./runtime/modelGateway.ts";
+import { createRunDeadline } from "./runtime/runDeadline.ts";
+
+test("model access after a long approval uses the host's remaining execution time", async (t) => {
+  t.mock.timers.enable({ apis: ["Date"], now: Date.now() });
+  const gateway = await createModelGateway({ port: 0, fetcher: async () => new Response("ok") });
+  const clock = createRunDeadline(1000, () => {});
+  try {
+    const lease = gateway.issue({ baseUrl: "https://api.example.com/v1", apiKey: "dummy", model: "model", protocol: "openai", maxDurationMs: 1000, remainingMs: clock.remainingMs });
+    t.mock.timers.tick(400);
+    clock.setPaused(true);
+    t.mock.timers.tick(24 * 60 * 60 * 1000);
+    const request = () => fetch(`${lease.baseUrl}/responses`, { method: "POST", headers: { authorization: `Bearer ${lease.apiKey}` }, body: JSON.stringify({ model: "model" }) });
+    assert.equal((await request()).status, 200, "waiting did not expire the model lease");
+    clock.setPaused(false);
+    t.mock.timers.tick(600);
+    assert.equal((await request()).status, 429, "the original execution budget still applies");
+    lease.revoke();
+  } finally { clock.dispose(); await gateway.close(); }
+});
 import { agentIsolationEnabled, requireAgentIsolation } from "./runtime/agentProcess.ts";
 
 test("model leases fix the provider/model, keep upstream keys private, cap calls, and revoke", async () => {

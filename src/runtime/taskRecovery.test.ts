@@ -32,8 +32,8 @@ test("tool authentication failures keep their owning connection instead of openi
 });
 
 test("continuing an accepted task asks to check progress; an unaccepted prompt is preserved exactly", () => {
-  assert.equal(recoveryPrompt("Write a report", false, true), "Write a report");
-  const prompt = recoveryPrompt("Write a report", true, true);
+  assert.equal(recoveryPrompt("Write a report", false, "zh"), "Write a report");
+  const prompt = recoveryPrompt("Write a report", true, "zh");
   assert.match(prompt, /先核对/);
   assert.match(prompt, /不要重复/);
   assert.ok(prompt.endsWith("Write a report"));

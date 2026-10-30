@@ -1,3 +1,4 @@
+import { featureText } from "../../i18n/copy/features.ts";
 import { ChevronDown, MessagesSquare, PanelLeft, Pencil, Search, Trash2 } from "lucide-react";
 import { AgentAvatar } from "../../avatars/AgentPersona";
 import { GroupFace } from "../../avatars/GroupFace";
@@ -230,7 +231,7 @@ export function SessionSidebar({
     <aside ref={sidebarRef} className="session-sidebar" data-preview-anchor="sidebar" aria-label={c.ariaLabel}>
       <header className="session-brand">
         {extras.onCreateBot ? <button type="button" className="session-brand-name session-brand-create" onClick={extras.onCreateBot}
-          aria-label={locale === "zh" ? "创建 Bot" : "Create Bot"} title={locale === "zh" ? "创建 Bot" : "Create Bot"}>
+          aria-label={featureText(locale, "Create Bot")} title={featureText(locale, "Create Bot")}>
           <svg className="session-brand-logo" viewBox="0 0 280 76" role="img" aria-label={c.brandName}>
             <use href="/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo" />
           </svg>

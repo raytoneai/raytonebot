@@ -1,0 +1,20 @@
+▶ approval stays a decision while the connection is reconciled
+  ✔ zh inline: one decision survives a lost receipt (1717.091333ms)
+  ✔ zh external: one decision survives a lost receipt (729.90075ms)
+  ✔ en inline: one decision survives a lost receipt (681.309708ms)
+  ✔ en external: one decision survives a lost receipt (651.558084ms)
+  ✔ ja inline: one decision survives a lost receipt (692.4455ms)
+  ✔ ja external: one decision survives a lost receipt (665.78675ms)
+  ✔ inline: each action submits directly, focus alone never approves (2000.481166ms)
+  ✔ external: each action submits directly, focus alone never approves (2007.077458ms)
+  ✔ shared form choices still require their submit button (464.396375ms)
+  ✔ refresh cancels reconciliation without sending a new decision (1268.183875ms)
+✔ approval stays a decision while the connection is reconciled (11221.070959ms)
+ℹ tests 11
+ℹ suites 0
+ℹ pass 11
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 11522.145458

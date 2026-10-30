@@ -1,9 +1,11 @@
+import type { AppLocale } from "../i18n/locales.ts";
+import { featureText } from "../i18n/copy/features.ts";
 import { useEffect, useRef, useState } from "react";
 import { piFileDownloadUrl, readPiDocument, savePiDocument, type PiDocument, type PiFileScope } from "../pi/piClient";
 import type { ShellExtras } from "../components/shell/ShellExtras";
 import type { OutputPanelItem } from "../components/agent-preview/outputframe/panelItem";
 
-export function useWorkspaceDocument(item: OutputPanelItem, body: string, downloadUrl: string | undefined, extras: ShellExtras, zh: boolean) {
+export function useWorkspaceDocument(item: OutputPanelItem, body: string, downloadUrl: string | undefined, extras: ShellExtras, locale: AppLocale) {
   const { workspaceScope, workspaceSharedAvailable, onAttachWorkspaceFile, onOpenFile, artifactForms } = extras;
   const [editing, setEditing] = useState(false), [copying, setCopying] = useState(false), [busy, setBusy] = useState(false);
   const [document, setDocument] = useState<PiDocument>(), [text, setText] = useState(body), [error, setError] = useState(""), [notice, setNotice] = useState("");
@@ -30,32 +32,32 @@ export function useWorkspaceDocument(item: OutputPanelItem, body: string, downlo
       const saved = JSON.parse(localStorage.getItem(key) ?? "null");
       if (typeof saved?.text === "string" && saved.text.length <= 256 * 1024 && /^[a-f0-9]{64}$/.test(saved.version)) {
         setText(saved.text); setDocument({ ...doc, version: saved.version });
-        if (saved.version !== doc.version) setError(zh ? "文件已变化，恢复的草稿保留；请核对后重新打开最新版本" : "File changed; restored edits are kept. Review and reopen the latest version.");
+        if (saved.version !== doc.version) setError(featureText(locale, "File changed; restored edits are kept. Review and reopen the latest version."));
       }
     } catch {}
   });
   const changeText = (value: string) => {
     setText(value);
     if (document) try { localStorage.setItem(key, JSON.stringify({ text: value, version: document.version })); }
-    catch { setError(zh ? "无法保存编辑草稿，内容仍保留在页面" : "Draft storage unavailable; edits remain on this page"); }
+    catch { setError(featureText(locale, "Draft storage unavailable; edits remain on this page")); }
   };
   const attach = () => run(async () => {
     if (!scope || !path) return;
-    if (scope !== "shared" && scope !== workspaceScope) throw new Error(zh ? "请先另存到共享工作区，再引用给当前成员" : "Save to the shared workspace before attaching to another member");
+    if (scope !== "shared" && scope !== workspaceScope) throw new Error(featureText(locale, "Save to the shared workspace before attaching to another member"));
     const doc = await readPiDocument(scope, path); if (!stillHere()) return;
     await onAttachWorkspaceFile?.(doc);
-    if (stillHere()) setNotice(zh ? "已加入输入框附件；发送时会读取最新文件" : "Attached to the composer; the next turn reads the latest file");
+    if (stillHere()) setNotice(featureText(locale, "Attached to the composer; the next turn reads the latest file"));
   });
   const saveCopy = () => run(async () => {
     const doc = await savePiDocument({ scope: targetScope, name, content: editing ? text : body, conversationId: owner, artifactId: item.artifactId });
-    if (!stillHere()) return; setCopying(false); setNotice(zh ? "文档已保存" : "Document saved"); open(doc);
+    if (!stillHere()) return; setCopying(false); setNotice(featureText(locale, "Document saved")); open(doc);
   });
   const saveChanges = () => run(async () => {
     if (!document) return;
     const doc = await savePiDocument({ scope: document.scope, path: document.path, content: text, version: document.version });
     // Do not delete a newer edit typed while the save request was in flight.
     try { const draft = JSON.parse(localStorage.getItem(key) ?? "null"); if (draft?.text === text && draft?.version === document.version) localStorage.removeItem(key); } catch {}
-    if (!stillHere()) return; setDocument(doc); setEditing(false); setNotice(zh ? "已保存" : "Saved"); open(doc);
+    if (!stillHere()) return; setDocument(doc); setEditing(false); setNotice(featureText(locale, "Saved")); open(doc);
   });
   const discard = () => run(async () => {
     if (!document) return;

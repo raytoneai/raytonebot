@@ -1,0 +1,142 @@
+[
+  {
+    "scenario": "ウェルカム（イベントなし）",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:5195/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: サイドバーを開く, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 heading 今日は何をお手伝いしましょうか？, Value: 2\n\t\t\t\t6 text 今日は何をお手伝いしましょうか？\n\t\t\t7 text entry area (settable)\n\t\t\t8 button ファイルを添付\n\t\t\t9 pop up button (collapsed) Description: 会話を参照, ID: radix-_r_6_, Secondary Actions: Expand\n\t\t\t10 pop up button (collapsed) Description: 承認の権限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t11 pop up button (collapsed) Description: 思考予算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t12 button (disabled) 送信\n\t\t13 button 右パネルを開く\n\t\t14 text イベントストリーム（開発用）\n\t\t15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand\n\t\t16 pop up button (collapsed, settable) Description: 作業中アバターのプレビュー, Secondary Actions: Expand\n\t\t\t17 menu\n\t\t\t\t18 (selected) 作業中アバターのプレビュー\n\t\t\t\t19 考えています\n\t\t\t\t20 確認しています\n\t\t\t\t21 編集中\n\t\t\t\t22 実行中\n\t\t\t\t23 返信中\n\t\t\t\t24 確認を待っています\n\t\t\t\t25 終了 / 停止\n\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Built-in demo",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:5195/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: サイドバーを開く, Secondary Actions: Expand\n\t\t26 container\n\t\t\t27 container\n\t\t\t\t28 pop up button (collapsed) Description: Raer, Pi, Secondary Actions: Expand\n\t\t\t\t\t29 text Raer\n\t\t\t\t30 pop up button (collapsed) Description: Agent を追加, Help: チャットに Agent を追加, Secondary Actions: Expand\n\t\t\t31 container\n\t\t\t\t32 text Add input validation to the search box, then show me the patch.\n\t\t\t\t33 container ユーザーメッセージの操作\n\t\t\t\t\t34 button プロンプトをコピー\n\t\t\t\t\t35 button (disabled) メッセージを再送信\n\t\t\t36 container\n\t\t\t\t37 button 思考完了\n\t\t\t\t38 text Read the current SearchInput, then add a validity check and loading state before wiring the request.\n\t\t\t39 container\n\t\t\t\t40 text ファイルの編集：完了\n\t\t\t\t41 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n\t\t\t42 container\n\t\t\t\t43 text Validation and loading state added. The search button is disabled for invalid input and a spinner shows while results load.\n\t\t\t\t44 container Agent メッセージの操作\n\t\t\t\t\t45 button 応答をコピー\n\t\t\t\t\t46 button (disabled) 新しい分岐で再生成（既存ファイルは保持）\n\t\t\t47 button SearchInput.tsx ファイル\n\t\t\t\t48 text SearchInput.tsx\n\t\t\t\t49 text ファイル\n\t\t\t50 text entry area (settable)\n\t\t\t51 button ファイルを添付\n\t\t\t52 pop up button (collapsed) Description: 承認の権限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t53 pop up button (collapsed) Description: 思考予算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t54 button (disabled) 送信\n\t\t13 button 右パネルを開く\n\t\t14 text イベントストリーム（開発用）\n\t\t15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand\n\t\t16 pop up button (collapsed, settable) Description: 作業中アバターのプレビュー, Secondary Actions: Expand\n\t\t\t17 menu\n\t\t\t\t18 (selected) 作業中アバターのプレビュー\n\t\t\t\t19 考えています\n\t\t\t\t20 確認しています\n\t\t\t\t21 編集中\n\t\t\t\t22 実行中\n\t\t\t\t23 返信中\n\t\t\t\t24 確認を待っています\n\t\t\t\t25 終了 / 停止\n\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Group chat",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 31-49\n+\t\t\t55 container\n+\t\t\t\t56 text 大家看一下附件里的网页方案，Tonny 先评审，Bob 再实现。\n+\t\t\t\t57 container ユーザーメッセージの操作\n+\t\t\t\t\t58 button プロンプトをコピー\n+\t\t\t\t\t59 button (disabled) メッセージを再送信\n+\t\t\t60 container Agent の出力\n+\t\t\t\t61 text Raer\n+\t\t\t62 container\n+\t\t\t\t63 text 我会协调评审和实现，并回收结果。\n+\t\t\t\t64 container Agent メッセージの操作\n+\t\t\t\t\t65 button 応答をコピー\n+\t\t\t\t\t66 button (disabled) 新しい分岐で再生成（既存ファイルは保持）\n+\t\t\t67 container Agent の出力\n+\t\t\t\t68 text Tonny\n+\t\t\t69 container\n+\t\t\t\t70 text 方案已检查：先完成交互，再验证窄屏。\n+\t\t\t\t71 container Agent メッセージの操作\n+\t\t\t\t\t72 button 応答をコピー\n+\t\t\t\t\t73 button (disabled) 新しい分岐で再生成（既存ファイルは保持）\n+\t\t\t74 container Agent の出力\n+\t\t\t\t75 text Bob\n+\t\t\t76 container\n+\t\t\t\t77 text 已完成实现并通过检查。\n+\t\t\t\t78 container Agent メッセージの操作\n+\t\t\t\t\t79 button 応答をコピー\n+\t\t\t\t\t80 button (disabled) 新しい分岐で再生成（既存ファイルは保持）\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Coding agent",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 58-61, 69-80\n~\t\t\t\t56 button 思考完了\n~\t\t\t\t57 text Planning changes and checking the current SearchInput implementation before editing.\n+\t\t\t58 button (collapsed) 1 件の操作, Help: 操作の詳細, Secondary Actions: Expand\n+\t\t\t59 container\n+\t\t\t\t60 text ファイルの編集：完了\n+\t\t\t\t61 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n~\t\t\t\t63 text Validation and loading state added. The search button is disabled for invalid input and a spinner shows while results are loading.\n~\t\t\t67 button SearchInput.tsx ファイル\n~\t\t\t\t68 text SearchInput.tsx\n+\t\t\t\t69 text ファイル\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Reasoning kinds",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 60-69\n~\t\t\t\t57 text Public summary can be shown in ordinary reasoning mode.\n~\t\t\t58 button 思考中\n~\t\t\t59 button 思考中\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Tool approval",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 58\n~\t\t\t\t56 text Remove temp cache：承認待ち rm -rf .agent/tmp-cache\n~\t\t\t\t57 button (expanded) Description: Collapse tool, Secondary Actions: Collapse\n+\t\t\t\t58 text 入力 rm -rf .agent/tmp-cache\n~\t\t\t59 container\n+\t\t\t\t60 text Fetch release metadata：完了 200 OK · v1.8.0\n+\t\t\t\t61 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n+\t\t\t62 container ツール承認の操作\n+\t\t\t\t63 text 権限が必要です\n+\t\t\t\t64 text Remove .agent/tmp-cache recursively?\n+\t\t\t\t65 ツール承認の操作\n+\t\t\t\t\t66 container\n+\t\t\t\t\t\t67 radio button (settable, integer) Description: 今回のみ許可, Value: 1\n+\t\t\t\t\t\t68 text 今回のみ許可\n+\t\t\t\t\t69 container\n+\t\t\t\t\t\t70 radio button (settable, integer) Description: 常に許可, Value: 0\n+\t\t\t\t\t\t71 text 常に許可\n+\t\t\t\t\t72 container\n+\t\t\t\t\t\t73 radio button (settable, integer) Description: 拒否, Value: 0\n+\t\t\t\t\t\t74 text 拒否\n+\t\t\t\t75 button 確定\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Error block",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 57-75\n~\t\t\t\t56 text E_WRITE_FILE EACCES: permission denied, open /repo/src/SearchInput.tsx\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Artifact action",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~\t\t\t55 button Contact action form ファイル\n~\t\t\t\t56 text Contact action form\n+\t\t\t\t57 text ファイル\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Capability tray",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:5195/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: サイドバーを開く, Secondary Actions: Expand\n\t\t26 container\n\t\t\t55 container\n\t\t\t\t56 heading ケイパビリティ, Value: 3\n\t\t\t\t\t57 text ケイパビリティ\n\t\t\t\t58 text AgentUX のケイパビリティイベント\n\t\t\t59 container\n\t\t\t\t60 text Filesystem Filesystem tools and allowed-root descriptors available to this run. 3\n\t\t\t61 heading 今日は何をお手伝いしましょうか？, Value: 2\n\t\t\t\t62 text 今日は何をお手伝いしましょうか？\n\t\t\t50 text entry area (settable)\n\t\t\t51 button ファイルを添付\n\t\t\t52 pop up button (collapsed) Description: 承認の権限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t53 pop up button (collapsed) Description: 思考予算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t54 button (disabled) 送信\n\t\t13 button 右パネルを開く\n\t\t14 text イベントストリーム（開発用）\n\t\t15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand\n\t\t16 pop up button (collapsed, settable) Description: 作業中アバターのプレビュー, Secondary Actions: Expand\n\t\t\t17 menu\n\t\t\t\t18 (selected) 作業中アバターのプレビュー\n\t\t\t\t19 考えています\n\t\t\t\t20 確認しています\n\t\t\t\t21 編集中\n\t\t\t\t22 実行中\n\t\t\t\t23 返信中\n\t\t\t\t24 確認を待っています\n\t\t\t\t25 終了 / 停止\n\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "HTML artifact stream",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:5195/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: サイドバーを開く, Secondary Actions: Expand\n\t\t26 container\n\t\t\t55 container\n\t\t\t\t56 pop up button (collapsed) Description: Raer, Pi, Secondary Actions: Expand\n\t\t\t\t\t57 text Raer\n\t\t\t\t58 pop up button (collapsed) Description: Agent を追加, Help: チャットに Agent を追加, Secondary Actions: Expand\n\t\t\t59 container\n\t\t\t\t60 text Writing a comparison page you can open in the output panel.\n\t\t\t\t61 container Agent メッセージの操作\n\t\t\t\t\t62 button 応答をコピー\n\t\t\t\t\t63 button (disabled) 新しい分岐で再生成（既存ファイルは保持）\n\t\t\t64 container\n\t\t\t\t65 text ファイルの変更：引数を準備中\n\t\t\t\t66 button (expanded) Description: Collapse tool, Secondary Actions: Collapse\n\t\t\t\t67 text 変更中\n\t\t\t\t68 button compare-plans.html\n\t\t\t50 text entry area (settable)\n\t\t\t51 button ファイルを添付\n\t\t\t52 pop up button (collapsed) Description: 承認の権限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t53 pop up button (collapsed) Description: 思考予算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t54 button (disabled) 送信\n\t\t13 button 右パネルを開く\n\t\t14 text イベントストリーム（開発用）\n\t\t15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand\n\t\t16 pop up button (collapsed, settable) Description: 作業中アバターのプレビュー, Secondary Actions: Expand\n\t\t\t17 menu\n\t\t\t\t18 (selected) 作業中アバターのプレビュー\n\t\t\t\t19 考えています\n\t\t\t\t20 確認しています\n\t\t\t\t21 編集中\n\t\t\t\t22 実行中\n\t\t\t\t23 返信中\n\t\t\t\t24 確認を待っています\n\t\t\t\t25 終了 / 停止\n\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Basic text",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 64-68\n~\t\t\t\t60 text Hello world\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Normal turn",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~\t\t\t\t60 text What can you do?\n~\t\t\t\t61 container ユーザーメッセージの操作\n~\t\t\t\t\t62 button プロンプトをコピー\n~\t\t\t\t\t63 button (disabled) メッセージを再送信\n+\t\t\t64 container\n+\t\t\t\t65 text I can answer questions, summarize information, and draft clear content. I can inspect files, explain code, and help plan or apply changes. I can track tasks, surface errors, and show outputs or artifacts when work is done.\n+\t\t\t\t66 container Agent メッセージの操作\n+\t\t\t\t\t67 button 応答をコピー\n+\t\t\t\t\t68 button (disabled) 新しい分岐で再生成（既存ファイルは保持）\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Streaming thinking + message",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 67-68\n~\t\t\t\t60 text Compare the three proposals.\n~\t\t\t\t65 button 思考完了\n~\t\t\t\t66 text I compared price, implementation risk, and support coverage.\n+\t\t\t67 container\n+\t\t\t\t68 text Proposal B has the best balance of cost and delivery risk.\n+\t\t\t\t69 container Agent メッセージの操作\n+\t\t\t\t\t70 button 応答をコピー\n+\t\t\t\t\t71 button (disabled) 新しい分岐で再生成（既存ファイルは保持）\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Tool approval + completion",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~\t\t\t\t60 text Create a dashboard summary file.\n~\t\t\t\t65 text ファイルの変更：完了 318ms\n~\t\t\t\t66 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n~\t\t\t\t68 text The dashboard summary file is ready. It now includes the key support signals, owner notes, and follow-up items for the operations review. The structure is intentionally short so the output panel can preview it without hiding the main conversation.\n+\t\t\t72 button dashboard.md ファイル\n+\t\t\t\t73 text dashboard.md\n+\t\t\t\t74 text ファイル\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "MCP success + interrupt",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 65-74\n~\t\t\t\t60 text Run the release checks.\n~\t\t\t64 button (collapsed) 1 件の操作, Help: 操作の詳細, Secondary Actions: Expand\n+\t\t\t65 container\n+\t\t\t\t66 text Publish the release.\n+\t\t\t\t67 container ユーザーメッセージの操作\n+\t\t\t\t\t68 button プロンプトをコピー\n+\t\t\t\t\t69 button (disabled) メッセージを再送信\n+\t\t\t70 container\n+\t\t\t\t71 text Publish production release · release-tools (MCP)：承認待ち {\n+\t\t\t\t72 button (expanded) Description: Collapse tool, Secondary Actions: Collapse\n+\t\t\t\t73 text 入力 {\n  \"environment\": \"production\"\n}\n+\t\t\t74 container ツール承認の操作\n+\t\t\t\t75 text 権限が必要です\n+\t\t\t\t76 text Approve publish?\n+\t\t\t\t77 ツール承認の操作\n+\t\t\t\t\t78 container\n+\t\t\t\t\t\t79 radio button (settable, integer) Description: 今回のみ許可, Value: 1\n+\t\t\t\t\t\t80 text 今回のみ許可\n+\t\t\t\t\t81 container\n+\t\t\t\t\t\t82 radio button (settable, integer) Description: 常に許可, Value: 0\n+\t\t\t\t\t\t83 text 常に許可\n+\t\t\t\t\t84 container\n+\t\t\t\t\t\t85 radio button (settable, integer) Description: 拒否, Value: 0\n+\t\t\t\t\t\t86 text 拒否\n+\t\t\t\t87 button 確定\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Runtime boot + sync",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 61-64, 67-87\n~\t\t\t\t60 text runtime Runtime booting boot started\n+\t\t\t61 container\n+\t\t\t\t62 text runtime workspace sync hydrate\n+\t\t\t63 container\n+\t\t\t\t64 text runtime workspace sync 3/8\n~\t\t\t\t66 text runtime One optional resource was unavailable and was skipped.\n+\t\t\t67 container\n+\t\t\t\t68 text runtime workspace sync 8/8\n+\t\t\t69 container\n+\t\t\t\t70 text runtime Runtime ready boot completed\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Retrying incident",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 61-70\n~\t\t\t\t60 text Generate the launch brief.\n+\t\t\t\t61 container ユーザーメッセージの操作\n+\t\t\t\t\t62 button プロンプトをコピー\n+\t\t\t\t\t63 button (disabled) メッセージを再送信\n+\t\t\t64 container\n+\t\t\t\t65 text model_rate_limited_error The model provider is temporarily rate limited.\n+\t\t\t66 container\n+\t\t\t\t67 text session Automatic retry scheduled\n+\t\t\t68 container\n+\t\t\t\t69 text The launch brief is ready.\n+\t\t\t\t70 container Agent メッセージの操作\n+\t\t\t\t\t71 button 応答をコピー\n+\t\t\t\t\t72 button (disabled) 新しい分岐で再生成（既存ファイルは保持）\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Exhausted incident",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 68-72\n~\t\t\t\t60 text Summarize the release risks.\n~\t\t\t\t65 text model_request_failed_error The model provider did not return a valid response after the allowed retries.\n~\t\t\t\t67 text retries_exhausted Retries exhausted\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Terminal incident",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 61-67\n~\t\t\t\t60 text runtime_resume_unrecoverable_error The previous sandbox can no longer be resumed.\n+\t\t\t61 container\n+\t\t\t\t62 text session_terminated Session terminated\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  },
+  {
+    "scenario": "Config, spans, deletion",
+    "lang": "ja",
+    "scrollWidth": 390,
+    "width": 390,
+    "snapshot": "Browser tab: 2, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:5195/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\n~\t\t\t\t60 text config Config updated (rev 2) tool_permission_mode, skill_refs\n~\t\t\t\t62 text runtime Context compacted 91842 → 28400 tokens\n+\t\t\t63 container\n+\t\t\t\t64 text model Model claude-sonnet-4-20250514 anthropic\n+\t\t\t65 container\n+\t\t\t\t66 text session Session deleted\nThe focused UI element is 15 pop up button (collapsed) Description: イベントストリームを選択, ID: radix-_r_g_, Secondary Actions: Expand"
+  }
+]

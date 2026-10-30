@@ -341,13 +341,20 @@ test("HTTP group approval replay cannot approve a newer run reusing the native t
   const server = createServer((req, res) => { void host.handle(req, res); });
   const base = `${await listen(server)}/__agentcanvas/pi`;
   const answer = (runId: string) => fetch(`${base}/approval`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId: groupId, runId, toolCallId: "assistant~same-tool", decision: "yes" }) });
+  const pending = async (runId: string) => (await fetch(`${base}/approval?${new URLSearchParams({ conversationId: groupId, runId, toolCallId: "assistant~same-tool" })}`)).json();
   let running: Promise<void> | undefined;
   try {
     running = host.controller.runGroupPrompt(input("first"), () => {});
     await until(() => bridge.waiting.has(childId));
+    assert.deepEqual(await pending("first"), { pending: true });
+    assert.equal((await fetch(`${base}/approval`)).status, 400);
+    assert.equal((await fetch(`${base}/approval?${new URLSearchParams({ conversationId: groupId, runId: "first", toolCallId: "assistant~same-tool" })}`, { headers: { origin: "https://other.example" } })).status, 403);
     assert.equal((await answer("first")).status, 200); await running;
+    assert.deepEqual(await pending("first"), { pending: false });
     running = host.controller.runGroupPrompt(input("second"), () => {});
     await until(() => bridge.waiting.has(childId));
+    assert.deepEqual(await pending("first"), { pending: false });
+    assert.deepEqual(await pending("second"), { pending: true });
     assert.equal((await answer("first")).status, 409);
     assert.equal(bridge.waiting.has(childId), true, "the current tool stays held");
     const replay: AgentUXEvent[] = [];
@@ -847,7 +854,7 @@ test("a member answering alone is still told the whole group's roster", async ()
     await controller.runGroupPrompt(request, () => {});
     assert.equal(bridge.calls.length, 1);
     assert.equal(bridge.calls[0].id, childId);
-    assert.match(bridge.calls[0].prompt, /群成员：Raer（[^）]+）、Tonny（[^）]+）、Bob（[^）]+），以及用户/);
+    assert.match(bridge.calls[0].prompt, /Members: Raer \(assistant\), Tonny \(planner\), Bob \(builder\), plus the user/);
   } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
 });
 
@@ -1061,7 +1068,7 @@ test("inviting a custom Bot promotes the same conversation and preserves context
     assert.equal(saved.id, id);
     assert.equal(saved.title, original.title);
     assert.equal(JSON.stringify(saved.events.slice(0, originalCount)), snapshot);
-    assert.ok(bridge.calls.some(call => call.id.endsWith(`.m.${guest.id}`) && call.prompt.includes("订单 A1001") && call.prompt.includes("你是群里的 小审")));
+    assert.ok(bridge.calls.some(call => call.id.endsWith(`.m.${guest.id}`) && call.prompt.includes("订单 A1001") && call.prompt.includes("You are 小审")));
     assert.ok(received.some(event => event.messageId?.startsWith(`${guest.id}~`)), "custom author is visible independently of its Pi engine");
     assert.equal(received.filter(event => event.type === "run.finished").length, 1);
     assert.equal(received.at(-1)?.payload.status, "success");
@@ -1094,8 +1101,11 @@ test("member changes do not run models, reject active conversations, and keep cu
     const approval = events.find(event => event.type === "tool.call.awaiting_approval")!;
     const toolId = String(approval.payload.toolCallId);
     assert.ok(toolId.startsWith(`${guest.id}~`));
+    assert.equal(controller.hasApproval(toolId, id, "wrong-run"), false);
+    assert.equal(controller.hasApproval(toolId, id, "custom-approval"), true);
     assert.equal(controller.resolveApproval(toolId, "yes", id, "wrong-run"), false);
     assert.equal(controller.resolveApproval(toolId, "yes", id, "custom-approval"), true);
+    assert.equal(controller.hasApproval(toolId, id, "custom-approval"), false);
     await running;
     assert.equal(events.at(-1)?.payload.status, "success");
   } finally { controller.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
@@ -1137,15 +1147,15 @@ test("custom sequential members use current names in confirmation and stable IDs
     await controller.configure({ conversationId: "setup", provider: "router-fixture", model: "fixture",
       providerDefinition: { id: "router-fixture", name: "Router fixture", protocol: "openai-compatible", baseUrl: `${routerUrl}/v1`, models: ["fixture"], authMode: "none" } });
     controller.setGroupMembers(groupId, [first.id, second.id], [first, second], first.id);
-    const execute = async (requestId: string, choice: string) => {
+    const execute = async (requestId: string, choice: string, locale: "zh" | "en" | "ja" = "zh") => {
       let confirmed = false;
       const events: AgentUXEvent[] = [];
-      await controller.runGroupPrompt({ conversationId: groupId, requestId, prompt: "先规划再实施", provider: "router-fixture", model: "fixture" }, event => {
+      await controller.runGroupPrompt({ conversationId: groupId, requestId, locale, prompt: "先规划再实施", provider: "router-fixture", model: "fixture" }, event => {
         events.push(event);
         if (event.type === "run.awaiting_input") {
           const card = JSON.stringify(event.payload.questions);
-          assert.match(card, /只交给 tony/);
-          assert.match(card, /只交给 实施助手/);
+          assert.ok(card.includes(locale === "en" ? "Assign only to tony" : locale === "ja" ? "tony のみに依頼" : "只交给 tony"));
+          assert.ok(card.includes(locale === "en" ? "Assign only to 实施助手" : locale === "ja" ? "实施助手 のみに依頼" : "只交给 实施助手"));
           assert.doesNotMatch(card, /Tonny|Bob/);
           confirmed = controller.resolveUserInput(groupId, event.payload.requestId, { plan: [choice] });
         }
@@ -1162,6 +1172,13 @@ test("custom sequential members use current names in confirmation and stable IDs
     bridge.calls.length = 0;
     await execute("one", "只交给 实施助手");
     assert.deepEqual(bridge.calls.map(call => call.id), [first.id, second.id].map(id => `${groupId}.m.${id}`));
+    for (const [locale, choice] of [["en", "Start"], ["ja", "開始"]] as const) {
+      bridge.calls.length = 0;
+      await execute(`both-${locale}`, choice, locale);
+      assert.deepEqual(bridge.calls.map(call => call.id), [first.id, first.id, second.id, first.id].map(id => `${groupId}.m.${id}`));
+      assert.ok(bridge.calls.every(call => call.prompt.includes("Current user request:") && call.prompt.includes("先规划再实施")));
+      assert.ok(bridge.calls.every(call => call.prompt.includes(`Interface language fallback: ${locale === "en" ? "English" : "Japanese"}.`)));
+    }
     controller.dispose();
     controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
     bridge.calls.length = 0;

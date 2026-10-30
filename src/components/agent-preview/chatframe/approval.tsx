@@ -46,6 +46,7 @@ export function InlineApprovalPrompt({
   answer: controlledAnswer,
   onAnswerChange,
   singleChoice = false,
+  directActions = false,
   fields = [],
   checkbox,
   form = false,
@@ -56,7 +57,7 @@ export function InlineApprovalPrompt({
   options: readonly InlineApprovalPromptOption[];
   hint?: string;
   secondaryLabel?: string;
-  primaryLabel: string;
+  primaryLabel?: string;
   pending?: boolean;
   approvalSurface?: "inline";
   onSecondary?: () => void;
@@ -65,6 +66,7 @@ export function InlineApprovalPrompt({
   answer?: string;
   onAnswerChange?: (answer: string) => void;
   singleChoice?: boolean;
+  directActions?: boolean;
   fields?: readonly InlineApprovalPromptField[];
   checkbox?: { label: string; checked: boolean; onChange: (checked: boolean) => void };
   form?: boolean;
@@ -101,6 +103,7 @@ export function InlineApprovalPrompt({
       </div>
 
       <ol className="inline-approval-options" data-single-choice={singleChoice || undefined}
+        data-direct-actions={directActions || undefined}
         role={singleChoice ? "radiogroup" : undefined} aria-label={singleChoice ? ariaLabel : undefined}>
         {options.map((option, index) => (
           <li
@@ -109,8 +112,14 @@ export function InlineApprovalPrompt({
             data-interactive={option.onSelect ? "true" : undefined}
             role={singleChoice ? "none" : undefined}
           >
-            {!singleChoice ? <span className="inline-approval-option-index">{index + 1}.</span> : null}
-            {singleChoice ? (
+            {!singleChoice && !directActions ? <span className="inline-approval-option-index">{index + 1}.</span> : null}
+            {directActions ? (
+              <button type="button" className="inline-approval-choice"
+                data-approval-action={option.id} data-selected={option.selected || undefined}
+                disabled={pending || option.disabled} onClick={option.onSelect} title={option.body}>
+                <strong>{option.title}</strong>
+              </button>
+            ) : singleChoice ? (
               <label className="inline-approval-choice" data-selected={option.selected || undefined}>
                 <input type="radio" name={choiceName} value={option.id} checked={Boolean(option.selected)}
                   disabled={pending || option.disabled} onChange={option.onSelect} />
@@ -177,12 +186,12 @@ export function InlineApprovalPrompt({
         <span>{checkbox.label}</span>
       </label> : null}
 
-      <footer className="inline-approval-footer">
+      {hint || primaryLabel || secondaryLabel ? <footer className="inline-approval-footer">
         {hint ? <span role="status">
           <span className="inline-approval-info" aria-hidden="true">i</span>
           {hint}
         </span> : null}
-        <div>
+        {primaryLabel || secondaryLabel ? <div>
           {secondaryLabel ? <button
             type="button"
             className="inline-approval-secondary"
@@ -191,16 +200,16 @@ export function InlineApprovalPrompt({
           >
             {secondaryLabel}
           </button> : null}
-          <button
+          {primaryLabel ? <button
             type="button"
             className="inline-approval-primary"
             disabled={pending || primaryDisabled}
             onClick={primary}
           >
             {primaryLabel}
-          </button>
-        </div>
-      </footer>
+          </button> : null}
+        </div> : null}
+      </footer> : null}
     </aside>
   );
 }
@@ -210,11 +219,10 @@ export function InlineApprovalSurface({
   onConfirm,
 }: {
   tool: AgentUXToolTimelineItem;
-  onConfirm?: (decision: ApprovalDecision) => void | Promise<void>;
+  onConfirm?: (decision: ApprovalDecision, signal?: AbortSignal) => void | Promise<void>;
 }) {
   const copy = useCopy();
-  const [selected, setSelected] = useState<ApprovalChoice>("yes");
-  const { pending, failed, submit: confirm } = useApprovalSubmission(onConfirm);
+  const { pending, decision, submit } = useApprovalSubmission(onConfirm);
   const choices = approvalChoices(copy);
   const prompt = tool.approval?.prompt ?? copy.chat.approval.promptFallback;
 
@@ -223,19 +231,18 @@ export function InlineApprovalSurface({
       ariaLabel={copy.chat.approval.actionsLabel}
       kicker={copy.chat.approval.permissionRequired}
       question={prompt}
-      singleChoice
+      directActions
       options={choices.map((choice) => ({
         id: choice.id,
         title: choice.id === "yes" ? copy.chat.approval.once : choice.label,
-        selected: selected === choice.id,
-        onSelect: () => setSelected(choice.id),
+        body: choice.hint,
+        selected: decision === choice.id,
+        onSelect: () => void submit(choice.id),
       }))}
-      hint={pending ? copy.chat.approval.sending : failed ? copy.chat.approval.failed
-        : selected === "always" ? copy.chat.approval.hints.always : undefined}
-      primaryLabel={copy.chat.approval.confirm}
+      hint={pending ? copy.chat.approval.sending
+        : `${copy.chat.approval.always}: ${copy.chat.approval.hints.always}`}
       pending={pending}
       approvalSurface="inline"
-      onPrimary={() => void confirm(selected)}
     />
   );
 }
@@ -247,11 +254,10 @@ export function ExternalApprovalSurface({
 }: {
   tool: AgentUXToolTimelineItem;
   approvalIconSlot?: IconSlot;
-  onConfirm?: (decision: ApprovalDecision) => void | Promise<void>;
+  onConfirm?: (decision: ApprovalDecision, signal?: AbortSignal) => void | Promise<void>;
 }) {
   const copy = useCopy();
-  const [selected, setSelected] = useState<ApprovalChoice>("yes");
-  const { pending, failed, submit } = useApprovalSubmission(onConfirm);
+  const { pending, decision, submit } = useApprovalSubmission(onConfirm);
   const panel = usePromptFocus(pending);
   const choices = approvalChoices(copy);
   // Same precedence as the inline card: the backend's own question, else the dictionary's.
@@ -292,9 +298,9 @@ export function ExternalApprovalSurface({
             key={choice.id}
             type="button"
             data-approval-action={choice.id}
-            data-selected={selected === choice.id}
+            data-selected={decision === choice.id}
             disabled={pending}
-            onClick={() => setSelected(choice.id)}
+            onClick={() => void submit(choice.id)}
           >
             <span className="external-approval-index">{index + 1}.</span>
             <span className="external-approval-option-copy">
@@ -305,19 +311,9 @@ export function ExternalApprovalSurface({
         ))}
       </div>
 
-      <div className="external-approval-footer">
-        <span role="status">
-          {pending ? copy.chat.approval.sending : failed ? copy.chat.approval.failed : copy.chat.approval.chooseHint}
-        </span>
-        <button
-          type="button"
-          className="external-approval-confirm"
-          disabled={pending}
-          onClick={() => void submit(selected)}
-        >
-          {copy.chat.approval.confirm}
-        </button>
-      </div>
+      {pending ? <div className="external-approval-footer">
+        <span role="status">{copy.chat.approval.sending}</span>
+      </div> : null}
     </aside>
   );
 }

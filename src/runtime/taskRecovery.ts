@@ -1,3 +1,5 @@
+import type { AppLocale } from "../i18n/locales.ts";
+import { featureText } from "../i18n/copy/features.ts";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 
 export type RecoveryDestination = "providers" | "mcp" | "vault" | "browser";
@@ -33,13 +35,12 @@ export function taskRecovery(events: readonly AgentUXEvent[]): TaskRecovery | un
   }
 }
 
-export function recoveryPrompt(prompt: string, accepted: boolean, zh: boolean): string {
+export function recoveryPrompt(prompt: string, accepted: boolean, locale: AppLocale): string {
   if (!accepted) return prompt;
-  return (zh ? "配置已检查，请继续原任务。先核对已经完成的步骤和当前状态，不要重复执行已成功或结果尚未确认的操作；需要对外操作时仍按原权限请求批准。\n\n原请求：\n"
-    : "Configuration has been checked. Continue the original task. Check completed steps and current state first; do not repeat successful actions or actions with an unconfirmed outcome. Keep the existing approval rules.\n\nOriginal request:\n") + prompt;
+  return (featureText(locale, "Configuration has been checked. Continue the original task. Check completed steps and current state first; do not repeat successful actions or actions with an unconfirmed outcome. Keep the existing approval rules.\n\nOriginal request:\n")) + prompt;
 }
 
-export const recoveryDestinationLabel = (destination: RecoveryDestination, zh: boolean) => ({
-  providers: zh ? "检查模型服务" : "Check model service", mcp: zh ? "检查 MCP 连接" : "Check MCP connection",
-  vault: zh ? "管理登录凭据" : "Manage saved logins", browser: zh ? "打开浏览器登录" : "Open browser to sign in",
+export const recoveryDestinationLabel = (destination: RecoveryDestination, locale: AppLocale) => ({
+  providers: featureText(locale, "Check model service"), mcp: featureText(locale, "Check MCP connection"),
+  vault: featureText(locale, "Manage saved logins"), browser: featureText(locale, "Open browser to sign in"),
 })[destination];

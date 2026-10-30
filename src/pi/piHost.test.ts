@@ -87,7 +87,7 @@ test("each model turn receives fresh account context without persisting it as th
     await controller.runPrompt({ conversationId: "accounts", requestId: "first", prompt: "What accounts can you use?" }, () => {});
     assert.match(prompts[0], /Browser accounts now/);
     assert.match(prompts[0], /"unverified":\["google.com"\]/);
-    assert.ok(Buffer.byteLength(prompts[0]) < 650);
+    assert.ok(Buffer.byteLength(prompts[0].split("\n\n[Language note:")[0]) < 650);
     assert.ok(!JSON.stringify(controller.getConversation("accounts")?.events).includes("Browser accounts now"));
     await browser.clearLogins();
     await controller.runPrompt({ conversationId: "accounts", requestId: "second", prompt: "Check again" }, () => {});
@@ -131,6 +131,57 @@ function fakeBridges() {
 }
 
 const tick = () => new Promise((resolve) => setTimeout(resolve, 10));
+
+test("HTTP conversation validation and active-run conflicts keep their client error status", async (t) => {
+  const { createServer } = await import("node:http");
+  const { createPiHttpHost } = await import("./piHost.ts");
+  const root = mkdtempSync(join(tmpdir(), "rtb-conversation-status-"));
+  const { factory, release } = fakeBridges();
+  const host = createPiHttpHost({ cwd: root, dataDir: join(root, "data"), bridgeFactory: factory, browser: false, routineClock: false });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+  const post = (path: string, body: unknown) => fetch(`${base}${path}`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(5000),
+  });
+  let pending: Promise<void> | undefined;
+  let groupPending: Promise<void> | undefined;
+  try {
+    for (const members of [[], ["missing-bot"], ["assistant", "assistant"], ["builder"]]) {
+      await t.test(`invalid group roster ${JSON.stringify(members)} returns 400 without creating history`, async () => {
+        const response = await post("/group/members", { conversationId: "invalid", members, hostId: "assistant" });
+        assert.equal(response.status, 400, await response.text());
+        assert.equal(host.controller.getConversation("invalid"), undefined);
+      });
+    }
+    const created = await post("/group/members", { conversationId: "new-room", members: ["assistant"], hostId: "assistant" });
+    assert.equal(created.status, 200, "a valid roster can still create a conversation");
+    pending = host.controller.runPrompt({ conversationId: "busy", requestId: "running", prompt: "wait" }, () => {});
+    await tick();
+    for (const path of ["/config", "/session/new", "/group/members"]) {
+      await t.test(`${path} returns 409 without interrupting the active run`, async () => {
+        const response = await post(path, { conversationId: "busy", members: ["assistant"] });
+        assert.equal(response.status, 409, await response.text());
+        assert.equal(host.controller.getConversation("busy")?.activeRunId, "running");
+      });
+    }
+    await t.test("an active group also rejects reset with 409", async () => {
+      host.controller.setGroupMembers("group", ["assistant"], undefined, "assistant");
+      groupPending = host.controller.runPrompt({ conversationId: "group", requestId: "group-running", prompt: "@Raer wait" }, () => {});
+      await tick();
+      const response = await post("/session/new", { conversationId: "group" });
+      assert.equal(response.status, 409, await response.text());
+      assert.equal(host.controller.getConversation("group")?.activeRunId, "group-running");
+    });
+  } finally {
+    await host.controller.abort("group", "group-running");
+    for (const done of release.values()) done();
+    await Promise.all([pending, groupPending]);
+    host.dispose(); server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    rmSync(root, { recursive: true, force: true });
+  }
+});
 
 test("HTTP stop identities reject old or malformed requests without stopping the current run", async () => {
   const { createServer } = await import("node:http");
@@ -752,6 +803,53 @@ test("Pi SDK abort errors settle as cancellation with one terminal event", async
   }
 });
 
+test("waiting for approval pauses the execution budget, which resumes after the decision", async (t) => {
+  t.mock.timers.enable({ apis: ["setTimeout", "Date"] });
+  const root = mkdtempSync(join(tmpdir(), "rtb-approval-budget-"));
+  let ready!: () => void;
+  const waiting = new Promise<void>(resolve => { ready = resolve; });
+  let finish!: () => void;
+  const work = new Promise<void>(resolve => { finish = resolve; });
+  const controller = createPiRuntimeController({ cwd: root, dataDir: join(root, "data"),
+    limits: { durationMs: 1000, outputBytes: 1_000_000, modelRequests: 100 },
+    bridgeFactory: async ({ approvalGate }) => ({
+      subscribe: () => () => {},
+      async prompt() {
+        t.mock.timers.tick(400);
+        const answer = approvalGate.wait("approval", "write", { path: "notes.md" });
+        ready();
+        await answer;
+        await work;
+      },
+      abort: async () => { finish(); }, dispose() {}, configure: async () => {},
+      state: async () => ({ models: [], tools: [] }), newSession: async () => {},
+    }),
+  });
+  const run = controller.runPrompt({ conversationId: "waiting", requestId: "held-run", prompt: "Write notes" }, () => {});
+  try {
+    await waiting;
+    t.mock.timers.tick(24 * 60 * 60 * 1000);
+    await Promise.resolve();
+    assert.equal(controller.awaitingUser("waiting"), true);
+    assert.equal(controller.health().activeRuns, 1);
+    assert.equal(controller.resolveApproval("approval", "yes", "waiting", "held-run"), true);
+    assert.equal(controller.resolveApproval("approval", "no", "waiting", "held-run"), false, "one request consumes one decision");
+    await Promise.resolve();
+    t.mock.timers.tick(599);
+    await Promise.resolve();
+    assert.equal(controller.health().activeRuns, 1);
+    t.mock.timers.tick(1);
+    await run;
+    assert.match(JSON.stringify(controller.getConversation("waiting")!.events.at(-1)), /reached its time limit/);
+  } finally {
+    await controller.abort("waiting");
+    finish();
+    await run;
+    controller.dispose();
+    rmSync(root, { recursive: true, force: true });
+  }
+});
+
 test("run duration and output limits stop the engine and persist one visible failure", async () => {
   for (const limit of ["duration", "output"]) {
     const root = mkdtempSync(join(tmpdir(), "rtb-limits-"));
@@ -1073,7 +1171,9 @@ test("steering is scoped to an active run, idempotent and saved as a distinct us
     assert.equal(await controller.steer("a", "old-run", "input-1", "change direction"), false);
     assert.equal(await controller.steer("other", "run-a", "input-1", "change direction"), false);
     await Promise.all([controller.steer("a", "run-a", "input-1", "change direction"), controller.steer("a", "run-a", "input-1", "change direction")]);
-    assert.deepEqual(inputs, ["change direction"]);
+    assert.equal(inputs.length, 1);
+    assert.match(inputs[0], /^change direction\n\n\[Language note:/);
+    assert.match(inputs[0], /explicitly requested language first/);
     await assert.rejects(controller.steer("a", "run-a", "input-1", "different"), /another message/);
     const events = controller.getConversation("a")!.events;
     const users = events.filter(event => event.type === "text.started" && event.payload.role === "user");
@@ -1081,6 +1181,7 @@ test("steering is scoped to an active run, idempotent and saved as a distinct us
     assert.notEqual(users[0].messageId, users[1].messageId);
     const saved = readFileSync(join(dataDir, "conversations", "a.json"), "utf8");
     assert.match(saved, /change direction/);
+    assert.doesNotMatch(saved, /Language note/);
     await controller.abort("a", "run-a");
     await run;
     assert.equal(await controller.steer("a", "run-a", "input-2", "late"), false);

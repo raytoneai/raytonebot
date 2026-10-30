@@ -1,4 +1,5 @@
 import type { CSSProperties } from "react";
+import { UserRound } from "lucide-react";
 
 import { AgentAvatar, type AvatarKind } from "./AgentPersona";
 
@@ -11,8 +12,9 @@ export function GroupFace({ size, kinds }: { size: number; kinds: readonly Avata
     overflow: "hidden", boxShadow: `0 0 0 ${ring}px #fff`, background: "#fff", display: "inline-flex", ...style });
   return (
     <span aria-hidden="true" style={{ position: "relative", display: "inline-block", width: size, height: size, flex: "none" }}>
-      <span style={{ ...disc(corners[0]), alignItems: "center", justifyContent: "center", background: "#E6E9F0", color: "#111E36",
-        fontSize: Math.max(8, Math.round(cell * 0.48)), fontWeight: 600 }}>我</span>
+      <span style={{ ...disc(corners[0]), alignItems: "center", justifyContent: "center", background: "#E6E9F0", color: "#111E36" }}>
+        <UserRound size={Math.round(cell * 0.7)} aria-hidden="true" />
+      </span>
       {kinds.slice(0, 3).map((kind, index) => (
         <span key={index} style={disc(corners[index + 1])}><AgentAvatar size={cell} kind={kind} /></span>
       ))}

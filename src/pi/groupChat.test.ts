@@ -125,21 +125,21 @@ test("in a shared turn Raer coordinates the split and the others keep to theirs"
   const plan = { mode: "round_robin" as const, members: ["assistant", "planner", "builder"] as ("assistant" | "planner" | "builder")[], source: "router" as const };
   const ask = "你们搞一个对对联游戏，一个上联一个下联一个横批";
   const raer = memberPrompt("assistant", all, plan, [], ask, []);
-  assert.match(raer, /你是群里的协调者/);
-  assert.match(raer, /用户没说清谁做什么，你可以先用一句话说明分工/, "opening, Raer may state the split");
+  assert.match(raer, /You coordinate the group/);
+  assert.match(raer, /If assignments are unclear, you may state the split in one sentence/, "opening, Raer may state the split");
   const raerLater = memberPrompt("assistant", all, { ...plan, members: ["planner", "assistant", "builder"] }, [], ask, [{ member: "planner", text: "下联" }]);
-  assert.match(raerLater, /不要重新分工/);
-  assert.doesNotMatch(raerLater, /先用一句话说明分工/, "not opening: Raer follows the split already given");
+  assert.match(raerLater, /(?:Do not reassign work|Do not write for them, reassign work)/);
+  assert.doesNotMatch(raerLater, /state the split in one sentence/, "not opening: Raer follows the split already given");
   const bob = memberPrompt("builder", all, plan, [], ask, [{ member: "assistant", text: "上联：…Tonny 接下联，Bob 补横批" }, { member: "planner", text: "下联：…" }]);
-  assert.match(bob, /按用户或 Raer 已经给出的分工，只完成你自己那一份/);
-  assert.match(bob, /不要替他们写，也不要重新分工或重新出题/);
-  assert.doesNotMatch(bob, /你是群里的协调者/);
+  assert.match(bob, /Follow the assignments from the user or Raer and complete only your own part/);
+  assert.match(bob, /Do not write for them, reassign work or invent a new task/);
+  assert.doesNotMatch(bob, /You coordinate the group/);
   for (const mode of ["discussion", "sequential"] as const) {
-    assert.match(memberPrompt("planner", all, { ...plan, mode }, [], ask, [{ member: "assistant", text: "a" }]), /不要重新分工/, mode);
+    assert.match(memberPrompt("planner", all, { ...plan, mode }, [], ask, [{ member: "assistant", text: "a" }]), /(?:Do not reassign work|Do not write for them, reassign work)/, mode);
   }
   const parallel = memberPrompt("builder", all, { ...plan, mode: "parallel" }, [], ask, []);
-  assert.match(parallel, /只说你自己的看法，不要替其他成员回答/);
-  assert.doesNotMatch(parallel, /说明分工/, "parallel answers are independent: nobody assigns");
+  assert.match(parallel, /Give only your own view; do not answer for other members/);
+  assert.doesNotMatch(parallel, /state the split/, "parallel answers are independent: nobody assigns");
   assert.doesNotMatch(memberPrompt("assistant", all, { ...plan, mode: "single", members: ["assistant"] }, [], "翻译一下", []), /分工/,
     "a member answering alone gets no split rule");
 });
@@ -171,11 +171,11 @@ test("a round count in the message sets how many rounds a game or discussion run
 
   const plan = { mode: "round_robin" as const, members: all, source: "router" as const, rounds: 2 };
   const second = memberPrompt("planner", all, plan, [], "再来两轮试试", [{ member: "assistant", text: "a" }, { member: "planner", text: "b" }, { member: "builder", text: "c" }], 2);
-  assert.match(second, /共 2 轮，现在是第 2\/2 轮/);
-  assert.match(second, /不要宣布开始或结束新的一轮/, "the code, not the member, counts rounds");
-  assert.match(second, /前面各轮的发言：/);
-  assert.match(memberPrompt("planner", all, { ...plan, rounds: undefined }, [], "成语接龙", []), /本轮按顺序每人说一次/);
-  assert.match(memberPrompt("builder", all, { ...plan, mode: "discussion", rounds: 3 }, [], "讨论三轮", [], 3), /第 3\/3 轮.*这是最后一轮/);
+  assert.match(second, /Total rounds: 2; current round: 2\/2/);
+  assert.match(second, /do not announce the start or end of a new round/, "the code, not the member, counts rounds");
+  assert.match(second, /Earlier rounds:/);
+  assert.match(memberPrompt("planner", all, { ...plan, rounds: undefined }, [], "成语接龙", []), /Each member speaks once in order this round/);
+  assert.match(memberPrompt("builder", all, { ...plan, mode: "discussion", rounds: 3 }, [], "讨论三轮", [], 3), /round 3\/3.*This is the final round/);
 });
 
 test("an @-mention takes its companions along, and a silent member gets the turn when the user points it out", async () => {
@@ -196,6 +196,15 @@ test("an @-mention takes its companions along, and a silent member gets the turn
 
   const pair = { mode: "mention" as const, members: ["assistant", "planner"] as ("assistant" | "planner")[], source: "mention" as const };
   const tonny = memberPrompt("planner", all, pair, [], "@Raer 你和tonny玩一次", [{ member: "assistant", text: "大器晚成。Tonny，接「成」字。" }]);
-  assert.match(tonny, /由 Raer → Tonny 依次回答[\s\S]*前面成员本条的回答：\s*- Raer：大器晚成/, "a later member sees what this turn already said");
-  assert.match(memberPrompt("assistant", all, { ...pair, members: ["assistant"] }, [], "@Raer 讲个笑话", []), /只由你回答[\s\S]*不要点名让他们接话/);
+  assert.match(tonny, /Members answer this message in order: Raer → Tonny[\s\S]*Earlier member replies to this message:\s*- Raer：大器晚成/, "a later member sees what this turn already said");
+  assert.match(memberPrompt("assistant", all, { ...pair, members: ["assistant"] }, [], "@Raer 讲个笑话", []), /Only you answer this message[\s\S]*do not call on them to speak/);
+});
+
+test("Japanese greetings use the introduction path while substantive requests still route normally", () => {
+  for (const greeting of ["こんにちは", "こんばんは！", "おはようございます", "はじめまして"]) assert.equal(isGreeting(greeting), true);
+  assert.equal(isGreeting("こんにちは、このコードを確認してください"), false);
+  const request = "日本語で計画を説明してください";
+  const prompt = memberPrompt("planner", all, { mode: "single", members: ["planner"], source: "rule" }, [], request, []);
+  assert.ok(prompt.includes(`Current user request:\n${request}`));
+  assert.match(prompt, /English host context does not determine the reply language/);
 });

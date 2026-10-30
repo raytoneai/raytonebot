@@ -90,9 +90,9 @@ const en = {
      */
     promptFallback: "Approve this tool call?",
     actionsLabel: "Tool approval actions",
-    yes: "Yes",
-    always: "Always",
-    no: "No",
+    yes: "Allow once",
+    always: "Always allow",
+    no: "Deny",
     decision: {
       yes: "Approved",
       always: "Always allowed",
@@ -105,10 +105,7 @@ const en = {
       no: "Deny this time",
     },
     permissionRequired: "Permission required",
-    chooseHint: "Use Tab / arrow keys to choose, Enter to confirm",
-    sending: "Sending approval…",
-    failed: "Approval delivery was not confirmed. Check the tool status before retrying.",
-    confirm: "Confirm",
+    sending: "Confirming your choice…",
     noOutput: "No output.",
   },
   artifactLaunch: {
@@ -245,7 +242,7 @@ const zh: typeof en = {
     externalLabel: "外部工具审批",
     promptFallback: "批准此工具调用？",
     actionsLabel: "工具审批操作",
-    yes: "允许",
+    yes: "允许一次",
     always: "始终允许",
     no: "拒绝",
     decision: {
@@ -260,10 +257,7 @@ const zh: typeof en = {
       no: "这次先拒绝",
     },
     permissionRequired: "需要权限",
-    chooseHint: "使用 Tab / 上下键选择，回车确认",
-    sending: "正在提交审批…",
-    failed: "未确认审批已送达，请核对工具状态后重试。",
-    confirm: "确认",
+    sending: "正在确认你的选择…",
     noOutput: "没有输出。",
   },
   artifactLaunch: {
@@ -397,7 +391,7 @@ const ja: typeof en = {
     externalLabel: "外部ツールの承認",
     promptFallback: "このツール呼び出しを承認しますか？",
     actionsLabel: "ツール承認の操作",
-    yes: "許可",
+    yes: "今回のみ許可",
     always: "常に許可",
     no: "拒否",
     decision: {
@@ -412,10 +406,7 @@ const ja: typeof en = {
       no: "今回は拒否",
     },
     permissionRequired: "権限が必要です",
-    chooseHint: "Tab / 矢印キーで選択、Enter で確定",
-    sending: "承認を送信中…",
-    failed: "承認の送信を確認できません。ツールの状態を確認して再試行してください。",
-    confirm: "確定",
+    sending: "選択を確認しています…",
     noOutput: "出力はありません。",
   },
   artifactLaunch: {

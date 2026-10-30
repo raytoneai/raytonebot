@@ -78,6 +78,8 @@ import type { PendingUserInput } from "../runtime/userInput.ts";
 import type { UserInputRequest } from "./userInputTool.ts";
 import type { UserAnswers } from "../runtime/userInput.ts";
 import { runLimits, runtimeLogger, type RunLimits } from "./hostOperations.ts";
+import { createRunDeadline } from "./runtime/runDeadline.ts";
+import { ConversationRequestError } from "./conversationRequestError.ts";
 import { createChannelManager, type ConnectorFactories } from "./imChannels/channelManager.ts";
 import { summarizeConversationTitle } from "./conversationTitle.ts";
 import { ChannelSetupError, createChannelSetup, type ChannelSetupResult, type ChannelSetupRun } from "./imChannels/channelSetup.ts";
@@ -174,6 +176,7 @@ export type PiRuntimeController = {
   branchConversation(id: string, beforeRunId: string): ReturnType<ConversationStore["branch"]>;
   /** Answers a held tool call; with a conversation, only that conversation's gate is consulted. */
   resolveApproval(toolCallId: string, decision: PiApprovalDecision, conversationId?: string, runId?: string): boolean;
+  hasApproval(toolCallId: string, conversationId: string, runId: string): boolean;
   resolveUserInput(conversationId: string, requestId: string, answers: unknown): boolean;
   resolveVaultInput?(conversationId: string, requestId: string, runId: string, answer: unknown): Promise<VaultUseResult>;
   newSession(conversationId?: string): Promise<PiRuntimeState>;
@@ -261,7 +264,8 @@ export function createPiRuntimeController(options: {
     let gate = approvalGates.get(conversationId);
     if (!gate) {
       gate = new PiApprovalGate({ cwd, secretPaths, protectedPaths, readOnlyPaths, egressContained: sandboxed,
-        hostCall: options.browser ? (name, args) => options.browser!.classify(name, args) : undefined }, approvalMemory);
+        hostCall: options.browser ? (name, args) => options.browser!.classify(name, args) : undefined }, approvalMemory,
+        () => runs.get(conversationId)?.deadline?.setPaused(Boolean(gate?.waiting)));
       approvalGates.set(conversationId, gate);
     }
     return gate;
@@ -277,6 +281,7 @@ export function createPiRuntimeController(options: {
     if (!sandboxed && new URL(provider.baseUrl).protocol === "http:") return { ...provider, revoke() {} };
     const slot = runs.get(conversationId);
     const lease = (await gateway()).issue({ ...provider, protocol, thinkingLevel, maxRequests: limits.modelRequests, maxDurationMs: limits.durationMs,
+      remainingMs: slot?.deadline?.remainingMs,
       onUsage(requestId, measured) { if (slot) usage.record(slot.runId, requestId, measured, conversationId); },
       onLimit(message) {
         if (!slot || slot.limit) return;
@@ -341,6 +346,7 @@ export function createPiRuntimeController(options: {
     vaultAbort: AbortController;
     memoryDelivered?: () => void;
     limit?: string;
+    deadline?: ReturnType<typeof createRunDeadline>;
     /** Browsers watching the run; it keeps going with none (a closed tab does not stop it). */
     watchers: Set<(event: AgentUXEvent) => void>;
     done: Promise<void>;
@@ -616,7 +622,7 @@ export function createPiRuntimeController(options: {
   ) => {
     const current = await bridge(conversationId);
     requireEnabledProvider(input.provider ?? (await current.state()).provider);
-    current.setRolePrompt?.(rolePrompt(isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant", layout, { sandboxed, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }));
+    current.setRolePrompt?.(rolePrompt(isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant", layout, { sandboxed, locale: input.locale, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }));
     const approvalGate = gateFor(conversationId);
     approvalGate.setCwd(cwd);
     approvalGate.setMode(input.permissionMode ?? "request");
@@ -752,7 +758,7 @@ export function createPiRuntimeController(options: {
         lease = provider;
         await runDsh({
           cwd: runCwd, home: join(dataDir, "dsh", encodeURIComponent(conversationId)), prompt: modelPrompt,
-          systemPrompt: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
+          systemPrompt: rolePrompt(role, layout, { sandboxed, locale: input.locale, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
           permissionMode, resumeId, signal: run.signal, emit, onSessionId, onUserInput,
           onAccepted: () => runs.get(conversationId)?.memoryDelivered?.(),
           provider, webTools, mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role), hostTools: hostToolsFor(conversationId, role),
@@ -783,7 +789,7 @@ export function createPiRuntimeController(options: {
           emit,
           onSessionId,
           provider,
-          appendSystemPrompt: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
+          appendSystemPrompt: rolePrompt(role, layout, { sandboxed, locale: input.locale, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
           disallowedTools: agentPreset(role).disallowedTools,
           webTools,
           mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role),
@@ -819,7 +825,7 @@ export function createPiRuntimeController(options: {
           cwd: runCwd,
           addDirs: sharedDirs,
           prompt: modelPrompt,
-          developerInstructions: rolePrompt(role, layout, { sandboxed, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
+          developerInstructions: rolePrompt(role, layout, { sandboxed, locale: input.locale, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
           permissionMode,
           resumeId,
           forkBeforeTurnId: branch?.harness === "codex" ? branch.beforeTurnId : undefined,
@@ -884,7 +890,7 @@ export function createPiRuntimeController(options: {
       lastRunAgoMs: lastRunTouchedAt === undefined ? undefined : Math.max(0, Date.now() - lastRunTouchedAt) }),
     async configure(input) {
       const conversationId = normalizeConversationId(input.conversationId);
-      const idle = () => { if (runs.has(conversationId)) throw new Error("Stop this conversation's run before changing its configuration."); };
+      const idle = () => { if (runs.has(conversationId)) throw new ConversationRequestError("Stop this conversation's run before changing its configuration.", 409); };
       idle();
       // Checked again after waiting, with nothing awaited before this configuration registers.
       for (let op = sessionOp(conversationId); op; op = sessionOp(conversationId)) await op.catch(() => undefined);
@@ -969,8 +975,8 @@ export function createPiRuntimeController(options: {
           void abortRuns(conversationId, slot.runId).catch(() => undefined);
         });
       };
-      const deadline = setTimeout(() => exceed("duration", "This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send \"continue\" to resume."), limits.durationMs);
-      deadline.unref();
+      const deadline = createRunDeadline(limits.durationMs, () => exceed("duration", "This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send \"continue\" to resume."));
+      slot.deadline = deadline;
       log("run.started", { conversationId, harness });
       let opened = false;
       const recorder = createConversationRecorder({ store, conversationId, runId: input.requestId,
@@ -1051,7 +1057,7 @@ export function createPiRuntimeController(options: {
         }
       } finally {
         slot.vaultAbort.abort();
-        clearTimeout(deadline);
+        deadline.dispose();
         options?.signal?.removeEventListener("abort", stopOnSignal);
         try {
           if (opened && !recorder.finish()) terminalStatus = "error";
@@ -1162,6 +1168,10 @@ export function createPiRuntimeController(options: {
     abort: abortRuns,
     resolveVaultInput: (conversationId, requestId, runId, answer) => vaultRequests.answer(normalizeConversationId(conversationId), requestId, runId, answer),
     resolveUserInput: (conversationId, requestId, answers) => userInputGate.resolve(normalizeConversationId(conversationId), requestId, answers),
+    hasApproval(toolCallId, conversationId, runId) {
+      const id = normalizeConversationId(conversationId), slot = runs.get(id);
+      return Boolean(slot && !slot.stopRequested && slot.runId === runId && approvalGates.get(id)?.has(toolCallId));
+    },
     resolveApproval(toolCallId, decision, onlyConversationId, runId) {
       const scope = onlyConversationId === undefined ? undefined : normalizeConversationId(onlyConversationId);
       for (const [conversationId, gate] of approvalGates) {
@@ -1176,7 +1186,7 @@ export function createPiRuntimeController(options: {
     },
     async newSession(conversationId) {
       const id = normalizeConversationId(conversationId);
-      const idle = () => { if (runs.has(id)) throw new Error("Stop this conversation's run before starting a new session."); };
+      const idle = () => { if (runs.has(id)) throw new ConversationRequestError("Stop this conversation's run before starting a new session.", 409); };
       idle();
       for (let op = sessionOp(id); op; op = sessionOp(id)) await op.catch(() => undefined);
       idle();
@@ -1591,6 +1601,13 @@ export function createPiHttpHost(options: {
           } else sendJson(res, 200, { ok: true });
           return true;
         }
+        if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/approval`) {
+          res.setHeader("cache-control", "no-store");
+          const toolCallId = url.searchParams.get("toolCallId"), conversationId = url.searchParams.get("conversationId"), runId = url.searchParams.get("runId");
+          if (!toolCallId || !conversationId || !runId) sendJson(res, 400, { error: "toolCallId, conversationId and runId are required." });
+          else sendJson(res, 200, { pending: controller.hasApproval(toolCallId, conversationId, runId) });
+          return true;
+        }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/approval`) {
           const body = await readJson(req);
           const toolCallId = stringField(body, "toolCallId");
@@ -1813,7 +1830,7 @@ export function createPiHttpHost(options: {
         }
         sendJson(res, 404, { error: "Unknown Pi endpoint." });
       } catch (error) {
-        if (!res.headersSent) sendJson(res, error instanceof VaultRequestError ? error.statusCode : error instanceof VaultError || error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError || error instanceof ArtifactCatalogError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
+        if (!res.headersSent) sendJson(res, error instanceof VaultRequestError ? error.statusCode : error instanceof ConversationRequestError || error instanceof VaultError || error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError || error instanceof ArtifactCatalogError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
         else if (!res.destroyed) res.end();
       }
       return true;

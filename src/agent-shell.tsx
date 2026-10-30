@@ -1,3 +1,4 @@
+import { featureText, featureError, groupRosterTitle, isGroupRosterTitle } from "./i18n/copy/features.ts";
 import { useLearning } from "./runtime/useLearning";
 import { useVault } from "./runtime/useVault";
 import { useTaskRecovery } from "./runtime/useTaskRecovery";
@@ -58,7 +59,7 @@ import {
   followPiTurn,
   listStoredConversations,
   searchStoredConversations,
-  resolvePiApproval,
+  submitPiApproval,
   runPiTurn, runGroupTurn, updateGroupMembers,
   uploadPiFile,
   startNewPiSession,
@@ -263,7 +264,7 @@ export function AgentApp() {
   const [botSaving, setBotSaving] = useState(false);
   const [botDraft, setBotDraft] = useState<{ draft: BotProfile; creating: boolean; revision?: number }>();
   const [botError, setBotError] = useState<string>();
-  const botStorageError = locale === "zh" ? "保存失败，请检查连接后重试。" : "Could not save. Check the connection and retry.";
+  const botStorageError = featureText(locale, "Could not save. Check the connection and retry.");
   const editBot = (bot: BotProfile) => { setBotError(undefined); setBotDraft({ draft: { ...bot, appearance: { ...bot.appearance } }, creating: false, revision: botRevision }); };
   const [settingsOpen, setSettingsOpen] = useState(false);
   const settingsFromDrawer = useRef(false);
@@ -289,6 +290,7 @@ export function AgentApp() {
   });
   const wasRunningRef = useRef<{ id: string; running: boolean }>({ id: "", running: false });
   const [dismissedApprovalKey, setDismissedApprovalKey] = useState<string | null>(null);
+  const approvalAbortRefs = useRef(new Map<string, AbortController>());
   const piAbortRefs = useRef(new Map<string, AbortController>());
   const storedRunIds = useRef(new Map<string, Set<string>>());
   const preparingPiRefs = useRef(new Set<string>());
@@ -320,12 +322,21 @@ export function AgentApp() {
     const base = bots.find(bot => bot.presetId === (participant?.presetId ?? "assistant")) ?? bots[0];
     return participant ? { ...base, ...participant } : base;
   };
+  const conversationTitle = (conversation: EphemeralPiConversation) => {
+    if (!isGroupConversation(conversation) || conversation.titleSource || conversation.groupTitlePreserved) return conversation.title;
+    const names = groupMembersOf(conversation).map(id => bots.find(bot => bot.id === id)?.name
+      ?? conversation.groupParticipants?.find(bot => bot.id === id)?.name ?? id);
+    const originalNames = groupMembersOf(conversation).map(id => BOT_NAMES[presetBot(id).presetId]);
+    return [names, originalNames].some(roster => isGroupRosterTitle(conversation.title, roster))
+      ? groupRosterTitle(names, locale) : conversation.title;
+  };
   const piSessionItems = useMemo(
     () => piConversationSidebarItems(piConversations
       .filter((conversation) => conversation.events.length > 0 || conversation.stored || hasComposerState(composer.drafts[conversation.id]))
       .map((conversation) => titlePiConversation(conversation, composer.drafts[conversation.id]?.prompt
-        || composer.drafts[conversation.id]?.attachments.map((file) => file.name).join(", ") || ""))),
-    [piConversations, composer.drafts],
+        || composer.drafts[conversation.id]?.attachments.map((file) => file.name).join(", ") || ""))
+      .map(conversation => ({ ...conversation, title: conversationTitle(conversation) }))),
+    [piConversations, composer.drafts, bots, locale],
   );
   const historyGroups = useSessionHistoryGroups(activePiConversationId, conversationHistoryGroup(
     piSessionItems.find(session => session.id === activePiConversationId)
@@ -461,19 +472,25 @@ export function AgentApp() {
       timeline: displayViewModel.timeline,
     }),
   };
-  const approveLive = async (toolCallId: string, decision: ApprovalDecision) => {
-    // Dismissed once the host has the answer, or says it is no longer pending (a stopped run
-    // answers 409). A transport failure throws instead: the surface stays up for a retry.
+  const approveLive = async (toolCallId: string, decision: ApprovalDecision, signal?: AbortSignal) => {
+    // Keep the same decision and request identity while a lost receipt is reconciled.
     const approval = approvalForReplay(toolCallId, events);
-    await resolvePiApproval(approval.toolCallId, decision, activePiConversationId, approval.runId);
-    if (approvalKey && activeApprovalKey.current === approvalKey) setDismissedApprovalKey(approvalKey);
+    const controller = new AbortController();
+    approvalAbortRefs.current.set(activePiConversationId, controller);
+    try {
+      await submitPiApproval({ ...approval, decision, conversationId: activePiConversationId },
+        { signal: signal ? AbortSignal.any([signal, controller.signal]) : controller.signal });
+      if (approvalKey && activeApprovalKey.current === approvalKey) setDismissedApprovalKey(approvalKey);
+    } finally {
+      if (approvalAbortRefs.current.get(activePiConversationId) === controller) approvalAbortRefs.current.delete(activePiConversationId);
+    }
   };
   const inlineApprovalOverlay = liveApprovalTool && activeProject.toolCalls.approval === "inline" ? (
     <div className="preview-approval-overlay" data-preview-region="approval-overlay" data-approval-kind="inline-runtime">
       <InlineApprovalSurface
         key={approvalKey}
         tool={liveApprovalTool}
-        onConfirm={(decision) => approveLive(liveApprovalTool.id, decision)}
+        onConfirm={(decision, signal) => approveLive(liveApprovalTool.id, decision, signal)}
       />
     </div>
   ) : null;
@@ -495,7 +512,7 @@ export function AgentApp() {
       <ExternalApprovalSurface
         key={approvalKey}
         tool={liveApprovalTool}
-        onConfirm={(decision) => approveLive(liveApprovalTool.id, decision)}
+        onConfirm={(decision, signal) => approveLive(liveApprovalTool.id, decision, signal)}
       />
     </div>
   ) : null;
@@ -725,9 +742,7 @@ export function AgentApp() {
     const unavailable = () => {
       if (!pendingSource.loaded) return;
       setPendingSource(undefined);
-      setSourceNotice({ conversationId: activePiConversationId, message: locale === "zh"
-        ? "来源对话已打开，但所选记录已不可用。请刷新列表后重试。"
-        : "The source chat is open, but this record is no longer available. Refresh the list and try again." });
+      setSourceNotice({ conversationId: activePiConversationId, message: featureText(locale, "The source chat is open, but this record is no longer available. Refresh the list and try again.") });
     };
     if (pendingSource.artifactId) {
       const artifact = displayViewModel.timeline.find(item => item.kind === "artifact" && item.id === pendingSource.artifactId);
@@ -1020,7 +1035,7 @@ export function AgentApp() {
         // Reattach in either case and read its authoritative result; never replay the prompt.
         reattach = true;
       } else {
-        const message = error instanceof Error ? error.message : "Pi runtime failed.";
+        const message = featureError(locale, error instanceof Error ? error : "Pi runtime failed.");
         // The prompt is only passed when this turn never emitted anything; mid-run the
         // transcript already shows it. Same helper the configurator uses, so a failed turn
         // reads the same in both.
@@ -1116,7 +1131,7 @@ export function AgentApp() {
           if (controller.signal.aborted) break;
           // A missing conversation or denied access is definitive; a network failure/5xx is not.
           if (error instanceof PiRequestError && error.status < 500) throw error;
-          if (++retries >= 5) throw new Error("连续 5 次无法连接主机，已停止本地重连；未确认主机任务已停止。恢复连接后请从侧栏重新选择此会话。");
+          if (++retries >= 5) throw new Error(featureText(locale, "Could not reconnect after 5 attempts. The host task may still be running. Once connected, select this conversation again from the sidebar."));
           await waitForReconnect(controller.signal, Math.min(1000 * 2 ** (retries - 1), 5000));
         }
       }
@@ -1130,7 +1145,7 @@ export function AgentApp() {
       if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
       // Connection failure is not a host terminal and must never advance its event cursor.
       setFollowProblems((problems) => ({ ...problems, [conversationId]: {
-        message: error instanceof Error ? error.message : "Pi runtime failed.",
+        message: featureError(locale, error instanceof Error ? error : "Pi runtime failed."),
         prompt: submission && !current.events.some((event) => event.runId === submission.requestId && event.type === "text.started"
           && (event.payload as { role?: string }).role === "user") ? submission.prompt : undefined,
         runId: submission?.requestId ?? [...current.events].reverse().find((event) => event.type === "run.started")?.runId
@@ -1162,6 +1177,7 @@ export function AgentApp() {
   /** Stops the conversation on screen; runs in other conversations continue. Its queue pauses first. */
   const stopPi = (conversationId = activePiConversationId) => {
     composer.pauseQueue(conversationId, "stopped");
+    approvalAbortRefs.current.get(conversationId)?.abort();
     return runStop.stop(conversationId);
   };
 
@@ -1244,7 +1260,7 @@ export function AgentApp() {
         await synchronizePiRuntime(nextProject);
       }
     } catch (error) {
-      setProviderSelectionError(error instanceof Error ? error.message : String(error));
+      setProviderSelectionError(featureError(locale, error));
     } finally { providerSelectionPending.current = false; }
   }
 
@@ -1293,14 +1309,14 @@ export function AgentApp() {
   /** The host saves the title; the row shows it once saved. */
   async function renamePiConversation(id: string, title: string) {
     const saved = await renameStoredConversation(id, title);
-    setPiConversations((current) => current.map((entry) => entry.id === id ? { ...entry, title: saved } : entry));
+    setPiConversations((current) => current.map((entry) => entry.id === id ? { ...entry, title: saved, titleSource: "user" } : entry));
   }
 
   // Group chat: members and the last message come with the host's summary of the conversation.
-  function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupParticipants" | "groupHostId" | "groupPreview" | "botId" | "availableBots"> {
+  function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupParticipants" | "groupHostId" | "groupPreview" | "botId" | "availableBots" | "titleSource" | "groupTitlePreserved"> {
     const group = (entry as StoredConversationSummary).group;
     const saved = entry as StoredConversationSummary;
-    return { ...(saved.botId ? { botId: saved.botId, availableBots: saved.availableBots } : {}), ...(group ? { groupMembers: group.members, groupParticipants: group.participants, groupHostId: group.hostId, groupPreview: group.preview } : {}) };
+    return { ...(saved.titleSource ? { titleSource: saved.titleSource } : {}), ...(saved.botId ? { botId: saved.botId, availableBots: saved.availableBots } : {}), ...(group ? { groupMembers: group.members, groupParticipants: group.participants, groupHostId: group.hostId, groupPreview: group.preview, ...(group.preserveTitle !== undefined ? { groupTitlePreserved: group.preserveTitle } : {}) } : {}) };
   }
   /** A saved conversation the sidebar lists before its transcript is opened. */
   function storedStub(entry: StoredConversationSummary): EphemeralPiConversation {
@@ -1330,7 +1346,7 @@ export function AgentApp() {
     // A run in flight keeps going in its own conversation; it only draws while on screen.
     const conversation = group
       ? { ...createEphemeralPiConversation(`group_${crypto.randomUUID().slice(0, 12)}`),
-        title: ["我", ...members.map((m) => presetBot(m).name)].join("、"), groupMembers: members, groupHostId: "assistant", groupParticipants: bots.map(({ id, name, presetId }) => ({ id, name, presetId })) }
+        title: groupRosterTitle(members.map(m => presetBot(m).name), locale), groupMembers: members, groupHostId: "assistant", groupParticipants: bots.map(({ id, name, presetId }) => ({ id, name, presetId })) }
       : { ...createEphemeralPiConversation(), agentPreset: bot.presetId };
     if (!group) {
       try { bindBotConversation(conversation.id, bot.id); setBotError(undefined); }
@@ -1490,7 +1506,7 @@ export function AgentApp() {
     // Each role greets in its own words; the configured greeting stays the fallback.
     welcomeGreeting: activeBot.id === activeBot.presetId
       ? (copy.composer.agentSettings.presets[agentSettings.presetId]?.greeting ?? activeProject.welcome.greeting).replaceAll(BOT_NAMES[agentSettings.presetId], activeBot.name)
-      : (locale === "zh" ? `你好，我是 ${activeBot.name}` : `Hi, I’m ${activeBot.name}`),
+      : featureText(locale, "Hi, I’m {name}", { name: activeBot.name }),
     isWelcome,
     defaultPermissionMode: permissionDefault ?? piRuntimeState?.defaultPermissionMode,
     // Settings opens from the sidebar footer and the header, not from the composer.
@@ -1522,7 +1538,7 @@ export function AgentApp() {
     permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
     budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
   } satisfies ComposerRunOptions;
-  const recovery = useTaskRecovery({ conversation: activePiConversation, enabled: !streamId && !historyMessage, running: piRunning, zh: locale === "zh",
+  const recovery = useTaskRecovery({ conversation: activePiConversation, enabled: !streamId && !historyMessage, running: piRunning, locale,
     submissions: messageSubmissions.current,
     isCurrent: id => activeConversationIdRef.current === id && !activeStreamIdRef.current,
     configure: destination => destination === "browser" ? showBrowser() : openSettings(destination, activeBot.id),
@@ -1547,7 +1563,7 @@ export function AgentApp() {
         await saveBotProfile(bot, botDraft.revision ?? botRevision);
         if (botDraft.creating && !startConversationWith(bot.presetId, bot)) return;
         setBotDraft(undefined); setBotError(undefined);
-      } catch (error) { setBotError(error instanceof Error ? error.message : botStorageError); }
+      } catch (error) { setBotError(error instanceof Error ? featureError(locale, error) : botStorageError); }
       finally { setBotSaving(false); }
     },
   } : undefined;
@@ -1555,7 +1571,7 @@ export function AgentApp() {
     taskRecovery: recovery,
     artifactCatalog: streamId ? undefined : { conversationId: activePiConversationId, conversationTitle: activePiConversation.title,
       timestamps: artifactTimes, openSource: entry => openStoredConversation(entry.conversationId, { artifactId: entry.artifactId }) },
-    chatReferences: streamId ? undefined : piConversations.filter(c => c.id !== activePiConversationId && c.stored && !c.id.includes(".m.")).map(c => ({ id: c.id, title: c.title })),
+    chatReferences: streamId ? undefined : piConversations.filter(c => c.id !== activePiConversationId && c.stored && !c.id.includes(".m.")).map(c => ({ id: c.id, title: conversationTitle(c) })),
     providerSelection: { onChange: (id, model) => void selectProvider(id, model), error: providerSelectionError ?? modelUnavailable,
       selected: { providerId: activeModel.providerId, model: activeModel.model } },
     bots: streamId ? undefined : knownBots,
@@ -1565,7 +1581,7 @@ export function AgentApp() {
       setBotDraft({ creating: true, revision: botRevision, draft: { id: `bot_${crypto.randomUUID()}`, presetId: "assistant", name: "", appearance: { ...DEFAULT_NEW_BOT } } });
     },
     onEditBot: streamId ? undefined : editBot,
-    botError: botDraft ? undefined : botError ?? (botLoadError ? `${locale === "zh" ? "Bot 配置同步失败：" : "Bot sync failed: "}${botLoadError}` : undefined),
+    botError: botDraft ? undefined : botError ?? (botLoadError ? `${featureText(locale, "Bot sync failed: ")}${botLoadError}` : undefined),
     botEditor,
     composerActivity: activityPreview ? {
       scope: `preview:${activePiConversationId}`,
@@ -1611,9 +1627,9 @@ export function AgentApp() {
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
     ) : undefined,
     // Only groups still titled with their roster: the last thing said names the row instead.
-    groupPreviews: Object.fromEntries(piConversations.flatMap((entry) => entry.groupPreview && isGroupConversation(entry)
+    groupPreviews: Object.fromEntries(piConversations.flatMap((entry) => entry.groupPreview && isGroupConversation(entry) && !entry.titleSource && !entry.groupTitlePreserved
       && [groupMembersOf(entry).map((m) => presetBot(m).name), groupMembersOf(entry).map((m) => BOT_NAMES[presetBot(m).presetId])]
-        .some(names => entry.title === ["我", ...names].join("、"))
+        .some(names => isGroupRosterTitle(entry.title, names))
       ? [[entry.id, entry.groupPreview.text.replace(/\s+/g, " ").trim()]] : [])),
     groupFaces: Object.fromEntries(piConversations.filter((entry) => isGroupConversation(entry))
       .map((entry) => [entry.id, groupMembersOf(entry).map((m) => PRESET_AVATARS[presetBot(m).presetId])])),
@@ -1657,7 +1673,7 @@ export function AgentApp() {
     composerMentions: isGroupConversation(activePiConversation)
       ? groupMembersOf(activePiConversation).map((id) => ({ id, presetId: presetBot(id).presetId, name: presetBot(id).name, handle: presetBot(id).name, kind: PRESET_AVATARS[presetBot(id).presetId] }))
       : undefined,
-    composerPlaceholder: isGroupConversation(activePiConversation) ? "发到群里…（输入 @ 选择成员）"
+    composerPlaceholder: isGroupConversation(activePiConversation) ? featureText(locale, "Message the group… (type @ to select members)")
       : settingsCopy[locale].shell.messageTo(activeBot.name),
     stopStatus: !streamId && piRunning ? runStop.statusFor(activePiConversationId) : undefined,
     composerOptions: {
@@ -1700,7 +1716,7 @@ export function AgentApp() {
     onAttachWorkspaceFile: streamId ? undefined : async (file) => {
       await composer.update(activePiConversation, (draft) => {
         if (draft.attachments.some(a => a.reference?.scope === file.scope && a.reference.path === file.path)) return draft;
-        if (draft.attachments.length >= 10) throw new Error("At most 10 attachments / 最多 10 个附件");
+        if (draft.attachments.length >= 10) throw new Error(featureText(locale, "At most 10 attachments"));
         return { ...draft, attachments: [...draft.attachments, { id: crypto.randomUUID(), name: file.name, isImage: false, reference: file }] };
       });
       setOutputModalOpen(false); setWorkspaceModalOpen(false);
@@ -1905,14 +1921,14 @@ export function AgentApp() {
               ...streams.map((item) => ({ value: item.id, label: item.label })),
             ]}
           />
-          <select aria-label="工作头像预览" value={activityPreview}
+          <select aria-label={featureText(locale, "Activity avatar preview")} value={activityPreview}
             style={{ maxWidth: 112, fontSize: 12, color: "var(--text-secondary)", background: "var(--surface-panel)" }}
             onChange={(event) => setActivityPreview(event.target.value as AvatarState | "")}>
-            <option value="">工作头像预览</option>
+            <option value="">{featureText(locale, "Activity avatar preview")}</option>
             {(["thinking", "reading", "editing", "working", "writing", "asking"] as const).map((state) => (
               <option key={state} value={state}>{composerActivityCopy[locale][state]}</option>
             ))}
-            <option value="idle">结束 / 停止</option>
+            <option value="idle">{featureText(locale, "Finished / Stopped")}</option>
           </select>
         </div>
       ) : null}
@@ -1958,7 +1974,7 @@ export function AgentApp() {
             routines={piRuntimeState ? routines : undefined}
             mcpServers={piRuntimeState ? mcpServers : undefined}
             memories={piRuntimeState ? memories : undefined}
-            memoryScopes={[{ scope: { kind: "global" }, label: locale === "zh" ? "全局" : "Global" }, ...bots.map(bot => ({ scope: { kind: "bot" as const, id: bot.id }, label: bot.name })), ...piConversations.filter(c => c.stored && isGroupConversation(c)).map(c => ({ scope: { kind: "group" as const, id: c.id }, label: c.title }))]}
+            memoryScopes={[{ scope: { kind: "global" }, label: featureText(locale, "Global") }, ...bots.map(bot => ({ scope: { kind: "bot" as const, id: bot.id }, label: bot.name })), ...piConversations.filter(c => c.stored && isGroupConversation(c)).map(c => ({ scope: { kind: "group" as const, id: c.id }, label: conversationTitle(c) }))]}
             learning={piRuntimeState ? learning : undefined}
             skills={piRuntimeState ? skills : undefined}
             usage={piRuntimeState ? usage : undefined}

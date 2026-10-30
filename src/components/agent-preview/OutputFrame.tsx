@@ -1,3 +1,4 @@
+import { featureText } from "../../i18n/copy/features.ts";
 import { ArrowLeft, Download, File, Folder, Maximize2, Minimize2, PanelRight, RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import type { AgentUXArtifactTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
@@ -195,7 +196,7 @@ export function OutputFrame({
               <SelectMenu className="workspace-scope-select" size="md" value={shared ? "shared" : "agent"} onValueChange={(value) => { setPath(""); setShared(value === "shared"); }} ariaLabel={c.files} options={[{ value: "agent", label: workspaceBotName ?? copy.composer.agentSettings.presets[workspaceScope].name }, ...(workspaceSharedAvailable ? [{ value: "shared", label: c.sharedFiles }] : [])]} />
               <label className="workspace-search-field">
                 <Search size={15} aria-hidden="true" />
-                <input ref={searchRef} className="workspace-document-search" type="search" maxLength={100} aria-label={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} placeholder={locale === "zh" ? "按路径或关键词找文档" : "Find documents by path or keyword"} value={query} onChange={e => setQuery(e.target.value)} />
+                <input ref={searchRef} className="workspace-document-search" type="search" maxLength={100} aria-label={featureText(locale, "Find documents by path or keyword")} placeholder={featureText(locale, "Find documents by path or keyword")} value={query} onChange={e => setQuery(e.target.value)} />
                 {query ? <button className="rail-icon-btn workspace-search-clear" type="button" aria-label={c.clearSearch}
                   onClick={() => { setQuery(""); searchRef.current?.focus(); }}><X size={14} /></button> : null}
               </label>
@@ -206,7 +207,7 @@ export function OutputFrame({
               <code title={`/${path}`}>/{path}</code>
             </div>
             <div className="workspace-files-results">
-              {truncated ? <p role="status">{locale === "zh" ? "结果已达到扫描上限，请缩小搜索范围" : "Search limit reached; narrow the query"}</p> : null}
+              {truncated ? <p role="status">{featureText(locale, "Search limit reached; narrow the query")}</p> : null}
               {fileError ? <p role="alert">{fileError}</p> : loading ? <p role="status">{c.loadingFiles}</p> : files.length === 0 ? <p role="status">{query.trim() ? c.noMatchingFiles : c.emptyFiles}</p> : (
                 <ul className="workspace-file-list">
                   {files.map((file) => (

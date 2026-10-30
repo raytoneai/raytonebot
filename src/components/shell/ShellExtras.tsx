@@ -1,3 +1,4 @@
+import { featureText, featureError, groupRosterTitle } from "../../i18n/copy/features.ts";
 import * as RadixPopover from "@radix-ui/react-popover";
 import { ChevronDown, Pencil, Plus, Settings } from "lucide-react";
 import { createContext, useContext, useRef, useState, type ReactNode, type RefObject } from "react";
@@ -200,7 +201,7 @@ export function AgentSwitcher({
             data-active={active}
             aria-current={active ? "true" : undefined}
             aria-disabled={disabled || !available || undefined}
-            title={onEditBot ? (locale === "zh" ? "点击聊天，右键编辑 Bot" : "Click to chat, right-click to edit Bot") : t.switchHint}
+            title={onEditBot ? (featureText(locale, "Click to chat, right-click to edit Bot")) : t.switchHint}
             onClick={() => { if (!disabled && available) { if (onSelectBot && bot.appearance) onSelectBot(bot as BotProfile); else onSelect(preset.id); } }}
             onContextMenu={event => { if (onEditBot && bot.appearance) { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot as BotProfile); } }}
             onKeyDown={event => { if (onEditBot && bot.appearance && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) { event.preventDefault(); onEditBot(bot as BotProfile); } }}
@@ -221,7 +222,7 @@ export function AgentSwitcher({
               </span>
             </span>
           </button>
-          {onEditBot && bot.appearance ? <button type="button" className="shell-agent-edit" aria-label={`${locale === "zh" ? "编辑" : "Edit"} ${bot.name}`}
+          {onEditBot && bot.appearance ? <button type="button" className="shell-agent-edit" aria-label={`${featureText(locale, "Edit")} ${bot.name}`}
             onClick={() => onEditBot(bot as BotProfile)}><Pencil size={14} /></button> : null}
           </div>
         );
@@ -303,10 +304,10 @@ export function HeaderAgent({
       <RadixPopover.Portal>
         <RadixPopover.Content className={`shell-popover${sourceKey ? "" : " shell-model-popover"}`} align="center" sideOffset={8} collisionPadding={12}
           onCloseAutoFocus={event => { if (openingSettings.current) { event.preventDefault(); openingSettings.current = false; } }}>
-          {bot && onEditBot ? <button type="button" className="shell-popover-link" onClick={() => manage(() => onEditBot(bot))}>{locale === "zh" ? "编辑此 Bot" : "Edit this Bot"}</button> : null}
+          {bot && onEditBot ? <button type="button" className="shell-popover-link" onClick={() => manage(() => onEditBot(bot))}>{featureText(locale, "Edit this Bot")}</button> : null}
           {onManageBot ? <>
-            <button type="button" className="shell-popover-link" onClick={() => manage(() => onManageBot("memory"))}>{locale === "zh" ? "此 Bot 的记忆" : "This Bot’s memories"}</button>
-            <button type="button" className="shell-popover-link" onClick={() => manage(() => onManageBot("routines"))}>{locale === "zh" ? "此 Bot 的例行任务" : "This Bot’s routines"}</button>
+            <button type="button" className="shell-popover-link" onClick={() => manage(() => onManageBot("memory"))}>{featureText(locale, "This Bot’s memories")}</button>
+            <button type="button" className="shell-popover-link" onClick={() => manage(() => onManageBot("routines"))}>{featureText(locale, "This Bot’s routines")}</button>
           </> : null}
           <p className="shell-header-model">{model}</p>
           {sourceKey ? (
@@ -339,7 +340,7 @@ export function HeaderAgent({
 }
 
 // ---------- Group chat: "+" menu, To: picker, group header with member panel ----------
-const GROUP_ROLE: Record<AgentPresetId, string> = { assistant: "助手", planner: "规划", builder: "实施", dsh: "通用助手" };
+const GROUP_ROLE = { assistant: "Assistant", planner: "Planner", builder: "Builder", dsh: "General assistant" } as const;
 const GROUP_NAME = BOT_NAMES;
 function useGroupBots() {
   const { bots } = useShellExtras();
@@ -355,6 +356,7 @@ export function NewChatMenu({ avatars, members, onNewGroup }: {
   members: readonly string[];
   onNewGroup: (members: string[]) => void | Promise<void>;
 }) {
+  const { locale } = useLocale();
   const candidates = useGroupBots();
   const botNames = useBotNames();
   const [error, setError] = useState<string>();
@@ -367,23 +369,23 @@ export function NewChatMenu({ avatars, members, onNewGroup }: {
     if (!picked.length || pending) return;
     setPending(true); setError(undefined);
     try { await onNewGroup(ordered); setOpen(false); setPicked([]); }
-    catch (error) { setError(error instanceof Error ? error.message : String(error)); }
+    catch (error) { setError(featureError(locale, error)); }
     finally { setPending(false); }
   };
   return (
     <RadixPopover.Root open={open} onOpenChange={(next) => { setOpen(next); if (!next) setPicked([]); }}>
       <RadixPopover.Trigger asChild>
-        <button type="button" className="rail-icon-btn shell-invite-agent" aria-label="添加 Agent" title="添加 Agent 到聊天">
+        <button type="button" className="rail-icon-btn shell-invite-agent" aria-label={featureText(locale, "Add agent")} title={featureText(locale, "Add an agent to the chat")}>
           <Plus size={16} />
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
         <RadixPopover.Content className="shell-popover shell-member-popover" align="start" sideOffset={6} collisionPadding={12}>
           <div className="shell-member-to">
-            <span className="shell-member-meta">聊天成员</span>
+            <span className="shell-member-meta">{featureText(locale, "Chat members")}</span>
             {ordered.length ? ordered.map((id) => (
               <span key={id} className="shell-member-chip" data-selected="true"><AgentAvatar size={18} kind={avatars[candidates.find(bot => bot.id === id)!.presetId]} />{botNames[id]}</span>
-            )) : <span className="shell-member-meta">选择一位或多位</span>}
+            )) : <span className="shell-member-meta">{featureText(locale, "Select one or more")}</span>}
           </div>
           {candidates.map((preset) => {
             const present = members.includes(preset.id);
@@ -393,14 +395,14 @@ export function NewChatMenu({ avatars, members, onNewGroup }: {
                 aria-pressed={on} disabled={present} onClick={() => toggle(preset.id)}>
                 <AgentAvatar size={24} kind={avatars[preset.presetId]} appearance={preset.appearance} />
                 <span>{botNames[preset.id]}</span>
-                <span className="shell-member-meta shell-member-role">{present ? "已加入" : GROUP_ROLE[preset.presetId]}</span>
+                <span className="shell-member-meta shell-member-role">{present ? featureText(locale, "Joined") : featureText(locale, GROUP_ROLE[preset.presetId])}</span>
                 <span aria-hidden="true" className="shell-member-check">{on ? "✓" : ""}</span>
               </button>
             );
           })}
           {error ? <p className="shell-member-note" role="alert">{error}</p> : null}
           <Button type="button" variant="primary" className="shell-member-start" disabled={!picked.length || pending} onClick={() => void start()}>
-            {picked.length ? `加入聊天（${picked.length}）` : "选择要加入的 Agent"}
+            {picked.length ? featureText(locale, "Add to chat ({count})", { count: picked.length }) : featureText(locale, "Select agents to add")}
           </Button>
         </RadixPopover.Content>
       </RadixPopover.Portal>
@@ -420,6 +422,7 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
   hostId?: string;
   onChange: (members: string[]) => void | Promise<void>;
 }) {
+  const { locale } = useLocale();
   const candidates = useGroupBots();
   const botNames = useBotNames();
   const [error, setError] = useState<string>();
@@ -429,13 +432,13 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
     const next = members.includes(id) ? members.filter((m) => m !== id) : candidates.map(p => p.id).filter((m) => m === id || members.includes(m));
     if (!next.length) return;
     setPending(true); setError(undefined);
-    try { await onChange(next); } catch (error) { setError(error instanceof Error ? error.message : String(error)); } finally { setPending(false); }
+    try { await onChange(next); } catch (error) { setError(featureError(locale, error)); } finally { setPending(false); }
   };
-  const names = ["我", ...members.map((m) => botNames[m])].join("、");
+  const names = groupRosterTitle(members.map(m => botNames[m]), locale);
   if (draft) {
     return (
       <div className="shell-member-picker">
-        <span className="shell-member-meta">成员</span>
+        <span className="shell-member-meta">{featureText(locale, "Members")}</span>
         {candidates.map((preset) => (
           <button key={preset.id} type="button" className="shell-member-chip" aria-pressed={members.includes(preset.id)} disabled={pending || preset.id === hostId} onClick={() => void toggle(preset.id)}>
             <AgentAvatar size={20} kind={avatars[preset.presetId]} appearance={preset.appearance} />{botNames[preset.id]}
@@ -451,26 +454,26 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
           <GroupFace size={34} kinds={members.map(m => avatars[candidates.find(bot => bot.id === m)!.presetId])} />
           <span className="shell-header-text">
             <strong>{names}</strong>
-            <span>{members.length + 1} 位成员</span>
+            <span>{featureText(locale, "Members: {count}", { count: members.length + 1 })}</span>
           </span>
           <ChevronDown size={14} aria-hidden="true" />
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
         <RadixPopover.Content className="shell-popover shell-member-popover" align="start" sideOffset={8} collisionPadding={12}>
-          <div className="shell-member-note">聊天成员</div>
+          <div className="shell-member-note">{featureText(locale, "Chat members")}</div>
           {error ? <p className="shell-member-note" role="alert">{error}</p> : null}
           <div className="shell-member-row">
-            <GroupFace size={24} kinds={[]} /><span>我</span><span className="shell-member-meta shell-member-role">你</span>
+            <GroupFace size={24} kinds={[]} /><span>{featureText(locale, "Me")}</span><span className="shell-member-meta shell-member-role">{featureText(locale, "You")}</span>
           </div>
           {candidates.map((preset) => {
             const on = members.includes(preset.id);
             return (
               <button key={preset.id} type="button" className="shell-member-row" aria-pressed={on} disabled={pending || preset.id === hostId} onClick={() => void toggle(preset.id)}>
                 <AgentAvatar size={24} kind={avatars[preset.presetId]} appearance={preset.appearance} />
-                <span>{botNames[preset.id]} <span className="shell-member-meta">{GROUP_ROLE[preset.presetId]}</span></span>
+                <span>{botNames[preset.id]} <span className="shell-member-meta">{featureText(locale, GROUP_ROLE[preset.presetId])}</span></span>
                 <span className="shell-member-meta shell-member-role">
-                  <HarnessMark harness={agentPreset(preset.presetId).harness} />{on ? "在群里" : "已移出"}
+                  <HarnessMark harness={agentPreset(preset.presetId).harness} />{on ? featureText(locale, "In the group") : featureText(locale, "Removed")}
                 </span>
               </button>
             );
@@ -487,13 +490,14 @@ export function GroupWelcome({ avatars, members, onChange }: {
   members: readonly string[];
   onChange: (members: string[]) => void | Promise<void>;
 }) {
+  const { locale } = useLocale();
   const candidates = useGroupBots();
   const botNames = useBotNames();
   return (
     <div className="composer-greeting" style={{ flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
       <span aria-hidden="true"><GroupFace size={76} kinds={members.map(m => avatars[candidates.find(bot => bot.id === m)!.presetId])} /></span>
-      <h2 className="composer-greeting-text" style={{ margin: 0 }}>{["我", ...members.map((m) => botNames[m])].join("、")}</h2>
-      <p style={{ margin: 0, opacity: 0.6, fontSize: 14 }}>选择成员，开始对话。</p>
+      <h2 className="composer-greeting-text" style={{ margin: 0 }}>{groupRosterTitle(members.map(m => botNames[m]), locale)}</h2>
+      <p style={{ margin: 0, opacity: 0.6, fontSize: 14 }}>{featureText(locale, "Select members to start a conversation.")}</p>
       <GroupHeader avatars={avatars} members={members} draft onChange={onChange} />
     </div>
   );

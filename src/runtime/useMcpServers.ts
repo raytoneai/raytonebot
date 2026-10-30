@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { deleteMcpServer, listMcpServers, refreshMcpServer, saveMcpServer } from "../pi/piClient";
 import type { McpServerInput, McpServerView } from "../pi/mcpTypes";
@@ -21,28 +21,48 @@ export function useMcpServers(active: boolean): McpServersState {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState<string>();
   const [actionError, setActionError] = useState<McpServersState["actionError"]>();
+  const locked = useRef(false);
+  const generation = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; generation.current++; };
+  }, []);
 
-  const load = useCallback(() => listMcpServers().then((value) => {
-    setServers(value);
-    setError(undefined);
-  }, (failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure))), []);
+  const load = useCallback(async (afterAction = false) => {
+    if (!mounted.current || (locked.current && !afterAction)) return;
+    const request = ++generation.current;
+    try {
+      const value = await listMcpServers();
+      if (!mounted.current || request !== generation.current) return;
+      setServers(value);
+      setError(undefined);
+    } catch (failure) {
+      if (mounted.current && request === generation.current) setError(failure instanceof Error ? failure.message : String(failure));
+    }
+  }, []);
 
   useEffect(() => {
     if (active) void load();
   }, [active, load]);
 
   const act = useCallback(async (id: string, action: () => Promise<unknown>) => {
+    if (locked.current || !mounted.current) return false;
+    locked.current = true;
+    generation.current++; // Reads started before this mutation cannot replace its result.
     setBusy(id);
     setActionError(undefined);
     try {
       await action();
-      await load();
+      if (!mounted.current) return false;
+      await load(true);
       return true;
     } catch (failure) {
-      setActionError({ id, message: failure instanceof Error ? failure.message : String(failure) });
+      if (mounted.current) setActionError({ id, message: failure instanceof Error ? failure.message : String(failure) });
       return false;
     } finally {
-      setBusy(undefined);
+      locked.current = false;
+      if (mounted.current) setBusy(undefined);
     }
   }, [load]);
 

@@ -1,5 +1,6 @@
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { DEFAULT_BOT_NAMES, isAgentPresetId, type AgentPresetId } from "./harnessCatalog.ts";
+import { ConversationRequestError } from "./conversationRequestError.ts";
 
 export type GroupParticipant = { id: string; name: string; presetId: AgentPresetId };
 export const DEFAULT_PARTICIPANTS: GroupParticipant[] = (["assistant", "planner", "builder"] as const)
@@ -25,10 +26,10 @@ export function participantCatalog(value: unknown, previous: readonly GroupParti
 }
 
 export function selectedParticipants(ids: unknown, catalog: readonly GroupParticipant[]): GroupParticipant[] {
-  if (!Array.isArray(ids) || !ids.length || ids.length > 8 || new Set(ids).size !== ids.length) throw new Error("Choose 1–8 different Bots.");
+  if (!Array.isArray(ids) || !ids.length || ids.length > 8 || new Set(ids).size !== ids.length) throw new ConversationRequestError("Choose 1–8 different Bots.", 400);
   return ids.map(id => {
     const bot = catalog.find(bot => bot.id === id);
-    if (!bot) throw new Error("A selected Bot is unavailable. Choose it again.");
+    if (!bot) throw new ConversationRequestError("A selected Bot is unavailable. Choose it again.", 400);
     return bot;
   });
 }

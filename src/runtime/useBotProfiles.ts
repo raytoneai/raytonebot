@@ -64,7 +64,7 @@ function subscribe(notify: () => void) {
   };
 }
 export async function saveBotProfile(bot: BotProfile, revision: number | undefined) {
-  if (revision === undefined) throw new Error("Bot 配置尚未加载，请稍后重试。");
+  if (revision === undefined) throw new Error("Bot configuration has not loaded. Please retry shortly.");
   try { accept(await putBotConfig(bot, revision)); }
   catch (error) { void syncBotProfiles().catch(() => undefined); throw error; }
 }

@@ -28,10 +28,12 @@ export class PiApprovalGate {
   private readonly pending = new Map<string, PendingApproval>();
   private policy: PermissionPolicy;
   private readonly memory: ApprovalMemory;
+  private readonly onWaitingChange: () => void;
 
-  constructor(policy: PermissionPolicy, memory: ApprovalMemory = new ApprovalMemory()) {
+  constructor(policy: PermissionPolicy, memory: ApprovalMemory = new ApprovalMemory(), onWaitingChange: () => void = () => {}) {
     this.policy = policy;
     this.memory = memory;
+    this.onWaitingChange = onWaitingChange;
   }
 
   setMode(mode: PiPermissionMode) {
@@ -81,15 +83,21 @@ export class PiApprovalGate {
     if (!this.requiresApproval(toolName, args)) return;
     // The abort listener below never fires for a signal that is already aborted.
     if (signal?.aborted) throw new Error("Tool approval was cancelled.");
+    let held: PendingApproval;
     const decision = await new Promise<PiApprovalDecision>((resolve, reject) => {
-      const onAbort = () => reject(new Error("Tool approval was cancelled."));
+      const onAbort = () => {
+        if (this.pending.get(toolCallId) === held) this.pending.delete(toolCallId);
+        this.onWaitingChange(); reject(new Error("Tool approval was cancelled."));
+      };
       const cleanup = () => signal?.removeEventListener("abort", onAbort);
       signal?.addEventListener("abort", onAbort, { once: true });
-      this.pending.set(toolCallId, { toolName, resolve, reject, cleanup });
+      held = { toolName, resolve, reject, cleanup };
+      this.pending.set(toolCallId, held);
+      this.onWaitingChange();
     }).finally(() => {
-      const pending = this.pending.get(toolCallId);
-      pending?.cleanup();
-      this.pending.delete(toolCallId);
+      held.cleanup();
+      if (this.pending.get(toolCallId) === held) this.pending.delete(toolCallId);
+      this.onWaitingChange();
     });
     if (decision === "no") throw new Error("Tool execution was denied by the user.");
     if (decision === "always") this.memory.add(this.agent, this.memoryKey(toolName, args));
@@ -105,15 +113,22 @@ export class PiApprovalGate {
     return this.pending.size > 0;
   }
 
+  has(toolCallId: string): boolean { return this.pending.has(toolCallId); }
+
   resolve(toolCallId: string, decision: PiApprovalDecision): boolean {
     const pending = this.pending.get(toolCallId);
     if (!pending) return false;
+    // Consume synchronously: duplicate delivery must never change the first decision.
+    this.pending.delete(toolCallId);
+    pending.cleanup();
+    this.onWaitingChange();
     pending.resolve(decision);
     return true;
   }
 
   cancelAll(message = "Pi run ended before approval was decided.") {
-    for (const pending of this.pending.values()) pending.reject(new Error(message));
+    for (const pending of this.pending.values()) { pending.cleanup(); pending.reject(new Error(message)); }
     this.pending.clear();
+    this.onWaitingChange();
   }
 }

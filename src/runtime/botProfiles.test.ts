@@ -11,7 +11,7 @@ import { applyBotRoleTemplate, botRoleTemplates } from "./botRoleTemplates.ts";
 const custom: BotProfile = { id: "bot_12345678-1234-1234-1234-123456789abc", presetId: "assistant", name: "  Muse  ", appearance: DEFAULT_BOTS.boy };
 
 test("role starting points preserve manual text, identity, model and capability choices", () => {
-  const [research, planning] = botRoleTemplates(true);
+  const [research, planning] = botRoleTemplates("zh");
   const draft = { ...custom, model: { provider: "existing", model: "selected" }, mcpServerIds: [], skillIds: ["chosen"] };
   const filled = applyBotRoleTemplate(draft, research.persona);
   const switched = applyBotRoleTemplate({ ...filled, role: "My own role" }, planning.persona, research.persona);

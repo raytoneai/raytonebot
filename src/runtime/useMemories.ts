@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
 import { deleteMemory, getMemories, saveMemory, setMemoryEnabled } from "../pi/piClient";
 import type { MemoryScope, MemoryState } from "../pi/memoryTypes";
@@ -22,31 +22,56 @@ export function useMemories(active: boolean): MemoriesState {
   const [error, setError] = useState<string>();
   const [busy, setBusy] = useState<string>();
   const [actionError, setActionError] = useState<MemoriesState["actionError"]>();
+  const locked = useRef(false);
+  const generation = useRef(0);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; generation.current++; };
+  }, []);
 
-  const load = useCallback(() => getMemories().then((value) => {
-    setMemory(value);
-    setError(undefined);
-  }, (failure: unknown) => setError(failure instanceof Error ? failure.message : String(failure))), []);
+  const load = useCallback(async (afterAction = false) => {
+    if (!mounted.current || (locked.current && !afterAction)) return;
+    const request = ++generation.current;
+    try {
+      const value = await getMemories();
+      if (!mounted.current || request !== generation.current) return;
+      setMemory(value);
+      setError(undefined);
+    } catch (failure) {
+      if (mounted.current && request === generation.current) setError(failure instanceof Error ? failure.message : String(failure));
+    }
+  }, []);
 
   useEffect(() => {
     if (!active) return;
-    void load();
-    const timer = window.setInterval(() => void load(), 5_000);
-    return () => window.clearInterval(timer);
+    let stopped = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      await load();
+      if (!stopped) timer = window.setTimeout(() => void poll(), 5_000);
+    };
+    void poll();
+    return () => { stopped = true; window.clearTimeout(timer); };
   }, [active, load]);
 
   const act = useCallback(async (id: string, action: () => Promise<unknown>) => {
+    if (locked.current || !mounted.current) return false;
+    locked.current = true;
+    generation.current++; // Reads started before this mutation cannot replace its result.
     setBusy(id);
     setActionError(undefined);
     try {
       await action();
-      await load();
+      if (!mounted.current) return false;
+      await load(true);
       return true;
     } catch (failure) {
-      setActionError({ id, message: failure instanceof Error ? failure.message : String(failure) });
+      if (mounted.current) setActionError({ id, message: failure instanceof Error ? failure.message : String(failure) });
       return false;
     } finally {
-      setBusy(undefined);
+      locked.current = false;
+      if (mounted.current) setBusy(undefined);
     }
   }, [load]);
 

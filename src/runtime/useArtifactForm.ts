@@ -1,8 +1,10 @@
+import type { AppLocale } from "../i18n/locales.ts";
+import { featureText } from "../i18n/copy/features.ts";
 import { useState } from "react";
 import type { ShellExtras } from "../components/shell/ShellExtras";
 import { artifactSubmissionPrompt, restoreArtifactFormDraft, validateArtifactValues, type ArtifactForm, type ArtifactFormDraft } from "./artifactForm";
 
-export function useArtifactForm(form: ArtifactForm, source: string, artifactId: string, artifactForms: ShellExtras["artifactForms"], zh: boolean) {
+export function useArtifactForm(form: ArtifactForm, source: string, artifactId: string, artifactForms: ShellExtras["artifactForms"], locale: AppLocale) {
   const key = `raytone-form:${JSON.stringify([artifactForms?.conversationId, artifactId])}`;
   const [draft, setDraft] = useState<ArtifactFormDraft>(() => {
     let raw = null; try { raw = localStorage.getItem(key); } catch {}
@@ -11,12 +13,12 @@ export function useArtifactForm(form: ArtifactForm, source: string, artifactId: 
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const outcome = artifactForms?.result(draft.requestId);
   const locked = busy || draft.submitted || !!outcome;
-  const save = (next: ArtifactFormDraft) => { setDraft(next); try { localStorage.setItem(key, JSON.stringify(next)); setError(""); } catch { setError(zh ? "无法保存表单草稿，输入仍保留在页面" : "Draft storage unavailable; input is kept on this page"); } };
+  const save = (next: ArtifactFormDraft) => { setDraft(next); try { localStorage.setItem(key, JSON.stringify(next)); setError(""); } catch { setError(featureText(locale, "Draft storage unavailable; input is kept on this page")); } };
   const submit = async () => {
     if (locked || !artifactForms) return;
     setBusy(true); setError("");
     try {
-      const values = validateArtifactValues(form, draft.values);
+      const values = validateArtifactValues(form, draft.values, locale);
       // Persist identity before enqueue: an uncertain save/reply must retry with the same id.
       const sealed = { ...draft, values, submitted: true };
       localStorage.setItem(key, JSON.stringify(sealed));

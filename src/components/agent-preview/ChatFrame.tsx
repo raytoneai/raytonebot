@@ -1,3 +1,5 @@
+import { useLocale } from "../../i18n/LocaleContext";
+import { featureText } from "../../i18n/copy/features";
 import { DEFAULT_BOT_NAMES } from "../../pi/harnessCatalog";
 import type { AgentUXTimelineItem, AgentUXToolTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
 import { AgentAvatar, AgentPersonaProvider, avatarBusy, useAgentPersona, type AvatarKind } from "../../avatars/AgentPersona";
@@ -62,7 +64,7 @@ export function ChatFrame({
   externalApprovalPlacement?: "timeline" | "overlay";
   forceToolsOpen?: boolean;
   toolCollapseSignal?: number;
-  onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision) => void | Promise<void>;
+  onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision, signal?: AbortSignal) => void | Promise<void>;
 }) {
   const copy = useCopy();
   const promptHistory = previewPrompts?.filter((prompt) => prompt.trim().length > 0);
@@ -167,7 +169,7 @@ function renderConversation(
   externalApprovalPlacement: "timeline" | "overlay",
   forceToolsOpen: boolean,
   toolCollapseSignal: number,
-  onApprovalDecision: ((toolCallId: string, decision: ApprovalDecision) => void | Promise<void>) | undefined,
+  onApprovalDecision: ((toolCallId: string, decision: ApprovalDecision, signal?: AbortSignal) => void | Promise<void>) | undefined,
   groupHostId?: string,
 ): ReactElement[] {
   const rows: ReactElement[] = [];
@@ -235,6 +237,7 @@ function renderConversation(
 
 /** Group chat: the member who is working but has not said anything yet — face and "thinking", nothing else. */
 function GroupTypingRow({ member }: { member: string }) {
+  const { locale } = useLocale();
   const outer = useAgentPersona();
   const bot = useShellExtras().bots?.find(entry => entry.id === member);
   const face = bot ? { ...GROUP_AUTHORS[bot.presetId], name: bot.name, appearance: bot.appearance } : GROUP_AUTHORS[member];
@@ -248,7 +251,7 @@ function GroupTypingRow({ member }: { member: string }) {
         </span>
         <div className="assistant-lane">
           <div className="assistant-turn-label">{face.name}</div>
-          <ShimmerText className="reasoning-title" text="正在思考…" />
+          <ShimmerText className="reasoning-title" text={featureText(locale, "Thinking…")} />
         </div>
       </div>
     </AgentPersonaProvider>
@@ -281,14 +284,15 @@ function AssistantTurn({
   externalApprovalPlacement: "timeline" | "overlay";
   forceToolsOpen: boolean;
   toolCollapseSignal: number;
-  onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision) => void | Promise<void>;
+  onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision, signal?: AbortSignal) => void | Promise<void>;
 }) {
+  const { locale } = useLocale();
   const outer = useAgentPersona();
   const bot = useShellExtras().bots?.find(entry => entry.id === groupAuthor);
   if (groupAuthor && outer) {
     const member = GROUP_AUTHORS[bot?.presetId ?? groupAuthor];
     const persona = member ? { ...outer, ...member, appearance: bot?.appearance, name: bot?.name ?? member.name, state: live ? outer.state : "idle" as const }
-      : { ...outer, name: "群聊编排", kind: undefined as unknown as AvatarKind };
+      : { ...outer, name: featureText(locale, "Group coordination"), kind: undefined as unknown as AvatarKind };
     return (
       <AgentPersonaProvider persona={persona}>
         <AssistantTurnBody {...{ project, items, showDebugBadges, writingReplayKey, onOpenArtifact, externalApprovalPlacement,
@@ -316,7 +320,7 @@ function AssistantTurnBody({
   externalApprovalPlacement: "timeline" | "overlay";
   forceToolsOpen: boolean;
   toolCollapseSignal: number;
-  onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision) => void | Promise<void>;
+  onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision, signal?: AbortSignal) => void | Promise<void>;
 }) {
   const copy = useCopy();
   const persona = useAgentPersona();
@@ -427,7 +431,7 @@ function TimelineItem({
   externalApprovalPlacement: "timeline" | "overlay";
   forceToolsOpen: boolean;
   toolCollapseSignal: number;
-  onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision) => void | Promise<void>;
+  onApprovalDecision?: (toolCallId: string, decision: ApprovalDecision, signal?: AbortSignal) => void | Promise<void>;
 }) {
   const copy = useCopy();
   const { iconSet } = useIconSet();
@@ -464,7 +468,7 @@ function TimelineItem({
           {project.toolCalls.approval === "hidden" && externalApprovalPlacement === "timeline" && isPendingApprovalTool(item) ? (
             <ExternalApprovalSurface
               tool={item}
-              onConfirm={(decision) => onApprovalDecision?.(item.id, decision)}
+              onConfirm={(decision, signal) => onApprovalDecision?.(item.id, decision, signal)}
             />
           ) : null}
           <ToolCallCard

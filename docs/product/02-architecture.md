@@ -93,15 +93,16 @@ Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子�
 | GET | `/__agentcanvas/pi/files?scope=&path=` | 当前角色或 shared 工作区的只读目录列表 |
 | GET / HEAD | `/__agentcanvas/pi/files/download?scope=&path=` | 下载普通文件，支持单段 Range 与元数据读取，强制附件响应；拒绝隐藏路径、链接与越界路径 |
 | GET | `/__agentcanvas/pi/state?conversationId=` | 模型、工具、会话信息 |
-| POST | `/__agentcanvas/pi/config` | provider/model/thinking/会话 key |
+| POST | `/__agentcanvas/pi/config` | provider/model/thinking/会话 key；目标会话运行中返回 409 |
 | POST | `/__agentcanvas/pi/prompt` | 发起一轮，返回 NDJSON 事件流；可选 `requestId` 对应该轮 `runId`，用于断线后核对提交；**连接断开不中止**，只有 `/abort` 停止 |
 | POST | `/__agentcanvas/pi/group/prompt` | 群聊轮次，成员经现有 `runPrompt` 执行；群请求以已落盘事件去重，使用同一 `/live`、`/abort`、`/approval`、`/input` 接口恢复和交互 |
-| POST | `/__agentcanvas/pi/group/members` | 在原会话更新成员；`conversationId`、`members`、`availableBots`、`hostId`，运行中拒绝修改，不调用模型 |
+| POST | `/__agentcanvas/pi/group/members` | 在原会话更新成员；`conversationId`、`members`、`availableBots`、`hostId`，运行/重置中返回 409；非法成员或移除主持返回 400；合法名单可创建新会话，不调用模型 |
 | GET | `/__agentcanvas/pi/conversations/:id/live?after=N` | 重新接上运行中的一轮：先补发第 N 个之后的已存事件，再推实时事件，轮次结束时关闭；未在运行返回 409 |
 | POST | `/__agentcanvas/pi/abort` | 新界面传 `{conversationId,runId}`，仅停止匹配轮次；过时/已结束返回 409，非法身份返回 400；旧调用省略 runId 沿用按会话停止，空对象仍为管理用停止全部 |
-| POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no`；新界面携带 `conversationId`、`runId` 和原生 `toolCallId`，只匹配对应轮次；409 = 已失效 |
+| POST | `/__agentcanvas/pi/approval` | `yes` / `always` / `no`；界面携带 `conversationId`、`runId` 和原生 `toolCallId`，只匹配对应轮次；200 回执或 409 已结束后收起，同一请求同步消费一次决定 |
+| GET | `/__agentcanvas/pi/approval?conversationId=…&runId=…&toolCallId=…` | 只读核对此请求是否仍待审批，返回 `{pending:boolean}`，禁止缓存；缺少身份返回 400，沿用同源校验，群聊映射回对应成员子轮 |
 | POST | `/__agentcanvas/pi/input` | `{conversationId,requestId,answers}`；answers 为问题 id 到字符串数组的映射，null 明确跳过；400 校验失败，409 已失效或回答冲突 |
-| POST | `/__agentcanvas/pi/session/new` | 新会话 |
+| POST | `/__agentcanvas/pi/session/new` | 新会话；目标单聊/群聊有运行或群委派时返回 409 |
 | GET | `/__agentcanvas/pi/conversations?query=` | 对话列表（侧栏恢复）；可选 query 搜索标题和用户／助手正文，≤200 字符，返回逐消息 `matches`（片段、textId、角色、时间），保留首个 snippet/textId 兼容旧客户端，不返回全文；可选 limit=1..100/cursor 按消息分页并返回 nextCursor；`running` 和临时 `activeRunId` 标出正在运行的轮次；`unreadable` 单独列出无法读取的记录 id |
 | GET / DELETE | `/__agentcanvas/pi/conversations/:id` | 读取历史事件 / 删除对话；读取错误不是 404，临时 `activeRunId` 用于恢复当前运行，`incomplete` 表示当前没有运行但已保存的最后一轮缺少终态 |
 | POST | `/__agentcanvas/pi/conversations/:id/branch` | `{beforeRunId}`；201 返回独立 `conversationId` 与原始 `draft`，只保留所选轮次之前的记录，不执行草稿；来源运行中或无可靠边界返回 409 |
@@ -166,7 +167,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 
 普通侧栏与搜索共用 `useSearchWindow.ts`，按各自的行/分组间距只挂载可见范围及焦点行；不截断元数据、存储记录或搜索结果。原按钮支持方向键、Home/End 与跨窗口 Tab；新增记录通过会话键保留阅读行与行内偏移，顶部仍显示新记录。布局计算仍为线性遍历，没有引入列表库、数据库或另一个侧栏。
 
-审批提交共用 `approvalSubmission.ts`：现有 inline/external 控件同步阻止重复点击，提交中禁用选项，失败通过已有提示区反馈并允许手动重试。`/approval` 客户端请求超时 15 秒，超时不自动重发，也不意味着主机未接受。审批卡关闭状态以会话 id、具体 awaiting 事件 id 和工具 id 标识；迟到回执不能关闭另一个会话/轮次的审批，组件 key 沿用同一标识以隔离本地状态。不改变服务端审批策略或持久记录。
+审批提交共用 `approvalSubmission.ts`：现有 inline/external 控件只保留允许一次、始终允许、拒绝三个直接动作，无预选及二次确认；用户未点击时持续等待，不发送决定。点击后锁定首个决定，禁用重复操作并显示“正在确认你的选择”。Tab 只移动焦点，Enter/空格执行；长期授权范围在操作前持续可见。共用表单的账号选择和填答保留独立提交。POST 单次请求仍有 15 秒网络期限；回执不确定时先通过 GET 核对同一会话/轮次/工具，已处理就收起，仅明确仍待审批才重新送达原决定。查询失败按 0.5–10 秒间隔恢复，不要求用户审批重试、不重跑任务。卡片卸载或用户点击停止立即取消前端核对；刷新通过原历史/实时流恢复等待，禁止自动补发旧页面的选择。审批卡关闭状态以会话 id、具体 awaiting 事件 id 和工具 id 标识，迟到回执不能关闭别的请求。`PiApprovalGate` 在等待期间暂停 `runDeadline` 的执行计时，所有该轮模型租约共用剩余时间；批准/拒绝后按剩余预算继续，停止仍可终止等待。主机重启仍将旧运行标为中断，不伪造跨进程恢复。
 
 提问与两种审批表面共用 `usePromptFocus.ts`，只跟踪用户实际聚焦过的卡片。提交失败时恢复原控件；卡片卸载后，在同一会话且用户未转向其他控件时，把焦点交给后续问题标题或 Composer。新问题出现不抢焦点，问题 key 按会话/requestId 隔离；停止按钮在显式点击时聚焦输入框，不用迟到回执触发。此状态仅属于当前 DOM，不写入持久记录。
 
@@ -243,7 +244,7 @@ AgentSphere 沙箱
 - **沙箱可丢弃**：重建 = 部署脚本 + 恢复最近备份。沙箱内不放 `E2B_API_KEY`。
 - **历史保留**：服务端不再以 200 个会话为界静默删历史，客户端更新也不再截断为 100 条；保留全部列表元数据，正文按需加载。只有显式删除/重置才移除产品记录；备份保留期限与外部存储策略尚未设置。
 - **历史缓存**：`conversationCache.ts` 将完整摘要与最近 12 份已保存正文分开；尚未 flush 的记录单独保留，写入成功才可淘汰，失败同时移除正文/摘要缓存并重新读取已提交文件。冷列表与正文搜索仍扫描文件，热列表复用摘要；无磁盘索引、格式迁移或跨进程一致性保证。600 份约 150 MiB 正文的常驻堆增量约 3 MiB，见 [08 AP 组](08-acceptance.md)；上限按记录数，不是整台主机的字节上限。
-- **进程与运行预算**：Python 标准库 supervisor 在 5 分钟内最多重启 3 次，Linux subreaper 清理遗留进程；不会在进程重启后重放任务。每轮默认 30 分钟、10 MiB 事件输出、代理最多 100 次模型请求；分别由 `RAYTONEBOT_RUN_TIMEOUT_MS`、`RAYTONEBOT_RUN_OUTPUT_BYTES`、`RAYTONEBOT_RUN_MODEL_REQUESTS` 配置。模型请求次数不是货币费用上限。
+- **进程与运行预算**：Python 标准库 supervisor 在 5 分钟内最多重启 3 次，Linux subreaper 清理遗留进程；不会在进程重启后重放任务。每轮默认 30 分钟执行时间（不含工具审批等待）、10 MiB 事件输出、代理最多 100 次模型请求；分别由 `RAYTONEBOT_RUN_TIMEOUT_MS`、`RAYTONEBOT_RUN_OUTPUT_BYTES`、`RAYTONEBOT_RUN_MODEL_REQUESTS` 配置。模型请求次数不是货币费用上限。
 - **生产服务器**：M1 继续用 `vite preview` + 插件（已验证可用）。只有当 Vite 成为障碍（启动慢、需要自定义路由）时再换成 `node:http` 独立服务，`piHost.handle(req, res)` 已是框架无关的。
 
 ## 目录所有权
@@ -343,6 +344,10 @@ worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭�
 普通会话保存可选 `botId` / `availableBots` 快照，分支继承；HTTP 主机用 BotConfigStore 统一解析网页、IM、例行任务和群聊的当前身份，历史名单只作快照。旧数据无 botId 时按原引擎回退到对应内置 Bot。`resolveBotIdentity` 拒绝同一会话切换 Bot 或 Bot/引擎不匹配。群子轮显式提交自己的 Bot ID 和当前名单，不继承父请求的 Bot 身份。
 
 `rolePrompt` 用当前名字生成身份与团队清单；角色只决定能力、工作区和限制。未编辑的 SOUL 模板在送给模型时替换标题，磁盘文件和用户自定义内容保留；当前配置身份优先于旧对话/人设称呼。Pi 通过 host-owned append prompt 与 SDK `setActiveToolsByName` 在下一轮刷新，保留 native session；CLI 每轮重建系统说明，模型副本附当前身份，用户原文不变。
+
+回复语言按“用户明确指定 → 当前用户请求的语言 → 界面 `locale` 兜底”选择；只有代码、URL、附件等无法判断语言时使用兜底，无 `locale` 时参考已有会话语言或用户长期偏好。`rolePrompt.ts` 的英文规则与逐轮 `withReplyLanguage` 共用同一契约，Pi、Claude、Codex、DSH 和 Pi 插话均适用。群聊路由/分工提示使用英文；群子轮、介绍和委派保留原始用户请求作为语言依据，工具结果与主机说明不决定回复语言。FAQ 的实际菜单名跟随 `locale`，用户人设、历史与文件不翻译；语言注记仅进入模型副本，不写入产品转录。
+
+新增产品界面文案集中在 `i18n/copy/features.ts`，英文文本作为类型化键，中文和日文必须同时提供；其余已有字典继续沿用。语音识别使用当前 `HTML_LANG[locale]`。默认群成员列表名在显示时翻译；`titleSource`（`summary` / `user`）和 `group.preserveTitle` 透传到前端，显式命名与保留的旧会话标题不翻译、不改写存储。
 
 所有群成员共用一套路由，模型输出 `{mode,members:[稳定ID]}`；名字仅在用户输入边界解析，不决定可用模式。旧 router 的符号 route key 仅作兼容输入，映射固定内置 ID，不发入当前模型提示。重名点名拒绝猜测，前缀重叠按最长完整名字解析；PM 确认选项由计划成员生成，回答通过该轮选项表映射 ID，任务重试直接读取 owner ID。
 

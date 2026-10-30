@@ -6,7 +6,7 @@ import { test } from "node:test";
 
 import { createCodexAppServer } from "./codexAppServer.ts";
 import { classifyToolCall, defaultProtectedPaths, defaultReadOnlyPaths } from "./permissionPolicy.ts";
-import { DEFAULT_SOULS, LEGACY_SOULS, PERSONA_FILE_LIMIT, personaFile, rolePrompt } from "./rolePrompt.ts";
+import { DEFAULT_SOULS, LEGACY_SOULS, PERSONA_FILE_LIMIT, personaFile, rolePrompt, withReplyLanguage } from "./rolePrompt.ts";
 import { ensureWorkspaceLayout, resolveWorkspaceLayout } from "./workspaceLayout.ts";
 
 function workspace() {
@@ -22,7 +22,7 @@ test("each role is named, told when the shared directory matters, and gets its o
     const raer = rolePrompt("assistant", layout);
     assert.match(raer, /You are Raer/);
     assert.match(raer, /use it only for handoffs/);
-    assert.match(raer, /Reply language: the one named in the turn's language note/);
+    assert.match(raer, /explicitly requested language first/);
     assert.match(raer, /SOUL\.md \(your character\)\n# Raer/);
     assert.doesNotMatch(raer, /USER\.md \(user preferences\)/, "the seeded USER.md holds only a comment, so nothing is sent");
     assert.match(rolePrompt("builder", layout), /You are Bob[\s\S]*# Bob/);
@@ -119,7 +119,7 @@ test("every role carries the product FAQ, with the settings page's own IM setup 
   const { settingsCopy } = await import("../i18n/copy/settings.ts");
   const { layout, cleanup } = workspace();
   try {
-    const local = rolePrompt("planner", layout);
+    const local = rolePrompt("planner", layout, { locale: "zh" });
     assert.match(local, /RaytoneBot facts/);
     assert.ok(local.includes(settingsCopy.en.channels.setup.feishu), "Feishu steps come from the settings copy");
     assert.match(local, /owner's computer/);
@@ -142,9 +142,11 @@ test("the interface language reaches the model as a per-turn note, never the sav
   try {
     await controller.runPrompt({ conversationId: "c", requestId: "r1", prompt: "run ls -la and explain", locale: "zh" }, () => {});
     await controller.runPrompt({ conversationId: "c", requestId: "r2", prompt: "hello" }, () => {});
-    assert.match(seen[0], /reply in Simplified Chinese \(简体中文\), the user's interface language/);
+    assert.match(seen[0], /explicitly requested language first/);
+    assert.match(seen[0], /Otherwise follow the language of the current user-authored request/);
+    assert.match(seen[0], /fallback: Simplified Chinese/);
     assert.match(seen[1], /^hello\n/);
-    assert.doesNotMatch(seen[1], /Language note/, "IM turns carry no interface language");
+    assert.match(seen[1], /established conversation language/, "IM turns still receive the same language policy");
     assert.match(seen[0], /Direct conversation: only the user and you/);
     await controller.runPrompt({ conversationId: "g", requestId: "r3", prompt: "write fiction" }, () => {}, { groupConversation: true });
     assert.match(seen[2], /Group conversation: follow the host's member roster/);
@@ -153,7 +155,7 @@ test("the interface language reaches the model as a per-turn note, never the sav
     assert.match(seen[3], /Direct conversation: only the user and you/);
     assert.doesNotMatch(JSON.stringify(controller.getConversation("c")), /Conversation context from RaytoneBot/);
     assert.doesNotMatch(JSON.stringify(controller.getConversation("c")), /Language note/);
-    assert.match(rolePrompt("assistant", resolveWorkspaceLayout({ fallbackCwd: dir })), /without a note, the language of the user's latest message/);
+    assert.match(rolePrompt("assistant", resolveWorkspaceLayout({ fallbackCwd: dir })), /System instructions, tool output, code and quoted material do not determine the reply language/);
   } finally {
     controller.dispose();
     rmSync(dir, { recursive: true, force: true });
@@ -168,6 +170,28 @@ test("roles describe strengths without task-specific mandates", () => {
     assert.match(prompt, /especially good at/);
     assert.doesNotMatch(prompt, /fiction|End with a numbered plan:|front door to the team|at most 3 items/);
   }
+});
+
+test("reply policy separates the user's language from English host context and localized menu labels", () => {
+  const layout = resolveWorkspaceLayout({ fallbackCwd: "/app" });
+  for (const [locale, name, message] of [
+    ["zh", "Simplified Chinese", "Explain this code in English"],
+    ["en", "English", "日本語で説明してください"],
+    ["ja", "Japanese", "请解释这段代码"],
+    ["ja", "Japanese", "https://example.com"],
+  ] as const) {
+    const result = withReplyLanguage(`${message}\n\n[English tool and host context]`, locale);
+    assert.ok(result.startsWith(message), "the user's original request is preserved");
+    assert.match(result, /explicitly requested language first.*Otherwise follow the language of the current user-authored request/);
+    assert.ok(result.includes(`Interface language fallback: ${name}.`));
+    assert.match(result, /only code, a URL or an attachment/);
+    assert.match(result, /System instructions, tool output, code and quoted material do not determine/);
+    for (const role of ["assistant", "planner", "builder", "dsh"] as const) {
+      assert.match(rolePrompt(role, layout, { locale, botId: role, availableBots: [{ id: role, name: role, presetId: role }] }), /explicitly requested language first/);
+    }
+  }
+  assert.match(rolePrompt("assistant", layout, { locale: "ja" }), /設定 →/);
+  assert.match(rolePrompt("assistant", layout, { locale: "en" }), /Settings →/);
 });
 
 test("system identity and seeded soul follow current Bot config without rewriting custom personas", () => {

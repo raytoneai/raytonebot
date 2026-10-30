@@ -32,9 +32,9 @@ test("custom members keep their own identities and only validated engine presets
   const roles = Object.fromEntries(catalog.map(bot => [bot.id, "助手"]));
   const plan = { mode: "discussion" as const, members: [critic.id, "assistant"], source: "rule" as const, rounds: 1 };
   const guest = memberPrompt("assistant", plan.members, plan, [], "看看问题", [], 1, names, roles, critic.id);
-  assert.doesNotMatch(guest, /你是群里的协调者/);
-  assert.match(guest, /按用户或 小审 已经给出的分工/);
-  assert.match(memberPrompt(critic.id, plan.members, plan, [], "看看问题", [], 1, names, roles, critic.id), /你是群里的协调者/);
+  assert.doesNotMatch(guest, /You coordinate the group/);
+  assert.match(guest, /Follow the assignments from the user or 小审/);
+  assert.match(memberPrompt(critic.id, plan.members, plan, [], "看看问题", [], 1, names, roles, critic.id), /You coordinate the group/);
 });
 
 test("renaming preserves mentions, companions, silence rules and every collaboration mode", async () => {
@@ -48,7 +48,7 @@ test("renaming preserves mentions, companions, silence rules and every collabora
   for (const mode of ["single", "parallel", "sequential", "round_robin", "discussion"]) {
     const members = mode === "single" ? ["planner"] : ["planner", "builder"];
     const result = await routeParticipantMessage("先分析再动手，两轮", group, async (system, user) => {
-      assert.match(system, /稳定成员ID/);
+      assert.match(system, /stable-member-id/);
       assert.doesNotMatch(system + user, /Tonny/);
       assert.match(user, /"name":"tony"/);
       return JSON.stringify({ mode, members });
@@ -83,7 +83,7 @@ test("custom Bots sharing an engine route by ID, with escaped names, continuatio
   assert.deepEqual(namedParticipants(`@${prefixed.name} 和 @${critic.name}`, [critic, prefixed], true), [other.id, critic.id]);
   const plan = { mode: "sequential" as const, members: [other.id, critic.id], source: "router" as const };
   const names = { [other.id]: other.name, [critic.id]: critic.name };
-  assert.match(memberPrompt(other.id, group.members, plan, [], "先规划", [], 1, names, {}, critic.id, { [other.id]: "planner" }), /你负责规划/);
+  assert.match(memberPrompt(other.id, group.members, plan, [], "先规划", [], 1, names, {}, critic.id, { [other.id]: "planner" }), /You own planning/);
   const duplicate = { ...group, participants: participantCatalog([critic, { ...other, name: critic.name }]) };
   await assert.rejects(routeParticipantMessage("@小审 看看", duplicate), /多个 Bot/);
 });

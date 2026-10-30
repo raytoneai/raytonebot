@@ -17,6 +17,8 @@ type LeaseInput = {
   baseUrl: string; apiKey: string; model: string; protocol: "openai" | "anthropic";
   thinkingLevel?: string;
   maxRequests?: number; maxDurationMs?: number; onLimit?: (message: string) => void;
+  /** Host-owned execution clock; its deadline aborts the run and revokes this lease. */
+  remainingMs?: () => number;
   onUsage?: (requestId: string, usage: ModelUsage) => void;
 };
 type Lease = LeaseInput & { requests: number; expires: number; active: Set<AbortController>; limited: boolean };
@@ -118,7 +120,7 @@ export async function createModelGateway(options: {
     const allowed = lease.protocol === "anthropic" ? /^\/(?:v1\/)?messages(?:\/count_tokens)?$/ : /^\/(?:v1\/)?(?:chat\/completions|responses)$/;
     const allowedQuery = !requestUrl.search || (lease.protocol === "anthropic" && requestUrl.search === "?beta=true");
     if (req.method !== "POST" || !req.url?.startsWith("/model/") || !allowed.test(suffix) || !allowedQuery) return reply(res, 403, "Model route is not allowed.");
-    if (lease.limited || Date.now() >= lease.expires || lease.requests >= (lease.maxRequests ?? 100)) {
+    if (lease.limited || (lease.remainingMs?.() ?? lease.expires - Date.now()) <= 0 || lease.requests >= (lease.maxRequests ?? 100)) {
       limit(lease, BUDGET_MESSAGE);
       return reply(res, 429, "Model request or duration budget exhausted.");
     }
@@ -135,7 +137,7 @@ export async function createModelGateway(options: {
     if (!body || typeof body !== "object" || body.model !== lease.model || body.background === true) return reply(res, 403, "Model is not allowed by this lease.");
     if (typeof token !== "string" || leases.get(token) !== lease) return reply(res, 401, "Invalid or expired model lease.");
     // Check again after reading the body: parallel uploads cannot overrun a lease's request cap.
-    if (lease.limited || Date.now() >= lease.expires || lease.requests >= (lease.maxRequests ?? 100)) {
+    if (lease.limited || (lease.remainingMs?.() ?? lease.expires - Date.now()) <= 0 || lease.requests >= (lease.maxRequests ?? 100)) {
       limit(lease, BUDGET_MESSAGE);
       return reply(res, 429, "Model request or duration budget exhausted.");
     }
@@ -145,8 +147,8 @@ export async function createModelGateway(options: {
     lease.active.add(controller);
     const disconnected = () => { if (!res.writableEnded) controller.abort(); };
     res.once("close", disconnected);
-    const timer = setTimeout(() => { limit(lease, DURATION_MESSAGE); }, Math.max(1, lease.expires - Date.now()));
-    timer.unref();
+    const timer = lease.remainingMs ? undefined : setTimeout(() => { limit(lease, DURATION_MESSAGE); }, Math.max(1, lease.expires - Date.now()));
+    timer?.unref();
     const requestId = randomUUID();
     let usageTap: ReturnType<typeof createModelUsageTap> | undefined, completed = false;
     try {

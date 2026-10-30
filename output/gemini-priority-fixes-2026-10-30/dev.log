@@ -1,0 +1,19 @@
+
+> raytonebot@0.1.0 dev
+> vite --port 5195
+
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../schema/agentuxConfig" without a file extension (src/pi/piProviderSync.ts:1:41). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/vaultRequest.ts:1:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/vault.ts:1:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/composer.ts:6:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/settings.ts:1:32). Add the file extension
+  - import "./piClient" without a file extension (src/pi/piProviderSync.ts:2:67). Add the file extension
+  - import "../../pi/vaultRequestTypes" without a file extension (src/i18n/copy/vaultRequest.ts:2:37). Add the file extension
+  - import "./schema/agentuxConfig" without a file extension (src/exported-project.ts:1:43). Add the file extension
+  - import "../theme/themeTokens" without a file extension (src/schema/agentuxConfig.ts:9:36). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+
+  VITE v8.3.2  ready in 539 ms
+
+  ➜  Local:   http://127.0.0.1:5195/

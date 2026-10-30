@@ -13,6 +13,12 @@ const copy = {
     name: "名称", description: "适用场景", instructions: "操作说明", enabled: "启用", disabled: "已停用", save: "保存", saving: "保存中…", cancel: "取消", refresh: "重新读取",
     hint: "说明仅作为任务指导；当前请求和权限设置仍然生效。", draft: "未保存的内容已保留。请检查最新列表和草稿后重新保存。",
   },
+  ja: {
+    title: "Skills", intro: "再利用できる作業手順を保存し、各 Bot の設定で割り当てます。Bot はタスクに必要なときに詳細な手順を読み込みます。",
+    empty: "Skills はまだありません。", loading: "Skills を読み込み中…", add: "Skill を追加", edit: "編集", remove: "削除", confirm: "削除を確定",
+    name: "名前", description: "使用する場面", instructions: "手順", enabled: "有効", disabled: "無効", save: "保存", saving: "保存中…", cancel: "キャンセル", refresh: "再読み込み",
+    hint: "手順はタスクの指針です。現在のリクエストと権限設定が引き続き適用されます。", draft: "未保存の内容は保持されています。最新の一覧と下書きを確認してから保存し直してください。",
+  },
   en: {
     title: "Skills", intro: "Save reusable working instructions, then assign them in each Bot's settings. The Bot reads the full instructions when they fit the task.",
     empty: "No Skills yet.", loading: "Loading Skills…", add: "Add Skill", edit: "Edit", remove: "Delete", confirm: "Confirm delete",
@@ -24,7 +30,7 @@ const copy = {
 /** Owned and rendered only by SettingsDialog's existing MCP section. */
 export function SkillsSection({ state }: { state: SkillsState }) {
   const { locale } = useLocale();
-  const c = copy[locale === "zh" ? "zh" : "en"];
+  const c = copy[locale];
   const [editing, setEditing] = useState<Skill | "new">();
   const [confirming, setConfirming] = useState<string>();
   const busy = Boolean(state.busy);
@@ -66,7 +72,7 @@ export function SkillsSection({ state }: { state: SkillsState }) {
 
 function SkillEditor({ skill, state, onClose }: { skill?: Skill; state: SkillsState; onClose(): void }) {
   const { locale } = useLocale();
-  const c = copy[locale === "zh" ? "zh" : "en"];
+  const c = copy[locale];
   const [name, setName] = useState(skill?.name ?? "");
   const [description, setDescription] = useState(skill?.description ?? "");
   const [instructions, setInstructions] = useState(skill?.instructions ?? "");
