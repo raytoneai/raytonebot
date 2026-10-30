@@ -170,9 +170,7 @@ export function AgentSwitcher({
   activeBotId,
   onSelectBot,
   onEditBot,
-  attention,
 }: {
-  attention?: Record<string, { status: AttentionStatus; label: string; onOpen(): void }>;
   bots?: readonly BotProfile[];
   activeBotId?: string;
   onSelectBot?: (bot: BotProfile) => void;
@@ -227,8 +225,6 @@ export function AgentSwitcher({
               </span>
             </span>
           </button>
-          {attention?.[bot.id] ? <button type="button" className="shell-agent-attention" data-status={attention[bot.id].status}
-            aria-label={`${bot.name}：${attention[bot.id].label}`} onClick={attention[bot.id].onOpen}>{attention[bot.id].label}</button> : null}
           {onEditBot && bot.appearance ? <button type="button" className="shell-agent-edit" aria-label={`${locale === "zh" ? "编辑" : "Edit"} ${bot.name}`}
             onClick={() => onEditBot(bot as BotProfile)}><Pencil size={14} /></button> : null}
           </div>

@@ -1,0 +1,125 @@
+{
+  "scenarios": [
+    {
+      "name": "Built-in demo",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Group chat",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Coding agent",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Reasoning kinds",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Tool approval",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Error block",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Artifact action",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Capability tray",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "HTML artifact stream",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Basic text",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Normal turn",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Streaming thinking + message",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Tool approval + completion",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "MCP success + interrupt",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Runtime boot + sync",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Retrying incident",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Exhausted incident",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Terminal incident",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "Config, spans, deletion",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    },
+    {
+      "name": "欢迎页(无事件)",
+      "botSummaryCards": 0,
+      "scrollWidth": 1280,
+      "width": 1280
+    }
+  ],
+  "errors": []
+}

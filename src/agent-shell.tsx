@@ -1566,15 +1566,6 @@ export function AgentApp() {
     if (entry.routineId) openSettings("routines", entry.botId, entry.routineId);
     else openStoredConversation(entry.conversationId, entry.activity);
   };
-  const attentionPriority: AttentionStatus[] = ["needs-you", "error", "missed", "new-result", "running"];
-  const botAttention: Record<string, { status: AttentionStatus; label: string; onOpen(): void }> = {};
-  for (const bot of bots) {
-    const entries = [...attentionEntries.values()].filter(entry => entry.botId === bot.id && entry.status !== "running")
-      .sort((a, b) => attentionPriority.indexOf(a.status) - attentionPriority.indexOf(b.status) || (b.activity?.at ?? 0) - (a.activity?.at ?? 0));
-    if (entries.length) botAttention[bot.id] = { status: entries[0].status,
-      label: `${attentionLabel(entries[0].status, locale === "zh")}${entries.some(entry => entry.status !== entries[0].status) ? (locale === "zh" ? "等" : " + others") : ""}${entries.length > 1 ? ` · ${entries.length}` : ""}`,
-      onOpen: () => openAttention(entries[0]) };
-  }
   const visibleActivity = !streamId && !historyMessage && !settingsOpen && !outputModalOpen && !workspaceModalOpen && !botDraft && !(compact && drawerOpen)
     ? conversationActivity(events) : undefined;
   const workingMember = isGroupConversation(activePiConversation) ? workingGroupMember(events) : undefined;
@@ -1647,7 +1638,6 @@ export function AgentApp() {
         onEditBot={streamId ? undefined : editBot}
         activeId={agentSettings.presetId}
         statuses={agentStatuses}
-        attention={streamId ? undefined : botAttention}
         harnesses={piRuntimeState?.harnesses}
         onSelect={startConversationWith}
         groupActive={isGroupConversation(activePiConversation)}
