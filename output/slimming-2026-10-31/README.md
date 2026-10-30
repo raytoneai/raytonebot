@@ -26,3 +26,9 @@
 基线 `d270484`。`piHost.ts` 2,246 → 1,928 行，新增 `piSdkBridge.ts` 340 行。原 20 个顶层函数主体经 AST 逐一比较一致；原公开 `PiSessionBridge` / `registerEditorProvider` 导出路径保留。SDK 动态加载、原生 session/preflight 绑定、stopEpoch、模型租约 finally 释放与审批/隔离工具包装不变。
 
 构建、完整测试 642/642、相关文件 noUnusedLocals、`check:local`（12 tools）、`cloud-preview --check`、diff 检查通过。主代理审查没有发现未解决问题。未调用真实模型或重新验证云端实际部署。
+
+## 第四批：运行控制器与 HTTP
+
+基线 `c13d7d1`。`piHost.ts` 变为 7 行兼容导出入口，`piRuntimeController.ts` 1,196 行、`piHttpHost.ts` 746 行、共同校验 `piHostUtils.ts` 16 行。16 个原函数/类型声明经 AST 对比一致且无重复。HTTP 直接依赖 controller，没有反向运行时依赖，路由顺序/主机服务组合/释放不变。
+
+构建、typecheck、相关文件未使用声明检查、`check:local` 和 `cloud-preview --check` 通过。首次完整测试 641/642：`browserWorkflow.test.ts` 的 popup 点击超过原 4 秒期限；该测试直接调用未改动的 browserService/browserWorker，不经过拆分模块。单独复跑 1/1（约 1.3 秒），未改代码或超时，完整复跑 642/642。保留 [首次输出](host-tests.log)、[单项复跑](host-browser-recheck.log) 和 [完整复跑](host-tests-recheck.log)；偶发超时具体原因未确定，不宣称已修复。未验证真实模型或线上部署。
