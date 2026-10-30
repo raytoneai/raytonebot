@@ -1,3 +1,4 @@
+import type { LearningSettings } from "../../runtime/useLearning";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { Brain, CalendarClock, Check, ChevronDown, CircleAlert, Copy, Info, KeyRound, MessagesSquare, Palette, Plug, Plus, Server, ShieldCheck, X } from "lucide-react";
 import { useEffect, useRef, useState, type ReactNode } from "react";
@@ -52,7 +53,7 @@ import "./settings.css";
 export type PermissionMode = "request" | "auto" | "allow-all";
 export type { ProviderPatch } from "../../runtime/providerSettings";
 
-export type SettingsSectionId = "providers" | "permissions" | "channels" | "routines" | "mcp" | "memory" | "vault" | "usage" | "appearance" | "about";
+export type SettingsSectionId = "providers" | "permissions" | "channels" | "routines" | "mcp" | "memory" | "vault" | "usage" | "appearance" | "about" | "developer";
 type SectionId = SettingsSectionId;
 
 const HARNESS_LABELS: Record<AgentHarnessId, string> = { pi: "Pi", "claude-code": "Claude Code", codex: "Codex CLI", dsh: "DeepSeek Harness" };
@@ -103,6 +104,7 @@ export type SettingsDialogProps = {
   /** Text Skills share the existing MCP settings surface. */
   skills?: SkillsState;
   usage?: UsageViewState;
+  learning?: LearningSettings;
   /** Cross-conversation memory from the host (ADR-038); the section is hidden when absent (fixtures, static previews). */
   memories?: MemoriesState;
   memoryScopes?: { scope: MemoryScope; label: string }[];
@@ -151,6 +153,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.usage ? [{ id: "usage" as const, label: locale === "zh" ? "模型用量" : "Model usage", Icon: Info }] : []),
     ...(props.vault ? [{ id: "vault" as const, label: vaultCopy[locale].nav, Icon: KeyRound }] : []),
     { id: "appearance", label: t.nav.appearance, Icon: Palette },
+    ...(props.learning ? [{ id: "developer" as const, label: locale === "zh" ? "开发者模式" : "Developer", Icon: Brain }] : []),
     { id: "about", label: t.nav.about, Icon: Info },
   ];
 
@@ -196,6 +199,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {section === "mcp" && props.mcpServers ? <McpSection t={t} state={props.mcpServers} /> : null}
               {section === "mcp" && props.skills ? <SkillsSection state={props.skills} /> : null}
               {section === "memory" && props.memories ? <MemorySection key={props.initialMemoryScope ? memoryScopeKey(props.initialMemoryScope) : "all"} t={t} state={props.memories} scopes={props.memoryScopes} initialScope={props.initialMemoryScope} /> : null}
+              {section === "developer" && props.learning ? <LearningSection learning={props.learning} /> : null}
               {section === "usage" && props.usage ? <UsageSection usage={props.usage} /> : null}
               {props.open && section === "vault" && props.vault ? <VaultSection state={props.vault} /> : null}
               {section === "appearance" ? <AppearanceSection {...props} t={t} /> : null}
@@ -1325,4 +1329,32 @@ function hostOf(baseUrl: string): string {
   } catch {
     return baseUrl;
   }
+}
+
+function LearningSection({ learning }: { learning: LearningSettings }) {
+  const { locale } = useLocale();
+  const zh = locale === "zh";
+  const { state, busy, error } = learning;
+  const settings = (patch: Partial<Pick<NonNullable<typeof state>, "enabled" | "reuse" | "dailyLimit">>) => {
+    if (state) void learning.update({ action: "settings", revision: state.revision, enabled: state.enabled, reuse: state.reuse, dailyLimit: state.dailyLimit, ...patch });
+  };
+  return <section className="settings-section">
+    <h3>{zh ? "自学习（RSL）" : "Self-learning (RSL)"}</h3>
+    <p className="settings-note">{zh ? "空闲时分析复杂任务与纠正，只生成文字建议。不会修改引擎、代码、人设或用户记忆。候选需审核；未启用时不产生学习调用。" : "Reviews complex tasks and corrections while idle. Text proposals only: engines, code, persona and user memory stay unchanged. Candidates require review. Disabled means no learning calls."}</p>
+    {error || state?.storageError ? <p role="alert">{error || state?.storageError}</p> : null}
+    {!state ? <Button size="sm" onClick={() => void learning.refresh()}>{zh ? "重新加载" : "Reload"}</Button> : <>
+      <label className="settings-row"><span>{zh ? "启用后台学习" : "Enable background learning"}</span><Switch size="sm" aria-label="RSL" checked={state.enabled} disabled={busy || Boolean(state.storageError)} onCheckedChange={enabled => settings({ enabled })} /></label>
+      <label className="settings-row"><span>{zh ? "复用已审核经验" : "Reuse approved lessons"}</span><Switch size="sm" aria-label={zh ? "复用已审核经验" : "Reuse approved lessons"} checked={state.reuse} disabled={busy || !state.enabled || Boolean(state.storageError)} onCheckedChange={reuse => settings({ reuse })} /></label>
+      <p className="settings-note">{zh ? "仅同 Bot、同引擎的相关任务使用。停用不清除原生会话已看到的内容，恢复干净基线请新建对话。" : "Only relevant tasks for the same Bot and engine. Disabling cannot erase native session context; start a new conversation for a clean baseline."}</p>
+      <label className="settings-row"><span>{zh ? "每日调用上限（UTC）" : "Daily call limit (UTC)"}</span><input aria-label={zh ? "每日调用上限" : "Daily call limit"} type="number" min={1} max={20} value={state.dailyLimit} disabled={busy || Boolean(state.storageError)} onChange={event => { const dailyLimit = Number(event.target.value); if (dailyLimit >= 1 && dailyLimit <= 20) settings({ dailyLimit }); }} /></label>
+      <p className="settings-note">{zh ? "本日" : "Today"}: {state.calls}/{state.dailyLimit} · input {state.inputTokens} · output {state.outputTokens} · {zh ? "用量未知" : "Unknown usage"} {state.unknownUsage}</p>
+      <p className="settings-note">{zh ? "排队" : "Queued"}: {state.queued} · {state.running ? (zh ? "分析中" : "Reviewing") : (zh ? "空闲" : "Idle")} · {state.lastResult}</p>
+      <p className="settings-note">{zh ? "额外调用使用原任务模型，最多约 6000 字符输入、500 tokens 输出；每日次数是硬限制，token 为已报告部分，不是账单。队列不跨重启恢复。" : "Uses the task model: about 6000 input characters and 500 output tokens per call. Daily calls are capped; reported tokens may be incomplete and are not a bill. Queues do not survive restarts."}</p>
+      {state.candidates.length === 0 ? <p>{zh ? "暂无候选经验。开启后，符合条件的新任务会在空闲时分析。" : "No candidates. Eligible new tasks are reviewed while idle once enabled."}</p> : state.candidates.slice().reverse().map(candidate => <div key={candidate.id} className="settings-provider-card">
+        <strong>{candidate.title}</strong><p>{candidate.trigger}</p><p style={{ whiteSpace: "pre-wrap" }}>{candidate.lesson}</p>
+        <p className="settings-note">{candidate.botId} · {candidate.harness} · {candidate.status} · {candidate.conversationId} / {candidate.runId}</p>
+        <div className="settings-provider-actions"><Button size="sm" disabled={busy || candidate.status === "approved" || Boolean(state.storageError)} onClick={() => void learning.update({ action: "review", revision: state.revision, id: candidate.id, status: "approved" })}>{zh ? "批准" : "Approve"}</Button><Button size="sm" disabled={busy || candidate.status === "rejected" || Boolean(state.storageError)} onClick={() => void learning.update({ action: "review", revision: state.revision, id: candidate.id, status: "rejected" })}>{zh ? "拒绝 / 停用" : "Reject / Disable"}</Button><Button size="sm" disabled={busy || Boolean(state.storageError)} onClick={() => void learning.update({ action: "remove", revision: state.revision, id: candidate.id })}>{zh ? "删除" : "Delete"}</Button></div>
+      </div>)}
+    </>}
+  </section>;
 }

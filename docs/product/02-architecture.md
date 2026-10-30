@@ -1,5 +1,11 @@
 # 02 架构
 
+## RSL 可选学习（2026-10-29）
+
+`src/pi/learning/` 在现有主机内管理独立 `learning/state.json`。`GET/POST /__agentcanvas/pi/learning` 由原鉴权与 Origin 检查保护，设置保存带 revision。SettingsDialog 的开发者分区管理开关、每日预算、候选审核/停用/删除及用量。默认关闭。
+
+普通轮次可靠结束后可入有界内存队列，空闲时用原模型服务做一次无工具分析；前台任务到来取消。批准经验可按同 Bot/引擎相关性注入后续轮次，不改变原模型、工具、审批或原生 session。坏存储只停用 RSL；队列不持久化，不重放。范围、预算与限制见 ADR-056；真实效果尚待模型对照评测。
+
 ## 登录 Vault（2026-10-25，本机实现）
 
 `SettingsDialog` 的 Vault 分区 → `useVault` → `GET/POST/DELETE /__agentcanvas/pi/vault` → `VaultStore`。读接口仅返回条目 ID、版本、名称、精确 HTTPS origin、固定用户名掩码和启用状态；用户名/密码只接受写入，编辑留空保留，更改 origin 必须重新输入两者。保存/删除带全局 revision，冲突返回 409。浏览器输入只在表单内存中，关闭或切换分区清空。

@@ -1,3 +1,4 @@
+import { useLearning } from "./runtime/useLearning";
 import { useVault } from "./runtime/useVault";
 import { useAppViewport } from "./runtime/useAppViewport";
 import { useCompactDrawer } from "./runtime/useCompactDrawer";
@@ -412,6 +413,7 @@ export function AgentApp() {
   const mcpServers = useMcpServers((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
   const memories = useMemories(settingsOpen && Boolean(piRuntimeState));
   const skills = useSkills((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
+  const learning = useLearning(settingsOpen && Boolean(piRuntimeState));
   const usage = useUsage(settingsOpen && Boolean(piRuntimeState));
   const vault = useVault(settingsOpen && Boolean(piRuntimeState));
   /** A routine's conversation opened from settings before this page has listed it. */
@@ -1935,6 +1937,7 @@ export function AgentApp() {
             mcpServers={piRuntimeState ? mcpServers : undefined}
             memories={piRuntimeState ? memories : undefined}
             memoryScopes={[{ scope: { kind: "global" }, label: locale === "zh" ? "全局" : "Global" }, ...bots.map(bot => ({ scope: { kind: "bot" as const, id: bot.id }, label: bot.name })), ...piConversations.filter(c => c.stored && isGroupConversation(c)).map(c => ({ scope: { kind: "group" as const, id: c.id }, label: c.title }))]}
+            learning={piRuntimeState ? learning : undefined}
             skills={piRuntimeState ? skills : undefined}
             usage={piRuntimeState ? usage : undefined}
             vault={piRuntimeState ? vault : undefined}

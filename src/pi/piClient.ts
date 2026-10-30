@@ -636,3 +636,10 @@ export async function getProviderSettings(fetcher: typeof fetch = fetch): Promis
 export async function saveProviderSettings(input: { providers: NonNullable<ProviderSettingsView["providers"]>; keys: Record<string, string>; removeKeys: string[]; revision: number }, fetcher: typeof fetch = fetch): Promise<ProviderSettingsView> {
   return requestJson<ProviderSettingsView>(fetcher, `${PI_API_PREFIX}/providers`, input);
 }
+
+export async function getLearning(): Promise<import("./learning/types.ts").LearningView> {
+  return requestJson(fetch, `${PI_API_PREFIX}/learning`, undefined, AbortSignal.timeout(15_000));
+}
+export async function updateLearning(action: import("./learning/types.ts").LearningAction): Promise<import("./learning/types.ts").LearningView> {
+  return requestJson(fetch, `${PI_API_PREFIX}/learning`, action, AbortSignal.timeout(15_000));
+}

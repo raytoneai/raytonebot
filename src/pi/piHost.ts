@@ -1,3 +1,5 @@
+import { createLearningService, learningEvidence, LearningError } from "./learning/service.ts";
+import { reviewLearning } from "./learning/review.ts";
 import { VaultStore, VaultError } from "./vault.ts";
 import { vaultToolsFor } from "./vaultUse.ts";
 import { VaultRequestGate, VaultRequestError } from "./vaultRequests.ts";
@@ -135,6 +137,7 @@ export type PiBridgeFactory = (input: {
 }) => Promise<PiSessionBridge>;
 
 export type PiRuntimeController = {
+  learning: ReturnType<typeof createLearningService>;
   usage(): UsageState;
   /** Permission mode a turn gets when its client does not choose one (IM channels). */
   readonly defaultPermissionMode: PiPermissionMode;
@@ -214,6 +217,7 @@ export function createPiRuntimeController(options: {
   const dataDir = options.dataDir ?? defaultDataDir();
   const store = options.store ?? createConversationStore(dataDir);
   const usage = createUsageService({ dataDir });
+  const learning = createLearningService({ dataDir, busy: () => runs.size > 0 });
   const limits = options.limits ?? runLimits();
   const log = runtimeLogger(dataDir);
   /** `runPrompt` has its own `options`; services are read through these names. */
@@ -871,6 +875,7 @@ export function createPiRuntimeController(options: {
   };
 
   const api: PiRuntimeController = {
+    learning,
     usage: () => usage.list(),
     state,
     defaultPermissionMode,
@@ -943,6 +948,7 @@ export function createPiRuntimeController(options: {
       const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, groupConversation: options?.groupConversation, groupId: options?.groupId, delegated: options?.delegated, extraHostTools: options?.extraHostTools,
         references, turn: { provider: input.provider, model: input.model, locale: input.locale }, vaultAbort: new AbortController(), stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
+      learning.interrupt();
       lastRunTouchedAt = Date.now();
       const stopOnSignal = () => void abortRuns(conversationId, slot.runId).catch(() => undefined);
       if (options?.signal?.aborted) stopOnSignal();
@@ -1029,7 +1035,9 @@ export function createPiRuntimeController(options: {
         const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(workspacePrompt, options?.groupConversation), unseenPrompts(conversationId, harness))}\n\n[Current Bot identity from host configuration: ${JSON.stringify(identity.bot)}. Use this identity even if earlier messages use an old name.]${memoryNote?.text ? `\n\n${memoryNote.text}` : ""}${browserNote ? `\n\n${browserNote}` : ""}${skillNote ? `\n\n${skillNote}` : ""}`, input.locale);
         store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt, ...(input.referencedConversationIds?.length ? { referencedConversationIds: input.referencedConversationIds } : {}), ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}),
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
-        const fullPrompt = referenceNote ? `${modelPrompt}\n\n${referenceNote}` : modelPrompt;
+        const learningNote = slot.groupId || slot.delegated ? undefined : learning.noteFor(identity.botId, harness, prompt);
+        const referencedPrompt = referenceNote ? `${modelPrompt}\n\n${referenceNote}` : modelPrompt;
+        const fullPrompt = learningNote ? `${referencedPrompt}\n\n${learningNote}` : referencedPrompt;
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, fullPrompt);
         else await runPiPrompt(input, conversationId, prompt, record, fullPrompt);
       } catch (error) {
@@ -1054,6 +1062,24 @@ export function createPiRuntimeController(options: {
         }
         log("run.ended", { conversationId, harness, status: terminalStatus, durationMs: Date.now() - runStartedAt, outputBytes });
         usage.end(slot.runId, terminalStatus === "success" ? "completed" : terminalStatus === "cancelled" ? "cancelled" : "failed", conversationId);
+        learning.idle();
+        // Learning is best effort after durable completion, outside the foreground model loop.
+        if (opened && !recorder.failed && terminalStatus === "success" && !slot.groupId && !slot.delegated && !options?.title && learning.enabled) {
+          try {
+            const saved = store.get(conversationId);
+            const evidence = saved && learningEvidence(saved.events, slot.runId);
+            if (evidence && input.provider && settingsUseProvider({ presetId: role, claudeCodeModelSource: input.claudeCodeModelSource ?? "provider", codexModelSource: input.codexModelSource ?? "provider" })) {
+              const configured = providerDefinitions.get(input.provider);
+              const binding = configured ? JSON.stringify([configured.baseUrl, configured.protocol]) : undefined;
+              learning.enqueue({ conversationId, runId: slot.runId, botId: input.botId ?? role, harness, evidence,
+                async review(excerpt, signal) {
+                  const credentials = providerCredentials(input.provider, conversationId);
+                  if (!credentials || JSON.stringify([credentials.definition.baseUrl, credentials.definition.protocol]) !== binding || credentials.definition.authMode !== "none" && !credentials.apiKey) throw new Error("Learning provider unavailable");
+                  return reviewLearning(credentials.definition, credentials.apiKey, input.model ?? credentials.definition.models[0], excerpt, signal);
+                } });
+            }
+          } catch { /* Learning must not affect chat completion. */ }
+        }
         lastRunTouchedAt = Date.now();
         const stashed = pendingTitles.get(conversationId);
         if (stashed) { pendingTitles.delete(conversationId); applyTitle(conversationId, stashed.createdAt, stashed.title); }
@@ -1170,6 +1196,7 @@ export function createPiRuntimeController(options: {
       return approvalMemory.list();
     },
     dispose() {
+      learning.dispose();
       disposed.abort(new Error("Pi runtime controller is disposed."));
       for (const slot of runs.values()) slot.vaultAbort.abort();
       for (const gate of approvalGates.values()) gate.cancelAll();
@@ -1320,6 +1347,14 @@ export function createPiHttpHost(options: {
         }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/health`) {
           sendJson(res, 200, controller.health());
+          return true;
+        }
+        if (url.pathname === `${PI_API_PREFIX}/learning`) {
+          try {
+            if (req.method === "GET") sendJson(res, 200, controller.learning.state());
+            else if (req.method === "POST") sendJson(res, 200, controller.learning.update(await readJson(req) as unknown as import("./learning/types.ts").LearningAction));
+            else sendJson(res, 405, { error: "Unsupported RSL operation." });
+          } catch (error) { if (!(error instanceof LearningError)) throw error; sendJson(res, error.status, { error: error.message }); }
           return true;
         }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/usage`) {
