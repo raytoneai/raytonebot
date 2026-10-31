@@ -1,0 +1,265 @@
+diff --git a/src/pi/browser/browserProtocol.ts b/src/pi/browser/browserProtocol.ts
+index 69c07a3..8688d9a 100644
+--- a/src/pi/browser/browserProtocol.ts
++++ b/src/pi/browser/browserProtocol.ts
+@@ -77,6 +77,7 @@ export type BrowserWorkerMessage =
+   | { event: "state"; url: string; title: string; pageId: string; revision: number; tabs: BrowserTab[] }
+   | { event: "download"; guid: string; url: string; name: string; size: number; owner?: string; state: "started" | "completed" | "canceled" | "too-large" }
+   | { event: "download-owner-released"; owner: string }
++  | { event: "diagnostic"; stage: string; elapsedMs?: number; detail?: string }
+   | { event: "exit"; code: number | null };
+
+ /** The live view's state, as the Output panel reads it. */
+diff --git a/src/pi/browser/browserService.ts b/src/pi/browser/browserService.ts
+index 0a15b1b..fad8bfc 100644
+--- a/src/pi/browser/browserService.ts
++++ b/src/pi/browser/browserService.ts
+@@ -103,6 +103,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
+   try { loggedIn = new Set((JSON.parse(readFileSync(stateFile, "utf8")) as { loggedIn?: string[] }).loggedIn ?? []); } catch { /* none yet */ }
+
+   let worker: ChildProcess | undefined;
++  let stopRequested = false;
+   let proxy: EgressProxy | undefined;
+   let starting: Promise<void> | undefined;
+   let stopping: Promise<void> | undefined;
+@@ -166,7 +167,10 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
+     signal("KILL");
+   };
+
+-  const stop = (): Promise<void> => stopping ??= (async () => {
++  const stop = (): Promise<void> => {
++    stopRequested = true;
++    if (process.env.RAYTONEBOT_BROWSER_DIAGNOSTICS === "1") options.log?.("browser.diagnostic", { stage: "service.stop-requested" });
++    return stopping ??= (async () => {
+     clearTimeout(idleTimer);
+     state.controlEpoch!++;
+     invalidate();
+@@ -196,6 +200,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
+     publish();
+     options.log?.("browser.stopped", {});
+   })().finally(() => { stopping = undefined; });
++  };
+
+   const touch = () => {
+     clearTimeout(idleTimer);
+@@ -251,7 +256,8 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
+       launch.testOnlyAllowHttpLoopbackVault = !sandboxed && options.testOnlyAllowHttpLoopbackVault === true;
+       if (!sandboxed) launch.testOnlyCertificateSpki = options.testOnlyCertificateSpki;
+       if (!sandboxed) { mkdirSync(launch.profileDir, { recursive: true, mode: 0o700 }); mkdirSync(staging, { recursive: true, mode: 0o700 }); }
+-      const child = fork(fileURLToPath(new URL("./browserWorker.ts", import.meta.url)), [], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: { PATH: process.env.PATH ?? "", HOME: homedir() } });
++      stopRequested = false;
++      const child = fork(fileURLToPath(new URL("./browserWorker.ts", import.meta.url)), [], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: { PATH: process.env.PATH ?? "", HOME: homedir(), ...(process.env.RAYTONEBOT_BROWSER_DIAGNOSTICS === "1" ? { RAYTONEBOT_BROWSER_DIAGNOSTICS: "1" } : {}) } });
+       worker = child;
+       child.on("message", (message: BrowserWorkerMessage) => {
+         if ("id" in message) {
+@@ -268,9 +274,11 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
+           publish();
+         } else if (message.event === "download") void fileDownload(message, staging);
+         else if (message.event === "download-owner-released") downloadOwners.delete(message.owner);
++        else if (message.event === "diagnostic") options.log?.("browser.diagnostic", { stage: message.stage, ...(message.elapsedMs === undefined ? {} : { elapsedMs: message.elapsedMs }), ...(message.detail ? { detail: message.detail } : {}) });
+         else if (message.event === "exit") { options.log?.("browser.exited", { code: message.code }); void stop(); }
+       });
+-      child.once("exit", () => {
++      child.once("exit", (code, signal) => {
++        if (process.env.RAYTONEBOT_BROWSER_DIAGNOSTICS === "1") options.log?.("browser.diagnostic", { stage: "worker.exit", code, signal, stopRequested });
+         for (const waiter of pending.values()) waiter.reject(new Error("The browser worker stopped."));
+         pending.clear();
+         if (worker === child) void stop();
+diff --git a/src/pi/browser/browserWorker.ts b/src/pi/browser/browserWorker.ts
+index 8e9f0db..17d011d 100644
+--- a/src/pi/browser/browserWorker.ts
++++ b/src/pi/browser/browserWorker.ts
+@@ -22,6 +22,10 @@ const FILE_LIMIT = 100 * 1024 * 1024;
+ const KEYS = new Set(["Enter", "Escape", "Tab", "Backspace", "Delete", "ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "PageUp", "PageDown", "Home", "End", "Space"]);
+ const INTERACTIVE = new Set(["link", "button", "textbox", "searchbox", "combobox", "spinbutton", "checkbox", "radio", "switch", "slider", "menuitem", "menuitemcheckbox", "menuitemradio", "option", "tab", "treeitem", "iframe"]);
+ const STALE = "The page or target changed since approval. Take a new browser_snapshot before acting; the action was not repeated.";
++const diagnose = process.env.RAYTONEBOT_BROWSER_DIAGNOSTICS === "1";
++function diagnostic(stage: string, started?: number, detail?: string) {
++  if (diagnose) send({ event: "diagnostic", stage, ...(started === undefined ? {} : { elapsedMs: Date.now() - started }), ...(detail ? { detail } : {}) });
++}
+
+ let launchOptions: BrowserLaunch;
+ let chrome: ChildProcess | undefined;
+@@ -246,6 +250,7 @@ function register(current: Page) {
+     if (owner) setPageOwner(popup, owner);
+   });
+   current.on("close", () => {
++    diagnostic("page.close");
+     void sensitivePages.get(current)?.dispose().catch(() => {}); sensitivePages.delete(current); pages.delete(current); pageTitles.delete(current); titleReads.delete(current); pressedKeys.delete(current); pressedButtons.delete(current);
+     setPageOwner(current);
+     void frameObservers.get(current)?.then(session => session?.detach().catch(() => {}));
+@@ -264,24 +269,27 @@ function register(current: Page) {
+ }
+
+ function waitForPopup(targetId: string) {
++  const diagnosticStarted = Date.now();
++  diagnostic("popup.wait.start");
+   const owner = context!;
+   const discovery = browserCdp!;
+   const ready = new Promise<void>((resolve) => {
+-    const finish = () => {
++    const finish = (reason: string) => {
+       clearTimeout(timer);
+       owner.off("page", inspect);
+       discovery.off("Target.targetDestroyed", destroyed);
++      diagnostic("popup.wait.finish", diagnosticStarted, reason);
+       resolve();
+     };
+     const inspect = async (current: Page) => {
+       const session = await owner.newCDPSession(current).catch(() => undefined);
+       if (!session) return;
+-      try { if ((await session.send("Target.getTargetInfo")).targetInfo.targetId === targetId) finish(); }
++      try { if ((await session.send("Target.getTargetInfo")).targetInfo.targetId === targetId) finish("matched"); }
+       catch { /* A closing unrelated page cannot satisfy this popup. */ }
+       finally { await session.detach().catch(() => {}); }
+     };
+-    const destroyed = (event: { targetId: string }) => { if (event.targetId === targetId) finish(); };
+-    const timer = setTimeout(finish, 5000);
++    const destroyed = (event: { targetId: string }) => { if (event.targetId === targetId) finish("destroyed"); };
++    const timer = setTimeout(() => finish("timeout"), 5000);
+     owner.on("page", inspect);
+     discovery.on("Target.targetDestroyed", destroyed);
+     // Playwright's page event can precede target discovery; include pages already initialized.
+@@ -327,7 +335,8 @@ async function launch(): Promise<Page> {
+   chrome = spawn(command, [...prefix, ...(launchOptions.launcher ? [launchOptions.executable] : []), ...args], { stdio: ["ignore", "ignore", "pipe"], env: launchOptions.env });
+   let stderr = "";
+   chrome.stderr?.on("data", (chunk) => { stderr = (stderr + chunk).slice(-2000); });
+-  chrome.once("exit", (code) => {
++  chrome.once("exit", (code, signal) => {
++    diagnostic("chrome.exit", undefined, `code=${code};signal=${signal};closing=${Boolean(closing)}`);
+     send({ event: "exit", code }); browser = undefined; context = undefined; page = undefined;
+     pages.clear(); pageOwners.clear(); framePages.clear(); frameObservers.clear(); downloads.clear(); invalidate(); clearFrameTimers();
+   });
+@@ -338,7 +347,9 @@ async function launch(): Promise<Page> {
+     if (i === 149) throw new Error("The browser did not start within 15 seconds.");
+   }
+   browser = await chromium.connectOverCDP(`http://127.0.0.1:${port}`, { timeout: 15_000 });
++  browser.on("disconnected", () => diagnostic("browser.disconnected", undefined, `closing=${Boolean(closing)}`));
+   context = browser.contexts()[0] ?? await browser.newContext();
++  context.on("close", () => diagnostic("context.close", undefined, `closing=${Boolean(closing)}`));
+   context.on("page", (current) => { register(current); void activate(current); });
+   for (const current of context.pages()) register(current);
+   const initial = context.pages()[0] ?? await context.newPage();
+@@ -504,13 +515,17 @@ async function summary(options: { scope?: string; frameRef?: string; snapshotId?
+ }
+
+ async function settle() {
++  const diagnosticStarted = Date.now();
+   settleNote = undefined;
+   // Browser target discovery precedes Playwright's initialized page event. Drain that event
+   // before selecting the page for the result, without adding a delay to ordinary clicks.
+   await browserCdp?.send("Target.getTargets").catch(() => {});
+   await Promise.all([...pendingPopups]);
++  diagnostic("settle.popup-drain", diagnosticStarted);
+   const current = await start();
++  const domStarted = Date.now();
+   await current.waitForLoadState("domcontentloaded", { timeout: 5_000 }).catch(() => {});
++  diagnostic("settle.domcontentloaded", domStarted, current.isClosed() ? "closed" : "open");
+   // Observe rendering rather than network idleness: SSE and polling can stay open forever.
+   const quiet = await current.evaluate(() => new Promise<boolean>((resolve) => {
+     let idle: ReturnType<typeof setTimeout>;
+@@ -521,6 +536,7 @@ async function settle() {
+     observer.observe(document, { subtree: true, childList: true, attributes: true, characterData: true });
+     changed();
+   })).catch(() => false);
++  diagnostic("settle.mutation-quiet", domStarted, quiet ? "quiet" : "not-quiet");
+   if (!quiet) settleNote = "The DOM did not settle within 1 second. This is a current snapshot, not confirmation the action finished; use browser_wait_for for its expected result. Do not repeat the action.";
+ }
+
+@@ -731,13 +747,21 @@ async function handle(request: BrowserRequest): Promise<unknown> {
+       return summary();
+     }
+     case "click": {
++      const diagnosticStarted = Date.now();
++      diagnostic("click.start");
+       const current = await start();
++      diagnostic("click.start-ready", diagnosticStarted);
+       await target(current, request.snapshotId, request.ref);
++      diagnostic("click.target-validated", diagnosticStarted);
+       ownDownloads(current);
+       invalidate();
+       await current.getByRef(request.ref).click();
++      diagnostic("click.playwright-click", diagnosticStarted);
+       await settle();
+-      return summary();
++      diagnostic("click.settled", diagnosticStarted);
++      const result = await summary();
++      diagnostic("click.summary", diagnosticStarted);
++      return result;
+     }
+     case "type": {
+       const current = await start();
+@@ -839,6 +863,7 @@ async function handle(request: BrowserRequest): Promise<unknown> {
+       return {};
+     }
+     case "close": {
++      diagnostic("worker.close-requested");
+       await endChrome();
+       setTimeout(() => process.exit(0), 50).unref();
+       return {};
+diff --git a/src/pi/browser/browserWorkflow.test.ts b/src/pi/browser/browserWorkflow.test.ts
+index b36d373..8fb8744 100644
+--- a/src/pi/browser/browserWorkflow.test.ts
++++ b/src/pi/browser/browserWorkflow.test.ts
+@@ -23,7 +23,8 @@ test("an asynchronous browser download stays with its initiating conversation",
+   });
+   await new Promise<void>(resolve => site.listen(0, "127.0.0.1", resolve));
+   const port = (site.address() as { port: number }).port;
+-  const browser = createBrowserService({ dataDir, allowAddress: ip => ip === "127.0.0.1", allowPort: p => p === port });
++  const browser = createBrowserService({ dataDir, allowAddress: ip => ip === "127.0.0.1", allowPort: p => p === port,
++    log: (event, fields) => { if (process.env.RAYTONEBOT_BROWSER_DIAGNOSTICS === "1" && event === "browser.diagnostic") console.error("BROWSER_DIAG", JSON.stringify(fields)); } });
+   const tools = (owner: string) => browser.toolsFor({ conversationId: owner, agent: "assistant", ask: async () => null,
+     saveDownload: async (_name, bytes) => { received.push({ owner, content: bytes.toString() }); saved(); return `/temporary/${owner}/report.txt`; } })!;
+   const a = tools("a"), b = tools("b");
+@@ -180,7 +181,8 @@ test("a popup's slow download keeps its GUID owner while another turn navigates"
+   });
+   await new Promise<void>(r => site.listen(0, "127.0.0.1", r));
+   const port = (site.address() as { port: number }).port;
+-  const browser = createBrowserService({ dataDir, allowAddress: ip => ip === "127.0.0.1", allowPort: p => p === port });
++  const browser = createBrowserService({ dataDir, allowAddress: ip => ip === "127.0.0.1", allowPort: p => p === port,
++    log: (event, fields) => { if (process.env.RAYTONEBOT_BROWSER_DIAGNOSTICS === "1" && event === "browser.diagnostic") console.error("BROWSER_DIAG", JSON.stringify(fields)); } });
+   const tools = (id: string) => browser.toolsFor({ conversationId: id, agent: "assistant", ask: async () => null,
+     saveDownload: async (_name, bytes) => { received.push(`${id}:${bytes}`); saved(); return `/temporary/${id}/popup.txt`; } })!;
+   const a = tools("a"), b = tools("b");
+diff --git a/src/pi/browser/workerLifecycle.test.ts b/src/pi/browser/workerLifecycle.test.ts
+index c868229..1d5d569 100644
+--- a/src/pi/browser/workerLifecycle.test.ts
++++ b/src/pi/browser/workerLifecycle.test.ts
+@@ -56,15 +56,20 @@ test("browser worker lifecycle through real Chromium and IPC", { skip: !executab
+   const port = (site.address() as { port: number }).port;
+   const origin = `http://127.0.0.1:${port}`;
+   const proxy = await startEgressProxy({ allowAddress: (address) => address === "127.0.0.1", allowPort: (value) => value === port });
+-  const worker = fork(new URL("./browserWorker.ts", import.meta.url), [], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: { PATH: process.env.PATH ?? "", HOME: homedir() } });
++  const worker = fork(new URL("./browserWorker.ts", import.meta.url), [], { execArgv: [], stdio: ["ignore", "ignore", "pipe", "ipc"], env: { PATH: process.env.PATH ?? "", HOME: homedir(), ...(process.env.RAYTONEBOT_BROWSER_DIAGNOSTICS === "1" ? { RAYTONEBOT_BROWSER_DIAGNOSTICS: "1" } : {}) } });
+   let stderr = "";
+   worker.stderr?.on("data", (chunk) => { stderr += chunk; });
+   const events: BrowserWorkerMessage[] = [];
+   const pending = new Map<number, { resolve(value: unknown): void; reject(error: Error): void; timer: ReturnType<typeof setTimeout> }>();
+   let nextId = 0;
++  let closeRequested = false;
+   worker.on("message", (raw) => {
+     const message = raw as BrowserWorkerMessage;
+-    if (!("id" in message)) { events.push(message); return; }
++    if (!("id" in message)) {
++      events.push(message);
++      if (message.event === "diagnostic" && process.env.RAYTONEBOT_BROWSER_DIAGNOSTICS === "1") console.error("BROWSER_DIAG", JSON.stringify({ stage: message.stage, ...(message.elapsedMs === undefined ? {} : { elapsedMs: message.elapsedMs }), ...(message.detail ? { detail: message.detail } : {}) }));
++      return;
++    }
+     const request = pending.get(message.id);
+     if (!request) return;
+     pending.delete(message.id);
+@@ -72,11 +77,13 @@ test("browser worker lifecycle through real Chromium and IPC", { skip: !executab
+     if (message.ok) request.resolve(message.result);
+     else request.reject(new Error(message.error));
+   });
+-  worker.once("exit", (code) => {
++  worker.once("exit", (code, signal) => {
++    if (process.env.RAYTONEBOT_BROWSER_DIAGNOSTICS === "1") console.error("BROWSER_DIAG", JSON.stringify({ stage: "test.worker.exit", code, signal, closeRequested }));
+     for (const request of pending.values()) { clearTimeout(request.timer); request.reject(new Error(`worker exited ${code}: ${stderr}`)); }
+     pending.clear();
+   });
+   const request = <T = BrowserPageSummary>(operation: BrowserRequest): Promise<T> => new Promise((resolve, reject) => {
++    if (operation.op === "close") closeRequested = true;
+     const id = ++nextId;
+     const timer = setTimeout(() => { pending.delete(id); reject(new Error(`worker request timed out: ${operation.op}; ${stderr}`)); }, 20_000);
+     pending.set(id, { resolve: (value) => resolve(value as T), reject, timer });

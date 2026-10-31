@@ -1,0 +1,1 @@
+RAYTONEBOT_BROWSER_DIAGNOSTICS=1 node --test src/pi/browser/browserWorkflow.test.ts src/pi/browser/workerLifecycle.test.ts

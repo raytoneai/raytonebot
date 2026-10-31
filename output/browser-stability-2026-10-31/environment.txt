@@ -1,0 +1,15 @@
+Sat Oct 31 03:14:24 UTC 2026
+Darwin RickyHuos-MacBook-Pro-3.local 25.5.0 Darwin Kernel Version 25.5.0: Tue Jun  9 22:28:34 PDT 2026; root:xnu-12377.121.10~1/RELEASE_ARM64_T6041 arm64
+ProductName:		macOS
+ProductVersion:		26.5.2
+BuildVersion:		25F84
+node=v24.14.0
+npm=11.9.0
+node_options=
+cpu_count=14
+memory_bytes=51539607552
+chromium_path=/Users/rickyhuo/Library/Caches/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell
+Google Chrome for Testing 156.0.8078.4
+node_test_process_count=       6
+browser_worker_count=       2
+chromium_shell_process_count=       2

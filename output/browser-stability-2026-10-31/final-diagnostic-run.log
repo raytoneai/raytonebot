@@ -1,0 +1,320 @@
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":209,"detail":"quiet"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"service.stop-requested"}
+BROWSER_DIAG {"stage":"worker.close-requested"}
+BROWSER_DIAG {"stage":"page.close"}
+BROWSER_DIAG {"stage":"context.close","detail":"closing=true"}
+BROWSER_DIAG {"stage":"browser.disconnected","detail":"closing=true"}
+BROWSER_DIAG {"stage":"chrome.exit","detail":"code=0;signal=null;closing=true"}
+BROWSER_DIAG {"stage":"service.stop-requested"}
+BROWSER_DIAG {"stage":"worker.exit","code":0,"signal":null,"stopRequested":true}
+✔ an asynchronous browser download stays with its initiating conversation (1500.125792ms)
+✔ shared browser refs cannot cross conversations, snapshots or user takeover (2979.359708ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":6}
+BROWSER_DIAG {"stage":"popup.wait.start"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":54}
+BROWSER_DIAG {"stage":"popup.wait.finish","elapsedMs":33,"detail":"matched"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":30}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":290}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":320}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"service.stop-requested"}
+BROWSER_DIAG {"stage":"worker.close-requested"}
+BROWSER_DIAG {"stage":"page.close"}
+BROWSER_DIAG {"stage":"page.close"}
+BROWSER_DIAG {"stage":"context.close","detail":"closing=true"}
+BROWSER_DIAG {"stage":"browser.disconnected","detail":"closing=true"}
+BROWSER_DIAG {"stage":"chrome.exit","detail":"code=0;signal=null;closing=true"}
+BROWSER_DIAG {"stage":"service.stop-requested"}
+BROWSER_DIAG {"stage":"worker.exit","code":0,"signal":null,"stopRequested":true}
+✔ a popup's slow download keeps its GUID owner while another turn navigates (1282.830208ms)
+✔ a new iframe in a background tab retains its initiating task's download (1504.507667ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":209,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":10}
+BROWSER_DIAG {"stage":"popup.wait.start"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":46}
+BROWSER_DIAG {"stage":"popup.wait.finish","elapsedMs":28,"detail":"matched"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":24}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":281}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":308}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":3}
+BROWSER_DIAG {"stage":"page.close"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":42}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":2}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":247}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":254}
+▶ browser worker lifecycle through real Chromium and IPC
+  ✔ popups become active, receive input, switch tabs and close back to their opener (1287.403041ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+  ✔ cross-origin iframe boundaries are explicit and never retarget parent refs (511.018917ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":3}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":36}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":201,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":237}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":250}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+  ✔ embedded navigation preserves main-frame refs and ordinary frame-named selectors work (1182.080042ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+  ✔ replaced and cleared page owners release their completed task callbacks (525.954583ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":4}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":42}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":244}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":251}
+  ✔ input receipts carry a frame captured after dispatch and survive screencast reconnect (621.559792ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+  ✔ disconnect and handoff cleanup release held modifiers instead of leaking them into the next driver (278.115834ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":4}
+BROWSER_DIAG {"stage":"popup.wait.start"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":43}
+BROWSER_DIAG {"stage":"popup.wait.finish","elapsedMs":28,"detail":"matched"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":26}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":278}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":309}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":5}
+BROWSER_DIAG {"stage":"page.close"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":37}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":241}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":254}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":5}
+BROWSER_DIAG {"stage":"popup.wait.start"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":13}
+BROWSER_DIAG {"stage":"popup.wait.finish","elapsedMs":30,"detail":"matched"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":28}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":250}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":282}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":5}
+BROWSER_DIAG {"stage":"page.close"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":19}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":223}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":229}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":3}
+BROWSER_DIAG {"stage":"popup.wait.start"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":17}
+BROWSER_DIAG {"stage":"popup.wait.finish","elapsedMs":26,"detail":"matched"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":25}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":251}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":279}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":4}
+BROWSER_DIAG {"stage":"page.close"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":41}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":201,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":244}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":250}
+  ✔ repeated popup initialization does not leave a five-second unrelated-page wait (1836.77075ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+  ✔ snapshot IDs bind actions to the exact snapshot and user input invalidates them (481.712208ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":6}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":35}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":239}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":250}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":1,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":206,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":5}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":32}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":237}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":254}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+  ✔ live formmethod and accessible name changes refuse previously approved actions (1817.894833ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":2}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":6}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":47}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":355,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":402}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":418}
+  ✔ click result includes a deferred SPA render without waiting for network idle (688.139166ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":5}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":39}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":1002,"detail":"not-quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":1041}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":1049}
+  ✔ a continuously changing DOM returns within its budget without repeating the action (1307.611083ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":204,"detail":"quiet"}
+  ✔ slow SPA text waits and explicit timeouts work with a persistent SSE connection (1133.947375ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+  ✔ text wait finds a visible duplicate after a hidden first match (261.406208ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+  ✔ hidden wait refuses success while any duplicate remains visible (437.482458ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":201,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":5}
+BROWSER_DIAG {"stage":"popup.wait.start"}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":48}
+BROWSER_DIAG {"stage":"popup.wait.finish","elapsedMs":55,"detail":"matched"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":48}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":305}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":332}
+BROWSER_DIAG {"stage":"page.close"}
+  ✔ closing a tab during wait reports its real failure rather than a timeout (933.218875ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+  ✔ user input remains responsive while an agent is waiting (1748.422875ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":0}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.start"}
+BROWSER_DIAG {"stage":"click.start-ready","elapsedMs":0}
+BROWSER_DIAG {"stage":"click.target-validated","elapsedMs":3}
+BROWSER_DIAG {"stage":"click.playwright-click","elapsedMs":21}
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":1}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":202,"detail":"quiet"}
+BROWSER_DIAG {"stage":"click.settled","elapsedMs":224}
+BROWSER_DIAG {"stage":"click.summary","elapsedMs":262}
+  ✔ scoped full, interactive and content snapshots keep usable links and redact secrets (755.073125ms)
+BROWSER_DIAG {"stage":"settle.popup-drain","elapsedMs":4}
+BROWSER_DIAG {"stage":"settle.domcontentloaded","elapsedMs":0,"detail":"open"}
+BROWSER_DIAG {"stage":"settle.mutation-quiet","elapsedMs":203,"detail":"quiet"}
+  ✔ controls past the safety read limit stay unresolved and their values are redacted (453.538584ms)
+BROWSER_DIAG {"stage":"worker.close-requested"}
+BROWSER_DIAG {"stage":"page.close"}
+BROWSER_DIAG {"stage":"context.close","detail":"closing=true"}
+BROWSER_DIAG {"stage":"browser.disconnected","detail":"closing=true"}
+BROWSER_DIAG {"stage":"chrome.exit","detail":"code=0;signal=null;closing=true"}
+BROWSER_DIAG {"stage":"test.worker.exit","code":0,"signal":null,"closeRequested":true}
+✔ browser worker lifecycle through real Chromium and IPC (16537.6205ms)
+ℹ tests 23
+ℹ suites 0
+ℹ pass 23
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16624.721542
