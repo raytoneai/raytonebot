@@ -34,7 +34,7 @@
 
 完整回归首次为 757 项：755 通过、1 项 DSH 跳过、1 项既有浏览器 popup click stalled。未修改浏览器代码或测试超时，单项复跑通过；再次默认并发 `npm test` 为 756 通过、1 跳过、0 失败。首次失败和复跑分别保存在 `batch2-tests.log`、`batch2-popup-recheck.log`、`batch2-tests-recheck.log`；不宣称该间歇超时已经解决。
 
-限制：expectedText 校验文本，不是整条记录的历史版本控制；没有语义冲突自动判定、时效事实强制联网或真实模型质量对测。项目交接与导出仍待后续批次。
+限制：expectedText 校验文本，不是整条记录的历史版本控制；没有语义冲突自动判定、时效事实强制联网或真实模型质量对测。项目交接与导出见后续批次。提交：`13bbf0f`。
 
 ## 第三批：项目交接
 
@@ -44,4 +44,16 @@
 
 验证：`node output/memory-improvements-2026-11-01/project-handoff-check.mjs` 在临时工作区使用现有文档 API、真实主机产物登记和受控执行器，5 组检查通过。两会话/三轮经过服务重载，保留 USER_KEEP、用户并发修改和选择/否决理由；旧版本写入返回 409；无变化时调用方跳过写入/登记；源文件变化后重载版本库，两份交付字节与原哈希一致。字段、文档链接及 `git diff --check` 通过。本批无产品代码变化，未重复构建/全量测试。
 
-限制：受控流程没有模型或网络调用，不证明真实模型会读取或遵循 Skill，也不证明文档语义正确。无变化跳过是本次调用方行为，不是新主机强制规则。结果见 [project-handoff-check.json](project-handoff-check.json)。
+限制：受控流程没有模型或网络调用，不证明真实模型会读取或遵循 Skill，也不证明文档语义正确。无变化跳过是本次调用方行为，不是新主机强制规则。结果见 [project-handoff-check.json](project-handoff-check.json)。提交：`53638bc`。
+
+## 第四批：主机导出与恢复
+
+- `scripts/memory-backup.mjs` 要求显式源/目标路径，导出原始 `memories.json`、转义后的可读 Markdown 和固定文件名的清单；恢复先核对结构、长度、SHA-256 和记忆字段，再原样写入新目录。`memories.ts` 只将现有校验器改成可复用的未知输入守卫，没有第二套记忆规则。
+- 两种目标都必须不存在，不提供覆盖选项。成功文件 0600、目录 0700，回读核对并写入最后的结果记录；失败非零退出，清理只处理仍由当前操作创建的文件，保留并发新增/替换的内容。CLI 不输出记忆正文。运行命令和限制见[架构文档](../../docs/product/02-architecture.md#主机记忆导出与恢复t610)。
+- 主代理 review 发现 TextDecoder 默认去掉 UTF-8 BOM 与原应用 JSON 读取行为不一致，修正为共同拒绝并补回归；同时核对固定文件名、共享条数校验、数值时间保留、写失败结果和清理身份。没有新增 UI、HTTP 路由、Agent 工具、依赖或自动调度。
+
+验证：`node --test src/pi/memories.test.ts src/pi/memoryBackup.test.ts` 共 33 项通过；新增 8 组覆盖不同换行/缩进的逐字节恢复、启用/关闭与所有范围、来源/核对日期、冷启动查询、CLI、私有权限、缺文件/损坏/哈希/元数据拒绝、BOM/大小/链接/FIFO 拒绝、写失败和并发替换清理。`npm run build` 通过，保留已有大 chunk 提示。日志见 `batch4-memory-tests.log`、`batch4-build.log`。
+
+主代理完整回归首次为 765 项：763 通过、1 项 DSH 环境跳过、1 项既有 popup click stalled（与第二批同项）。无代码变动的单项复跑 1/1 通过，再次默认并发 `npm test` 为 764 通过、1 跳过、0 失败。分别保留 `batch4-tests.log`、`batch4-popup-recheck.log`、`batch4-tests-recheck.log`；不宣称该间歇超时已解决。文档来源、命令、相对链接及 `git diff --check` 通过。
+
+限制：只在临时数据中验证，没有导出或覆盖真实用户记忆；恢复需目标主机停止，只写新目录，不自动切换现有服务。清单校验不是签名认证，本机副本不是异地备份。没有调用真实模型、启用外部调度、Git 推送或云部署；既有 AgentSphere 完整备份与 AgentMatrix 待验范围不变。本批无界面/事件投影或 HTTP/云入口变化，不重复第三批之前已通过的视觉及入口检查。

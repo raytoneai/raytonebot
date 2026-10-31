@@ -45,7 +45,7 @@ export class MemoryError extends Error {
   constructor(message: string, status = 400) { super(message); this.status = status; }
 }
 
-type MemoryFile = { enabled: boolean; version: number; memories: MemoryView[] };
+export type MemoryFile = { enabled: boolean; version: number; memories: MemoryView[] };
 
 export const MEMORY_TOOL_SPECS: HostToolSpec[] = [
   {
@@ -109,13 +109,14 @@ function cleanContext(context: MemoryContext): MemoryContext {
   return { ...(context.botId ? { botId: context.botId } : {}), ...(context.groupId ? { groupId: context.groupId } : {}) };
 }
 
-function validFile(value: MemoryFile): boolean {
-  if (typeof value.enabled !== "boolean" || !Number.isSafeInteger(value.version) || value.version < 0
+export function isMemoryFile(value: unknown): value is MemoryFile {
+  if (!record(value) || typeof value.enabled !== "boolean" || typeof value.version !== "number" || !Number.isSafeInteger(value.version) || value.version < 0
     || !Array.isArray(value.memories) || value.memories.length > MEMORY_COUNT_LIMIT) return false;
   const ids = new Set<string>();
   return value.memories.every(memory => {
     if (!record(memory) || typeof memory.id !== "string" || !/^m[a-zA-Z0-9_-]{1,63}$/.test(memory.id) || ids.has(memory.id)
-      || !Number.isFinite(memory.createdAt) || memory.createdAt < 0 || !Number.isFinite(memory.updatedAt) || memory.updatedAt < 0) return false;
+      || typeof memory.createdAt !== "number" || !Number.isFinite(memory.createdAt) || memory.createdAt < 0
+      || typeof memory.updatedAt !== "number" || !Number.isFinite(memory.updatedAt) || memory.updatedAt < 0) return false;
     ids.add(memory.id);
     try {
       if (cleanText(memory.text) !== memory.text) return false;
@@ -139,7 +140,7 @@ export function createMemoryService(options: { dataDir?: string; now?(): number;
   const file = options.dataDir ? join(options.dataDir, "memories.json") : undefined;
   const now = options.now ?? Date.now;
   let data: MemoryFile = { enabled: true, version: 0, memories: [] };
-  const loaded = readSettingsFile<MemoryFile>(file, validFile);
+  const loaded = readSettingsFile<MemoryFile>(file, isMemoryFile);
   if (loaded.data) data = loaded.data;
   const assertReadable = () => { if (loaded.error) throw loaded.error; };
   /** Each receipt identity survives until its conversation and scope lose model context. */

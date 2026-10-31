@@ -407,6 +407,22 @@ HTTP host 共用一个 BotConfigStore，网页、IM、例行任务和群聊运�
 
 `botSkills.ts` 将共享文本库保存在 `<dataDir>/skills.json`（0600），Settings 原 MCP 分区负责增删改、开关，BotEditor 负责分配。保存/删除带 revision，冲突 409；单条指令最多 16000 字符、总量最多 100 条、文件最多 2 MiB。模型只先收到已分配且启用的名称/说明索引（约 6000 字符），相关时用 `read_skill` 读取正文，调用时再检查最新分配与开关。内容是用户当前任务下的参考指引，不授予动作权限；不扫描个人技能目录、不加载模块或执行附带脚本。损坏记录保留并停用读取/保存，修复后重启。
 
+### 主机记忆导出与恢复（T6.10）
+
+`scripts/memory-backup.mjs` 是主机运维命令，复用 `memories.ts` 的文件校验；不是 Agent 工具、HTTP 接口或自动调度器。导出包保留 `memories.json` 的原始字节，附可读 `memories.md` 和记录时间、条数、版本、字节数及 SHA-256 的 `manifest.json`。恢复以 JSON 为准，先验证完整包再写入新目录，保留 ID、顺序、关闭状态、范围、来源与核对日期，不通过新增记忆重新生成记录。
+
+在仓库根目录使用项目要求的 Node 版本运行，路径由操作者明确指定。例如：
+
+```bash
+mkdir -p -m 700 "$HOME/.raytonebot/memory-backups"
+node scripts/memory-backup.mjs export --data-dir "$HOME/.raytonebot/data" --output "$HOME/.raytonebot/memory-backups/manual-01"
+node scripts/memory-backup.mjs restore --backup "$HOME/.raytonebot/memory-backups/manual-01" --data-dir "$HOME/.raytonebot/recovered-memory-01"
+```
+
+输出和恢复目标必须尚不存在，父目录必须存在；连空的已有目标目录也拒绝，没有覆盖选项。新目录 0700、文件 0600，成功回读后才记录完成；导出以 `manifest.json`、恢复以 `memory-restore.json` 留下完成结果，命令也输出 JSON。失败非零退出，错误不输出记忆正文；目标不可写时不保证能留下失败文件。恢复目标主机须保持停止，现有主机不会自动切换到恢复目录或重新加载记忆。只恢复记忆文件，不恢复 Bot 配置、群会话、聊天或凭据；自定义 owner ID 的对应资料仍需另行保留。
+
+源 JSON 和可读副本各限 2 MiB，清单限 16 KiB；输入拒绝链接、非普通文件、损坏格式和读取期间变化。普通主机保存采用原子替换，导出可能取得并发保存前的完整版本，不承诺完成时最新；SHA-256 检测字节损坏，不验证备份的作者或真实性。备份保存在本机不等于异地备份，不自动删除旧包或推送仓库。AgentSphere 既有完整数据备份已包含记忆文件，两条路径独立；本命令不补齐 AgentMatrix 的部署或持久化能力。
+
 ### 一层只读委派（ADR-055）
 
 `groupDelegation.ts` 只向当前群主持的普通成员轮次提供 `delegate_task({memberId,task})` 和 `group_tasks({taskId?,cancel?,offset?,limit?})`。只能选已加入的其他成员；先把 `kind:delegation` 的 assignment 存入父群 `group.tasks`，再异步启动独立隐藏子会话并立即返回任务 ID。每次请求最多四项、每群最多四项活动委派，执行复用主机总并发、容量等待、时长/输出上限。子任务带可信 `readOnly/delegated/groupId` 标志，没有委派工具；主机不提供外部 MCP、浏览器、Vault、频道/例行任务或记忆修改能力，普通写入和命令也被只读闸门拒绝。
