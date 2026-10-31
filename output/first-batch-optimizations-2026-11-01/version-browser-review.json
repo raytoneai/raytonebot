@@ -1,0 +1,24 @@
+{
+  "scenarios": [
+    "historical-1-exact-bytes",
+    "historical-2-exact-bytes",
+    "current-body-and-editor",
+    "source-deleted-history-still-readable",
+    "390px-version-preview-no-overflow"
+  ],
+  "errors": [],
+  "mobileGeometry": {
+    "selectorHeight": 62,
+    "controlHeight": 34,
+    "controlTop": 218.625,
+    "controlBottom": 252.625,
+    "modalTop": 50.625,
+    "modalBottom": 793.375
+  },
+  "mobileReaderGeometry": {
+    "clientWidth": 284,
+    "scrollWidth": 284,
+    "widestParagraph": 283.625,
+    "width": 283.625
+  }
+}

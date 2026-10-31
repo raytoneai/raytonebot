@@ -20,6 +20,7 @@ import { useClipboardFeedback } from "../../../runtime/useClipboardFeedback";
 import { useCopy, useLocale } from "../../../i18n/LocaleContext";
 import { SelectMenu } from "../../ui";
 import { artifactMatchesQuery, type ArtifactCatalogContext } from "../../../runtime/artifactCatalog";
+import { isVersionedArtifactId } from "../../../runtime/artifactVersions.ts";
 import { useArtifactCatalog } from "../../../runtime/useArtifactCatalog";
 import {
   artifactCodePreview,
@@ -84,6 +85,8 @@ export function OutputContent({
   }
 
   const visibleArtifacts = artifacts.filter(item => artifactMatchesQuery(item.title ?? item.id, artifactQuery));
+  const hasSavedVersion = visibleArtifacts.some(item => isVersionedArtifactId(item.id.startsWith("artifact:") ? item.id.slice("artifact:".length) : item.id))
+    || history.artifacts.some(item => isVersionedArtifactId(item.artifactId));
   const artifactList = catalog ? <div className="output-artifact-catalog">
     <div className="output-artifact-toolbar">
       <SelectMenu size="sm" value={allConversations ? "all" : "current"} ariaLabel={featureText(locale, "Artifact scope")}
@@ -126,7 +129,9 @@ export function OutputContent({
         </li>)}</ul>
       </>}
     </div>
-    <p className="output-artifact-note">{featureText(locale, "File previews show current contents")}</p>
+    <p className="output-artifact-note">{hasSavedVersion
+      ? featureText(locale, "File previews show captured delivery contents when selected; current workspace files remain live.")
+      : featureText(locale, "File previews show current contents")}</p>
   </div> : artifacts.length ? <ul className="workspace-file-list output-artifact-list">{artifacts.map((item) => <li key={item.id}>
     <button type="button" title={item.title ?? item.id} onClick={() => onOpenArtifact(item)}><FileText size={14} /><span>{(item.title ?? item.id).split("/").pop()}</span></button>
   </li>)}</ul> : null;

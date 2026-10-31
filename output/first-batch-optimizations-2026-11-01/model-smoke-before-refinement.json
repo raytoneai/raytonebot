@@ -1,0 +1,74 @@
+{
+  "model": "deepseek-flash",
+  "provider": "deepseek",
+  "testRoot": "/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-first-batch-model-4WKbYf",
+  "results": [
+    {
+      "label": "baseline",
+      "turn": 1,
+      "final": {
+        "status": "success"
+      },
+      "toolNames": [
+        "web_fetch",
+        "read",
+        "web_fetch",
+        "read",
+        "read",
+        "read",
+        "read",
+        "read",
+        "write",
+        "publish_artifact"
+      ],
+      "deliveries": 1
+    },
+    {
+      "label": "baseline",
+      "turn": 2,
+      "final": {
+        "status": "success"
+      },
+      "toolNames": [
+        "web_fetch",
+        "read",
+        "web_fetch",
+        "edit",
+        "publish_artifact"
+      ],
+      "deliveries": 1
+    },
+    {
+      "label": "skill",
+      "turn": 1,
+      "final": {
+        "status": "success"
+      },
+      "toolNames": [
+        "read_skill",
+        "web_fetch",
+        "web_fetch",
+        "write",
+        "publish_artifact"
+      ],
+      "deliveries": 1
+    },
+    {
+      "label": "skill",
+      "turn": 2,
+      "final": {
+        "status": "success"
+      },
+      "toolNames": [
+        "read_skill",
+        "read",
+        "web_fetch",
+        "web_fetch",
+        "edit",
+        "read",
+        "publish_artifact"
+      ],
+      "deliveries": 1
+    }
+  ]
+}

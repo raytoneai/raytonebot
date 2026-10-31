@@ -1,3 +1,6 @@
+import type { ArtifactVersion } from "../../../runtime/artifactVersions.ts";
+import type { PiFileScope } from "../../../pi/piClient.ts";
+
 export type OutputPanelItem = {
   id: string;
   kind: "file" | "review";
@@ -15,6 +18,21 @@ export type OutputPanelItem = {
   artifactId?: string;
   /** Changes when the file on disk did (the call that wrote it), so an open preview reads it again. */
   revision?: string;
+  /** Source conversation for version metadata and exact-version downloads. */
+  conversationId?: string;
+  /**
+   * Stable published identity used to keep the saved-version catalog attached to
+   * this tab while `artifactId` follows a later live workspace write.
+   */
+  versionOriginArtifactId?: string;
+  /** Canonical workspace source returned by the host for current-file fallback. */
+  versionSource?: { scope: PiFileScope; path: string };
+  /** The selected saved version returned by the host, when one is selected. */
+  selectedVersionId?: string;
+  /** Historical tabs freeze at their captured bytes; current explicitly follows the workspace. */
+  versionSelection?: "current" | "version";
+  /** Keep public metadata available to an owner without exposing host storage paths. */
+  versions?: readonly ArtifactVersion[];
 };
 
 export type OutputPanelOpenRequest = string | Omit<OutputPanelItem, "id"> & { id?: string };

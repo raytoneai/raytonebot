@@ -187,6 +187,8 @@ Workspace 里产品数据落在 `.raytonebot/data`，角色目录在 `agents/{as
 不把托管 Session 换成 RaytoneBot 的运行时，不接 Event Bus，不做多实例、自动扩缩容、图形化恢复，
 也不在没有独立备份的情况下声称整机可恢复。
 
+2026-11-01 显式交付版本在应用内新增 `/workspace/.raytonebot/data.artifact-versions/`（与 data 同级、主机私有）。保留/迁移时需同时保存元数据和字节；本地版本功能不会补齐本页尚未完成的独立备份、持久卷或 UID 隔离验收，未据此更新部署结论。
+
 
 ## 模型配置持久化代码（2026-10-23，未部署验证）
 

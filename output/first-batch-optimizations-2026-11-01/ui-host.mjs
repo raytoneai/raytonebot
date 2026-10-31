@@ -1,0 +1,12 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+const { testRoot } = JSON.parse(readFileSync(new URL('./model-smoke-before-refinement.json', import.meta.url), 'utf8'));
+process.env.RAYTONEBOT_DATA_DIR = join(testRoot, 'skill', 'data');
+process.env.RAYTONEBOT_WORKSPACE = join(testRoot, 'skill', 'workspace');
+delete process.env.RAYTONEBOT_WORKSPACE_ROOT;
+process.env.RAYTONEBOT_SANDBOX = '0';
+const { createServer } = await import('vite');
+const server = await createServer({ server: { port: 5197, strictPort: true, host: '127.0.0.1', hmr: false, ws: false } });
+await server.listen();
+console.log('Isolated acceptance UI: http://127.0.0.1:5197');
+for (const signal of ['SIGTERM', 'SIGINT']) process.on(signal, async () => { await server.close(); process.exit(0); });

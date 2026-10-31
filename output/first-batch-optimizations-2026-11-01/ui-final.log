@@ -1,0 +1,37 @@
+✔ artifact version metadata and exact download URLs preserve conversation and projected identity (12.773833ms)
+✔ approval delivery checks the exact request after losing a receipt and only resends while still pending (0.564167ms)
+✔ leaving an approval stops delivery even if a pending-status response arrives late (0.572375ms)
+✔ stop sends the observed run identity and does not retry a stale rejection (0.258791ms)
+✔ approval has a deadline without retrying an uncertain decision (0.325708ms)
+✔ approval distinguishes accepted or stale decisions from retryable transport failures (0.493333ms)
+✔ invalid prompt HTTP errors are distinguishable from a dropped connection (0.369583ms)
+✔ reattachment cannot silently accept an older turn for a lost submission (1.344875ms)
+✔ a submission accepted before losing its response is identified in saved history (0.175542ms)
+✔ an unresponsive live stream times out so reattachment can consume its retry budget (2.888959ms)
+✔ heartbeats keep a quiet long-running turn connected (0.731333ms)
+✔ a stalled live connection handshake has a deadline (0.1925ms)
+✔ a turn finishing between history and live subscription still delivers its final events (0.258833ms)
+✔ structured artifacts survive the actual renderer without corrupting streaming text or input events (0.910917ms)
+✔ preview policy precedes untrusted full documents; missing files do not fabricate content (0.149916ms)
+✔ code and diff previews preserve tool artifact content, including fences, whitespace and empty files (110.691125ms)
+✔ open file tabs refresh the exact path and never adopt another directory's matching basename (0.3585ms)
+✔ historical tabs stay frozen while an explicit current selection follows the latest event (0.141334ms)
+✔ current mode preserves the saved-version origin after a later ordinary write (0.100292ms)
+✔ group artifact ownership survives replay wrapping and is never inferred from a filename (0.153791ms)
+✔ patch files, explicit languages and real patch bodies render as escaped colored text (438.507125ms)
+✔ inline and expanded previews expose close for a single file without adding a tab row (4.101833ms)
+✔ a versioned artifact without source conversation context never falls back to the live file (0.376875ms)
+✔ saved version labels remain distinct when deliveries share a timestamp and size (6.711667ms)
+✔ saved Output versions survive current writes at a 390px viewport (4010.969958ms)
+✔ output tabs merge ordinary live paths but keep distinct saved versions (0.494625ms)
+✔ a current revision keeps its saved origin separate from an ordinary path tab (0.06675ms)
+✔ deliverables exclude plans, source, directory snapshots and unsaved diffs; latest file wins (0.790875ms)
+✔ saved versions keep same-path A/B deliveries instead of path de-duplicating them (0.086458ms)
+ℹ tests 29
+ℹ suites 0
+ℹ pass 29
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4334.774666

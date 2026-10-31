@@ -1,0 +1,1109 @@
+{
+  "kind": "fixture-browser-check",
+  "generatedAt": "2026-10-31T18:49:34.726Z",
+  "fixtureRule": "?devtools=1 picker; 19 event streams plus welcome page",
+  "isolated": true,
+  "viewportTargets": {
+    "desktop": {
+      "width": 1280,
+      "height": 900
+    },
+    "mobile": {
+      "width": 390,
+      "height": 844
+    }
+  },
+  "screenshots": [
+    "output/first-batch-optimizations-2026-11-01/fixture-welcome-desktop.png",
+    "output/first-batch-optimizations-2026-11-01/fixture-tool-approval-desktop.png",
+    "output/first-batch-optimizations-2026-11-01/fixture-html-artifact-desktop.png",
+    "output/first-batch-optimizations-2026-11-01/fixture-group-chat-mobile.png",
+    "output/first-batch-optimizations-2026-11-01/fixture-terminal-incident-mobile.png"
+  ],
+  "viewports": [
+    {
+      "viewport": "desktop",
+      "width": 1280,
+      "height": 900,
+      "labels": [
+        "欢迎页(无事件)",
+        "Built-in demo",
+        "Group chat",
+        "Coding agent",
+        "Reasoning kinds",
+        "Tool approval",
+        "Error block",
+        "Artifact action",
+        "Capability tray",
+        "HTML artifact stream",
+        "Basic text",
+        "Normal turn",
+        "Streaming thinking + message",
+        "Tool approval + completion",
+        "MCP success + interrupt",
+        "Runtime boot + sync",
+        "Retrying incident",
+        "Exhausted incident",
+        "Terminal incident",
+        "Config, spans, deletion"
+      ],
+      "startup": {
+        "ok": true,
+        "events": {
+          "pageErrors": [],
+          "consoleErrors": [],
+          "failedRequests": [],
+          "httpErrors": []
+        }
+      },
+      "results": [
+        {
+          "label": "欢迎页(无事件)",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 128,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 191
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          },
+          "screenshot": "output/first-batch-optimizations-2026-11-01/fixture-welcome-desktop.png"
+        },
+        {
+          "label": "Built-in demo",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 449,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 517
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Group chat",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 221,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 286
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Coding agent",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 380,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 447
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Reasoning kinds",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 188,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 258
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Tool approval",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 303,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 371
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          },
+          "screenshot": "output/first-batch-optimizations-2026-11-01/fixture-tool-approval-desktop.png"
+        },
+        {
+          "label": "Error block",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 166,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 232
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Artifact action",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 142,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 212
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Capability tray",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 230,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 300
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "HTML artifact stream",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 212,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 287
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          },
+          "screenshot": "output/first-batch-optimizations-2026-11-01/fixture-html-artifact-desktop.png"
+        },
+        {
+          "label": "Basic text",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 130,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 195
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Normal turn",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 202,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 268
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Streaming thinking + message",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 174,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 257
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Tool approval + completion",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 236,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 317
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "MCP success + interrupt",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 323,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 401
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Runtime boot + sync",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 349,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 423
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Retrying incident",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 252,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 324
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Exhausted incident",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 269,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 342
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Terminal incident",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 208,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 280
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Config, spans, deletion",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 289,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 1280,
+            "innerWidth": 1280,
+            "bodyTextLength": 367
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        }
+      ]
+    },
+    {
+      "viewport": "mobile",
+      "width": 390,
+      "height": 844,
+      "labels": [
+        "欢迎页(无事件)",
+        "Built-in demo",
+        "Group chat",
+        "Coding agent",
+        "Reasoning kinds",
+        "Tool approval",
+        "Error block",
+        "Artifact action",
+        "Capability tray",
+        "HTML artifact stream",
+        "Basic text",
+        "Normal turn",
+        "Streaming thinking + message",
+        "Tool approval + completion",
+        "MCP success + interrupt",
+        "Runtime boot + sync",
+        "Retrying incident",
+        "Exhausted incident",
+        "Terminal incident",
+        "Config, spans, deletion"
+      ],
+      "startup": {
+        "ok": true,
+        "events": {
+          "pageErrors": [],
+          "consoleErrors": [],
+          "failedRequests": [],
+          "httpErrors": []
+        }
+      },
+      "results": [
+        {
+          "label": "欢迎页(无事件)",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 64,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 127
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Built-in demo",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 385,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 453
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Group chat",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 157,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 222
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          },
+          "screenshot": "output/first-batch-optimizations-2026-11-01/fixture-group-chat-mobile.png"
+        },
+        {
+          "label": "Coding agent",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 316,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 383
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Reasoning kinds",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 124,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 194
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Tool approval",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 239,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 307
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Error block",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 102,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 168
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Artifact action",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 78,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 148
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Capability tray",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 166,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 236
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "HTML artifact stream",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 148,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 223
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Basic text",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 66,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 131
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Normal turn",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 138,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 204
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Streaming thinking + message",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 110,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 193
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Tool approval + completion",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 172,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 253
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "MCP success + interrupt",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 259,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 337
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Runtime boot + sync",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 285,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 359
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Retrying incident",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 188,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 260
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Exhausted incident",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 205,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 278
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        },
+        {
+          "label": "Terminal incident",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 144,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 216
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          },
+          "screenshot": "output/first-batch-optimizations-2026-11-01/fixture-terminal-incident-mobile.png"
+        },
+        {
+          "label": "Config, spans, deletion",
+          "ok": true,
+          "contentOk": true,
+          "content": {
+            "previewFrame": true,
+            "previewFrameTextLength": 225,
+            "shellHeader": false,
+            "composer": true,
+            "sidebar": true,
+            "chatFrame": true,
+            "toolCards": 0,
+            "artifactCards": 0,
+            "overflow": false,
+            "scrollWidth": 390,
+            "innerWidth": 390,
+            "bodyTextLength": 303
+          },
+          "events": {
+            "pageErrors": [],
+            "consoleErrors": [],
+            "failedRequests": [],
+            "httpErrors": []
+          }
+        }
+      ]
+    }
+  ],
+  "fatal": [],
+  "baseUrl": "http://127.0.0.1:56541",
+  "isolatedProviderSeed": true
+}

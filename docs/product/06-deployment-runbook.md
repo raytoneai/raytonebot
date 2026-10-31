@@ -163,6 +163,10 @@ sb.set_timeout(3600)          # 从现在起约 1 小时
 
 关掉浏览器后任务在云端继续跑（2026-10-03 起）；但沙箱暂停期间 Agent 不运行，单次运行窗口最长 50 小时，长任务前先 `renew`；`renew` 延不过启动/恢复后 50 h，接近时改用暂停后带 timeout 恢复（见 [09](09-lessons.md)）。
 
+### 显式交付版本的备份（2026-11-01）
+
+`backup_data.py` 将可选目录 `/home/user/.raytonebot/data.artifact-versions/` 与普通 data/workspace 一起归档。版本元数据和字节必须一起恢复；恢复时拒绝该目录内的链接，并重设目录 0700、文件 0600。旧备份不含该目录仍可恢复，但不能据此补回过去未保存的交付版本。Provider 密钥和 Vault 仍不在普通备份中。本次仅本机归档/恢复测试，不代表线上已部署或跨实例验证完成。
+
 ## 守护、日志与外部备份定时器
 
 `scripts/supervisor.py` 仅用 Python 标准库：Node 意外退出后 1 秒重启，5 分钟内最多重启 3 次，超限退出并记 `restart_limit`，等排查后重新部署。正常停止不重启。Linux child-subreaper 在 Node 崩溃时收回并停止遗留的独立 CLI 进程组，避免新旧任务同时写文件；清理失败就停止重启。守护进程本身故障或沙箱暂停不会由它自愈，外部 `status`/health 负责发现。

@@ -1,0 +1,24 @@
+{
+  "installedAt": "2026-10-31T18:49:26.813Z",
+  "botId": "assistant",
+  "botName": "Raer",
+  "skills": [
+    {
+      "id": "skill_ce047d93-216b-4f5e-b2be-dafaedc1a5b4",
+      "name": "带来源的研究报告",
+      "sha256": "4ed6ff25d8ecef18ff9f72ba594a1dff1dccb4ac48ad839f8b5c5e20a8424bf6"
+    },
+    {
+      "id": "skill_d6e7299c-a53f-4440-9c89-c858a93b3881",
+      "name": "已有报告增量更新",
+      "sha256": "4126924dfdf17ce33ebc70c866c47017a728170923449440367be823eaa80e29"
+    }
+  ],
+  "previousFiles": {
+    "skills.json": false,
+    "bots.json": true
+  },
+  "backupDirectory": "/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-skill-config-before-lFm1mw",
+  "otherBotsUnchanged": true,
+  "modelAndPermissionsUnchanged": true
+}

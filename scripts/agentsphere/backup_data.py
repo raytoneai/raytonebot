@@ -17,8 +17,10 @@ from pathlib import Path, PurePosixPath
 REQUIRED_PATHS = ["/home/user/.raytonebot/data", "/home/user/workspace"]
 # The browser profile holds the user's website logins (ADR-040): restored like the rest, caches left out.
 BROWSER_PROFILE = "/home/raytone-browser/profile"
+ARTIFACT_VERSIONS = "/home/user/.raytonebot/data.artifact-versions"
 DATA_PATHS = [*REQUIRED_PATHS, "/home/user/.claude/projects", "/home/user/.claude/tasks", "/home/user/.codex/sessions",
               "/home/raytone-agent/.claude/projects", "/home/raytone-agent/.claude/tasks", "/home/raytone-agent/.codex/sessions",
+              ARTIFACT_VERSIONS,
               BROWSER_PROFILE]
 BROWSER_CACHE_EXCLUDES = [f"--exclude={BROWSER_PROFILE.lstrip('/')}/*{name}*" for name in ("Cache", "cache_data", "Crashpad")]
 ARCHIVE_PATHS = [path.lstrip("/") for path in DATA_PATHS]
@@ -43,6 +45,8 @@ def validate_archive(archive: Path) -> list[str]:
                     or not (member.isfile() or member.isdir() or member.issym() or member.islnk())):
                 raise ValueError(f"unsafe or duplicate archive entry: {name}")
             seen.add(name)
+            if name.startswith(ARTIFACT_VERSIONS.lstrip("/") + "/") and (member.issym() or member.islnk()):
+                raise ValueError("delivered artifact versions must not contain links")
             if name in ARCHIVE_PATHS:
                 if not member.isdir():
                     raise ValueError(f"backup root must be a directory: {name}")
@@ -154,6 +158,11 @@ def restore_archive(archive: Path, root: Path = Path("/"), before_restore=None, 
         # Stage the entire archive before stopping anything or touching existing data.
         with tarfile.open(archive, "r:gz") as bundle:
             bundle.extractall(stage, filter="data")
+        # data_filter intentionally discards directory modes. Restore the host-only boundary.
+        versions = stage / ARTIFACT_VERSIONS.lstrip("/")
+        if versions.exists():
+            for path in [versions, *versions.rglob("*")]:
+                path.chmod(0o700 if path.is_dir() else 0o600)
         if prepare_stage:
             prepare_stage(stage, roots)
         for name in roots:
