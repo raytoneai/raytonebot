@@ -261,6 +261,8 @@ AgentSphere 沙箱
 
 `src/runtime/botProfiles.ts` 的纯函数合并当前配置与历史成员名单，并解析成员的角色和外观回退。当前配置按 ID 优先；历史按会话顺序、先 availableBots 后 groupParticipants，保留首次出现的同 ID。缺少配置时继承同 preset 的首个配置或首个 Bot，再覆盖历史成员字段。shell 保留当前 Bot 选择优先级、会话绑定和原有 memo 依赖。
 
+`src/runtime/toolPresentation.ts` 集中工具标题、文件引用与摘要的纯派生。文件读取取结果正文，写入取参数正文，编辑差异不视为完整文件；图片行只来自结果列出的图片。`ToolCallCard` 保留 JSX、展开状态、点击行为和原 `outputPanelItemsFromTool` 导出，文件打开及输出标签仍由原 owner 管理。
+
 `src/pi/piHost.ts` 是兼容导出入口。`piRuntimeController.ts` 管理会话、运行、审批与各引擎；`piHttpHost.ts` 组合主机服务并处理 HTTP，直接依赖控制器；`piSdkBridge.ts` 管理 Pi SDK 会话、模型注册、工具包装与模型租约。共同的记录/错误/会话 ID 校验在 `piHostUtils.ts`。原公共导出保持可用，SDK 与可选工具继续动态加载，不改变原生会话绑定、审批或隔离边界。
 
 `src/components/settings/SettingsDialog.tsx` 仅负责导航、弹窗、Provider 编辑/关闭拦截和跨分区的例行任务草稿；各分区与其行编辑器放在同目录的 `*Section.tsx`，仍由该 owner 唯一挂载。`SettingsShared.tsx` 只保留跨分区复用的字段、复制和状态展示小组件。Provider 草稿在分区切换时保留，Vault 输入随其分区卸载清空。

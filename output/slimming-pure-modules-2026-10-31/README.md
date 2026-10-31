@@ -28,10 +28,24 @@
 
 ## 1. CLI 配置构造
 
+- 提交：`2dee529`（`Extract CLI launch configuration`）。
 - `cliHarness.ts` 616 → 462 行，配置模块 `cliHarnessConfig.ts` 162 行。迁出五个配置函数及专属常量；原公开入口重导出兼容。默认 `process.env` / `homedir()` 保留，环境变量函数只修改新建副本。
 - 来源说明集中在配置模块；纠正“只含 web 工具”的旧说明，保留审批 ask 规则、凭据替换、子命令隔离和后台任务生命周期约束。
 - 主代理[review 脚本](review-cli.mjs)核对 11 个声明、其余完整 harness 语法和原公开导出；397 组显式参数/env 结果与 Git 基线一致，输入不变：[结果](cli-review.json)。未改运行/审批/会话代码。
 - 实现代理跑现有 CLI、MCP、工作目录窄回归 22/22 及静态检查通过；原测试已覆盖该配置契约，没有新增重复测试。
 - 主代理验证：`npm run build`、`npm test` 默认并发 659/659（无跳过）、`RAYTONEBOT_URL=http://127.0.0.1:60858 npm run check:local`、`node scripts/cloud-preview.mjs --check` 通过。[构建](cli-build.log)、[完整测试](cli-tests.log)、[本机](cli-local.log)、[云入口](cli-cloud.log)。构建仅原有大 chunk/配置加载提示。
 
-本轮只做隔离本机验证，不调用真实模型或部署。CLI 配置提取不涉及组件/事件映射，无需单独重复开发场景视觉验收。
+CLI 配置提取不涉及组件/事件映射，第一项无需单独重复开发场景视觉验收。
+
+## 2. 工具文件展示解析
+
+- 文件引用、动作摘要及路径/图片解析迁入已有 `runtime/toolPresentation.ts`（33 → 247 行）；`ToolCallCard.tsx` 556 → 312 行。两文件合计净减 30 行，卡片 hooks、处理函数和 JSX 保留；原 `outputPanelItemsFromTool` 导出兼容。
+- 删除历史 bug 叙述与空行，保留读结果/写输入/编辑差异的来源约束；纠正图片元数据说明：首张图片缺少 meta 时会用工具 preview。文件文本缺失保持 undefined，显式图片行沿用预览标记。
+- 主代理[review 脚本](review-tools.mjs)核对 16 个迁出声明（仅 action 函数引用改为本地名称）、原展示函数、8 个渲染辅助函数及其余卡片语法；以 Git `2dee529` 为基线，对照 5,670 组文件投影和同样数量的原面板导出结果，输入不变：[结果](tools-review.json)。
+- 新增 4 项测试覆盖正文来源、运行/完成/审批状态、图片别名/元数据/活动行和损坏参数回退；定向 7/7 通过。主代理验证：`npm run build`、默认并发 `npm test` 663/663（无跳过）、隔离主机 `check:local` 和 `cloud-preview --check` 通过。[构建](tools-build.log)、[完整测试](tools-tests.log)、[本机](tools-local.log)、[云入口](tools-cloud.log)。构建仅既有配置加载/大 chunk 提示。
+- [历史种子脚本](seed-tool-history.mjs)只写隔离临时目录，使用合成 Pi 工具事件经原 adapter/store 落盘。浏览器打开该历史，验证 read/write/两张图片共四个命名文件行、独立图片元数据，失败写入没有文件行；点击文件行后 Markdown 与 HTML 预览显示对应内容：[状态记录](tool-ui.json)、[文件行截图](tool-rows.png)、[HTML 预览](written-preview.png)。正文来源另由纯函数测试和基线对照验证，当前文件预览本身会读取工作区现存文件。
+- 390×844 逐项打开欢迎页和 19 个内置事件场景，确认相应内容可见、页面无横向溢出，控制台 warn/error 为零：[场景记录](tool-fixtures.json)。临时视口已恢复，测试页已关闭。
+
+两项主要模块共减少 398 行，包含迁出代码，并非仓库净减 398 行。后续可考虑 HTTP 输入白名单解析、聊天条目投影及 CLI 工具规范化；运行控制器、shell、adapter 和 translator 的会话/流式状态机保留。
+
+本轮只做隔离本机验证，未调用真实模型、推送或部署。

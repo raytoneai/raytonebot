@@ -1,0 +1,12 @@
+{
+  "baseline": "2dee529",
+  "movedDeclarations": 16,
+  "movedSyntaxIdenticalExceptActionReference": true,
+  "existingPresentationUnchanged": true,
+  "unchangedRenderingHelpers": 8,
+  "cardHooksHandlersAndJsxIdentical": true,
+  "previewFallbackIdentical": true,
+  "projectionComparisons": 5670,
+  "publicPanelComparisons": 5670,
+  "inputUnchanged": true
+}

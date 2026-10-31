@@ -7,9 +7,8 @@ import type { AgentUXToolTimelineItem } from "@agent-ux/render-core";
 
 import { StateIcon, type IconSlot } from "../../agentmatrix";
 import { useCopy, useLocale } from "../../i18n/LocaleContext";
-import { chatCopy } from "../../i18n/copy/chat";
 import type { AppLocale } from "../../i18n/locales";
-import { isRunningTool, toolAction as resolveToolAction, toolHeaderTitle, type ToolAction } from "../../runtime/toolPresentation";
+import { isRunningTool, toolFilePresentation, toolHeaderTitle, type ToolAction, type ToolFileReference } from "../../runtime/toolPresentation";
 import { buildToolDisplaySpec, type DisplayBlock } from "../../runtime/toolDisplaySpec";
 import type { AgentFrontendProject } from "../../schema/agentuxConfig";
 import { deriveDisclosureOpen } from "./disclosureState";
@@ -39,10 +38,9 @@ export function ToolCallCard({
   const toolStyle = project.theme.motion.toolCall;
   const hasTimelineRail = project.toolCalls.timelineRail;
   const detailMode = project.toolCalls.detail;
-  const titleParts = splitToolTitle(tool.title ?? tool.name, pathFromTool(tool));
-  const toolAction = resolveToolAction(tool);
-  const fileAction = resolveToolFileAction(tool, titleParts);
-  const fileReferences = fileAction ? buildToolFileReferences(tool, fileAction, locale, titleParts) : [];
+  const filePresentation = toolFilePresentation(tool, locale);
+  const toolAction = filePresentation.action;
+  const fileReferences = filePresentation.fileReferences;
   const hasFileReferences = fileReferences.length > 0;
   const inputBlock = (!hasFileReferences || spec.inputBlock?.kind === "diff") && detailMode === "full" ? spec.inputBlock : undefined;
   const outputBlock = !hasFileReferences && (detailMode === "full" || detailMode === "output-only") ? spec.outputBlock : undefined;
@@ -53,7 +51,7 @@ export function ToolCallCard({
   const showProgress = project.toolCalls.progress === "bar";
   const showHeaderPreview = !hasFileReferences;
   const headerPreview = toolAction
-    ? toolActionPreview(tool, toolAction)
+    ? filePresentation.actionPreview
     : tool.status === "awaiting_approval" && spec.inputBlock
       ? displayBlockSummary(spec.inputBlock, copy.chat.toolCard.fallbackTitle)
     : tool.preview ?? tool.argsText ?? copy.chat.toolCard.fallbackTitle;
@@ -175,33 +173,11 @@ export function ToolCallCard({
   );
 }
 
-type ToolFileAction = "read" | "modify" | "edit";
-
-type ToolFileReference = {
-  fileName: string;
-  filePath?: string;
-  language: string;
-  /**
-   * Optional on purpose. A tool that has not returned yet has no body to show, and the row
-   * renders without one rather than filling it with a plausible-looking placeholder.
-   */
-  content?: string;
-  imageSrc?: string;
-  meta?: string;
-  statusText: string;
-  active: boolean;
-};
-
 export function outputPanelItemsFromTool(tool: AgentUXToolTimelineItem, locale: AppLocale = "en"): OutputPanelItem[] {
   if (tool.status === "error" || tool.status === "cancelled" || tool.status === "awaiting_approval") {
     return [];
   }
-  const titleParts = splitToolTitle(tool.title ?? tool.name, pathFromTool(tool));
-  const action = resolveToolFileAction(tool, titleParts);
-  if (!action) {
-    return [];
-  }
-  return buildToolFileReferences(tool, action, locale, titleParts).map((file) => ({
+  return toolFilePresentation(tool, locale).fileReferences.map((file) => ({
     id: `file:${file.filePath ?? file.fileName}`,
     kind: "file",
     title: file.fileName,
@@ -297,26 +273,6 @@ function toolActionIconSlot(action?: ToolAction): IconSlot {
   }
 }
 
-function toolActionPreview(tool: AgentUXToolTimelineItem, action: ToolAction): string {
-  const args = toRecord(tool.args) ?? tryParseRecord(tool.argsText ?? "") ?? toRecord(tool.approval?.argsPreview);
-  const path = getString(args, "path") || getString(args, "file") || getString(args, "filename");
-  const command = getString(args, "cmd") || getString(args, "command");
-  const pattern = getString(args, "pattern") || getString(args, "query");
-
-  switch (action) {
-    case "read-file":
-    case "read-image":
-    case "modify-file":
-    case "edit-file":
-      return path || tool.preview || tool.argsText || tool.name;
-    case "validate":
-    case "run-command":
-      return command || tool.preview || tool.argsText || tool.name;
-    case "search":
-      return pattern || tool.preview || tool.argsText || tool.name;
-  }
-}
-
 function displayBlockSummary(block: DisplayBlock, fallbackTitle: string): string {
   if (block.kind === "diff") {
     return block.path ?? "Patch";
@@ -324,206 +280,6 @@ function displayBlockSummary(block: DisplayBlock, fallbackTitle: string): string
 
   const text = block.kind === "code" ? block.code : block.text;
   return text.split(/\r?\n/)[0] || fallbackTitle;
-}
-
-type ToolTitleParts = {
-  action: string;
-  fileName: string;
-  filePath?: string;
-  suffix: string;
-};
-
-const FILE_TOKEN_PATTERN = /(.+?)([\w@./-]+\.(?:tsx?|jsx?|mjs|cjs|json|mdx?|css|scss|html?|py|sh|ya?ml|toml|txt|diff|patch))(.*)$/i;
-
-function resolveToolFileAction(tool: AgentUXToolTimelineItem, titleParts?: ToolTitleParts): ToolFileAction | undefined {
-  if (!titleParts || !["running", "args_streaming", "success"].includes(tool.status)) return undefined;
-  const action = resolveToolAction(tool);
-  if (action === "read-file" || action === "read-image") return "read";
-  if (action === "edit-file") return "edit";
-  if (action === "modify-file") return "modify";
-  return undefined;
-}
-
-function fileActionRowLabel(action: ToolFileAction, locale: AppLocale, active: boolean): string {
-  const c = chatCopy[locale].toolCard.fileRow;
-  if (action === "read") {
-    return active ? c.readActive : c.readDone;
-  }
-  if (action === "edit") {
-    return active ? c.editActive : c.editDone;
-  }
-  return active ? c.modifyActive : c.modifyDone;
-}
-
-function buildToolFileReferences(
-  tool: AgentUXToolTimelineItem,
-  action: ToolFileAction,
-  locale: AppLocale,
-  titleParts?: ToolTitleParts,
-): ToolFileReference[] {
-  if (!titleParts) {
-    return [];
-  }
-
-  // Images the tool result actually listed. Every field here comes from the result; a row with
-  // no meta simply shows none rather than borrowing a number from somewhere else.
-  const uploadedImages = action === "read" && resolveToolAction(tool) === "read-image"
-    ? explicitImageFileReferences(tool)
-    : [];
-  if (uploadedImages.length > 0) {
-    return uploadedImages.map((file, index, files) => ({
-      fileName: file.fileName,
-      filePath: file.filePath ?? file.fileName,
-      language: languageFromFileName(file.fileName),
-      content: "image preview",
-      imageSrc: file.imageSrc,
-      meta: file.meta ?? (index === 0 ? tool.preview : undefined),
-      statusText: fileActionRowLabel(action, locale, isRunningTool(tool) && index === files.length - 1),
-      active: isRunningTool(tool) && index === files.length - 1,
-    }));
-  }
-
-  // Exactly one row: the file the agent actually named.
-  //
-  // This used to fabricate two siblings from the real filename (`X.test.html`, `X.types.html`)
-  // and give them hardcoded diff stats (`+8 -2`, `+3 -1`). A live run that edited one file
-  // rendered three rows and opened three artifact tabs, two of which named files that do not
-  // exist — with no content, because there was nothing to show. Absent data renders as absent.
-  const spec = buildToolDisplaySpec(tool);
-  const resultBody = spec.outputBlock?.kind === "plain"
-    ? spec.outputBlock.text
-    : spec.outputBlock?.kind === "code"
-      ? spec.outputBlock.code
-      : undefined;
-  const writtenBody = spec.inputBlock?.kind === "code" ? spec.inputBlock.code : undefined;
-  /**
-   * The row names a file, so clicking it means "show me that file" — and which block holds the
-   * file depends on what the tool did.
-   *
-   * A read returns the file in its *result*. A write carries it in its *arguments*; the result
-   * is a confirmation line ("Successfully wrote 7274 bytes to …"). Preferring the result
-   * unconditionally meant clicking a freshly written HTML deck opened the confirmation — for Pi,
-   * the raw result JSON, so the preview showed `{` and a placeholder card instead of the page.
-   */
-  const body = action === "read" ? resultBody : action === "modify" ? writtenBody : undefined;
-
-  // In progress vs finished, from the tool's own status — the same test the header uses. The
-  // row label and the `active` flag must agree, or a completed read is captioned "reading".
-  const inProgress = isRunningTool(tool);
-
-  return [{
-    fileName: titleParts.fileName,
-    filePath: titleParts.filePath ?? titleParts.fileName,
-    language: languageFromFileName(titleParts.fileName),
-    content: body,
-    // `tool.preview` is the backend's own summary. No fallback: inventing a line count or a
-    // diff stat is the same class of lie as inventing the file.
-    meta: tool.preview,
-    statusText: fileActionRowLabel(action, locale, inProgress),
-    active: inProgress,
-  }];
-}
-
-type ExplicitImageFileReference = {
-  fileName: string;
-  filePath?: string;
-  imageSrc?: string;
-  meta?: string;
-};
-
-function explicitImageFileReferences(tool: AgentUXToolTimelineItem): ExplicitImageFileReference[] {
-  const result = toRecord(tool.result);
-  const images = Array.isArray(result?.images) ? result.images : [];
-  return images
-    .map((image) => toRecord(image))
-    .filter((image): image is Record<string, unknown> => Boolean(image))
-    .map((image) => {
-      const filePath = getString(image, "path") || getString(image, "file") || getString(image, "name");
-      const fileName = filePath.split("/").filter(Boolean).pop() ?? filePath;
-      return {
-        fileName,
-        filePath,
-        imageSrc: getString(image, "src") || getString(image, "imageSrc") || getString(image, "dataUrl") || getString(image, "uri") || undefined,
-        meta: getString(image, "meta") || undefined,
-      };
-    })
-    .filter((image) => Boolean(image.fileName));
-}
-
-
-
-
-
-
-
-function languageFromFileName(fileName: string): string {
-  const ext = fileName.split(".").pop()?.toLowerCase();
-  if (ext === "ts" || ext === "tsx") {
-    return "typescript";
-  }
-  if (ext === "js" || ext === "jsx") {
-    return "javascript";
-  }
-  return ext || "text";
-}
-
-function splitToolTitle(title: string, filePath?: string): ToolTitleParts | undefined {
-  const fileNameFromPath = filePath?.split("/").filter(Boolean).pop();
-  if (fileNameFromPath) {
-    const index = title.indexOf(fileNameFromPath);
-    if (index >= 0) {
-      return {
-        action: title.slice(0, index),
-        fileName: fileNameFromPath,
-        filePath,
-        suffix: title.slice(index + fileNameFromPath.length),
-      };
-    }
-    return {
-      action: title ? `${title} ` : "",
-      fileName: fileNameFromPath,
-      filePath,
-      suffix: "",
-    };
-  }
-
-  const match = title.match(FILE_TOKEN_PATTERN);
-  if (!match) {
-    return undefined;
-  }
-
-  return {
-    action: match[1],
-    fileName: match[2].split("/").filter(Boolean).pop() ?? match[2],
-    filePath: filePath ?? match[2],
-    suffix: match[3] ?? "",
-  };
-}
-
-function pathFromTool(tool: AgentUXToolTimelineItem): string | undefined {
-  const args = toRecord(tool.args) ?? tryParseRecord(tool.argsText ?? "");
-  const path = getString(args, "path") || getString(args, "file") || getString(args, "filename");
-  return path || undefined;
-}
-
-function toRecord(value: unknown): Record<string, unknown> | undefined {
-  if (value && typeof value === "object" && !Array.isArray(value)) {
-    return value as Record<string, unknown>;
-  }
-  return undefined;
-}
-
-function tryParseRecord(value: string): Record<string, unknown> | undefined {
-  try {
-    return toRecord(JSON.parse(value));
-  } catch {
-    return undefined;
-  }
-}
-
-function getString(obj: Record<string, unknown> | undefined, key: string): string {
-  const value = obj?.[key];
-  return typeof value === "string" ? value : "";
 }
 
 function DisplayBlockView({ title, block, tail = false }: { title: string; block: DisplayBlock; tail?: boolean }) {

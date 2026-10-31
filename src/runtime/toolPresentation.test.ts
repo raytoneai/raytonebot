@@ -6,13 +6,17 @@ import { createServer, type ViteDevServer } from "vite";
 import { createAgentUXViewModel, type AgentUXToolTimelineItem } from "@agent-ux/render-core";
 import { createPiEventAdapter } from "../harness/adapters/piAdapter.ts";
 import { createClaudeStreamTranslator } from "../pi/cliStreams.ts";
+import { toolFilePresentation } from "./toolPresentation.ts";
 import { buildToolDisplaySpec } from "./toolDisplaySpec.ts";
 
 let server: ViteDevServer;
 let render: (tool: AgentUXToolTimelineItem, locale?: string) => string;
+type ToolCardModule = typeof import("../components/agent-preview/ToolCallCard.tsx");
+let outputPanelItemsFromTool: ToolCardModule["outputPanelItemsFromTool"];
 before(async () => {
   server = await createServer({ configFile: false, server: { middlewareMode: true }, optimizeDeps: { noDiscovery: true, include: [] } });
-  const { ToolCallCard } = await server.ssrLoadModule("/src/components/agent-preview/ToolCallCard.tsx");
+  const { ToolCallCard, outputPanelItemsFromTool: panelItems } = await server.ssrLoadModule("/src/components/agent-preview/ToolCallCard.tsx");
+  outputPanelItemsFromTool = panelItems;
   const { IconSetProvider } = await server.ssrLoadModule("/src/agentmatrix/IconSetContext.tsx");
   const { LocaleProvider } = await server.ssrLoadModule("/src/i18n/LocaleContext.tsx");
   const { project } = await server.ssrLoadModule("/src/exported-project.ts");
@@ -23,6 +27,78 @@ after(async () => { await server?.close(); });
 
 const toolFrom = (adapter: ReturnType<typeof createPiEventAdapter>) =>
   createAgentUXViewModel(adapter.events).timeline.find((item) => item.kind === "tool") as AgentUXToolTimelineItem;
+
+const fileTool = (overrides: Partial<AgentUXToolTimelineItem> = {}) => ({
+  kind: "tool", id: "file-tool", name: "read_file", status: "success", ...overrides,
+} as AgentUXToolTimelineItem);
+
+test("file presentation takes read bodies from results and write bodies from arguments, never treating edits as full files", () => {
+  const read = fileTool({ title: "Read src/page.tsx", args: { path: "src/page.tsx" }, result: "const actual = 1;" });
+  const write = fileTool({ name: "write_file", title: "Write src/page.tsx", args: { path: "src/page.tsx", content: "<h1>Saved</h1>" }, result: "Successfully wrote 14 bytes" });
+  const edit = fileTool({ name: "edit_file", title: "Edit src/page.tsx", args: { path: "src/page.tsx", oldText: "before", newText: "after" }, result: "Edited src/page.tsx" });
+
+  assert.equal(toolFilePresentation(read, "en").fileReferences[0].content, "const actual = 1;");
+  assert.equal(toolFilePresentation(write, "en").fileReferences[0].content, "<h1>Saved</h1>");
+  assert.equal(toolFilePresentation(edit, "en").action, "edit-file");
+  assert.equal(toolFilePresentation(edit, "en").fileReferences[0].content, undefined);
+  assert.deepEqual(outputPanelItemsFromTool(read), [{ id: "file:src/page.tsx", kind: "file", title: "page.tsx", subtitle: "src/page.tsx", language: "typescript", body: "const actual = 1;", imageSrc: undefined }]);
+  for (const status of ["error", "cancelled", "awaiting_approval"] as const) {
+    assert.deepEqual(toolFilePresentation(fileTool({ ...read, status }), "en").fileReferences, []);
+    assert.deepEqual(outputPanelItemsFromTool(fileTool({ ...read, status })), []);
+  }
+});
+
+test("file rows track running, streaming and completed labels", () => {
+  const read = (status: AgentUXToolTimelineItem["status"], locale: "en" | "zh") =>
+    toolFilePresentation(fileTool({ title: "Read src/page.tsx", args: { path: "src/page.tsx" }, status }), locale).fileReferences[0];
+  const running = read("running", "en");
+  const streaming = read("args_streaming", "zh");
+  const complete = read("success", "en");
+  assert.equal(running.active, true);
+  assert.equal(streaming.active, true);
+  assert.equal(complete.active, false);
+  assert.notEqual(running.statusText, complete.statusText);
+  assert.notEqual(streaming.statusText, read("success", "zh").statusText);
+});
+
+test("image file rows use only listed images, supported source aliases, first preview fallback and final active row", () => {
+  const tool = fileTool({
+    name: "read_image", title: "Read images", status: "running", preview: "4 images",
+    args: { path: "ignored.png" },
+    result: { images: [
+      { path: "/tmp/one.png", src: "src:one" },
+      { file: "/tmp/two.webp", imageSrc: "src:two", meta: "two meta" },
+      { name: "/tmp/three.gif", dataUrl: "data:three" },
+      { path: "/tmp/four.jpeg", uri: "uri:four" },
+    ] },
+  });
+  const before = structuredClone(tool);
+  const { fileReferences } = toolFilePresentation(tool, "en");
+  assert.deepEqual(fileReferences.map(file => [file.fileName, file.filePath, file.imageSrc]), [
+    ["one.png", "/tmp/one.png", "src:one"], ["two.webp", "/tmp/two.webp", "src:two"],
+    ["three.gif", "/tmp/three.gif", "data:three"], ["four.jpeg", "/tmp/four.jpeg", "uri:four"],
+  ]);
+  assert.equal(fileReferences[0].meta, "4 images");
+  assert.equal(fileReferences[1].meta, "two meta");
+  assert.deepEqual(fileReferences.map(file => file.active), [false, false, false, true]);
+  assert.deepEqual(tool, before);
+});
+
+test("file presentation tolerates invalid argsText and falls back through title and argument paths without mutating input", () => {
+  const malformed = fileTool({ title: "Read report.ts", argsText: "{broken" });
+  const byTitle = toolFilePresentation(malformed, "en");
+  assert.equal(byTitle.fileReferences[0].fileName, "report.ts");
+  assert.equal(byTitle.fileReferences[0].filePath, "report.ts");
+  assert.equal(byTitle.actionPreview, "{broken");
+
+  const pathFallback = fileTool({ title: "Read file", args: { file: "nested/report.ts" } });
+  const byPath = toolFilePresentation(pathFallback, "en");
+  assert.equal(byPath.fileReferences[0].fileName, "report.ts");
+  assert.equal(byPath.fileReferences[0].filePath, "nested/report.ts");
+  assert.equal(byPath.actionPreview, "nested/report.ts");
+  assert.deepEqual(malformed.argsText, "{broken");
+  assert.deepEqual(pathFallback.args, { file: "nested/report.ts" });
+});
 
 test("native tool lifecycle renders honest titles and preserves failures instead of completed file rows", () => {
   const adapter = createPiEventAdapter({ runId: "read" });
