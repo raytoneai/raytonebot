@@ -4,11 +4,11 @@ import { DEFAULT_BOT_NAMES } from "../../pi/harnessCatalog";
 import type { AgentUXTimelineItem, AgentUXToolTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
 import { AgentAvatar, AgentPersonaProvider, avatarBusy, useAgentPersona, type AvatarKind } from "../../avatars/AgentPersona";
 
-// Group chat: member items carry ids tagged "<role>~…" (see src/pi/groupChat.ts).
+// Group member identity is prefixed in item ids.
 const GROUP_AUTHORS: Record<string, { kind: AvatarKind; name: string }> = {
   assistant: { kind: "woman", name: DEFAULT_BOT_NAMES.assistant }, planner: { kind: "man", name: DEFAULT_BOT_NAMES.planner }, builder: { kind: "boy", name: DEFAULT_BOT_NAMES.builder }, dsh: { kind: "woman", name: DEFAULT_BOT_NAMES.dsh },
 };
-// Tool and artifact ids are wrapped as JSON [runId, field, id] by replayIdentity, so match inside too.
+// replayIdentity wraps tool/artifact ids as JSON [runId, field, id]; match inside that wrapper too.
 const itemAuthor = (item: AgentUXTimelineItem) => /(?:^|")(assistant|planner|builder|dsh|bot_[a-f0-9-]{36})~/.exec(String(item.id))?.[1];
 import { useShellExtras } from "../shell/ShellExtras";
 import { cloneElement, type ReactElement } from "react";
@@ -29,10 +29,9 @@ import type { OutputPanelOpenRequest } from "./OutputFrame";
 import { ReasoningBlock } from "./ReasoningBlock";
 import { ToolCallCard, type ApprovalDecision } from "./ToolCallCard";
 import { WritingText } from "./WritingText";
+import { buildConversationEntries, type ConversationEntry } from "../../runtime/conversationEntries";
 
-// The approval surfaces stay re-exported from this module: both the editor and the generated
-// agent-shell import them from "./components/agent-preview/ChatFrame", and the scaffold export
-// asserts on that path.
+// Keep the shell's approval imports compatible through this module.
 export { InlineApprovalPrompt, InlineApprovalSurface, ExternalApprovalSurface } from "./chatframe/approval";
 export type { InlineApprovalPromptOption } from "./chatframe/approval";
 
@@ -44,11 +43,7 @@ export function ChatFrame({
   previewPrompts,
   writingReplayKey = 0,
   onOpenArtifact,
-  // Defaults to the placement the editor previews. It used to default to "timeline", which
-  // only the editor was safe from because `App.tsx` passes "overlay" explicitly: the exported
-  // app never set the prop, so a real run there put the permission card *inside* the
-  // transcript, where it scrolls away from the field the user answers it with. Nothing asks
-  // for the timeline placement, so the fallback is now the correct one and it stays opt-in.
+  // Overlay keeps approvals outside the transcript by default.
   externalApprovalPlacement = "overlay",
   forceToolsOpen = false,
   toolCollapseSignal = 0,
@@ -114,46 +109,6 @@ export function ChatFrame({
       </div>
     </section>
   );
-}
-
-type ConversationEntry =
-  | { kind: "user"; id: string; prompt: string }
-  | { kind: "item"; item: AgentUXTimelineItem };
-
-/**
- * Flatten the timeline into an ordered list of user prompts and assistant-side
- * items. When prompt history is available each assistant message is preceded by
- * the prompt that produced it; otherwise the single preview prompt opens the run.
- */
-function buildConversationEntries(
-  timeline: readonly AgentUXTimelineItem[],
-  promptHistory: readonly string[] | undefined,
-  previewPrompt: string,
-): ConversationEntry[] {
-  const entries: ConversationEntry[] = [];
-
-  if (promptHistory?.length) {
-    let assistantMessageIndex = 0;
-    for (const item of timeline) {
-      if (item.kind === "message" && item.role === "assistant") {
-        const prompt = promptHistory[assistantMessageIndex];
-        assistantMessageIndex += 1;
-        if (prompt) {
-          entries.push({ kind: "user", id: `prompt:${item.id}`, prompt });
-        }
-      }
-      entries.push({ kind: "item", item });
-    }
-    return entries;
-  }
-
-  if (previewPrompt.trim()) {
-    entries.push({ kind: "user", id: "preview-prompt", prompt: previewPrompt });
-  }
-  for (const item of timeline) {
-    entries.push({ kind: "item", item });
-  }
-  return entries;
 }
 
 /**

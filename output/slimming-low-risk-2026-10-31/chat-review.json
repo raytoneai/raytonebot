@@ -1,0 +1,12 @@
+{
+  "baseline": "2432baa",
+  "sourcePath": "src/components/agent-preview/ChatFrame.tsx",
+  "destinationPath": "src/runtime/conversationEntries.ts",
+  "movedDeclarations": [
+    "ConversationEntry",
+    "buildConversationEntries"
+  ],
+  "movedSyntaxIdentical": true,
+  "remainingDeclarations": 16,
+  "remainingSyntaxIdentical": true
+}

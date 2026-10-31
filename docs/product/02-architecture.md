@@ -264,6 +264,8 @@ AgentSphere 沙箱
 
 `src/runtime/toolPresentation.ts` 集中工具标题、文件引用与摘要的纯派生。文件读取取结果正文，写入取参数正文，编辑差异不视为完整文件；图片行只来自结果列出的图片。`ToolCallCard` 保留 JSX、展开状态、点击行为和原 `outputPanelItemsFromTool` 导出，文件打开及输出标签仍由原 owner 管理。
 
+`src/runtime/conversationEntries.ts` 将已有 timeline 与可选预览提示词投影为聊天条目；按助手消息索引匹配 history，原 item 引用和顺序保留。`ChatFrame` 保留提示词预过滤、分组/头像 lane、滚动和 JSX。
+
 `src/pi/piHost.ts` 是兼容导出入口。`piRuntimeController.ts` 管理会话、运行、审批与各引擎；`piHttpHost.ts` 组合主机服务并处理 HTTP，直接依赖控制器；`piSdkBridge.ts` 管理 Pi SDK 会话、模型注册、工具包装与模型租约。共同的记录/错误/会话 ID 校验在 `piHostUtils.ts`。原公共导出保持可用，SDK 与可选工具继续动态加载，不改变原生会话绑定、审批或隔离边界。
 
 `src/pi/piHttpInput.ts` 负责 HTTP 渠道配置、浏览器输入、权限/审批值和字符串字段的纯解析；路由鉴权、JSON 读取、响应及流生命周期仍在 `piHttpHost.ts`。渠道字段只在此过滤值类型与长度，字段名称的处理仍由渠道服务负责。
