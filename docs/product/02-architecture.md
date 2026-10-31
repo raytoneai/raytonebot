@@ -254,6 +254,8 @@ AgentSphere 沙箱
 
 `src/runtime/useOutputPanel.ts` 持有输出标签、选中项、来源、全屏开关与右栏折叠状态；shell 继续负责文件 URL、实时产物投影、自动预览和会话运行。打开操作使用当次面板可用性；导航重置仅清空标签/选中项/产物弹层，沿用原有来源和其他表面状态。
 
+`src/runtime/useAutoHiddenRails.ts` 观测 shell 容器宽度，封装 660/860 的左右栏隐藏阈值与 ResizeObserver 生命周期；shell 保留布局是否含侧栏、欢迎页、手动折叠、抽屉和输出面板可用性的组合判断。断点基于容器宽度，等于阈值时仍可显示对应栏。
+
 `src/pi/piHost.ts` 是兼容导出入口。`piRuntimeController.ts` 管理会话、运行、审批与各引擎；`piHttpHost.ts` 组合主机服务并处理 HTTP，直接依赖控制器；`piSdkBridge.ts` 管理 Pi SDK 会话、模型注册、工具包装与模型租约。共同的记录/错误/会话 ID 校验在 `piHostUtils.ts`。原公共导出保持可用，SDK 与可选工具继续动态加载，不改变原生会话绑定、审批或隔离边界。
 
 `src/components/settings/SettingsDialog.tsx` 仅负责导航、弹窗、Provider 编辑/关闭拦截和跨分区的例行任务草稿；各分区与其行编辑器放在同目录的 `*Section.tsx`，仍由该 owner 唯一挂载。`SettingsShared.tsx` 只保留跨分区复用的字段、复制和状态展示小组件。Provider 草稿在分区切换时保留，Vault 输入随其分区卸载清空。

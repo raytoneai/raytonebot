@@ -5,6 +5,7 @@ import { useTaskRecovery } from "./runtime/useTaskRecovery";
 import { useAppViewport } from "./runtime/useAppViewport";
 import { useOutputPanel } from "./runtime/useOutputPanel";
 import { useCompactDrawer } from "./runtime/useCompactDrawer";
+import { useAutoHiddenRails } from "./runtime/useAutoHiddenRails";
 import { artifactTimestamps } from "./runtime/artifactCatalog";
 import { outputPanelItemFromRenderedArtifact } from "./components/agent-preview/outputframe/artifactPreview";
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -183,10 +184,6 @@ const SettingsDialog = lazy(() => import("./components/settings/SettingsDialog")
 const OutputPanelModal = lazy(() => import("./components/agent-preview/outputframe/OutputPanelModal").then((module) => ({ default: module.OutputPanelModal })));
 const OutputFrame = lazy(() => import("./components/agent-preview/OutputFrame").then((module) => ({ default: module.OutputFrame })));
 const RightPanelLayout = lazy(() => import("./components/shell/RightPanelLayout").then((module) => ({ default: module.RightPanelLayout })));
-const PREVIEW_RESPONSIVE_WIDTHS = {
-  hideRightPanel: 860,
-  hideLeftSidebar: 660,
-} as const;
 
 /** Development fixtures are useful, but their controls are not part of the composed product. */
 function devtoolsRequested(): boolean {
@@ -219,7 +216,6 @@ export function AgentApp() {
   const [drawerOpen, setDrawerOpen] = useState(false);
   const drawerRef = useRef<HTMLDivElement>(null);
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
-  const [autoHiddenRails, setAutoHiddenRails] = useState({ left: false, right: false });
   const outputPanel = useOutputPanel(project.output.source);
   const { rightCollapsed, setRightCollapsed } = outputPanel;
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
@@ -655,29 +651,7 @@ export function AgentApp() {
     storeSetting(THEME_KEY, themePreset);
   }, [themePreset]);
 
-  useEffect(() => {
-    const frame = frameRef.current;
-    if (!frame || typeof ResizeObserver === "undefined") {
-      return;
-    }
-
-    const updateAutoHiddenRails = (width: number) => {
-      const next = {
-        right: width < PREVIEW_RESPONSIVE_WIDTHS.hideRightPanel,
-        left: width < PREVIEW_RESPONSIVE_WIDTHS.hideLeftSidebar,
-      };
-      setAutoHiddenRails((current) =>
-        current.left === next.left && current.right === next.right ? current : next,
-      );
-    };
-
-    updateAutoHiddenRails(frame.getBoundingClientRect().width);
-    const observer = new ResizeObserver((entries) => {
-      updateAutoHiddenRails(entries[0]?.contentRect.width ?? frame.getBoundingClientRect().width);
-    });
-    observer.observe(frame);
-    return () => observer.disconnect();
-  }, []);
+  const autoHiddenRails = useAutoHiddenRails(frameRef);
 
   const visibleLayoutSlots = useMemo(
     () => slotsForTemplate(activeProject.layout.slots, activeProject.template),

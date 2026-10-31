@@ -1,0 +1,9 @@
+{
+  "observerBodyIdentical": true,
+  "thresholdsIdentical": true,
+  "initialStateIdentical": true,
+  "oldDependencies": "[]",
+  "newDependencies": "[frameRef]",
+  "stableCallerRef": true,
+  "effectOrderPreserved": true
+}
