@@ -1,6 +1,6 @@
 # shell 纯逻辑审计与分项清理（2026-10-31）
 
-基线 `fddcaae`。快速子代理实施，主代理独立 review、验证后逐项提交。根目录已有未跟踪文件 `c` 保留、不提交。
+基线 `fddcaae`。快速子代理实施，主代理独立 review、验证后逐项提交。第一项提交 `14daa5a`，第二项提交 `e3bd402`。根目录已有未跟踪文件 `c` 保留、不提交。
 
 审计选中群成员等待首个输出的显示投影，以及 Bot 历史名单合并/回退解析。`activeProject`、简单 debug 过滤和零散一行映射保留，避免增加薄包装；prompt 接收判定、submit/follow/queue/reconnect 与副作用保持原位。
 
@@ -26,3 +26,9 @@
 额外路径发现旧缺陷：含历史自定义成员的群聊切换 welcome → Built-in demo，GroupHeader 访问找不到的候选成员而报错。fixture 模式未传 Bot catalog，组件退回内置名单，但仍收到自定义成员 ID。保留[本轮失败](fixture-custom-group-error.json)及[提取前复现](fixture-custom-group-baseline.json)。临时换回 `14daa5a` 的 shell 后复现同一错误，随后按 SHA-256 校验恢复工作源码，并重跑 AST 对照通过。已记入根目录 issue #10；本批没有更改 GroupHeader，也不声称这条路径通过。
 
 两个 review 脚本可传提交号作为目标源码，以便后续改动后复核相应批次；例如 `node output/slimming-shell-pure-2026-10-31/review-group-typing.mjs 14daa5a`。
+
+## 3. shell 注释
+
+- 删除过期的配置器/导出器背景、App.tsx 行号、历史缺陷叙述和重复说明；保留显式空 `previewPrompt`、审批位置、逐事件追加、失败提示和共享布局规则等当前约束。主代理额外删除重复且可能误导的“新会话只清空记录”说明，并修正共享 CSS 规则的描述。
+- 仅修改注释；shell 1,870 → 1,839 行，本轮从 1,896 行净减 57 行。[检查脚本](review-comments.mjs)、[结果](comments-review.json)：与 `e3bd402` 的去注释编译输出逐字相同，编译指令未变，无转译诊断。可运行 `node output/slimming-shell-pure-2026-10-31/review-comments.mjs` 复核，也支持传目标提交号。
+- 源码事实、文档链接和 `git diff --check` 检查通过。未重复运行前一批的完整测试或浏览器验收。前述自定义群切 fixture 的旧缺陷仍待单独修复。

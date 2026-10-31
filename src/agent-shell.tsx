@@ -178,32 +178,20 @@ function waitForReconnect(signal: AbortSignal, delay: number): Promise<void> {
   });
 }
 
-// Loaded on first use, not with the app: settings, the full-screen output view and the resizable
-// output panel are closed when a conversation opens.
+// Load settings and output surfaces on demand; they are closed when a conversation opens.
 const SettingsDialog = lazy(() => import("./components/settings/SettingsDialog").then((module) => ({ default: module.SettingsDialog })));
 const OutputPanelModal = lazy(() => import("./components/agent-preview/outputframe/OutputPanelModal").then((module) => ({ default: module.OutputPanelModal })));
 const OutputFrame = lazy(() => import("./components/agent-preview/OutputFrame").then((module) => ({ default: module.OutputFrame })));
 const RightPanelLayout = lazy(() => import("./components/shell/RightPanelLayout").then((module) => ({ default: module.RightPanelLayout })));
 
-/** Development fixtures are useful, but their controls are not part of the composed product. */
+/** Show development fixture controls only when explicitly requested in the URL. */
 function devtoolsRequested(): boolean {
   if (!import.meta.env.DEV || typeof window === "undefined") return false;
   const value = new URLSearchParams(window.location.search).get("devtools");
   return value === "1" || value === "true";
 }
 
-/**
- * The exported agent surface.
- *
- * This renders through the SAME `slots/slotRegistry` the AgentCanvas configurator uses,
- * with the same `data-*` attributes on `.preview-frame` (App.tsx:2902-2911) and the same
- * render policy derived from the project (App.tsx:1210-1221). Anything visual is decided
- * by the real components + `styles/app.css`, not re-implemented here — that is what keeps
- * the export from drifting away from what you previewed.
- *
- * Pi is mounted by the generated Vite config, so submit, stop, provider/model selection and
- * tool approvals are live while the same fixture path remains available for visual QA.
- */
+/** Composes the live agent surface from the project's slots, components, and render policy. */
 export function AgentApp() {
   useAppViewport();
   const { locale } = useLocale();
@@ -312,8 +300,7 @@ export function AgentApp() {
       ?? { id: activePiConversationId, agentPreset: agentSettings.presetId }, botStore.conversations,
   ));
 
-  // Mirrors the configurator's policy derivation so reasoning / tool / error states
-  // render exactly as previewed.
+  // Apply the project's configured reasoning and tool detail policy.
   const reasoningRenderPolicy = useMemo(() => createReasoningRenderPolicy(project), []);
   const toolRenderPolicy = useMemo(
     () => ({
@@ -390,9 +377,7 @@ export function AgentApp() {
   const navigationRequest = useRef(0);
   const [pendingSource, setPendingSource] = useState<{ conversationId: string; artifactId?: string; textId?: string; runId?: string; loaded?: boolean }>();
   const artifactTimes = useMemo(() => artifactTimestamps(replayEvents), [replayEvents]);
-  // Both approval modes answer above the composer, exactly where the configurator previewed
-  // them. Each mode needs its own surface here: `ChatFrame` no longer places either one in the
-  // transcript, so a mode without an overlay would leave a real run with nothing to click.
+  // Both approval modes must stay above the composer; ChatFrame no longer renders them in the transcript.
   const pendingApprovalTool = displayViewModel.timeline.find((item): item is AgentUXToolTimelineItem =>
     item.kind === "tool" && item.status === "awaiting_approval" && Boolean(item.approval),
   );
@@ -839,8 +824,7 @@ export function AgentApp() {
       if (fromDraft) setAcceptingConversationIds((current) => toggleIn(current, conversationId, false));
       context?.onAccepted?.();
     };
-    // Same coalescing as the configurator, from the same module, so a long reply does not slow
-    // down as it grows here either. The conversation is still appended one event at a time.
+    // Coalesce frame commits so long replies stay responsive while each event is still appended individually.
     const commit = createPiFrameCommit<EphemeralPiConversation>((conversation) => {
       setPiConversations((current) => replacePiConversation(current, conversation));
       showIfActive(conversation);
@@ -939,9 +923,7 @@ export function AgentApp() {
         reattach = true;
       } else {
         const message = featureError(locale, error instanceof Error ? error : "Pi runtime failed.");
-        // The prompt is only passed when this turn never emitted anything; mid-run the
-        // transcript already shows it. Same helper the configurator uses, so a failed turn
-        // reads the same in both.
+        // Include the prompt only if this turn emitted no events; otherwise the transcript already contains it.
         const errorEvents = piErrorTurnEvents({
           message,
           prompt: nextConversation.events.length === turnStartEventCount ? normalizedPrompt : undefined,
@@ -1357,13 +1339,8 @@ export function AgentApp() {
     project: activeProject,
     viewModel: displayViewModel,
     events,
-    // Must be set, not omitted. ChatFrame defaults this prop to a sample sentence ("Add
-    // validation to the search input..."), so leaving it undefined prepended a user message
-    // nobody sent to every exported app — while the configurator looked correct, because
-    // App.tsx always passes a value. The default itself is load-bearing for 16 preset
-    // rendering tests, so it stays; the omission here was the actual defect.
-    // Pi user turns are canonical AgentUX events. A second prompt-history path would duplicate
-    // bubbles and drift from the editor's event ordering.
+    // Pass an empty string: ChatFrame's sample default would otherwise appear as a user message.
+    // Pi user messages already arrive through the AgentUX event stream.
     previewPrompt: "",
     activeSessionId: activePiConversationId,
     sessionItems: piSessionItems,
@@ -1387,9 +1364,6 @@ export function AgentApp() {
     onSelectOutputPanelItem: outputPanel.setActiveItemId,
     onCloseOutputPanelItem: closeOutputPanelItem,
     onOutputSourceChange: (source: "artifact" | "console") => { outputPanel.selectSource(source); },
-    // Not a no-op: starting a new conversation needs no backend, it just clears the transcript
-    // and returns to the welcome screen. Wiring it to `noop` made the button look broken —
-    // the one control in the shell a user is guaranteed to try.
     onNewSession: startNewSession,
     // Each role greets in its own words; the configured greeting stays the fallback.
     welcomeGreeting: activeBot.id === activeBot.presetId
@@ -1635,10 +1609,7 @@ export function AgentApp() {
   );
 
   const appearance = activeTheme.appearance;
-  // Explicit opt-in even in dev: npm run dev is how recipients first inspect the package,
-  // so debug chrome must not appear unless they ask for it with ?devtools=1.
   const showPicker = devtoolsRequested() && isFixtureMode && streams.length > 0;
-  // String concat (not a template literal) so this file can be emitted from the exporter.
   const soloStack = (
     <section className="preview-stack preview-stack-solo" inert={compact && drawerOpen} data-welcome={isWelcome ? "true" : undefined}>
       {renderSlots(visibleLayoutSlots, "main", slotContext)}
@@ -1653,9 +1624,8 @@ export function AgentApp() {
   const rightSize = activeProject.layout.rightPanelSize + "%";
 
   return (
-    // No inline layout: `.exported-shell` shares `.builder-surface`'s rule in app.css,
-    // which is the sizing context `.preview-frame` and `.preview-overlay-surface` were
-    // designed against. Re-implementing it here is what made the export "not fit".
+    // Keep wrapper sizing in app.css's shared `.builder-surface` / `.exported-shell` rule:
+    // it defines the sizing context for `.preview-frame` and `.preview-overlay-surface`.
     <CustomAvatarsProvider value={!streamId}>
     <AgentPersonaProvider persona={persona}>
     <ShellExtrasProvider value={shellExtras}>
@@ -1764,8 +1734,7 @@ export function AgentApp() {
         ) : null}
       </>
 
-      {/* Preview/development scaffolding — never product UI. Opt in with ?devtools=1;
-          use ?stream=<id> to select a stream without any UI. */}
+      {/* Development fixture controls; ?stream=<id> selects a stream without UI. */}
       {showPicker ? (
         <div
           style={{
