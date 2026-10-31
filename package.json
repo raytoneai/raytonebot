@@ -8,7 +8,7 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "npm run typecheck && vite build",
     "preview": "vite preview",
     "preview:cloud": "node scripts/cloud-preview.mjs",
     "am:plan": "node scripts/agentmatrix/deploy.mjs plan",
@@ -17,7 +17,7 @@
     "am:preview": "node scripts/agentmatrix/deploy.mjs preview",
     "am:wake": "node scripts/agentmatrix/deploy.mjs wake",
     "am:stop": "node scripts/agentmatrix/deploy.mjs stop",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.control.json --noEmit",
     "check:local": "node scripts/check-local.mjs",
     "test": "node --test control/*.test.ts src/pi/*.test.ts src/pi/browser/*.test.ts src/pi/imChannels/*.test.ts src/harness/adapters/*.test.ts src/runtime/*.test.ts scripts/agentmatrix/*.test.ts"
   },
