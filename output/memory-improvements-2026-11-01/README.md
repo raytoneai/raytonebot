@@ -35,3 +35,13 @@
 完整回归首次为 757 项：755 通过、1 项 DSH 跳过、1 项既有浏览器 popup click stalled。未修改浏览器代码或测试超时，单项复跑通过；再次默认并发 `npm test` 为 756 通过、1 跳过、0 失败。首次失败和复跑分别保存在 `batch2-tests.log`、`batch2-popup-recheck.log`、`batch2-tests-recheck.log`；不宣称该间歇超时已经解决。
 
 限制：expectedText 校验文本，不是整条记录的历史版本控制；没有语义冲突自动判定、时效事实强制联网或真实模型质量对测。项目交接与导出仍待后续批次。
+
+## 第三批：项目交接
+
+- `docs/task-skills/project-handoff.md` 是现有应用可保存的文本 Skill。显式持续项目才维护一份已知路径的 `PROJECT.md`，完整读取并保留用户内容，记录目标、状态证据、选择/否决理由、下一步与未决问题。只有保存和回读核对后才登记交付版本，无变化跳过。
+- 主代理 review 核对路径不硬编码、当前指令/权限优先、读取失败不覆盖、并发版本保护按工具能力表述，以及文件保存和产物登记失败分别报告。没有新增产品运行时代码或界面。
+- 两条新 Skill（记忆审计、项目交接）通过原服务保存并分配给本机 Raer，重载 `read_skill` 可读。原文件先备份，逐项确认既有 Skills、其他 Bot、Raer 模型/权限等字段不变；安装 ID、配置版本和回退文件位置见 [local-skill-install.json](local-skill-install.json)。未改真实用户记忆或同步到云。
+
+验证：`node output/memory-improvements-2026-11-01/project-handoff-check.mjs` 在临时工作区使用现有文档 API、真实主机产物登记和受控执行器，5 组检查通过。两会话/三轮经过服务重载，保留 USER_KEEP、用户并发修改和选择/否决理由；旧版本写入返回 409；无变化时调用方跳过写入/登记；源文件变化后重载版本库，两份交付字节与原哈希一致。字段、文档链接及 `git diff --check` 通过。本批无产品代码变化，未重复构建/全量测试。
+
+限制：受控流程没有模型或网络调用，不证明真实模型会读取或遵循 Skill，也不证明文档语义正确。无变化跳过是本次调用方行为，不是新主机强制规则。结果见 [project-handoff-check.json](project-handoff-check.json)。

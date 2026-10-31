@@ -1,0 +1,42 @@
+{
+  "time": "2026-10-31T21:19:28.671Z",
+  "dataDir": "/Users/rickyhuo/.raytonebot/data",
+  "bot": {
+    "id": "assistant",
+    "name": "Raer"
+  },
+  "backupDir": "/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-memory-skills-before-zUjxfx",
+  "installed": [
+    {
+      "id": "skill_7843c38b-537c-43e9-8c8c-39d1971d08af",
+      "name": "记忆审计",
+      "instructionsCharacters": 1197
+    },
+    {
+      "id": "skill_10811ee9-750b-4056-80a9-a4f82c8e600b",
+      "name": "项目交接",
+      "instructionsCharacters": 1616
+    }
+  ],
+  "skillsRevision": [
+    2,
+    4
+  ],
+  "botsRevision": [
+    15,
+    16
+  ],
+  "checks": {
+    "readSkillAfterReload": true,
+    "existingSkillsUnchanged": true,
+    "otherBotsUnchanged": true,
+    "raerModelPermissionsAndOtherFieldsUnchanged": true
+  },
+  "fileHashes": {
+    "skillsBefore": "7b0ad1c5bf6ac97e3061e1e8b5b95809eecb7446c03fea7cc5af62009b0ae113",
+    "skillsAfter": "ae27384b8c36f86e88073e3269b07753a08f5e5bb9dc6e83ba262cc1e12d063d",
+    "botsBefore": "fadec9a9a599a18418b97a4ea975a4db04977342b961b01165d94ce395149a0a",
+    "botsAfter": "7d364fc2dd5d8e4100987e6f7401ce974aba1219be7f2ecc160b6905181667b7"
+  },
+  "scope": "Local Raer only; no model request, memory edits, remote sync or deployment."
+}

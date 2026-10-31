@@ -1,0 +1,54 @@
+{
+  "status": "passed",
+  "checkedAt": "2026-10-31T21:20:15.714Z",
+  "controlledWorkflow": true,
+  "realModel": false,
+  "limitations": [
+    "Deterministic injected bridge; no model or network calls.",
+    "No-change save/publish is skipped by this caller, not enforced by a new host feature.",
+    "Temporary data only; no user Skill installation or configuration changes.",
+    "Hashes and preserved bytes do not prove semantic correctness or model adherence."
+  ],
+  "checks": [
+    "stale version rejected with 409; concurrent user bytes preserved",
+    "Skill and first conversation reloaded; new conversation read existing file",
+    "USER_KEEP and selected/rejected decision text retained",
+    "no-change follow-up skipped save and produced no new delivery",
+    "two preserved delivery versions retain exact bytes after source changes and store reload"
+  ],
+  "runs": [
+    {
+      "stage": 0,
+      "changed": true,
+      "beforeSha256": "ff02eb545add49fd477b9db442c77c908ee04c96207974d0e0b80612aab8e9e4",
+      "afterSha256": "8b1b8558d696624bba30d9ce69a15a502b6b7cfbd3518e179a4f9b8d5a8f125d",
+      "versionId": "ad050fb1-3751-4cd9-af54-a3615fae4eca"
+    },
+    {
+      "stage": 1,
+      "changed": true,
+      "beforeSha256": "1ab29801aab9abcf29718e9ca0a1dbf386dc9c20652c6f490089957818302110",
+      "afterSha256": "bbcddb496c19d8545ca90e0def77ce639885690138d1f882dc8ab7e7fcab8fc9",
+      "versionId": "4396430f-37d9-410e-89eb-c56a9ed1a697"
+    },
+    {
+      "stage": 2,
+      "changed": false,
+      "skippedSaveAndPublish": true,
+      "sha256": "bbcddb496c19d8545ca90e0def77ce639885690138d1f882dc8ab7e7fcab8fc9"
+    }
+  ],
+  "skill": {
+    "source": "docs/task-skills/project-handoff.md",
+    "sourceSha256": "8f8ce4cd97b64bd3811d0a0416542e1aafffd6d82849ac114b698e8a076338c9",
+    "name": "项目交接",
+    "instructionsSha256": "5fe6f770e690308abf25b130e51c0c4ce2f7cc9bf983193ca2518eba960c7c61"
+  },
+  "initialSha256": "ff02eb545add49fd477b9db442c77c908ee04c96207974d0e0b80612aab8e9e4",
+  "concurrentSha256": "1ab29801aab9abcf29718e9ca0a1dbf386dc9c20652c6f490089957818302110",
+  "sourceChangedSha256": "e4b7da14c8412ad00a00435bdd52cfe99ea92778ac65fdcef8f878e6339f2814",
+  "simulatedConversations": [
+    "handoff-first",
+    "handoff-next"
+  ]
+}
