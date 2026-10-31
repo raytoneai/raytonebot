@@ -1,0 +1,10 @@
+[
+  {
+    "members": [
+      "assistant",
+      "planner"
+    ],
+    "hostId": "planner",
+    "eventCount": 0
+  }
+]

@@ -1540,7 +1540,7 @@ export function AgentApp() {
     groupHostId: isGroupConversation(activePiConversation) ? activePiConversation.groupHostId ?? "assistant" : undefined,
     groupTyping: runningConversationIds.has(activePiConversationId) ? groupTyping : undefined,
     welcomeGroup: isGroupConversation(activePiConversation) ? (
-      <GroupWelcome avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)}
+      <GroupWelcome avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)} hostId={activePiConversation.groupHostId}
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
     ) : undefined,
     // Only groups still titled with their roster: the last thing said names the row instead.

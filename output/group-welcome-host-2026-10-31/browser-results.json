@@ -1,0 +1,209 @@
+{
+  "startedAt": "2026-10-31T06:21:44.496Z",
+  "welcomeChecks": [
+    {
+      "step": "welcomeHostSecond",
+      "raerEnabled": true,
+      "tonnyEnabled": false
+    },
+    {
+      "step": "removeFirstMember",
+      "title": "我、Tonny",
+      "raerSelected": "false",
+      "tonnyEnabled": false
+    },
+    {
+      "step": "readdAndReload",
+      "raerSelected": "true",
+      "raerEnabled": true,
+      "tonnyEnabled": false
+    },
+    {
+      "step": "mobileHostSecond",
+      "raerEnabled": true,
+      "tonnyEnabled": false
+    }
+  ],
+  "scenarios": [
+    {
+      "name": "欢迎页(无事件)",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t66 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t30 container\n\t\t\t31 heading 我、Raer、Tonny, Value: 2\n\t\t\t\t32 text 我、Raer、Tonny\n\t\t\t33 text 选择成员，开始对话。 成员\n\t\t\t34 checkbox Raer, Value: 1\n\t\t\t35 checkbox (disabled) Tonny, Value: 1\n\t\t\t36 checkbox Bob, Value: 0\n\t\t\t37 text entry area (settable)\n\t\t\t38 button 附加文件\n\t\t\t39 pop up button (collapsed) Description: 引用对话, ID: radix-_r_6_, Secondary Actions: Expand\n\t\t\t40 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t41 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t42 button (disabled) 发送\n\t\t67 button 展开右侧面板\n\t\t43 text 事件流(仅开发)\n\t\t44 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t45 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t46 menu\n\t\t\t\t47 (selected) 工作头像预览\n\t\t\t\t48 正在思考\n\t\t\t\t49 正在查阅\n\t\t\t\t50 正在修改\n\t\t\t\t51 正在执行\n\t\t\t\t52 正在回复\n\t\t\t\t53 等你确认\n\t\t\t\t54 结束 / 停止\n\nThe focused UI element is 37 text entry area (settable)",
+      "metrics": {
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Built-in demo",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container\n\t\t\t\t12 text Add input validation to the search box, then show me the patch.\n\t\t\t\t13 container 用户消息操作\n\t\t\t\t\t14 button 复制提示词\n\t\t\t\t\t15 button (disabled) 重发消息\n\t\t\t16 container Agent 输出\n\t\t\t\t17 text Tonny\n\t\t\t18 container\n\t\t\t\t19 button 已完成思考\n\t\t\t\t20 text Read the current SearchInput, then add a validity check and loading state before wiring the request.\n\t\t\t21 container\n\t\t\t\t22 text 编辑文件：已完成\n\t\t\t\t23 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n\t\t\t24 container\n\t\t\t\t25 text Validation and loading state added. The search button is disabled for invalid input and a spinner shows while results load.\n\t\t\t\t26 container Agent 消息操作\n\t\t\t\t\t27 button 复制回复\n\t\t\t\t\t28 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t29 button SearchInput.tsx 文件\n\t\t\t\t30 text SearchInput.tsx\n\t\t\t\t31 text 文件\n\t\t\t32 text entry area (settable)\n\t\t\t33 button 附加文件\n\t\t\t34 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t35 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t36 button (disabled) 发送\n\t\t37 button 展开右侧面板\n\t\t38 text 事件流(仅开发)\n\t\t39 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t40 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t41 menu\n\t\t\t\t42 (selected) 工作头像预览\n\t\t\t\t43 正在思考\n\t\t\t\t44 正在查阅\n\t\t\t\t45 正在修改\n\t\t\t\t46 正在执行\n\t\t\t\t47 正在回复\n\t\t\t\t48 等你确认\n\t\t\t\t49 结束 / 停止\n\nThe focused UI element is 39 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Group chat",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container\n\t\t\t\t12 text 大家看一下附件里的网页方案，Tonny 先评审，Bob 再实现。\n\t\t\t\t13 container 用户消息操作\n\t\t\t\t\t14 button 复制提示词\n\t\t\t\t\t15 button (disabled) 重发消息\n\t\t\t16 container Agent 输出\n\t\t\t\t17 text Raer\n\t\t\t18 container\n\t\t\t\t19 text 我会协调评审和实现，并回收结果。\n\t\t\t\t20 container Agent 消息操作\n\t\t\t\t\t21 button 复制回复\n\t\t\t\t\t22 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t23 container Agent 输出\n\t\t\t\t24 text Tonny\n\t\t\t25 container\n\t\t\t\t26 text 方案已检查：先完成交互，再验证窄屏。\n\t\t\t\t27 container Agent 消息操作\n\t\t\t\t\t28 button 复制回复\n\t\t\t\t\t29 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t30 container Agent 输出\n\t\t\t\t31 text Bob\n\t\t\t32 container\n\t\t\t\t33 text 已完成实现并通过检查。\n\t\t\t\t34 container Agent 消息操作\n\t\t\t\t\t35 button 复制回复\n\t\t\t\t\t36 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t37 text entry area (settable)\n\t\t\t38 button 附加文件\n\t\t\t39 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t40 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t41 button (disabled) 发送\n\t\t42 button 展开右侧面板\n\t\t43 text 事件流(仅开发)\n\t\t44 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t45 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t46 menu\n\t\t\t\t47 (selected) 工作头像预览\n\t\t\t\t48 正在思考\n\t\t\t\t49 正在查阅\n\t\t\t\t50 正在修改\n\t\t\t\t51 正在执行\n\t\t\t\t52 正在回复\n\t\t\t\t53 等你确认\n\t\t\t\t54 结束 / 停止\n\nThe focused UI element is 44 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Coding agent",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 container\n\t\t\t\t14 button 已完成思考\n\t\t\t\t15 text Planning changes and checking the current SearchInput implementation before editing.\n\t\t\t16 button (collapsed) 1 项操作, Help: 查看操作详情, Secondary Actions: Expand\n\t\t\t17 container\n\t\t\t\t18 text 编辑文件：已完成\n\t\t\t\t19 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n\t\t\t20 container\n\t\t\t\t21 text Validation and loading state added. The search button is disabled for invalid input and a spinner shows while results are loading.\n\t\t\t\t22 container Agent 消息操作\n\t\t\t\t\t23 button 复制回复\n\t\t\t\t\t24 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t25 button SearchInput.tsx 文件\n\t\t\t\t26 text SearchInput.tsx\n\t\t\t\t27 text 文件\n\t\t\t28 text entry area (settable)\n\t\t\t29 button 附加文件\n\t\t\t30 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t31 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t32 button (disabled) 发送\n\t\t33 button 展开右侧面板\n\t\t34 text 事件流(仅开发)\n\t\t35 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t36 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t37 menu\n\t\t\t\t38 (selected) 工作头像预览\n\t\t\t\t39 正在思考\n\t\t\t\t40 正在查阅\n\t\t\t\t41 正在修改\n\t\t\t\t42 正在执行\n\t\t\t\t43 正在回复\n\t\t\t\t44 等你确认\n\t\t\t\t45 结束 / 停止\n\nThe focused UI element is 35 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Reasoning kinds",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 container\n\t\t\t\t14 button 已完成思考\n\t\t\t\t15 text Public summary can be shown in ordinary reasoning mode.\n\t\t\t16 button 思考中\n\t\t\t17 button 思考中\n\t\t\t18 text entry area (settable)\n\t\t\t19 button 附加文件\n\t\t\t20 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t21 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t22 button (disabled) 发送\n\t\t23 button 展开右侧面板\n\t\t24 text 事件流(仅开发)\n\t\t25 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t26 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t27 menu\n\t\t\t\t28 (selected) 工作头像预览\n\t\t\t\t29 正在思考\n\t\t\t\t30 正在查阅\n\t\t\t\t31 正在修改\n\t\t\t\t32 正在执行\n\t\t\t\t33 正在回复\n\t\t\t\t34 等你确认\n\t\t\t\t35 结束 / 停止\n\nThe focused UI element is 25 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Tool approval",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 container\n\t\t\t\t14 text 移除临时缓存：等待审批 rm -rf .agent/tmp-cache\n\t\t\t\t15 button (expanded) Description: Collapse tool, Secondary Actions: Collapse\n\t\t\t\t16 text 输入 rm -rf .agent/tmp-cache\n\t\t\t17 container\n\t\t\t\t18 text Fetch release metadata：已完成 200 OK · v1.8.0\n\t\t\t\t19 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n\t\t\t20 container 工具审批操作\n\t\t\t\t21 text 需要权限\n\t\t\t\t22 text 递归移除 .agent/tmp-cache？\n\t\t\t\t23 content list\n\t\t\t\t\t24 button 允许一次, Help: 仅允许这一次\n\t\t\t\t\t\t25 text 允许一次\n\t\t\t\t\t26 button 始终允许, Help: 此 Agent 以后使用该工具不再询问（受保护操作仍会询问）\n\t\t\t\t\t\t27 text 始终允许\n\t\t\t\t\t28 button 拒绝, Help: 这次先拒绝\n\t\t\t\t\t\t29 text 拒绝\n\t\t\t\t30 text 始终允许: 此 Agent 以后使用该工具不再询问（受保护操作仍会询问）\n\t\t\t31 text entry area (settable)\n\t\t\t32 button 附加文件\n\t\t\t33 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t34 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t35 button (disabled) 发送\n\t\t36 button 展开右侧面板\n\t\t37 text 事件流(仅开发)\n\t\t38 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t39 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t40 menu\n\t\t\t\t41 (selected) 工作头像预览\n\t\t\t\t42 正在思考\n\t\t\t\t43 正在查阅\n\t\t\t\t44 正在修改\n\t\t\t\t45 正在执行\n\t\t\t\t46 正在回复\n\t\t\t\t47 等你确认\n\t\t\t\t48 结束 / 停止\n\nThe focused UI element is 38 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Error block",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 container\n\t\t\t\t14 text E_WRITE_FILE EACCES: permission denied, open /repo/src/SearchInput.tsx\n\t\t\t15 text entry area (settable)\n\t\t\t16 button 附加文件\n\t\t\t17 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t18 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t19 button (disabled) 发送\n\t\t20 button 展开右侧面板\n\t\t21 text 事件流(仅开发)\n\t\t22 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t23 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t24 menu\n\t\t\t\t25 (selected) 工作头像预览\n\t\t\t\t26 正在思考\n\t\t\t\t27 正在查阅\n\t\t\t\t28 正在修改\n\t\t\t\t29 正在执行\n\t\t\t\t30 正在回复\n\t\t\t\t31 等你确认\n\t\t\t\t32 结束 / 停止\n\nThe focused UI element is 22 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Artifact action",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 button Contact action form 文件\n\t\t\t\t14 text Contact action form\n\t\t\t\t15 text 文件\n\t\t\t16 text entry area (settable)\n\t\t\t17 button 附加文件\n\t\t\t18 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t19 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t20 button (disabled) 发送\n\t\t21 button 展开右侧面板\n\t\t22 text 事件流(仅开发)\n\t\t23 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t24 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t25 menu\n\t\t\t\t26 (selected) 工作头像预览\n\t\t\t\t27 正在思考\n\t\t\t\t28 正在查阅\n\t\t\t\t29 正在修改\n\t\t\t\t30 正在执行\n\t\t\t\t31 正在回复\n\t\t\t\t32 等你确认\n\t\t\t\t33 结束 / 停止\n\nThe focused UI element is 23 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Capability tray",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 heading 能力, Value: 3\n\t\t\t\t\t7 text 能力\n\t\t\t\t8 text AgentUX 能力事件\n\t\t\t9 container\n\t\t\t\t10 text Filesystem Filesystem tools and allowed-root descriptors available to this run. 3\n\t\t\t11 heading 我、Raer、Tonny, Value: 2\n\t\t\t\t12 text 我、Raer、Tonny\n\t\t\t13 text 选择成员，开始对话。\n\t\t\t14 text 成员\n\t\t\t15 checkbox Raer, Value: 1\n\t\t\t16 checkbox (disabled) Tonny, Value: 1\n\t\t\t17 checkbox Bob, Value: 0\n\t\t\t18 text entry area (settable)\n\t\t\t19 button 附加文件\n\t\t\t20 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t21 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t22 button (disabled) 发送\n\t\t23 button 展开右侧面板\n\t\t24 text 事件流(仅开发)\n\t\t25 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t26 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t27 menu\n\t\t\t\t28 (selected) 工作头像预览\n\t\t\t\t29 正在思考\n\t\t\t\t30 正在查阅\n\t\t\t\t31 正在修改\n\t\t\t\t32 正在执行\n\t\t\t\t33 正在回复\n\t\t\t\t34 等你确认\n\t\t\t\t35 结束 / 停止\n\nThe focused UI element is 25 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "HTML artifact stream",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 container\n\t\t\t\t14 text Writing a comparison page you can open in the output panel.\n\t\t\t\t15 container Agent 消息操作\n\t\t\t\t\t16 button 复制回复\n\t\t\t\t\t17 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t18 container\n\t\t\t\t19 text 修改文件：准备参数\n\t\t\t\t20 button (expanded) Description: Collapse tool, Secondary Actions: Collapse\n\t\t\t\t21 text 正在修改\n\t\t\t\t22 button compare-plans.html\n\t\t\t23 text entry area (settable)\n\t\t\t24 button 附加文件\n\t\t\t25 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t26 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t27 button (disabled) 发送\n\t\t28 button 展开右侧面板\n\t\t29 text 事件流(仅开发)\n\t\t30 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t31 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t32 menu\n\t\t\t\t33 (selected) 工作头像预览\n\t\t\t\t34 正在思考\n\t\t\t\t35 正在查阅\n\t\t\t\t36 正在修改\n\t\t\t\t37 正在执行\n\t\t\t\t38 正在回复\n\t\t\t\t39 等你确认\n\t\t\t\t40 结束 / 停止\n\nThe focused UI element is 30 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Basic text",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 container\n\t\t\t\t14 text Hello world\n\t\t\t\t15 container Agent 消息操作\n\t\t\t\t\t16 button 复制回复\n\t\t\t\t\t17 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t18 text entry area (settable)\n\t\t\t19 button 附加文件\n\t\t\t20 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t21 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t22 button (disabled) 发送\n\t\t23 button 展开右侧面板\n\t\t24 text 事件流(仅开发)\n\t\t25 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t26 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t27 menu\n\t\t\t\t28 (selected) 工作头像预览\n\t\t\t\t29 正在思考\n\t\t\t\t30 正在查阅\n\t\t\t\t31 正在修改\n\t\t\t\t32 正在执行\n\t\t\t\t33 正在回复\n\t\t\t\t34 等你确认\n\t\t\t\t35 结束 / 停止\n\nThe focused UI element is 25 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Normal turn",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container\n\t\t\t\t12 text 你都有什么功能？\n\t\t\t\t13 container 用户消息操作\n\t\t\t\t\t14 button 复制提示词\n\t\t\t\t\t15 button (disabled) 重发消息\n\t\t\t16 container Agent 输出\n\t\t\t\t17 text Tonny\n\t\t\t18 container\n\t\t\t\t19 text 我可以回答问题、总结信息，并起草清晰内容。 我可以查看文件、解释代码，并协助规划或应用修改。 我可以跟踪任务、提示错误，并在完成后展示输出或产物。\n\t\t\t\t20 container Agent 消息操作\n\t\t\t\t\t21 button 复制回复\n\t\t\t\t\t22 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t23 text entry area (settable)\n\t\t\t24 button 附加文件\n\t\t\t25 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t26 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t27 button (disabled) 发送\n\t\t28 button 展开右侧面板\n\t\t29 text 事件流(仅开发)\n\t\t30 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t31 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t32 menu\n\t\t\t\t33 (selected) 工作头像预览\n\t\t\t\t34 正在思考\n\t\t\t\t35 正在查阅\n\t\t\t\t36 正在修改\n\t\t\t\t37 正在执行\n\t\t\t\t38 正在回复\n\t\t\t\t39 等你确认\n\t\t\t\t40 结束 / 停止\n\nThe focused UI element is 30 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Streaming thinking + message",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container\n\t\t\t\t12 text 比较三个方案。\n\t\t\t\t13 container 用户消息操作\n\t\t\t\t\t14 button 复制提示词\n\t\t\t\t\t15 button (disabled) 重发消息\n\t\t\t16 container Agent 输出\n\t\t\t\t17 text Tonny\n\t\t\t18 container\n\t\t\t\t19 button 已完成思考\n\t\t\t\t20 text 我比较了价格、实施风险和支持覆盖。\n\t\t\t21 container\n\t\t\t\t22 text 方案 B 在成本和交付风险之间最平衡。\n\t\t\t\t23 container Agent 消息操作\n\t\t\t\t\t24 button 复制回复\n\t\t\t\t\t25 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t26 text entry area (settable)\n\t\t\t27 button 附加文件\n\t\t\t28 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t29 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t30 button (disabled) 发送\n\t\t31 button 展开右侧面板\n\t\t32 text 事件流(仅开发)\n\t\t33 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t34 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t35 menu\n\t\t\t\t36 (selected) 工作头像预览\n\t\t\t\t37 正在思考\n\t\t\t\t38 正在查阅\n\t\t\t\t39 正在修改\n\t\t\t\t40 正在执行\n\t\t\t\t41 正在回复\n\t\t\t\t42 等你确认\n\t\t\t\t43 结束 / 停止\n\nThe focused UI element is 33 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Tool approval + completion",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container\n\t\t\t\t12 text 创建仪表盘摘要文件。\n\t\t\t\t13 container 用户消息操作\n\t\t\t\t\t14 button 复制提示词\n\t\t\t\t\t15 button (disabled) 重发消息\n\t\t\t16 container Agent 输出\n\t\t\t\t17 text Tonny\n\t\t\t18 container\n\t\t\t\t19 text 修改文件：已完成 318ms\n\t\t\t\t20 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n\t\t\t21 container\n\t\t\t\t22 text 仪表盘摘要文件已准备好。已整理今日核心指标、异常趋势和待跟进事项，方便快速浏览支持团队的当前状态。下一步可以直接打开输出面板核对文件结构。\n\t\t\t\t23 container Agent 消息操作\n\t\t\t\t\t24 button 复制回复\n\t\t\t\t\t25 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t26 button dashboard.md 文件\n\t\t\t\t27 text dashboard.md\n\t\t\t\t28 text 文件\n\t\t\t29 text entry area (settable)\n\t\t\t30 button 附加文件\n\t\t\t31 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t32 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t33 button (disabled) 发送\n\t\t34 button 展开右侧面板\n\t\t35 text 事件流(仅开发)\n\t\t36 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t37 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t38 menu\n\t\t\t\t39 (selected) 工作头像预览\n\t\t\t\t40 正在思考\n\t\t\t\t41 正在查阅\n\t\t\t\t42 正在修改\n\t\t\t\t43 正在执行\n\t\t\t\t44 正在回复\n\t\t\t\t45 等你确认\n\t\t\t\t46 结束 / 停止\n\nThe focused UI element is 36 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "MCP success + interrupt",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container\n\t\t\t\t12 text 运行发布检查。\n\t\t\t\t13 container 用户消息操作\n\t\t\t\t\t14 button 复制提示词\n\t\t\t\t\t15 button (disabled) 重发消息\n\t\t\t\t16 container Agent 输出\n\t\t\t\t\t17 text Tonny\n\t\t\t\t18 button (collapsed) 1 项操作, Help: 查看操作详情, Secondary Actions: Expand\n\t\t\t\t19 text Publish the release.\n\t\t\t\t20 container 用户消息操作\n\t\t\t\t\t21 button 复制提示词\n\t\t\t\t\t22 button (disabled) 重发消息\n\t\t\t\t23 container Agent 输出\n\t\t\t\t\t24 text Tonny\n\t\t\t\t25 container\n\t\t\t\t\t26 text Publish production release · release-tools (MCP)：等待审批 {\n\t\t\t\t\t27 button (expanded) Description: Collapse tool, Secondary Actions: Collapse\n\t\t\t\t28 text 输入\n\t\t\t\t29 text {\n  \"environment\": \"production\"\n}\n\t\t\t30 container 工具审批操作\n\t\t\t\t31 text 需要权限\n\t\t\t\t32 text Approve publish?\n\t\t\t\t33 content list\n\t\t\t\t\t34 button 允许一次, Help: 仅允许这一次\n\t\t\t\t\t\t35 text 允许一次\n\t\t\t\t\t36 button 始终允许, Help: 此 Agent 以后使用该工具不再询问（受保护操作仍会询问）\n\t\t\t\t\t\t37 text 始终允许\n\t\t\t\t\t38 button 拒绝, Help: 这次先拒绝\n\t\t\t\t\t\t39 text 拒绝\n\t\t\t\t40 text 始终允许: 此 Agent 以后使用该工具不再询问（受保护操作仍会询问）\n\t\t\t41 text entry area (settable)\n\t\t\t42 button 附加文件\n\t\t\t43 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t44 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t45 button (disabled) 发送\n\t\t46 button 展开右侧面板\n\t\t47 text 事件流(仅开发)\n\t\t48 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t49 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t50 menu\n\t\t\t\t51 (selected) 工作头像预览\n\t\t\t\t52 正在思考\n\t\t\t\t53 正在查阅\n\t\t\t\t54 正在修改\n\t\t\t\t55 正在执行\n\t\t\t\t56 正在回复\n\t\t\t\t57 等你确认\n\t\t\t\t58 结束 / 停止\n\nThe focused UI element is 48 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Runtime boot + sync",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 container\n\t\t\t\t14 text runtime Runtime booting boot started\n\t\t\t15 container\n\t\t\t\t16 text runtime workspace sync hydrate\n\t\t\t17 container\n\t\t\t\t18 text runtime workspace sync 3/8\n\t\t\t19 container\n\t\t\t\t20 text runtime One optional resource was unavailable and was skipped.\n\t\t\t21 container\n\t\t\t\t22 text runtime workspace sync 8/8\n\t\t\t23 container\n\t\t\t\t24 text runtime Runtime ready boot completed\n\t\t\t25 text entry area (settable)\n\t\t\t26 button 附加文件\n\t\t\t27 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t28 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t29 button (disabled) 发送\n\t\t30 button 展开右侧面板\n\t\t31 text 事件流(仅开发)\n\t\t32 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t33 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t34 menu\n\t\t\t\t35 (selected) 工作头像预览\n\t\t\t\t36 正在思考\n\t\t\t\t37 正在查阅\n\t\t\t\t38 正在修改\n\t\t\t\t39 正在执行\n\t\t\t\t40 正在回复\n\t\t\t\t41 等你确认\n\t\t\t\t42 结束 / 停止\n\nThe focused UI element is 32 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Retrying incident",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container\n\t\t\t\t12 text Generate the launch brief.\n\t\t\t\t13 container 用户消息操作\n\t\t\t\t\t14 button 复制提示词\n\t\t\t\t\t15 button (disabled) 重发消息\n\t\t\t16 container Agent 输出\n\t\t\t\t17 text Tonny\n\t\t\t18 container\n\t\t\t\t19 text model_rate_limited_error The model provider is temporarily rate limited.\n\t\t\t20 container\n\t\t\t\t21 text session 已安排自动重试\n\t\t\t22 container\n\t\t\t\t23 text The launch brief is ready.\n\t\t\t\t24 container Agent 消息操作\n\t\t\t\t\t25 button 复制回复\n\t\t\t\t\t26 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t27 text entry area (settable)\n\t\t\t28 button 附加文件\n\t\t\t29 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t30 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t31 button (disabled) 发送\n\t\t32 button 展开右侧面板\n\t\t33 text 事件流(仅开发)\n\t\t34 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t35 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t36 menu\n\t\t\t\t37 (selected) 工作头像预览\n\t\t\t\t38 正在思考\n\t\t\t\t39 正在查阅\n\t\t\t\t40 正在修改\n\t\t\t\t41 正在执行\n\t\t\t\t42 正在回复\n\t\t\t\t43 等你确认\n\t\t\t\t44 结束 / 停止\n\nThe focused UI element is 34 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Exhausted incident",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container\n\t\t\t\t12 text Summarize the release risks.\n\t\t\t\t13 container 用户消息操作\n\t\t\t\t\t14 button 复制提示词\n\t\t\t\t\t15 button (disabled) 重发消息\n\t\t\t16 container Agent 输出\n\t\t\t\t17 text Tonny\n\t\t\t18 container\n\t\t\t\t19 text model_request_failed_error The model provider did not return a valid response after the allowed retries.\n\t\t\t20 container\n\t\t\t\t21 text retries_exhausted Retries exhausted\n\t\t\t22 text entry area (settable)\n\t\t\t23 button 附加文件\n\t\t\t24 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t25 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t26 button (disabled) 发送\n\t\t27 button 展开右侧面板\n\t\t28 text 事件流(仅开发)\n\t\t29 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t30 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t31 menu\n\t\t\t\t32 (selected) 工作头像预览\n\t\t\t\t33 正在思考\n\t\t\t\t34 正在查阅\n\t\t\t\t35 正在修改\n\t\t\t\t36 正在执行\n\t\t\t\t37 正在回复\n\t\t\t\t38 等你确认\n\t\t\t\t39 结束 / 停止\n\nThe focused UI element is 29 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Terminal incident",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 container\n\t\t\t\t14 text runtime_resume_unrecoverable_error The previous sandbox can no longer be resumed.\n\t\t\t15 container\n\t\t\t\t16 text session_terminated Session terminated\n\t\t\t17 text entry area (settable)\n\t\t\t18 button 附加文件\n\t\t\t19 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t20 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t21 button (disabled) 发送\n\t\t22 button 展开右侧面板\n\t\t23 text 事件流(仅开发)\n\t\t24 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t25 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t26 menu\n\t\t\t\t27 (selected) 工作头像预览\n\t\t\t\t28 正在思考\n\t\t\t\t29 正在查阅\n\t\t\t\t30 正在修改\n\t\t\t\t31 正在执行\n\t\t\t\t32 正在回复\n\t\t\t\t33 等你确认\n\t\t\t\t34 结束 / 停止\n\nThe focused UI element is 24 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    },
+    {
+      "name": "Config, spans, deletion",
+      "state": "Browser tab: 5, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:53923/?devtools=1\".\n1 AXWebArea RaytoneBot, URL: 127.0.0.1:53923/?devtools=1\n\t2 container\n\t\t3 button (collapsed) Description: 展开侧边栏, Secondary Actions: Expand\n\t\t4 container\n\t\t\t5 container\n\t\t\t\t6 text 成员\n\t\t\t\t7 checkbox Raer, Value: 1\n\t\t\t\t8 checkbox (disabled) Tonny, Value: 1\n\t\t\t\t9 checkbox Bob, Value: 0\n\t\t\t\t10 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t11 container Agent 输出\n\t\t\t\t12 text Tonny\n\t\t\t13 container\n\t\t\t\t14 text config Config updated (rev 2) tool_permission_mode, skill_refs\n\t\t\t15 container\n\t\t\t\t16 text runtime 上下文已压缩 91842 → 28400 tokens\n\t\t\t17 container\n\t\t\t\t18 text model Model claude-sonnet-4-20250514 anthropic\n\t\t\t19 container\n\t\t\t\t20 text session Session 已删除\n\t\t\t21 text entry area (settable)\n\t\t\t22 button 附加文件\n\t\t\t23 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t24 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t25 button (disabled) 发送\n\t\t26 button 展开右侧面板\n\t\t27 text 事件流(仅开发)\n\t\t28 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand\n\t\t29 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t30 menu\n\t\t\t\t31 (selected) 工作头像预览\n\t\t\t\t32 正在思考\n\t\t\t\t33 正在查阅\n\t\t\t\t34 正在修改\n\t\t\t\t35 正在执行\n\t\t\t\t36 正在回复\n\t\t\t\t37 等你确认\n\t\t\t\t38 结束 / 停止\n\nThe focused UI element is 28 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_c_, Secondary Actions: Expand",
+      "metrics": {
+        "chatPresent": true,
+        "scrollWidth": 390,
+        "width": 390
+      }
+    }
+  ],
+  "logs": []
+}

@@ -485,9 +485,10 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
 }
 
 /** Group chat: the welcome area of a group that has no messages yet — who is in it, and who to add. */
-export function GroupWelcome({ avatars, members, onChange }: {
+export function GroupWelcome({ avatars, members, hostId, onChange }: {
   avatars: Record<AgentPresetId, AvatarKind>;
   members: readonly string[];
+  hostId?: string;
   onChange: (members: string[]) => void | Promise<void>;
 }) {
   const { locale } = useLocale();
@@ -498,7 +499,7 @@ export function GroupWelcome({ avatars, members, onChange }: {
       <span aria-hidden="true"><GroupFace size={76} kinds={members.map(m => avatars[candidates.find(bot => bot.id === m)!.presetId])} /></span>
       <h2 className="composer-greeting-text" style={{ margin: 0 }}>{groupRosterTitle(members.map(m => botNames[m]), locale)}</h2>
       <p style={{ margin: 0, opacity: 0.6, fontSize: 14 }}>{featureText(locale, "Select members to start a conversation.")}</p>
-      <GroupHeader avatars={avatars} members={members} draft onChange={onChange} />
+      <GroupHeader avatars={avatars} members={members} hostId={hostId} draft onChange={onChange} />
     </div>
   );
 }
