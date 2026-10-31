@@ -1,0 +1,13 @@
+{
+  "baseline": "21a5f07",
+  "fields": [
+    "groupHostId",
+    "groupTyping",
+    "welcomeGroup",
+    "headerAgent",
+    "composerMentions",
+    "composerPlaceholder"
+  ],
+  "liveExpressionsIdentical": true,
+  "remainingShellSyntaxIdentical": true
+}

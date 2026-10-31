@@ -1,0 +1,173 @@
+{
+  "identity": {
+    "welcome": "Browser tab: 16, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:52647/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 65-67, 69-72, 76-80\n~\t\t\t63 heading 我、Archivist、Raer, Value: 2\n~\t\t\t\t64 text 我、Archivist、Raer\n+\t\t\t65 text 选择成员，开始对话。 成员\n+\t\t\t66 checkbox (disabled) Raer, Value: 1\n+\t\t\t67 checkbox Tonny, Value: 0\n~\t\t\t68 checkbox Bob, Value: 0\n+\t\t\t69 checkbox Archivist, Value: 1\n+\t\t\t70 text entry area (settable)\n+\t\t\t71 button 附加文件\n+\t\t\t72 pop up button (collapsed) Description: 引用对话, ID: radix-_r_6_, Secondary Actions: Expand\n~\t\t\t73 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n~\t\t\t74 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n~\t\t\t75 button (disabled) 发送\nThe focused UI element is 43 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_d_, Secondary Actions: Expand",
+    "originalPathFixed": "Browser tab: 16, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:52647/?devtools=1\".\n0 AXWebArea RaytoneBot, URL: 127.0.0.1:52647/?devtools=1\n\t1 container\n\t\t2 container 会话历史\n\t\t\t3 container\n\t\t\t\t4 image 我的Agent\n\t\t\t\t5 button (collapsed) Description: 搜索对话, Help: 搜索对话 (⌘K / Ctrl+K), Secondary Actions: Expand\n\t\t\t\t6 button 收起侧边栏\n\t\t\t7 container Agent\n\t\t\t\t8 heading Agent, Value: 4\n\t\t\t\t\t9 text Agent\n\t\t\t\t10 button Raer Pi, Help: 和这个 Agent 开始新对话。\n\t\t\t\t\t11 text Raer\n\t\t\t\t\t12 text Pi\n\t\t\t\t13 button Tonny Claude Code, Help: 和这个 Agent 开始新对话。\n\t\t\t\t\t14 text Tonny\n\t\t\t\t\t15 text Claude Code\n\t\t\t\t16 button Bob Codex CLI, Help: 和这个 Agent 开始新对话。\n\t\t\t\t\t17 text Bob\n\t\t\t\t\t18 text Codex CLI\n\t\t\t19 button (expanded) 聊天记录, Secondary Actions: Collapse\n\t\t\t20 container\n\t\t\t\t21 button (expanded) 群聊 1, Secondary Actions: Collapse\n\t\t\t\t\t22 text 群聊\n\t\t\t\t\t23 text 1\n\t\t\t\t24 button Historical group\n\t\t\t25 container\n\t\t\t\t26 button 设置\n\t\t\t\t27 text v0.1.0\n\t\t28 container\n\t\t\t29 heading 编码 Agent, Value: 2\n\t\t\t\t30 text 编码 Agent\n\t\t\t31 container\n\t\t\t\t32 text Add input validation to the search box, then show me the patch.\n\t\t\t\t33 container 用户消息操作\n\t\t\t\t\t34 button 复制提示词\n\t\t\t\t\t35 button (disabled) 重发消息\n\t\t\t36 container\n\t\t\t\t37 button 已完成思考\n\t\t\t\t38 text Read the current SearchInput, then add a validity check and loading state before wiring the request.\n\t\t\t39 container\n\t\t\t\t40 text 编辑文件：已完成\n\t\t\t\t41 button (collapsed) Description: Expand tool, Secondary Actions: Expand\n\t\t\t42 container\n\t\t\t\t43 text Validation and loading state added. The search button is disabled for invalid input and a spinner shows while results load.\n\t\t\t\t44 container Agent 消息操作\n\t\t\t\t\t45 button 复制回复\n\t\t\t\t\t46 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t47 button SearchInput.tsx 文件\n\t\t\t\t48 text SearchInput.tsx\n\t\t\t\t49 text 文件\n\t\t\t50 text entry area (settable)\n\t\t\t51 button 附加文件\n\t\t\t52 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t53 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t54 button (disabled) 发送\n\t\t55 button 展开右侧面板\n\t\t56 text 事件流(仅开发)\n\t\t57 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_d_, Secondary Actions: Expand\n\t\t58 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t59 menu\n\t\t\t\t60 (selected) 工作头像预览\n\t\t\t\t61 正在思考\n\t\t\t\t62 正在查阅\n\t\t\t\t63 正在修改\n\t\t\t\t64 正在执行\n\t\t\t\t65 正在回复\n\t\t\t\t66 等你确认\n\t\t\t\t67 结束 / 停止\n\nThe focused UI element is 57 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_d_, Secondary Actions: Expand",
+    "groupFixtureAuthors": "Browser tab: 16, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:52647/?devtools=1\".\n0 AXWebArea RaytoneBot, URL: 127.0.0.1:52647/?devtools=1\n\t1 container\n\t\t2 container 会话历史\n\t\t\t3 container\n\t\t\t\t4 image 我的Agent\n\t\t\t\t5 button (collapsed) Description: 搜索对话, Help: 搜索对话 (⌘K / Ctrl+K), Secondary Actions: Expand\n\t\t\t\t6 button 收起侧边栏\n\t\t\t7 container Agent\n\t\t\t\t8 heading Agent, Value: 4\n\t\t\t\t\t9 text Agent\n\t\t\t\t10 button Raer Pi, Help: 和这个 Agent 开始新对话。\n\t\t\t\t\t11 text Raer\n\t\t\t\t\t12 text Pi\n\t\t\t\t13 button Tonny Claude Code, Help: 和这个 Agent 开始新对话。\n\t\t\t\t\t14 text Tonny\n\t\t\t\t\t15 text Claude Code\n\t\t\t\t16 button Bob Codex CLI, Help: 和这个 Agent 开始新对话。\n\t\t\t\t\t17 text Bob\n\t\t\t\t\t18 text Codex CLI\n\t\t\t19 button (expanded) 聊天记录, Secondary Actions: Collapse\n\t\t\t20 container\n\t\t\t\t21 button (expanded) 群聊 1, Secondary Actions: Collapse\n\t\t\t\t\t22 text 群聊\n\t\t\t\t\t23 text 1\n\t\t\t\t24 button Historical group\n\t\t\t25 container\n\t\t\t\t26 button 设置\n\t\t\t\t27 text v0.1.0\n\t\t28 container\n\t\t\t29 heading 编码 Agent, Value: 2\n\t\t\t\t30 text 编码 Agent\n\t\t\t31 container\n\t\t\t\t32 text 大家看一下附件里的网页方案，Tonny 先评审，Bob 再实现。\n\t\t\t\t33 container 用户消息操作\n\t\t\t\t\t34 button 复制提示词\n\t\t\t\t\t35 button (disabled) 重发消息\n\t\t\t\t36 container Agent 输出\n\t\t\t\t\t37 text Raer\n\t\t\t\t38 text 我会协调评审和实现，并回收结果。\n\t\t\t\t39 container Agent 消息操作\n\t\t\t\t\t40 button 复制回复\n\t\t\t\t\t41 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t\t42 container Agent 输出\n\t\t\t\t\t43 text Tonny\n\t\t\t\t44 text 方案已检查：先完成交互，再验证窄屏。\n\t\t\t\t45 container Agent 消息操作\n\t\t\t\t\t46 button 复制回复\n\t\t\t\t\t47 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t\t48 container Agent 输出\n\t\t\t\t\t49 text Bob\n\t\t\t\t50 text 已完成实现并通过检查。\n\t\t\t\t51 container Agent 消息操作\n\t\t\t\t\t52 button 复制回复\n\t\t\t\t\t53 button (disabled) 在新分支中重新生成（保留已写文件）\n\t\t\t54 text entry area (settable)\n\t\t\t55 button 附加文件\n\t\t\t56 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t57 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t58 button (disabled) 发送\n\t\t59 button 展开右侧面板\n\t\t60 text 事件流(仅开发)\n\t\t61 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_d_, Secondary Actions: Expand\n\t\t62 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t63 menu\n\t\t\t\t64 (selected) 工作头像预览\n\t\t\t\t65 正在思考\n\t\t\t\t66 正在查阅\n\t\t\t\t67 正在修改\n\t\t\t\t68 正在执行\n\t\t\t\t69 正在回复\n\t\t\t\t70 等你确认\n\t\t\t\t71 结束 / 停止\n\nThe focused UI element is 61 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_d_, Secondary Actions: Expand",
+    "hostSecond": "Browser tab: 16, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:52647/?devtools=1\".\n0 AXWebArea RaytoneBot, URL: 127.0.0.1:52647/?devtools=1\n\t1 container\n\t\t2 container\n\t\t\t3 container 会话历史\n\t\t\t\t4 container\n\t\t\t\t\t5 button 创建 Bot\n\t\t\t\t\t\t6 image 我的Agent\n\t\t\t\t\t7 button (collapsed) Description: 搜索对话, Help: 搜索对话 (⌘K / Ctrl+K), Secondary Actions: Expand\n\t\t\t\t\t8 button 收起侧边栏\n\t\t\t\t9 container Agent\n\t\t\t\t\t10 heading Agent, Value: 4\n\t\t\t\t\t\t11 text Agent\n\t\t\t\t\t12 container\n\t\t\t\t\t\t13 button Raer Pi, Help: 点击聊天，右键编辑 Bot\n\t\t\t\t\t\t\t14 text Raer\n\t\t\t\t\t\t\t15 text Pi\n\t\t\t\t\t\t16 button 编辑 Raer\n\t\t\t\t\t17 container\n\t\t\t\t\t\t18 button Tonny Claude Code, Help: 点击聊天，右键编辑 Bot\n\t\t\t\t\t\t\t19 text Tonny\n\t\t\t\t\t\t\t20 text Claude Code\n\t\t\t\t\t\t21 button 编辑 Tonny\n\t\t\t\t\t22 container\n\t\t\t\t\t\t23 button Bob Codex CLI, Help: 点击聊天，右键编辑 Bot\n\t\t\t\t\t\t\t24 text Bob\n\t\t\t\t\t\t\t25 text Codex CLI\n\t\t\t\t\t\t26 button 编辑 Bob\n\t\t\t\t27 button (expanded) 聊天记录, Secondary Actions: Collapse\n\t\t\t\t28 container\n\t\t\t\t\t29 button (expanded) 群聊 1, Secondary Actions: Collapse\n\t\t\t\t\t\t30 text 群聊\n\t\t\t\t\t\t31 text 1\n\t\t\t\t\t32 container\n\t\t\t\t\t\t33 button Historical group\n\t\t\t\t\t\t34 button Description: 删除对话: Historical group, Help: 删除对话\n\t\t\t\t\t\t35 button Description: 重命名对话: Historical group, Help: 重命名对话\n\t\t\t\t36 container\n\t\t\t\t\t37 button 设置\n\t\t\t\t\t38 text v0.1.0\n\t\t\t39 container\n\t\t\t\t40 container\n\t\t\t\t\t41 pop up button (expanded) 我、Archivist、Raer 3 位成员, Help: 我、Archivist、Raer, Secondary Actions: Collapse\n\t\t\t\t\t\t42 text 我、Archivist、Raer\n\t\t\t\t\t\t43 text 3 位成员\n\t\t\t\t\t44 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n\t\t\t\t45 container\n\t\t\t\t\t46 text Historical identity display check\n\t\t\t\t\t47 container 用户消息操作\n\t\t\t\t\t\t48 button 复制提示词\n\t\t\t\t\t\t49 button 重发消息\n\t\t\t\t50 text entry area (settable)\n\t\t\t\t51 button 附加文件\n\t\t\t\t52 pop up button (collapsed) Description: 引用对话, ID: radix-_r_30_, Secondary Actions: Expand\n\t\t\t\t53 button 工作区文件\n\t\t\t\t54 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n\t\t\t\t55 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n\t\t\t\t56 button (disabled) 发送\n\t\t\t57 button 展开右侧面板\n\t\t\t58 text 事件流(仅开发)\n\t\t\t59 pop up button (collapsed) Description: 选择事件流, ID: radix-_r_d_, Secondary Actions: Expand\n\t\t\t60 pop up button (collapsed, settable) Description: 工作头像预览, Secondary Actions: Expand\n\t\t\t\t61 menu\n\t\t\t\t\t62 (selected) 工作头像预览\n\t\t\t\t\t63 正在思考\n\t\t\t\t\t64 正在查阅\n\t\t\t\t\t65 正在修改\n\t\t\t\t\t66 正在执行\n\t\t\t\t\t67 正在回复\n\t\t\t\t\t68 等你确认\n\t\t\t\t\t69 结束 / 停止\n\t\t70 container radix-_r_2s_\n\t\t\t71 text 聊天成员\n\t\t\t72 text 我\n\t\t\t73 text 你\n\t\t\t74 checkbox (disabled) Raer 助手 在群里, Value: 1\n\t\t\t\t75 text Raer 助手 在群里\n\t\t\t76 checkbox Tonny 规划 已移出, Value: 0\n\t\t\t\t77 text Tonny\n\t\t\t\t78 text 规划\n\t\t\t\t79 text 已移出\n\t\t\t80 checkbox Bob 实施 已移出, Value: 0\n\t\t\t\t81 text Bob\n\t\t\t\t82 text 实施\n\t\t\t\t83 text 已移出\n\t\t\t84 checkbox Archivist 规划 在群里, Value: 1\n\t\t\t\t85 text Archivist\n\t\t\t\t86 text 规划\n\t\t\t\t87 text 在群里\n\nThe focused UI element is 76 checkbox Tonny 规划 已移出, Value: 0",
+    "mention": "Browser tab: 16, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:52647/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 49\n+\t\t\t69 container\n+\t\t\t\t70 text entry area (settable) @A\n+\t\t\t\t71 list Description: 群成员, ID: composer-mentions\n+\t\t\t\t\t72 (selected) Value: Archivist 规划, ID: composer-mention-bot_01234567-89ab-cdef-0123-456789abcdef\n~\t\t\t55 button 发送\nThe focused UI element is 70 text entry area (settable) @A",
+    "reopenAfterRefresh": "Browser tab: 16, Title: \"RaytoneBot\", URL: \"http://127.0.0.1:52647/?devtools=1\".\nThe following is a diff from the previous accessibility tree with ~ and + representing changed and added elements, respectively. Removed elements are summarized by ID range.\nRemoved element IDs: 34-42\n+\t\t63 container\n+\t\t\t64 container\n+\t\t\t\t65 pop up button (collapsed) 我、Archivist、Raer 3 位成员, Help: 我、Archivist、Raer, Secondary Actions: Expand\n+\t\t\t\t\t66 text 我、Archivist、Raer\n+\t\t\t\t\t67 text 3 位成员\n+\t\t\t\t68 pop up button (collapsed) Description: 添加 Agent, Help: 添加 Agent 到聊天, Secondary Actions: Expand\n+\t\t\t69 container\n+\t\t\t\t70 text Historical identity display check\n+\t\t\t\t71 container 用户消息操作\n+\t\t\t\t\t72 button 复制提示词\n+\t\t\t\t\t73 button 重发消息\n+\t\t\t74 text entry area (settable)\n+\t\t\t75 button 附加文件\n+\t\t\t76 pop up button (collapsed) Description: 引用对话, ID: radix-_r_6_, Secondary Actions: Expand\n+\t\t\t77 button 工作区文件\n+\t\t\t78 pop up button (collapsed) Description: 审批权限, ID: radix-_r_8_, Secondary Actions: Expand\n+\t\t\t79 pop up button (collapsed) Description: 思考预算, ID: radix-_r_a_, Secondary Actions: Expand\n+\t\t\t80 button (disabled) 发送\n+\t\t81 button 展开右侧面板\nThe focused UI element is 60 button Historical group"
+  },
+  "cases": [
+    {
+      "label": "欢迎页(无事件)",
+      "body": "我、Archivist、Raer\n\n选择成员，开始对话。\n\n成员\nRaer\nTonny\nBob\nArchivist\n发送\n事件流(仅开发)\n欢迎页(无事件)\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "\n    \n    \n    \n    \n  \n    \n    \n  \n    \n  \n    \n    \n    \n    \n  \n    \n    \n  \n    \n  我、Archivist、Raer3 位成员未加载回放事件",
+      "placeholder": "发到群里…（输入 @ 选择成员）",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Built-in demo",
+      "body": "编码 Agent\n\nAdd input validation to the search box, then show me the patch.\n\n已完成思考\n\nRead the current SearchInput, then add a validity check and loading state before wiring the request.\n\n编辑文件：已完成\n\nValidation and loading state added. The search button is disabled for invalid input and a spinner shows while results load.\n\nSearchInput.tsx\n文件\n打开\n发送\n事件流(仅开发)\nBuilt-in demo\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\nAdd input validation to the search box, then show me the patch.\n\n已完成思考\n\nRead the current SearchInput, then add a validity check and loading state before wiring the request.\n\n编辑文件：已完成\n\nValidation and loading state added. The search button is disabled for invalid input and a spinner shows while results load.\n\nSearchInput.tsx\n文件\n打开",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Group chat",
+      "body": "编码 Agent\n\n大家看一下附件里的网页方案，Tonny 先评审，Bob 再实现。\n\nRaer\n\n我会协调评审和实现，并回收结果。\n\nTonny\n\n方案已检查：先完成交互，再验证窄屏。\n\nBob\n\n已完成实现并通过检查。\n\n发送\n事件流(仅开发)\nGroup chat\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\n大家看一下附件里的网页方案，Tonny 先评审，Bob 再实现。\n\nRaer\n\n我会协调评审和实现，并回收结果。\n\nTonny\n\n方案已检查：先完成交互，再验证窄屏。\n\nBob\n\n已完成实现并通过检查。",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Coding agent",
+      "body": "编码 Agent\n已完成思考\n\nPlanning changes and checking the current SearchInput implementation before editing.\n\n1 项操作\n编辑文件：已完成\n\nValidation and loading state added. The search button is disabled for invalid input and a spinner shows while results are loading.\n\nSearchInput.tsx\n文件\n打开\n发送\n事件流(仅开发)\nCoding agent\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n已完成思考\n\nPlanning changes and checking the current SearchInput implementation before editing.\n\n1 项操作\n编辑文件：已完成\n\nValidation and loading state added. The search button is disabled for invalid input and a spinner shows while results are loading.\n\nSearchInput.tsx\n文件\n打开",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Reasoning kinds",
+      "body": "编码 Agent\n已完成思考\n\nPublic summary can be shown in ordinary reasoning mode.\n\n思考中\n思考中\n发送\n事件流(仅开发)\nReasoning kinds\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n已完成思考\n\nPublic summary can be shown in ordinary reasoning mode.\n\n思考中\n思考中",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Tool approval",
+      "body": "编码 Agent\n移除临时缓存：等待审批\nrm -rf .agent/tmp-cache\n输入\nrm -rf .agent/tmp-cache\nFetch release metadata：已完成\n200 OK · v1.8.0\n需要权限\n递归移除 .agent/tmp-cache？\n允许一次\n始终允许\n拒绝\ni\n始终允许: 此 Agent 以后使用该工具不再询问（受保护操作仍会询问）\n发送\n事件流(仅开发)\nTool approval\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n移除临时缓存：等待审批\nrm -rf .agent/tmp-cache\n输入\nrm -rf .agent/tmp-cache\nFetch release metadata：已完成\n200 OK · v1.8.0",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Error block",
+      "body": "编码 Agent\nE_WRITE_FILE\n\nEACCES: permission denied, open /repo/src/SearchInput.tsx\n\n发送\n事件流(仅开发)\nError block\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\nE_WRITE_FILE\n\nEACCES: permission denied, open /repo/src/SearchInput.tsx",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Artifact action",
+      "body": "编码 Agent\nContact action form\n文件\n打开\n发送\n事件流(仅开发)\nArtifact action\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\nContact action form\n文件\n打开",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Capability tray",
+      "body": "能力\n\nAgentUX 能力事件\n\nFilesystem\n\nFilesystem tools and allowed-root descriptors available to this run.\n\n3\n今天想让我帮你做些什么？\n发送\n事件流(仅开发)\nCapability tray\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent模拟对话未加载回放事件",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "HTML artifact stream",
+      "body": "编码 Agent\n\nWriting a comparison page you can open in the output panel.\n\n修改文件：准备参数\n正在修改\ncompare-plans.html\n发送\n事件流(仅开发)\nHTML artifact stream\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\nWriting a comparison page you can open in the output panel.\n\n修改文件：准备参数\n正在修改\ncompare-plans.html",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Basic text",
+      "body": "编码 Agent\n\nHello world\n\n发送\n事件流(仅开发)\nBasic text\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\nHello world",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Normal turn",
+      "body": "编码 Agent\n\n你都有什么功能？\n\n我可以回答问题、总结信息，并起草清晰内容。 我可以查看文件、解释代码，并协助规划或应用修改。 我可以跟踪任务、提示错误，并在完成后展示输出或产物。\n\n发送\n事件流(仅开发)\nNormal turn\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\n你都有什么功能？\n\n我可以回答问题、总结信息，并起草清晰内容。 我可以查看文件、解释代码，并协助规划或应用修改。 我可以跟踪任务、提示错误，并在完成后展示输出或产物。",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Streaming thinking + message",
+      "body": "编码 Agent\n\n比较三个方案。\n\n已完成思考\n\n我比较了价格、实施风险和支持覆盖。\n\n方案 B 在成本和交付风险之间最平衡。\n\n发送\n事件流(仅开发)\nStreaming thinking + message\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\n比较三个方案。\n\n已完成思考\n\n我比较了价格、实施风险和支持覆盖。\n\n方案 B 在成本和交付风险之间最平衡。",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Tool approval + completion",
+      "body": "编码 Agent\n\n创建仪表盘摘要文件。\n\n修改文件：已完成\n318ms\n\n仪表盘摘要文件已准备好。已整理今日核心指标、异常趋势和待跟进事项，方便快速浏览支持团队的当前状态。下一步可以直接打开输出面板核对文件结构。\n\ndashboard.md\n文件\n打开\n发送\n事件流(仅开发)\nTool approval + completion\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\n创建仪表盘摘要文件。\n\n修改文件：已完成\n318ms\n\n仪表盘摘要文件已准备好。已整理今日核心指标、异常趋势和待跟进事项，方便快速浏览支持团队的当前状态。下一步可以直接打开输出面板核对文件结构。\n\ndashboard.md\n文件\n打开",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "MCP success + interrupt",
+      "body": "编码 Agent\n\n运行发布检查。\n\n1 项操作\n\nPublish the release.\n\nPublish production release · release-tools (MCP)：等待审批\n{\n输入\n{\n  \"environment\": \"production\"\n}\n需要权限\nApprove publish?\n允许一次\n始终允许\n拒绝\ni\n始终允许: 此 Agent 以后使用该工具不再询问（受保护操作仍会询问）\n发送\n事件流(仅开发)\nMCP success + interrupt\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\n运行发布检查。\n\n1 项操作\n\nPublish the release.\n\nPublish production release · release-tools (MCP)：等待审批\n{\n输入\n{\n  \"environment\": \"production\"\n}",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Runtime boot + sync",
+      "body": "编码 Agent\nruntime\nRuntime booting\n\nboot started\n\nruntime\nworkspace sync\n\nhydrate\n\nruntime\nworkspace sync\n\n3/8\n\nruntime\nOne optional resource was unavailable and was skipped.\nruntime\nworkspace sync\n\n8/8\n\nruntime\nRuntime ready\n\nboot completed\n\n发送\n事件流(仅开发)\nRuntime boot + sync\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\nruntime\nRuntime booting\n\nboot started\n\nruntime\nworkspace sync\n\nhydrate\n\nruntime\nworkspace sync\n\n3/8\n\nruntime\nOne optional resource was unavailable and was skipped.\nruntime\nworkspace sync\n\n8/8\n\nruntime\nRuntime ready\n\nboot completed",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Retrying incident",
+      "body": "编码 Agent\n\nGenerate the launch brief.\n\nmodel_rate_limited_error\n\nThe model provider is temporarily rate limited.\n\nsession\n已安排自动重试\n\nThe launch brief is ready.\n\n发送\n事件流(仅开发)\nRetrying incident\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\nGenerate the launch brief.\n\nmodel_rate_limited_error\n\nThe model provider is temporarily rate limited.\n\nsession\n已安排自动重试\n\nThe launch brief is ready.",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Exhausted incident",
+      "body": "编码 Agent\n\nSummarize the release risks.\n\nmodel_request_failed_error\n\nThe model provider did not return a valid response after the allowed retries.\n\nretries_exhausted\n\nRetries exhausted\n\n发送\n事件流(仅开发)\nExhausted incident\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\n\nSummarize the release risks.\n\nmodel_request_failed_error\n\nThe model provider did not return a valid response after the allowed retries.\n\nretries_exhausted\n\nRetries exhausted",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Terminal incident",
+      "body": "编码 Agent\nruntime_resume_unrecoverable_error\n\nThe previous sandbox can no longer be resumed.\n\nsession_terminated\n\nSession terminated\n\n发送\n事件流(仅开发)\nTerminal incident\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\nruntime_resume_unrecoverable_error\n\nThe previous sandbox can no longer be resumed.\n\nsession_terminated\n\nSession terminated",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    },
+    {
+      "label": "Config, spans, deletion",
+      "body": "编码 Agent\nconfig\nConfig updated (rev 2)\n\ntool_permission_mode, skill_refs\n\nruntime\n上下文已压缩\n\n91842 → 28400 tokens\n\nmodel\nModel claude-sonnet-4-20250514\n\nanthropic\n\nsession\nSession 已删除\n发送\n事件流(仅开发)\nConfig, spans, deletion\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+      "chat": "编码 Agent\nconfig\nConfig updated (rev 2)\n\ntool_permission_mode, skill_refs\n\nruntime\n上下文已压缩\n\n91842 → 28400 tokens\n\nmodel\nModel claude-sonnet-4-20250514\n\nanthropic\n\nsession\nSession 已删除",
+      "placeholder": "我今天能帮你做些什么？",
+      "scrollWidth": 390,
+      "width": 390
+    }
+  ],
+  "logs": []
+}

@@ -350,6 +350,17 @@ export function useBotNames(): Record<string, string> {
   return Object.fromEntries(useGroupBots().map(bot => [bot.id, bot.name]));
 }
 
+function groupMemberAvatarKinds(
+  members: readonly string[],
+  candidates: readonly { id: string; presetId: AgentPresetId }[],
+  avatars: Record<AgentPresetId, AvatarKind>,
+): AvatarKind[] {
+  return members.flatMap(member => {
+    const bot = candidates.find(candidate => candidate.id === member);
+    return bot ? [avatars[bot.presetId]] : [];
+  });
+}
+
 /** Invite from the conversation header; the existing participants stay selected. */
 export function NewChatMenu({ avatars, members, onNewGroup }: {
   avatars: Record<AgentPresetId, AvatarKind>;
@@ -434,7 +445,7 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
     setPending(true); setError(undefined);
     try { await onChange(next); } catch (error) { setError(featureError(locale, error)); } finally { setPending(false); }
   };
-  const names = groupRosterTitle(members.map(m => botNames[m]), locale);
+  const names = groupRosterTitle(members.map(m => botNames[m] ?? m), locale);
   if (draft) {
     return (
       <div className="shell-member-picker">
@@ -451,7 +462,7 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
     <RadixPopover.Root>
       <RadixPopover.Trigger asChild>
         <button type="button" className="shell-header-agent shell-header-compact" title={names}>
-          <GroupFace size={34} kinds={members.map(m => avatars[candidates.find(bot => bot.id === m)!.presetId])} />
+          <GroupFace size={34} kinds={groupMemberAvatarKinds(members, candidates, avatars)} />
           <span className="shell-header-text">
             <strong>{names}</strong>
             <span>{featureText(locale, "Members: {count}", { count: members.length + 1 })}</span>
@@ -496,8 +507,8 @@ export function GroupWelcome({ avatars, members, hostId, onChange }: {
   const botNames = useBotNames();
   return (
     <div className="composer-greeting" style={{ flexDirection: "column", alignItems: "center", gap: 14, textAlign: "center" }}>
-      <span aria-hidden="true"><GroupFace size={76} kinds={members.map(m => avatars[candidates.find(bot => bot.id === m)!.presetId])} /></span>
-      <h2 className="composer-greeting-text" style={{ margin: 0 }}>{groupRosterTitle(members.map(m => botNames[m]), locale)}</h2>
+      <span aria-hidden="true"><GroupFace size={76} kinds={groupMemberAvatarKinds(members, candidates, avatars)} /></span>
+      <h2 className="composer-greeting-text" style={{ margin: 0 }}>{groupRosterTitle(members.map(m => botNames[m] ?? m), locale)}</h2>
       <p style={{ margin: 0, opacity: 0.6, fontSize: 14 }}>{featureText(locale, "Select members to start a conversation.")}</p>
       <GroupHeader avatars={avatars} members={members} hostId={hostId} draft onChange={onChange} />
     </div>

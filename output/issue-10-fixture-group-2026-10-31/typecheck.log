@@ -1,0 +1,8 @@
+
+> raytonebot@0.1.0 typecheck
+> tsc --noEmit
+
+src/runtime/shellGroup.test.ts(22,121): error TS2769: No overload matches this call.
+  The last overload gave the following error.
+    Argument of type '{ value: ShellExtras; }' is not assignable to parameter of type 'Attributes & { value: ShellExtras; children: ReactNode; }'.
+      Property 'children' is missing in type '{ value: ShellExtras; }' but required in type '{ value: ShellExtras; children: ReactNode; }'.

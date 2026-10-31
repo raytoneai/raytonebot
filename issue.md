@@ -340,16 +340,21 @@ copy) as credentials: keep them private, and delete the profile from a backup be
 
 ## 10. Custom group members can crash the development fixture view
 
-**Status:** open, reproduced locally on 2026-10-31 before and after the Bot-resolution extraction.
+**Status:** fixed locally on 2026-10-31; not deployed.
 
-With `?devtools=1`, open a saved group containing a historical custom Bot, select the welcome
-fixture, then Built-in demo. `GroupHeader` still receives the custom member ID, while fixture
-mode omits `shellExtras.bots` and `useGroupBots()` falls back to built-in presets. Its unchecked
-`candidates.find(...)!.presetId` access throws. Ordinary fixture entry and the live historical
-group display both work separately.
+With `?devtools=1`, opening a saved group containing a historical custom Bot, selecting the
+welcome fixture, then Built-in demo crashed. `GroupHeader` received the custom member ID,
+while fixture mode omitted `shellExtras.bots` and `useGroupBots()` fell back to built-in presets.
+Its unchecked `candidates.find(...)!.presetId` access threw. Ordinary fixture entry and the
+live historical group display worked separately.
 
-The pre-extraction shell at `14daa5a` reproduces the same failure. This cleanup preserves
-behavior and does not change GroupHeader or the session/stream state machines. A separate fix
-should make the fixture's member list and Bot catalog consistent, with coverage for unknown
-member IDs. [Reproduction and baseline evidence](output/slimming-shell-pure-2026-10-31/README.md).
+The pre-extraction shell at `14daa5a` reproduced the same failure; the cleanup left it for a
+separate fix. [Original evidence](output/slimming-shell-pure-2026-10-31/README.md).
+
+Fixture streams now omit live group/header/composer overrides and use the existing components'
+defaults. GroupHeader and GroupWelcome also tolerate missing catalog entries: names fall back
+to IDs and avatars use only resolved members. Live expressions and session/stream state
+machines remain unchanged. Component regression tests, the original browser path, return to
+history, host protection and all 20 development scenarios passed.
+[Fix and verification](output/issue-10-fixture-group-2026-10-31/README.md).
 

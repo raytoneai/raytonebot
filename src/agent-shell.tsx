@@ -1479,9 +1479,9 @@ export function AgentApp() {
         groupActive={isGroupConversation(activePiConversation)}
       />
     ),
-    groupHostId: isGroupConversation(activePiConversation) ? activePiConversation.groupHostId ?? "assistant" : undefined,
-    groupTyping: runningConversationIds.has(activePiConversationId) ? groupTyping : undefined,
-    welcomeGroup: isGroupConversation(activePiConversation) ? (
+    groupHostId: streamId ? undefined : isGroupConversation(activePiConversation) ? activePiConversation.groupHostId ?? "assistant" : undefined,
+    groupTyping: !streamId && runningConversationIds.has(activePiConversationId) ? groupTyping : undefined,
+    welcomeGroup: !streamId && isGroupConversation(activePiConversation) ? (
       <GroupWelcome avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)} hostId={activePiConversation.groupHostId}
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
     ) : undefined,
@@ -1490,7 +1490,7 @@ export function AgentApp() {
       id => presetBot(id).name, id => BOT_NAMES[presetBot(id).presetId]),
     groupFaces: groupConversationFaces(piConversations, PRESET_AVATARS, id => presetBot(id).presetId),
     sidebarFooter: <SidebarFooter onOpenSettings={() => openSettings("providers")} />,
-    headerAgent: <div className="shell-chat-participants">{isGroupConversation(activePiConversation) ? (
+    headerAgent: streamId ? undefined : <div className="shell-chat-participants">{isGroupConversation(activePiConversation) ? (
       <GroupHeader avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)} hostId={activePiConversation.groupHostId}
         draft={activePiConversation.events.length === 0 && !activePiConversation.stored}
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
@@ -1526,10 +1526,10 @@ export function AgentApp() {
       )),
     ),
     historyGroups,
-    composerMentions: isGroupConversation(activePiConversation)
+    composerMentions: !streamId && isGroupConversation(activePiConversation)
       ? groupMembersOf(activePiConversation).map((id) => ({ id, presetId: presetBot(id).presetId, name: presetBot(id).name, handle: presetBot(id).name, kind: PRESET_AVATARS[presetBot(id).presetId] }))
       : undefined,
-    composerPlaceholder: isGroupConversation(activePiConversation) ? featureText(locale, "Message the group… (type @ to select members)")
+    composerPlaceholder: streamId ? undefined : isGroupConversation(activePiConversation) ? featureText(locale, "Message the group… (type @ to select members)")
       : settingsCopy[locale].shell.messageTo(activeBot.name),
     stopStatus: !streamId && piRunning ? runStop.statusFor(activePiConversationId) : undefined,
     composerOptions: {

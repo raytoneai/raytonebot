@@ -31,4 +31,4 @@
 
 - 删除过期的配置器/导出器背景、App.tsx 行号、历史缺陷叙述和重复说明；保留显式空 `previewPrompt`、审批位置、逐事件追加、失败提示和共享布局规则等当前约束。主代理额外删除重复且可能误导的“新会话只清空记录”说明，并修正共享 CSS 规则的描述。
 - 仅修改注释；shell 1,870 → 1,839 行，本轮从 1,896 行净减 57 行。[检查脚本](review-comments.mjs)、[结果](comments-review.json)：与 `e3bd402` 的去注释编译输出逐字相同，编译指令未变，无转译诊断。可运行 `node output/slimming-shell-pure-2026-10-31/review-comments.mjs` 复核，也支持传目标提交号。
-- 源码事实、文档链接和 `git diff --check` 检查通过。未重复运行前一批的完整测试或浏览器验收。前述自定义群切 fixture 的旧缺陷仍待单独修复。
+- 源码事实、文档链接和 `git diff --check` 检查通过。未重复运行前一批的完整测试或浏览器验收。前述自定义群切 fixture 的旧缺陷当时留待单独修复，后续已完成[修复与验收](../issue-10-fixture-group-2026-10-31/README.md)。

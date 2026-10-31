@@ -1,0 +1,11 @@
+✔ group header and welcome tolerate unknown historical IDs while retaining known labels (254.07575ms)
+✔ group welcome uses historical catalog labels and disables the actual host in second position (0.769084ms)
+✔ group header and welcome remain safe with an empty catalog and only unknown IDs (1.075375ms)
+ℹ tests 3
+ℹ suites 0
+ℹ pass 3
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 414.316917
