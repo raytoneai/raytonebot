@@ -20,9 +20,8 @@ import { isAgentPresetId } from "../../pi/harnessCatalog";
 export type SessionSidebarItem = SearchSession;
 
 /**
- * Conversation-history rail for the scaffolded agent product: new chat, search,
- * and a grouped list of recent sessions. Which parts show is driven by the
- * project's `sidebar` config (edited from the Sidebar preset group).
+ * Conversation history: new chat, search, and grouped recent sessions.
+ * `project.sidebar` controls which controls and groups are visible.
  */
 export function SessionSidebar({
   project,

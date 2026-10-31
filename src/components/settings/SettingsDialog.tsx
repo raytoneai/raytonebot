@@ -18,6 +18,7 @@ import type { MemoriesState } from "../../runtime/useMemories";
 import { useProviderEditor } from "../../runtime/useProviderEditor";
 import type { ProviderSettingsStatus } from "../../runtime/useProviderSettings";
 import type { RoutinesState } from "../../runtime/useRoutines";
+import { useSettingsNavigation } from "../../runtime/useSettingsNavigation";
 import type { SkillsState } from "../../runtime/useSkills";
 import type { UsageViewState } from "../../runtime/useUsage";
 import type { VaultSettingsState } from "../../runtime/useVault";
@@ -39,11 +40,8 @@ import { UsageSection } from "./UsageSection";
 import { VaultSection } from "./VaultSection";
 
 /**
- * Settings, as one dialog with a section rail. Layout and row patterns follow magpie
- * (name + muted sub-line + control on the right, masked key pill, inline test result) and
- * CC Switch (provider presets that only need a key, CLI status cards, latency colours).
- * Model service edits stay in a dialog draft until Save. Provider secrets can be saved in the
- * host credential store; the UI states that boundary explicitly.
+ * One dialog owns the section rail and provider drafts. Saving persists configuration
+ * and explicit credential changes on the host; closing dirty drafts requires a decision.
  */
 
 export type { PermissionMode } from "./PermissionsSection";
@@ -98,6 +96,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
   const { locale } = useLocale();
   const t = settingsCopy[locale];
   const [section, setSection] = useState<SectionId>(props.initialSection ?? "providers");
+  const navigationRef = useSettingsNavigation(props.open, section, locale);
   const [confirmClose, setConfirmClose] = useState(false);
   // Closing settings or changing sections keeps unsaved routine drafts for this page session.
   const [routineDrafts, setRoutineDrafts] = useState<Record<string, RoutineDefinitionPatch | undefined>>({});
@@ -142,7 +141,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
       <RadixDialog.Portal>
         <RadixDialog.Overlay className="settings-overlay" />
         <RadixDialog.Content className="settings-dialog" aria-describedby={undefined} onCloseAutoFocus={props.onCloseAutoFocus}>
-          <nav className="settings-rail" aria-label={t.title}>
+          <nav ref={navigationRef} className="settings-rail" aria-label={t.title}>
             <RadixDialog.Title className="settings-rail-title">{t.title}</RadixDialog.Title>
             {nav.map(({ id, label, Icon }) => (
               <button
@@ -186,7 +185,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {section === "about" ? <AboutSection t={t} runtime={props.runtime} /> : null}
             </div>
             {section === "providers" ? <footer className="settings-save-footer">
-              <p className="settings-note">{t.providers.saveScope}</p>
+              <p className="settings-note">{t.providers.saveScope}{props.runtime?.sandboxed ? ` ${t.providers.sandboxSaveScope}` : ""}</p>
               <div className="settings-save-actions">
                 <span className="settings-status" role="status" data-tone={editor.invalid || editor.status === "failed" || editor.status === "conflict" ? "error" : editor.status === "saved" ? "ok" : "muted"}>
                   {editor.invalid ? `${editor.invalid.provider.label}：${editor.invalid.field === "modelOptions" ? (featureText(locale, "Check model options. Output cannot exceed the context window.")) : t.providers.validation[editor.invalid.field!]}`

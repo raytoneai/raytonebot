@@ -35,13 +35,9 @@ import { BotEditor, type BotEditorState } from "./BotEditor";
 import { BOT_NAMES, type BotProfile } from "../../runtime/botProfiles";
 
 /**
- * Product chrome the exported layout has no slot for: the agent list in the sidebar, the
- * sidebar footer with Settings, and the current agent in the chat header. Patterns follow
- * OpenDots (agents listed in the sidebar, settings in its footer, the agent shown above the
- * conversation) and nightly openbot (status dot per agent; ideas only).
- *
- * Supplied through context so the slot registry stays unchanged; without a provider the
- * sidebar and header render exactly as exported.
+ * Host state and actions for the sidebar, composer and chat header.
+ * Context keeps the slot registry unchanged; without a provider, standalone previews
+ * retain their existing rendering.
  */
 export type ShellExtras = {
   taskRecovery?: TaskRecoveryActions;

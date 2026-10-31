@@ -25,16 +25,12 @@ export function renderOpenedOutputBody(item: OutputPanelItem, kind: OpenedOutput
     if (kind === "audio") return <AudioOutputPreview item={item} onError={onMediaError} />;
     return <VideoOutputPreview item={item} onError={onMediaError} />;
   }
-  // An artifact with nothing in it says so. Synthesizing a body here produced a page that
-  // looked like a real preview — a heading, a line of filler and a "Preview action" button —
-  // sitting next to the genuine article in a second tab.
+  // Empty bodies show an empty state; never synthesize preview content.
   if (item.body === undefined || item.body.trim() === "") {
     return <div className="empty-state">{copy.emptyNoArtifact}</div>;
   }
   const body = item.body;
-  // The extension says "html"; the body decides whether there is a page to render. A `.html`
-  // tab holding something else (a tool's JSON receipt, for instance) shows its source rather
-  // than being dressed up as a page.
+  // An HTML preview requires markup in the body; other content shows as source.
   if (kind === "html" && looksLikeHtmlDocument(body)) {
     return <HtmlOutputPreview title={item.title} body={body} loadingLabel={copy.loadingFiles} failedLabel={copy.previewFailed} />;
   }
@@ -48,13 +44,7 @@ export function renderOpenedOutputBody(item: OutputPanelItem, kind: OpenedOutput
   return <pre data-language={language}>{body}</pre>;
 }
 
-/**
- * Whether there is a page here to render.
- *
- * A full document renders as itself; a bare fragment (`<main>…</main>`) still renders once
- * wrapped. Anything without markup at all is not a page, and dressing it up as one is how a
- * tool's JSON receipt came to be displayed as a styled card with a "Preview action" button.
- */
+/** Full HTML documents and fragments can both be previewed. */
 function looksLikeHtmlDocument(body: string): boolean {
   return /<!doctype|<html|<body|<[a-z][a-z0-9-]*[\s>/]/i.test(body.trim());
 }

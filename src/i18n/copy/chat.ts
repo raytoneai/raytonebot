@@ -72,7 +72,10 @@ const en = {
     noEvents: "No replay events loaded",
   },
   error: {
-    debugHidden: "Debug detail hidden in dock",
+    title: "Action failed",
+    writeFileTitle: "Could not save file",
+    technicalDetails: "Technical details",
+    debugHidden: "Technical details are hidden.",
     // State-matching titles for incident blocks (retrying / exhausted / terminal).
     incident: {
       retrying: "Retrying",
@@ -119,6 +122,8 @@ const en = {
   },
   toolCard: {
     fallbackTitle: "Tool call",
+    expand: "Expand tool",
+    collapse: "Collapse tool",
     inputTitle: "Input",
     inputDiffTitle: "Requested edit: snippet line numbers",
     outputTitle: "Output",
@@ -230,7 +235,10 @@ const zh: typeof en = {
     noEvents: "未加载回放事件",
   },
   error: {
-    debugHidden: "调试详情已隐藏于侧栏",
+    title: "操作未完成",
+    writeFileTitle: "无法保存文件",
+    technicalDetails: "技术详情",
+    debugHidden: "技术详情已隐藏。",
     incident: {
       retrying: "重试中",
       exhausted: "重试耗尽",
@@ -270,6 +278,8 @@ const zh: typeof en = {
   },
   toolCard: {
     fallbackTitle: "工具调用",
+    expand: "展开工具详情",
+    collapse: "收起工具详情",
     inputTitle: "输入",
     inputDiffTitle: "请求修改：片段内行号",
     outputTitle: "输出",
@@ -379,7 +389,10 @@ const ja: typeof en = {
     noEvents: "リプレイイベントが読み込まれていません",
   },
   error: {
-    debugHidden: "デバッグ詳細はドックに格納されています",
+    title: "操作を完了できませんでした",
+    writeFileTitle: "ファイルを保存できませんでした",
+    technicalDetails: "技術的な詳細",
+    debugHidden: "技術的な詳細は非表示です。",
     incident: {
       retrying: "リトライ中",
       exhausted: "リトライ上限に達しました",
@@ -419,6 +432,8 @@ const ja: typeof en = {
   },
   toolCard: {
     fallbackTitle: "ツール呼び出し",
+    expand: "ツールの詳細を展開",
+    collapse: "ツールの詳細を折りたたむ",
     inputTitle: "入力",
     inputDiffTitle: "変更リクエスト：断片内の行番号",
     outputTitle: "出力",

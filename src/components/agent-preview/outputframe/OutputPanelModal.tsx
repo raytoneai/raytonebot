@@ -71,7 +71,7 @@ export function OutputPanelModal({
             <button
               className="rail-icon-btn"
               type="button"
-              aria-label="Close output"
+              aria-label={c.closeOutput}
               onClick={onClose}
             >
               <X size={18} />

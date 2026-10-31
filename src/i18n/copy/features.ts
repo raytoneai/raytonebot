@@ -438,29 +438,37 @@ export const featureCopy = {
     "zh": "记忆范围",
     "ja": "記憶の範囲"
   },
-  "Self-learning (RSL)": {
-    "zh": "自学习（RSL）",
-    "ja": "自己学習（RSL）"
+  "Task review and lesson reuse": {
+    "zh": "任务复盘与经验复用",
+    "ja": "タスクの振り返りと経験の再利用"
   },
-  "Reviews complex tasks and corrections while idle. Text proposals only: engines, code, persona and user memory stay unchanged. Candidates require review. Disabled means no learning calls.": {
-    "zh": "空闲时分析复杂任务与纠正，只生成文字建议。不会修改引擎、代码、人设或用户记忆。候选需审核；未启用时不产生学习调用。",
-    "ja": "アイドル時に複雑なタスクや修正を分析し、文章で改善案を作成します。エンジン、コード、人格、ユーザーの記憶は変更しません。候補には審査が必要です。無効時は学習の呼び出しを行いません。"
+  "Drafts lessons from completed tasks for use after your approval. Enabling adds model calls and may incur costs.": {
+    "zh": "从已完成任务中整理经验，经你审核后使用。开启会额外调用模型，可能产生费用。",
+    "ja": "完了したタスクから経験を整理し、あなたの承認後に利用します。有効にするとモデル呼び出しが増え、費用が発生する場合があります。"
+  },
+  "Review details and usage": {
+    "zh": "复盘详情与用量",
+    "ja": "振り返りの詳細と使用量"
+  },
+  "Reviews complex tasks and corrections while idle. Generates text only; engines, code, persona and user memory stay unchanged. No review calls while disabled.": {
+    "zh": "空闲时分析复杂任务与纠正，只整理文字经验，不修改引擎、代码、人设或用户记忆。关闭后不再发起复盘调用。",
+    "ja": "アイドル時に複雑なタスクや修正を分析し、文章で経験を整理します。エンジン、コード、人格、ユーザーの記憶は変更しません。無効時は振り返りの呼び出しを行いません。"
   },
   "Reload": {
     "zh": "重新加载",
     "ja": "再読み込み"
   },
-  "Enable background learning": {
-    "zh": "启用后台学习",
-    "ja": "バックグラウンド学習を有効にする"
+  "Automatically review tasks": {
+    "zh": "自动整理任务经验",
+    "ja": "タスクの経験を自動で整理"
   },
   "Reuse approved lessons": {
     "zh": "复用已审核经验",
     "ja": "承認済みの教訓を再利用"
   },
-  "Only relevant tasks for the same Bot and engine. Disabling cannot erase native session context; start a new conversation for a clean baseline.": {
-    "zh": "仅同 Bot、同引擎的相关任务使用。停用不清除原生会话已看到的内容，恢复干净基线请新建对话。",
-    "ja": "同じ Bot・エンジンの関連タスクにのみ適用します。無効にしても既存セッションの文脈は消えません。影響のない状態で始めるには新しい会話を作成してください。"
+  "For related tasks with the same Bot and engine. Turning off cannot undo lessons already used in this conversation; start a new conversation to avoid that influence.": {
+    "zh": "仅用于同 Bot、同引擎的相关任务。关闭后，当前对话仍可能受已用经验影响；新建对话可避开这部分影响。",
+    "ja": "同じ Bot・エンジンの関連タスクにのみ使います。無効にしても、この会話で使用済みの経験の影響は消えません。その影響を避けるには新しい会話を始めてください。"
   },
   "Daily call limit (UTC)": {
     "zh": "每日调用上限（UTC）",

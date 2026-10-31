@@ -23,9 +23,8 @@ import { OutputPanelModal } from "./outputframe/OutputPanelModal";
 import { BrowserView } from "./outputframe/BrowserView";
 import { liveHtmlWrite, type LiveHtmlWrite } from "../../runtime/liveHtmlWrite";
 
-// The panel-item helpers stay re-exported from this module: App, ToolCallCard and ChatFrame
-// import them from "./components/agent-preview/OutputFrame", and the scaffold export asserts
-// on that path.
+// Keep this compatibility export path for panel-item types used by ToolCallCard,
+// ChatFrame and ArtifactLaunch, alongside the panel helpers and modal.
 export type { OutputPanelItem, OutputPanelOpenRequest } from "./outputframe/panelItem";
 export { languageFromFileName, fallbackOutputPanelBody, normalizeOutputPanelRequest } from "./outputframe/panelItem";
 export { OutputPanelModal } from "./outputframe/OutputPanelModal";

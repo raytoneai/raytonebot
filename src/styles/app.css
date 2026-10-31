@@ -49,7 +49,7 @@
   --control-md: 34px;
   --control-lg: 40px;
   --chip-height: 26px;
-  /* Semantic font weights — collapse the ad-hoc 680–760 spread. */
+  /* Semantic font weights for interface text. */
   --weight-eyebrow: 700;
   --weight-title: 620;
   --weight-strong: 600;
@@ -3244,6 +3244,17 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   font-size: var(--text-sm);
 }
 
+.error-details {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.error-details summary {
+  color: var(--text-secondary);
+  font-size: var(--text-sm);
+  cursor: pointer;
+}
+
 .composer-frame {
   display: grid;
   gap: var(--space-2);
@@ -4488,7 +4499,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .preview-frame .utility-header h3 {
   color: var(--text-primary);
   font-size: var(--preview-title-size);
-  font-weight: 760;
+  font-weight: var(--weight-title);
   line-height: 1.25;
 }
 
@@ -8532,11 +8543,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   }
 }
 
-/* ------------------------------------------------------------------ *
- * Media output — clean load → present interaction (canvas)
- * Removes the old skeleton + framed border for image/audio/video and
- * plays a 2–3s spinner that fades into the presented demo asset.
- * ------------------------------------------------------------------ */
+/* Media previews use transparent, borderless containers centered around the source media. */
 .preview-frame .image-output-preview,
 .preview-frame .audio-output-preview,
 .preview-frame .video-output-preview {

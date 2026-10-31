@@ -36,7 +36,7 @@ export function OutputTabs({
   }, [activeId]);
 
   return (
-    <div className="output-tabs" role="tablist" aria-label="Opened output">
+    <div className="output-tabs" role="tablist" aria-label={copy.openedOutput}>
       {items.map((item) => {
         const active = item.id === activeId;
         return (
