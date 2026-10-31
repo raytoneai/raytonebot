@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict';
-import { appendFileSync, statSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { createHash, timingSafeEqual } from 'node:crypto';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { preview } from 'vite';
 import {
   HANDOFF_PATH, SESSION_COOKIE, SESSION_TTL_MS, assertHandoffSecret, handoffRedeemer, issueHandoff, issueSession,
@@ -10,6 +12,74 @@ import {
 const port = 5188;
 const localOrigin = `http://127.0.0.1:${port}`;
 const digest = (value) => createHash('sha256').update(value).digest();
+const HEADER_LOG_MAX_BYTES = 256 * 1024;
+const HEADER_LOG_MAX_VALUE_LENGTH = 256;
+const HEADER_LOG_MAX_URL_LENGTH = 8 * 1024;
+const HEADER_LOG_MAX_PATHNAME_LENGTH = 1024;
+
+const headerValue = (headers, name) => {
+  const value = headers && typeof headers === 'object' ? headers[name] : undefined;
+  const first = Array.isArray(value) ? value[0] : value;
+  if (typeof first !== 'string' || first.length > HEADER_LOG_MAX_VALUE_LENGTH || /[\u0000-\u001f\u007f]/.test(first)) return undefined;
+  return first.trim() || undefined;
+};
+
+const safeHost = (raw, forwarded = false) => {
+  if (!raw || (!forwarded && raw.includes(','))) return undefined;
+  const candidate = (forwarded ? raw.split(',')[0] : raw).trim();
+  if (!candidate) return undefined;
+  try {
+    const parsed = new URL(`https://${candidate}`);
+    if (parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) return undefined;
+    return parsed.host;
+  } catch {
+    return undefined;
+  }
+};
+
+const safeOrigin = (raw) => {
+  if (!raw) return undefined;
+  try {
+    const parsed = new URL(raw);
+    if (!['http:', 'https:'].includes(parsed.protocol) || parsed.username || parsed.password ||
+        parsed.pathname !== '/' || parsed.search || parsed.hash) return undefined;
+    return parsed.origin;
+  } catch {
+    return undefined;
+  }
+};
+
+const appendHeaderDiagnostic = (headerLog, req, baseOrigin) => {
+  if (!headerLog) return;
+  try {
+    const rawUrl = req?.url;
+    let pathname = '/';
+    if (rawUrl !== undefined && rawUrl !== null) {
+      if (typeof rawUrl !== 'string' || rawUrl.length > HEADER_LOG_MAX_URL_LENGTH) pathname = '<invalid>';
+      else {
+        try { pathname = new URL(rawUrl || '/', baseOrigin).pathname || '/'; } catch { pathname = '<invalid>'; }
+      }
+    }
+    if (pathname.length > HEADER_LOG_MAX_PATHNAME_LENGTH) pathname = `${pathname.slice(0, HEADER_LOG_MAX_PATHNAME_LENGTH - 1)}…`;
+    const requestHeaders = req?.headers;
+    const forwardedPort = headerValue(requestHeaders, 'x-forwarded-port')?.split(',')[0].trim();
+    const forwardedPortNumber = Number(forwardedPort);
+    const headers = {};
+    for (const [name, value] of [
+      ['host', safeHost(headerValue(requestHeaders, 'host'))],
+      ['origin', safeOrigin(headerValue(requestHeaders, 'origin'))],
+      ['x-forwarded-host', safeHost(headerValue(requestHeaders, 'x-forwarded-host'), true)],
+      ['x-forwarded-port', forwardedPort && /^\d{1,5}$/.test(forwardedPort) && forwardedPortNumber >= 1 && forwardedPortNumber <= 65_535 ? forwardedPort : undefined],
+    ]) if (value !== undefined) headers[name] = value;
+    const record = { pathname, headers };
+    const line = `${JSON.stringify(record)}\n`;
+    const lineBytes = Buffer.byteLength(line, 'utf8');
+    const currentStat = statSync(headerLog, { throwIfNoEntry: false });
+    if (currentStat && !currentStat.isFile()) return;
+    if ((currentStat?.size ?? 0) < 0 || (currentStat?.size ?? 0) + lineBytes > HEADER_LOG_MAX_BYTES) return;
+    appendFileSync(headerLog, line, 'utf8');
+  } catch { /* diagnostics must never break serving */ }
+};
 
 const page = (title, body) => `<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>${title}</title></head><body style="font:16px/1.6 sans-serif;margin:15vh auto;max-width:28rem;padding:0 1.5rem">${body}</body></html>`;
 
@@ -35,14 +105,9 @@ function accessGate(publicOrigin, password, handoff, { trustProxy = false, previ
   const headerLog = process.env.RAYTONEBOT_HEADER_LOG;
 
   return (req, res, next) => {
-    if (headerLog) {
-      try {
-        // Bounded, opt-in diagnostic for adapting to a new reverse proxy.
-        if ((statSync(headerLog, { throwIfNoEntry: false })?.size ?? 0) < 256 * 1024) {
-          appendFileSync(headerLog, `${JSON.stringify({ url: req.url, headers: req.headers })}\n`);
-        }
-      } catch { /* diagnostics must never break serving */ }
-    }
+    // Bounded, opt-in diagnostic for adapting to a new reverse proxy. Never record query
+    // strings, credentials, cookies, or arbitrary headers from an unauthenticated request.
+    appendHeaderDiagnostic(headerLog, req, origin.origin);
     res.setHeader('cache-control', 'no-store');
     res.setHeader('referrer-policy', 'no-referrer');
     res.setHeader('x-content-type-options', 'nosniff');
@@ -194,8 +259,93 @@ if (process.argv.includes('--check')) {
   assert.equal(via({ cookie: `__Host-rtb_session=${issueSession('cd'.repeat(32))}` }).res.statusCode, 401, 'foreign secret');
   const noHandoff = check({ cookie: sessionCookie });
   assert.equal(noHandoff.res.statusCode, 401, 'cookies mean nothing without a handoff secret');
+
+  // Opt-in header diagnostics are pathname-only and use a strict metadata allowlist.
+  const diagnosticDir = mkdtempSync(join(tmpdir(), 'raytonebot-cloud-check-'));
+  const diagnosticLog = join(diagnosticDir, 'headers.jsonl');
+  const previousHeaderLog = process.env.RAYTONEBOT_HEADER_LOG;
+  try {
+    process.env.RAYTONEBOT_HEADER_LOG = diagnosticLog;
+    const diagnosticGate = accessGate(origin, password, { secret, controlOrigin: 'https://raytone.example.com' }, { trustProxy: true });
+    const diagnosticVia = (headers, url = '/', method = 'GET') => {
+      const req = { method, url, headers: { host: 'preview.example.com', ...headers } };
+      const res = { statusCode: 200, headers: {}, body: '', setHeader(k, v) { this.headers[k] = v; }, end(b = '') { this.body = b; } };
+      let accepted = false;
+      diagnosticGate(req, res, () => { accepted = true; });
+      return { req, res, accepted };
+    };
+    const customSecret = 'custom-header-secret';
+    const ordinaryQuerySecret = 'ordinary-query-secret';
+    assert.equal(diagnosticVia({ authorization: auth, 'x-raytone-secret': customSecret }, `/?q=${ordinaryQuerySecret}`).accepted, true);
+
+    const loggedToken = issueHandoff(secret, origin);
+    const loggedEntry = diagnosticVia({ 'sec-fetch-site': 'cross-site', 'x-raytone-secret': customSecret }, link(loggedToken));
+    assert.equal(loggedEntry.res.statusCode, 200);
+    const loggedSessionCookie = loggedEntry.res.headers['set-cookie'].split(';')[0];
+    const sessionQuerySecret = 'session-query-secret';
+    assert.equal(diagnosticVia({ cookie: `other=1; ${loggedSessionCookie}`, origin, 'x-raytone-secret': customSecret }, `/?q=${sessionQuerySecret}`).accepted, true);
+
+    const proxyQuerySecret = 'proxy-query-secret';
+    assert.equal(diagnosticVia({
+      host: '127.0.0.1:5188',
+      'x-forwarded-host': new URL(origin).host,
+      'x-forwarded-port': '443',
+      authorization: auth,
+      'x-raytone-secret': customSecret,
+    }, `/assets/app.js?q=${proxyQuerySecret}`).accepted, true);
+
+    const invalidOriginSecret = 'invalid-origin-secret';
+    assert.equal(diagnosticVia({
+      authorization: auth,
+      origin: `${origin}?q=${invalidOriginSecret}`,
+      'x-raytone-secret': customSecret,
+    }, `/invalid?q=${invalidOriginSecret}`).res.statusCode, 403);
+    const malformedUrlSecret = 'malformed-url-secret';
+    assert.equal(diagnosticVia({ authorization: auth }, `http://[bad?q=${malformedUrlSecret}`).accepted, true);
+
+    const diagnosticText = readFileSync(diagnosticLog, 'utf8');
+    for (const sensitive of [auth, loggedToken, loggedSessionCookie, customSecret, ordinaryQuerySecret,
+      sessionQuerySecret, proxyQuerySecret, invalidOriginSecret, malformedUrlSecret]) {
+      assert.equal(diagnosticText.includes(sensitive), false, `diagnostic must not contain ${sensitive}`);
+    }
+    const diagnosticRecords = diagnosticText.trim().split('\n').map((line) => JSON.parse(line));
+    assert.ok(diagnosticRecords.every((record) => !('url' in record)), 'diagnostic records contain no raw URL');
+    assert.ok(diagnosticRecords.every((record) => !('authorization' in record.headers) && !('cookie' in record.headers)),
+      'diagnostic records contain no credentials');
+    const proxyRecord = diagnosticRecords.find((record) => record.pathname === '/assets/app.js');
+    assert.deepEqual(proxyRecord?.headers, {
+      host: '127.0.0.1:5188',
+      'x-forwarded-host': 'preview.example.com',
+      'x-forwarded-port': '443',
+    }, 'diagnostic keeps the required proxy metadata only');
+    const invalidOriginRecord = diagnosticRecords.find((record) => record.pathname === '/invalid');
+    assert.equal(invalidOriginRecord?.headers.origin, undefined, 'invalid origins are not copied into diagnostics');
+
+    const fullLog = join(diagnosticDir, 'full.log');
+    writeFileSync(fullLog, Buffer.alloc(HEADER_LOG_MAX_BYTES - 1, 'x'));
+    process.env.RAYTONEBOT_HEADER_LOG = fullLog;
+    const boundedGate = accessGate(origin, password);
+    const boundedReq = { method: 'GET', url: '/', headers: { host: 'preview.example.com', authorization: auth } };
+    const boundedRes = { statusCode: 200, setHeader() {}, end() {} };
+    let boundedAccepted = false;
+    boundedGate(boundedReq, boundedRes, () => { boundedAccepted = true; });
+    assert.equal(boundedAccepted, true);
+    assert.equal(statSync(fullLog).size, HEADER_LOG_MAX_BYTES - 1, 'diagnostic file size is bounded');
+
+    process.env.RAYTONEBOT_HEADER_LOG = join(diagnosticDir, 'missing', 'headers.jsonl');
+    const failingLogGate = accessGate(origin, password);
+    const failingLogReq = { method: 'GET', url: '/', headers: { host: 'preview.example.com', authorization: auth } };
+    const failingLogRes = { statusCode: 200, setHeader() {}, end() {} };
+    let failingLogAccepted = false;
+    failingLogGate(failingLogReq, failingLogRes, () => { failingLogAccepted = true; });
+    assert.equal(failingLogAccepted, true, 'diagnostic write failures do not affect serving');
+  } finally {
+    if (previousHeaderLog === undefined) delete process.env.RAYTONEBOT_HEADER_LOG;
+    else process.env.RAYTONEBOT_HEADER_LOG = previousHeaderLog;
+    rmSync(diagnosticDir, { recursive: true, force: true });
+  }
   assert.throws(() => accessGate(origin, password, { secret: 'short' }));
-  console.log('PASS: cloud authentication, exact host/origin, CSRF rejection, trusted normalization, handoff sessions.');
+  console.log('PASS: cloud authentication, exact host/origin, CSRF rejection, trusted normalization, handoff sessions, redacted bounded diagnostics.');
 } else {
   const handoffSecret = process.env.RAYTONEBOT_HANDOFF_SECRET || undefined;
   const trustProxy = process.env.RAYTONEBOT_TRUST_PROXY_ORIGIN === '1';
