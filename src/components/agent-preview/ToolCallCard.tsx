@@ -136,7 +136,7 @@ export function ToolCallCard({
           <button
             className="tool-disclosure-button"
             type="button"
-            aria-label={renderedOpen ? "Collapse tool" : "Expand tool"}
+            aria-label={renderedOpen ? copy.chat.toolCard.collapse : copy.chat.toolCard.expand}
             aria-expanded={renderedOpen}
             onClick={(event) => {
               event.stopPropagation();

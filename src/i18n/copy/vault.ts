@@ -10,7 +10,7 @@ type VaultCopy = {
 
 export const vaultCopy: Record<AppLocale, VaultCopy> = {
   zh: {
-    nav: "Vault", intro: "保存网站登录信息。每次填入浏览器前，都需要你单独授权。",
+    nav: "登录凭据", intro: "保存网站登录信息。每次填入浏览器前，都需要你单独授权。",
     empty: "还没有保存的登录信息。", loading: "正在加载…", loadFailed: "无法加载登录信息，请重试。",
     add: "添加登录信息", edit: "编辑", newLogin: "新的登录信息", label: "名称", origin: "网站地址",
     originHint: "填写完整的 HTTPS 网站源地址，例如 https://example.com，不含路径。",
@@ -21,7 +21,7 @@ export const vaultCopy: Record<AppLocale, VaultCopy> = {
     originChangeHint: "更改网站地址需要重新输入用户名和密码。",
   },
   en: {
-    nav: "Vault", intro: "Save website logins. Each browser fill requires your separate authorization.",
+    nav: "Saved logins", intro: "Save website logins. Each browser fill requires your separate authorization.",
     empty: "No saved logins yet.", loading: "Loading…", loadFailed: "Could not load logins. Please retry.",
     add: "Add login", edit: "Edit", newLogin: "New login", label: "Name", origin: "Website origin",
     originHint: "Enter the full HTTPS origin, such as https://example.com, without a path.",
@@ -32,7 +32,7 @@ export const vaultCopy: Record<AppLocale, VaultCopy> = {
     originChangeHint: "Changing the website requires entering the username and password again.",
   },
   ja: {
-    nav: "Vault", intro: "サイトのログイン情報を保存します。ブラウザーへの入力には、毎回あなたの許可が必要です。",
+    nav: "ログイン情報", intro: "サイトのログイン情報を保存します。ブラウザーへの入力には、毎回あなたの許可が必要です。",
     empty: "保存されたログイン情報はありません。", loading: "読み込み中…", loadFailed: "ログイン情報を読み込めませんでした。再試行してください。",
     add: "ログイン情報を追加", edit: "編集", newLogin: "新しいログイン情報", label: "名前", origin: "サイトのオリジン",
     originHint: "https://example.com のように、パスを含まない HTTPS オリジンを入力してください。",

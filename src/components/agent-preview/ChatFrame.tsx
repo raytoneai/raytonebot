@@ -453,9 +453,7 @@ function TimelineItem({
       );
     }
     case "error": {
-      // Incident states (retrying / exhausted / terminal) show a readable,
-      // state-matching title instead of the raw error code.
-      const incidentTitle =
+      const title =
         item.code === "history_load_failed"
           ? copy.workspace.sessionSidebar.historyTitle
           : item.category === "retrying"
@@ -464,15 +462,26 @@ function TimelineItem({
             ? copy.chat.error.incident.exhausted
             : item.category === "terminal"
               ? copy.chat.error.incident.terminal
-              : item.code;
+              : item.code === "E_WRITE_FILE"
+                ? copy.chat.error.writeFileTitle
+                : copy.chat.error.title;
+      const message = item.userMessage?.trim() || item.message;
+      const technicalMessage = item.developerMessage?.trim() || item.message?.trim();
       return (
         <article className="error-item" data-collapse={project.blocks.errorCollapse} data-preview-anchor="error-block">
           <span className="error-icon" data-anim={errorIconAnimation(item.category, item.retryable, iconSet["incident.retrying"])}>
             <StateIcon slot={errorIconSlot(item.category, item.code)} size={15} />
           </span>
-          <strong>{incidentTitle}</strong>
-          <p>{project.blocks.errorCollapse ? item.userMessage ?? item.message : item.developerMessage ?? item.message}</p>
-          {project.blocks.errorCollapse ? <small>{copy.chat.error.debugHidden}</small> : null}
+          <strong>{title}</strong>
+          <p>{message}</p>
+          {/* errorCollapse hides technical details; otherwise they remain available on demand. */}
+          {project.blocks.errorCollapse ? <small>{copy.chat.error.debugHidden}</small> : (
+            <details className="error-details">
+              <summary>{copy.chat.error.technicalDetails}</summary>
+              <p><code>{item.code}</code></p>
+              {technicalMessage && technicalMessage !== message?.trim() && technicalMessage !== item.code ? <p>{technicalMessage}</p> : null}
+            </details>
+          )}
         </article>
       );
     }

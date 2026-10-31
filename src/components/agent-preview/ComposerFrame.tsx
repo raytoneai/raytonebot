@@ -23,15 +23,8 @@ import { useCopy, useLocale } from "../../i18n/LocaleContext";
 import { Button, DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuLabel, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubContent, DropdownMenuSubTrigger, DropdownMenuTrigger, IconButton, SelectMenu, Textarea } from "../ui";
 
 /**
- * Approval modes, least to most permissive.
- *
- * Three, not two. A binary "ask every time / never ask" forces a choice nobody wants to make:
- * confirm every file read, or hand over the machine. The middle mode is the one people
- * actually run — auto-approve the routine, stop on anything flagged risky — and it is what
- * every shipping agent client offers.
- *
- * `tone: "danger"` is on the unguarded mode only. It is the one choice with consequences the
- * user cannot take back, so it reads differently instead of sitting in the list as a peer.
+ * Approval modes, least to most permissive. The host enforces approval policy;
+ * only `allow-all` gets the danger tone. See docs/product/10-agents-and-permissions.md.
  */
 export type PermissionMode = "request" | "auto" | "allow-all";
 export type ThinkingBudgetMode = "fast" | "medium" | "expert";

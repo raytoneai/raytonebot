@@ -1,0 +1,81 @@
+{
+  "verificationStart": "2026-10-31T17:17:22.980Z",
+  "localeNavChecks": [
+    {
+      "item": [
+        251.1640625,
+        373.3203125
+      ],
+      "rail": [
+        16.5,
+        373.5
+      ],
+      "scrollLeft": 761,
+      "selected": "Appearance",
+      "visible": true
+    },
+    {
+      "item": [
+        225.9609375,
+        297.9609375
+      ],
+      "rail": [
+        16.5,
+        373.5
+      ],
+      "scrollLeft": 761,
+      "selected": "外観",
+      "visible": true
+    },
+    {
+      "item": [
+        105.7578125,
+        178.3203125
+      ],
+      "rail": [
+        16.5,
+        373.5
+      ],
+      "scrollLeft": 724,
+      "selected": "外观",
+      "visible": true
+    }
+  ],
+  "desktopToMobile": {
+    "focus": "开发者模式",
+    "pageOverflow": false,
+    "rail": [
+      16.5,
+      373.5
+    ],
+    "scrollLeft": 646,
+    "selected": [
+      258.3203125,
+      373.7265625
+    ],
+    "visible": true
+  },
+  "manualScroll": {
+    "before": 646,
+    "after": 256,
+    "afterDetailsToggle": 256
+  },
+  "deepLinkChecks": [
+    {
+      "focus": "模型服务",
+      "scrollLeft": 240,
+      "selected": "记忆",
+      "stage": "opened",
+      "visible": true
+    },
+    {
+      "focus": "模型服务",
+      "scrollLeft": 240,
+      "selected": "记忆",
+      "stage": "reopened",
+      "visible": true
+    }
+  ],
+  "learningNoDanglingSeparator": true,
+  "logs": []
+}

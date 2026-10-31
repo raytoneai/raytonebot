@@ -2,30 +2,24 @@ import { homedir } from "node:os";
 import { isAbsolute, relative, resolve } from "node:path";
 
 /**
- * What a tool call touches, for the approval gate. Node-only.
+ * Classifies tool calls for the approval gate. Node-only.
  *
- * RaytoneBot runs in a disposable microVM, so work inside the workspace can be generous; what
- * must stay guarded is what outlives or escapes the VM — the bot's own secrets and code, and
- * actions that publish or reach other machines. As in the sandboxed agents we follow (Claude
- * Code's sandbox, OpenBot's policy gateway), credentials are refused outright rather than asked
- * about: no task needs them, and a prompt for them only trains a reflexive "allow".
+ * RaytoneBot supports local and isolated hosts. Network containment is determined by
+ * `policy.egressContained`, not by the deployment name. When true, NETWORK_COMMANDS alone
+ * do not make a shell call `outward`; secret, protected and destructive checks still apply.
  *
- * - `secret`: reads or writes credentials, or dumps the environment. Refused in every mode.
- * - `protected`: changes agent config, hooks or persona files, or the bot's own code (or rebuilds
- *   it). Asks in every mode; "always allow" cannot cover it. Reading any of them is ordinary:
- *   they hold no secrets, and an approval for a read only trains a reflexive "allow".
- * - `outward`: publishes, deploys, reaches remote hosts, uploads, or destroys history and trees
- *   that existed before the turn. Asks unless the mode is "allow all". Inside the sandbox the
- *   agent's egress firewall already stops pushes, deploys, ssh and uploads, and it holds no
- *   credentials for them, so those run and fail there instead of asking (as OpenAgentCore,
- *   nightly openbot and CopilotKit OpenBot treat their own sandboxes); publishing to the
- *   allowlisted package registries and destroying data still ask.
- * - `connector`: a tool of an MCP server the user added in Settings, or `remember` / `forget`.
- *   Its effect outlasts the turn (a service outside the VM, or a memory every later prompt
- *   reads), so it asks under "request" and "auto"; unlike `outward`, "always allow" covers it,
- *   since the user chose that server and many of its tools only read.
- * - `mutating`: changes the workspace (shell, edit, write). Asks only under "request".
+ * - `secret`: credential access or environment dumps. Refused in every mode.
+ * - `protected`: changes protected config, hooks, persona files or application code.
+ *   Asks in every mode; remembered grants cannot bypass it. Reads remain ordinary.
+ * - `outward`: publishing and destructive commands, plus remote commands when egress is
+ *   not contained. Asks unless the mode is `allow-all`; remembered grants cannot bypass it.
+ * - `connector`: external MCP tools, `remember`, `forget` and `delegate_task`, or host calls
+ *   classified as connectors. Asks under `request` and `auto` unless a remembered grant applies.
+ * - `mutating`: workspace changes, including shell commands. Asks under `request` unless
+ *   a remembered grant applies.
  * - `read`: everything else.
+ *
+ * Host-classified calls use the same approval rules. See approvalGate.ts.
  */
 export type ToolCallClass = "secret" | "protected" | "outward" | "connector" | "mutating" | "read";
 
@@ -36,7 +30,7 @@ export type PermissionPolicy = {
   protectedPaths: readonly string[];
   /** Readable freely; any change to them is `protected`. The bot's own code. */
   readOnlyPaths?: readonly string[];
-  /** Agents run behind the sandbox's egress firewall: only the model proxy and package registries. */
+  /** Set when agent network egress is constrained outside this classifier. */
   egressContained?: boolean;
   /** Host tools that judge a call from live state (the browser's snapshot, ADR-040): the class,
    *  and the key "always allow" remembers it under. Undefined for other tools. */
@@ -214,7 +208,7 @@ function commandMayWrite(command: string): boolean {
   return cliMayWrite(command) || WRITE_HINTS.some((pattern) => pattern.test(stripped));
 }
 
-/** Reach other machines; outward only where nothing stops them (outside the sandbox). */
+/** Remote commands classified as outward unless `policy.egressContained` is true. */
 const NETWORK_COMMANDS: readonly RegExp[] = [
   /\bgit\s+push\b/,
   /\bgit\s+remote\s+(add|set-url)\b/,
@@ -225,7 +219,7 @@ const NETWORK_COMMANDS: readonly RegExp[] = [
   /\bcurl\b[^|;&]*(\s-T\b|--upload-file|\s-F\b|--form|--data-binary\s+@|-d\s+@)/,
 ];
 
-/** Outward everywhere: package registries are reachable from the sandbox, and lost data is lost. */
+/** Publishing and destructive commands remain outward regardless of network containment. */
 const DESTRUCTIVE_COMMANDS: readonly RegExp[] = [
   /\b(npm|pnpm|yarn|bun)\s+publish\b/,
   /\b(cargo|gem|twine|poetry)\s+publish\b|\btwine\s+upload\b/,

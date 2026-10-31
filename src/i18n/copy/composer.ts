@@ -1,7 +1,5 @@
 import { DEFAULT_BOT_NAMES } from "../../pi/harnessCatalog.ts";
-// Composer domain copy: ComposerFrame, ProviderFloatingSettings, ProviderSettingsPanel.
-// en is the source of truth; every other locale must mirror its shape exactly — the
-// `satisfies` at the bottom is what enforces that.
+// Composer and agent settings copy. Every locale shares the shape of `en`.
 
 import type { AppLocale } from "../locales";
 
@@ -57,11 +55,7 @@ const en = {
     sessionKey: "Session key",
     sessionKeyPlaceholderNone: "Local runtime",
     sessionKeyPlaceholder: "Dev-only",
-    /**
-     * Shown when a pasted value is redirected. The redirect protects the export — a key in
-     * `auth.envVar` is serialized into the project — but doing it silently made the field look
-     * broken: the text vanished and reappeared somewhere else with no explanation.
-     */
+    /** Explain redirected keys because `auth.envVar` is serialized into exported config. */
     keyPastedIntoEnvVarToast: "That is a key, not a variable name. Moved it to Session key, which is never exported.",
     defaultModel: "Default model",
     testKey: "Test key",
@@ -73,10 +67,10 @@ const en = {
     agents: "Agent",
     modelService: "Model service",
     presets: {
-      dsh: { name: DEFAULT_BOT_NAMES.dsh, description: "Runs tasks with DeepSeek Harness.", greeting: "What can I help you with?" },
-      assistant: { name: DEFAULT_BOT_NAMES.assistant, description: "Default. Fastest replies for everyday tasks.", greeting: "What can I help you with today?" },
-      planner: { name: DEFAULT_BOT_NAMES.planner, description: "Reads the workspace and writes a plan. Never edits files.", greeting: "What should we plan? I'll map out the steps." },
-      builder: { name: DEFAULT_BOT_NAMES.builder, description: "Implements changes and runs commands in the workspace.", greeting: "What are we building? I'll make it happen." },
+      dsh: { name: DEFAULT_BOT_NAMES.dsh, description: "Runs tasks with DeepSeek Harness.", greeting: `Work through files and questions with ${DEFAULT_BOT_NAMES.dsh}.` },
+      assistant: { name: DEFAULT_BOT_NAMES.assistant, description: "Default. Fastest replies for everyday tasks.", greeting: `Ask ${DEFAULT_BOT_NAMES.assistant} to research, work with files, or organize ideas.` },
+      planner: { name: DEFAULT_BOT_NAMES.planner, description: "Reads the workspace and writes a plan. Never edits files.", greeting: `Plan your next code change with ${DEFAULT_BOT_NAMES.planner}.` },
+      builder: { name: DEFAULT_BOT_NAMES.builder, description: "Implements changes and runs commands in the workspace.", greeting: `Build, fix, and test code with ${DEFAULT_BOT_NAMES.builder}.` },
     },
     checking: "Checking…",
     unavailable: "Not installed on this host",
@@ -178,10 +172,10 @@ const zh: typeof en = {
     agents: "Agent 角色",
     modelService: "模型服务",
     presets: {
-      dsh: { name: DEFAULT_BOT_NAMES.dsh, description: "使用 DeepSeek Harness 执行任务。", greeting: "有什么可以帮你的？" },
-      assistant: { name: DEFAULT_BOT_NAMES.assistant, description: "默认。日常任务响应最快。", greeting: "今天想让我帮你做些什么？" },
-      planner: { name: DEFAULT_BOT_NAMES.planner, description: "阅读工作区并给出执行计划，不修改文件。", greeting: "想规划点什么？我来理清步骤。" },
-      builder: { name: DEFAULT_BOT_NAMES.builder, description: "在工作区里改代码、跑命令。", greeting: "要做点什么？交给我来动手。" },
+      dsh: { name: DEFAULT_BOT_NAMES.dsh, description: "使用 DeepSeek Harness 执行任务。", greeting: `把文件和问题交给 ${DEFAULT_BOT_NAMES.dsh}` },
+      assistant: { name: DEFAULT_BOT_NAMES.assistant, description: "默认。日常任务响应最快。", greeting: `让 ${DEFAULT_BOT_NAMES.assistant} 查资料、处理文件或整理思路` },
+      planner: { name: DEFAULT_BOT_NAMES.planner, description: "阅读工作区并给出执行计划，不修改文件。", greeting: `让 ${DEFAULT_BOT_NAMES.planner} 读代码、梳理方案` },
+      builder: { name: DEFAULT_BOT_NAMES.builder, description: "在工作区里改代码、跑命令。", greeting: `让 ${DEFAULT_BOT_NAMES.builder} 改代码、修问题、跑测试` },
     },
     checking: "检测中…",
     unavailable: "此主机未安装",
@@ -284,10 +278,10 @@ const ja: typeof en = {
     agents: "エージェント",
     modelService: "モデルサービス",
     presets: {
-      dsh: { name: DEFAULT_BOT_NAMES.dsh, description: "DeepSeek Harness でタスクを実行します。", greeting: "何をお手伝いしましょうか？" },
-      assistant: { name: DEFAULT_BOT_NAMES.assistant, description: "既定。日常タスクに最速で応答します。", greeting: "今日は何をお手伝いしましょうか？" },
-      planner: { name: DEFAULT_BOT_NAMES.planner, description: "ワークスペースを読み、計画を作成します。ファイルは編集しません。", greeting: "何を計画しましょう？手順を整理します。" },
-      builder: { name: DEFAULT_BOT_NAMES.builder, description: "ワークスペースで変更を実装し、コマンドを実行します。", greeting: "何を作りましょう？実装は任せてください。" },
+      dsh: { name: DEFAULT_BOT_NAMES.dsh, description: "DeepSeek Harness でタスクを実行します。", greeting: `${DEFAULT_BOT_NAMES.dsh} とファイルや課題を確認しましょう` },
+      assistant: { name: DEFAULT_BOT_NAMES.assistant, description: "既定。日常タスクに最速で応答します。", greeting: `${DEFAULT_BOT_NAMES.assistant} と調べものやファイル整理を進めましょう` },
+      planner: { name: DEFAULT_BOT_NAMES.planner, description: "ワークスペースを読み、計画を作成します。ファイルは編集しません。", greeting: `${DEFAULT_BOT_NAMES.planner} とコードを読み、変更の手順を考えましょう` },
+      builder: { name: DEFAULT_BOT_NAMES.builder, description: "ワークスペースで変更を実装し、コマンドを実行します。", greeting: `${DEFAULT_BOT_NAMES.builder} とコードを実装・修正し、テストしましょう` },
     },
     checking: "確認中…",
     unavailable: "このホストには未インストール",
@@ -326,7 +320,7 @@ const ja: typeof en = {
   },
 };
 
-/** Read off `en`, so every other locale is checked against it rather than trusted. */
+/** Shared dictionary shape for all locales. */
 export type ComposerCopy = typeof en;
 
 export const composerCopy = { en, zh, ja } satisfies Record<AppLocale, ComposerCopy>;

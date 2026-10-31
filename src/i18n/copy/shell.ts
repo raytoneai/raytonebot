@@ -98,7 +98,7 @@ const en = {
       },
     },
   },
-  /** Editor chrome that used to be inline ternaries in App.tsx. */
+  /** Editor labels and message actions. */
   editor: {
     noSelectedComponents: "No selected components yet",
     selectedComponentCount: "{count} selected components",
@@ -133,7 +133,7 @@ const en = {
     replayLabel: "Replay mock",
     replayDetail: "local fixture",
     harnessDetail: "adapter not wired",
-    // English reads the raw state name, which is what the previous inline branch returned.
+    // English uses the raw run-state names.
     liveState: {
       idle: "idle",
       streaming: "streaming",

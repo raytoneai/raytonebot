@@ -1,0 +1,30 @@
+[
+  {
+    "file": "src/components/agent-preview/ComposerFrame.tsx",
+    "identical": true
+  },
+  {
+    "file": "src/components/agent-preview/SessionSidebar.tsx",
+    "identical": true
+  },
+  {
+    "file": "src/components/agent-preview/OutputFrame.tsx",
+    "identical": true
+  },
+  {
+    "file": "src/components/agent-preview/outputframe/openedItemBody.tsx",
+    "identical": true
+  },
+  {
+    "file": "src/components/shell/ShellExtras.tsx",
+    "identical": true
+  },
+  {
+    "file": "src/pi/permissionPolicy.ts",
+    "identical": true
+  },
+  {
+    "file": "src/i18n/copy/shell.ts",
+    "identical": true
+  }
+]
