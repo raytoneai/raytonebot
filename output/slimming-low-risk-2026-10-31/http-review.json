@@ -1,0 +1,15 @@
+{
+  "baseline": "2432baa",
+  "sourcePath": "src/pi/piHttpHost.ts",
+  "destinationPath": "src/pi/piHttpInput.ts",
+  "movedDeclarations": [
+    "channelPatch",
+    "browserInput",
+    "permissionMode",
+    "approvalDecision",
+    "stringField"
+  ],
+  "movedSyntaxIdentical": true,
+  "remainingDeclarations": 4,
+  "remainingSyntaxIdentical": true
+}

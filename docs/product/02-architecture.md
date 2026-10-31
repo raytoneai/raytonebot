@@ -265,6 +265,8 @@ AgentSphere 沙箱
 
 `src/pi/piHost.ts` 是兼容导出入口。`piRuntimeController.ts` 管理会话、运行、审批与各引擎；`piHttpHost.ts` 组合主机服务并处理 HTTP，直接依赖控制器；`piSdkBridge.ts` 管理 Pi SDK 会话、模型注册、工具包装与模型租约。共同的记录/错误/会话 ID 校验在 `piHostUtils.ts`。原公共导出保持可用，SDK 与可选工具继续动态加载，不改变原生会话绑定、审批或隔离边界。
 
+`src/pi/piHttpInput.ts` 负责 HTTP 渠道配置、浏览器输入、权限/审批值和字符串字段的纯解析；路由鉴权、JSON 读取、响应及流生命周期仍在 `piHttpHost.ts`。渠道字段只在此过滤值类型与长度，字段名称的处理仍由渠道服务负责。
+
 `src/components/settings/SettingsDialog.tsx` 仅负责导航、弹窗、Provider 编辑/关闭拦截和跨分区的例行任务草稿；各分区与其行编辑器放在同目录的 `*Section.tsx`，仍由该 owner 唯一挂载。`SettingsShared.tsx` 只保留跨分区复用的字段、复制和状态展示小组件。Provider 草稿在分区切换时保留，Vault 输入随其分区卸载清空。
 
 | 路径 | 所有权 | 规则 |
