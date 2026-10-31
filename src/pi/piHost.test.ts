@@ -944,7 +944,7 @@ test("health is cheap, same-origin guarded, and does not initialize a model sess
   try {
     const response = await fetch(url);
     assert.equal(response.status, 200);
-    assert.deepEqual(Object.keys(await response.json()).sort(), ["activeRuns", "maxConcurrentRuns", "status", "uptimeSeconds"]);
+    assert.deepEqual(Object.keys(await response.json()).sort(), ["activeRuns", "busy", "maxConcurrentRuns", "status", "uptimeSeconds"]);
     assert.equal(bridgeCalls, 0);
     assert.equal((await fetch(url, { headers: { origin: "https://foreign.example" } })).status, 403);
   } finally {

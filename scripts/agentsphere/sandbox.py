@@ -136,9 +136,10 @@ def app_health(sid: str) -> dict:
             return {"status": "unavailable", "reason": "missing access password"}
         status, body = http(f"https://5188-{sid}.agentsphere.run/__agentcanvas/pi/health", password)
         data = json.loads(body) if status == 200 else {}
-        if not isinstance(data, dict) or data.get("status") != "ok" or type(data.get("activeRuns")) is not int:
+        if (not isinstance(data, dict) or data.get("status") != "ok" or type(data.get("activeRuns")) is not int
+                or ("busy" in data and type(data.get("busy")) is not bool)):
             return {"status": "unavailable", "httpStatus": status}
-        return {key: data[key] for key in ("status", "activeRuns", "maxConcurrentRuns", "uptimeSeconds") if key in data}
+        return {key: data[key] for key in ("status", "activeRuns", "busy", "maxConcurrentRuns", "uptimeSeconds") if key in data}
     except (OSError, ValueError):
         return {"status": "unreachable"}
 
@@ -247,7 +248,7 @@ def scheduled_backup(sid: str) -> None:
         if health.get("status") != "ok":
             backup_event("backup_failed", reason="app health unavailable")
             raise SystemExit(1)
-        if health["activeRuns"]:
+        if health.get("busy") is True or health["activeRuns"] > 0:
             backup_event("backup_skipped", reason="active tasks")
             return
         try:

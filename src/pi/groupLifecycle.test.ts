@@ -314,6 +314,8 @@ test("a disconnected group prompt reconnects through HTTP /live while waiting fo
     const prompt = await fetch(`${base}/group/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input("http-run")), signal: leave.signal });
     await prompt.body!.getReader().read();
     await until(() => bridge.waiting.has(childId));
+    assert.equal(host.controller.awaitingUser(groupId), true);
+    assert.equal(host.controller.listConversations().find((entry) => entry.id === groupId)?.awaitingUser, true);
     leave.abort();
     const saved = host.controller.getConversation(groupId)!.events;
     const pending = saved.find((event) => event.type === "run.awaiting_input")!;
@@ -326,6 +328,9 @@ test("a disconnected group prompt reconnects through HTTP /live while waiting fo
     assert.deepEqual(received, JSON.parse(JSON.stringify(host.controller.getConversation(groupId)!.events.slice(1))), "HTTP replay matches saved and future events after JSON serialization");
     assert.ok(received.some((event) => event.type === "run.awaiting_input"));
     assert.equal(received.at(-1)?.type, "run.finished");
+    assert.equal(host.controller.health().busy, false);
+    assert.equal(host.controller.awaitingUser(groupId), false);
+    assert.equal(host.controller.listConversations().find((entry) => entry.id === groupId)?.awaitingUser, undefined);
     assert.deepEqual(bridge.aborted, []);
     assert.equal((await fetch(`${base}/conversations/${groupId}/live?after=0`)).status, 409);
   } finally {
@@ -346,6 +351,9 @@ test("HTTP group approval replay cannot approve a newer run reusing the native t
   try {
     running = host.controller.runGroupPrompt(input("first"), () => {});
     await until(() => bridge.waiting.has(childId));
+    assert.equal(host.controller.health().busy, true);
+    assert.equal(host.controller.awaitingUser(groupId), true);
+    assert.equal(host.controller.listConversations().find((entry) => entry.id === groupId)?.awaitingUser, true);
     assert.deepEqual(await pending("first"), { pending: true });
     assert.equal((await fetch(`${base}/approval`)).status, 400);
     assert.equal((await fetch(`${base}/approval?${new URLSearchParams({ conversationId: groupId, runId: "first", toolCallId: "assistant~same-tool" })}`, { headers: { origin: "https://other.example" } })).status, 403);
@@ -364,6 +372,9 @@ test("HTTP group approval replay cannot approve a newer run reusing the native t
     assert.equal((await answer("second")).status, 200);
     await Promise.all([running, follow.done]);
     assert.equal(replay.at(-1)?.type, "run.finished");
+    assert.equal(host.controller.health().busy, false);
+    assert.equal(host.controller.awaitingUser(groupId), false);
+    assert.equal(host.controller.listConversations().find((entry) => entry.id === groupId)?.awaitingUser, undefined);
   } finally {
     await host.controller.abort(groupId); await running; host.dispose(); await close(server);
     rmSync(dataDir, { recursive: true, force: true });
@@ -569,6 +580,11 @@ test("a group waiting only for PM confirmation can reattach and answer without a
     running = controller.runGroupPrompt({ conversationId: groupId, requestId: "pm-run", prompt: "Plan then implement this task", provider: "router-fixture", model: "fixture" }, () => {});
     await until(() => Boolean(controller.getConversation(groupId)?.events.some((event) => event.type === "run.awaiting_input")));
     assert.equal(controller.getConversation(childId)?.activeRunId, undefined, "PM announcement is already finished");
+    assert.equal(controller.health().activeRuns, 0, "PM waiting owns no engine slot");
+    assert.equal(controller.health().busy, true, "the accepted group remains busy while its PM gate waits");
+    assert.equal(typeof controller.health().lastRunAgoMs, "number");
+    assert.equal(controller.awaitingUser(groupId), true);
+    assert.equal(controller.listConversations().find((entry) => entry.id === groupId)?.awaitingUser, true);
     const saved = controller.getConversation(groupId)!.events;
     const received: AgentUXEvent[] = [];
     const follow = controller.followRun(groupId, saved.length - 1, (event) => received.push(event));
@@ -580,9 +596,66 @@ test("a group waiting only for PM confirmation can reattach and answer without a
     await Promise.all([running, follow.done]);
     assert.equal(received.at(-1)?.type, "run.finished");
     assert.equal(controller.getConversation(groupId)?.activeRunId, undefined);
+    assert.equal(controller.health().busy, false);
+    assert.equal(controller.awaitingUser(groupId), false);
+    assert.equal(controller.listConversations().find((entry) => entry.id === groupId)?.awaitingUser, undefined);
     assert.equal(bridge.calls.length, 1, "declining the plan never launches a work member");
   } finally {
     await controller.abort(groupId); await running; controller.dispose(); await close(router);
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("a group waiting in routing is busy without an engine slot and guards HTTP state writes", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-group-routing-hold-"));
+  const bridge = controlledBridges();
+  let routeReady!: () => void;
+  let releaseRoute: (() => void) | undefined;
+  const routeStarted = new Promise<void>((resolve) => { routeReady = resolve; });
+  const router = createServer((_req, res) => {
+    releaseRoute = () => {
+      if (res.writableEnded) return;
+      res.setHeader("content-type", "application/json");
+      res.end(JSON.stringify({ choices: [{ message: { content: '{"route":"plan_then_build"}' } }] }));
+    };
+    routeReady();
+  });
+  const routerUrl = await listen(router);
+  const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory, routineClock: false, browser: false });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  const base = `${await listen(server)}/__agentcanvas/pi`;
+  let running: Promise<void> | undefined;
+  try {
+    await host.controller.configure({ conversationId: "setup", provider: "router-fixture", model: "fixture",
+      providerDefinition: { id: "router-fixture", name: "Router fixture", protocol: "openai-compatible", baseUrl: `${routerUrl}/v1`, models: ["fixture"], authMode: "required" } });
+    running = host.controller.runGroupPrompt({ conversationId: groupId, requestId: "routing-hold", prompt: "Plan then implement this task", provider: "router-fixture", model: "fixture" }, () => {});
+    await routeStarted;
+    assert.equal(host.controller.health().activeRuns, 0, "routing does not consume an engine slot");
+    assert.equal(host.controller.health().busy, true, "routing keeps the host busy");
+    const routingAge = host.controller.health().lastRunAgoMs;
+    assert.equal(typeof routingAge, "number", "routing records group activity age");
+    await new Promise(resolve => setTimeout(resolve, 15));
+    assert.ok((host.controller.health().lastRunAgoMs ?? -1) >= (routingAge ?? Number.MAX_SAFE_INTEGER));
+    assert.equal((await fetch(`${base}/providers`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 409);
+    assert.equal((await fetch(`${base}/documents`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 409);
+    releaseRoute!();
+    await until(() => Boolean(host.controller.getConversation(groupId)?.events.some((event) => event.type === "run.awaiting_input")));
+    const question = host.controller.getConversation(groupId)!.events.find((event) => event.type === "run.awaiting_input");
+    assert.ok(question);
+    await new Promise(resolve => setTimeout(resolve, 20));
+    const beforeGroupEndAge = host.controller.health().lastRunAgoMs;
+    assert.equal(host.controller.resolveUserInput(groupId, question.payload.requestId, { plan: ["先不做"] }), true);
+    await running;
+    assert.equal(host.controller.health().activeRuns, 0);
+    assert.equal(host.controller.health().busy, false);
+    const afterGroupEndAge = host.controller.health().lastRunAgoMs;
+    assert.equal(typeof afterGroupEndAge, "number", "group completion keeps activity age observable");
+    assert.ok((afterGroupEndAge ?? Number.MAX_SAFE_INTEGER) <= (beforeGroupEndAge ?? 0), "group end refreshes the activity age");
+  } finally {
+    releaseRoute?.();
+    await host.controller.abort(groupId);
+    await running;
+    host.dispose(); await close(server); await close(router);
     rmSync(dataDir, { recursive: true, force: true });
   }
 });

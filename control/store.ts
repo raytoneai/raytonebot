@@ -28,7 +28,7 @@ export type BotRecord = {
   /** Last entry from the welcome page or last observed run; drives the idle window. */
   lastActivityAt?: number;
   /** As last seen by the keeper. */
-  sandbox?: { state: "running" | "paused" | "unknown"; endAt?: number; activeRuns?: number; checkedAt: number };
+  sandbox?: { state: "running" | "paused" | "unknown"; endAt?: number; activeRuns?: number; busy?: boolean; checkedAt: number };
   routines?: RoutineSnapshot[];
   routinesCheckedAt?: number;
   /** The routine minute the keeper already woke the sandbox for, so one fire wakes it once. */

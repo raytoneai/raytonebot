@@ -94,8 +94,18 @@ test("a turn that ran between two ticks still makes the pre-pause backup happen"
   assert.deepEqual(kinds({ ...bot, lastActivityAt: activity }, seen), ["backup"]);
   // A run in flight counts as now; a nonsense age counts as just now, never as no activity.
   assert.equal(seenActivity(bot, { state: "running", activeRuns: 1 }, T0), T0);
+  assert.equal(seenActivity(bot, { state: "running", activeRuns: 0, busy: true }, T0), T0, "group/session work counts as activity without an engine slot");
   assert.equal(seenActivity(bot, { ...seen, lastRunAgoMs: -1000 }, T0), T0);
   assert.equal(seenActivity(bot, { state: "paused" }, T0), T0 - 4 * 3600_000, "an app that cannot answer changes nothing");
+});
+
+test("busy host work keeps the host alive and prevents backup even when no engine run is active", () => {
+  const bot = ready({ lastActivityAt: T0 - 3 * 3600_000, backups: [{ file: "a", at: T0 - 4 * 3600_000, bytes: 1 }] });
+  const seen = { state: "running" as const, endAt: T0 + 5 * MIN, activeRuns: 0, busy: true };
+  assert.deepEqual(decide(bot, seen, T0), [{ kind: "renew", seconds: POLICY.idleMs / 1000 }], "a group/session operation keeps the host alive");
+  assert.deepEqual(decide(bot, { ...seen, busy: undefined }, T0), [
+    { kind: "backup" },
+  ], "old health responses fall back to activeRuns");
 });
 
 test("backups record the archive, keep the newest few and surface failures", async () => {

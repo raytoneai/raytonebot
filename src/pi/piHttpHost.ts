@@ -131,13 +131,13 @@ export function createPiHttpHost(options: {
         if (url.pathname === `${PI_API_PREFIX}/providers`) {
           if (req.method === "GET") sendJson(res, 200, providers.view());
           else if (req.method === "POST") {
-            if (controller.health().activeRuns) throw new ProviderStoreError("Stop running tasks before saving model services.", 409);
+            if (controller.health().busy) throw new ProviderStoreError("Stop running tasks before saving model services.", 409);
             if (options.sandboxed ?? process.env.RAYTONEBOT_SANDBOX === "1") requireAgentIsolation({ ...process.env, RAYTONEBOT_SANDBOX: "1" });
             let body: Record<string, unknown>;
             try { body = await readJson(req); } catch { throw new ProviderStoreError("Invalid provider save request."); }
             // A turn may have started while the body was arriving. Keep this guard adjacent
             // to the synchronous save/cache invalidation so no running bridge is disposed.
-            if (controller.health().activeRuns) throw new ProviderStoreError("Stop running tasks before saving model services.", 409);
+            if (controller.health().busy) throw new ProviderStoreError("Stop running tasks before saving model services.", 409);
             const saved = providers.save(body.providers, body.keys ?? {}, body.removeKeys ?? [], body.revision);
             controller.refreshProviders?.();
             sendJson(res, 200, saved);
@@ -215,7 +215,7 @@ export function createPiHttpHost(options: {
             const source = controller.listConversations().flatMap(c => (c.documents ?? []).filter(d => d.scope === document.scope && d.path === document.path).map(d => ({ conversationId: c.id, title: c.title, artifactId: d.artifactId })))[0];
             sendJson(res, 200, { ...document, source });
           } else if (req.method === "POST" || req.method === "PUT") {
-            if (controller.health().activeRuns) throw new WorkspaceFileError(409, "Wait for running tasks to finish before saving a document.");
+            if (controller.health().busy) throw new WorkspaceFileError(409, "Wait for running tasks to finish before saving a document.");
             const body = await readJson(req), id = stringField(body, "conversationId"), artifactId = stringField(body, "artifactId");
             if (id && !controller.getConversation(id)) throw new WorkspaceFileError(404, "Source conversation is unavailable.");
             if (artifactId && artifactId.length > 1000) throw new WorkspaceFileError(400, "Invalid artifact reference.");

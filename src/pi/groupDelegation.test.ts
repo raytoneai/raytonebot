@@ -30,6 +30,8 @@ function fixture() {
   const calls: string[] = [], released = new Map<string, () => void>(), delegatedSpecs: string[][] = [], nestedErrors: boolean[] = [];
   const accepted: { taskId: string }[] = [], rejected: string[] = [], statusResults: unknown[] = [], referencedChecks: boolean[] = [];
   let count = 1, holdMain = false, checkInvalid = false, resultText = "Actual delegated result.", hostTools: HostTools | undefined;
+  let delegateConfigure: "normal" | "hold" | "fail" = "normal", delegateConfiguring = false;
+  let releaseDelegateConfigure: (() => void) | undefined;
   const factory: PiBridgeFactory = async ({ sessionDir, hostTools: tools, approvalGate }) => {
     const id = decodeURIComponent(sessionDir!.split("/").pop()!);
     const delegated = id.startsWith(delegationConversationPrefix(groupId));
@@ -73,7 +75,13 @@ function fixture() {
         emit({ type: "message_end", message: { role: "assistant", stopReason: "stop" } });
       },
       async abort() { released.get(id)?.(); }, dispose() { released.get(id)?.(); },
-      async configure() {}, async state() { return { models: [], tools: [] }; }, async newSession() {},
+      async configure() {
+        if (!delegated || delegateConfigure === "normal") return;
+        if (delegateConfigure === "fail") throw new Error("controlled delegated configure failure");
+        delegateConfiguring = true;
+        try { await new Promise<void>(resolve => { releaseDelegateConfigure = resolve; }); }
+        finally { delegateConfiguring = false; releaseDelegateConfigure = undefined; }
+      }, async state() { return { models: [], tools: [] }; }, async newSession() {},
     };
   };
   let controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: factory });
@@ -83,6 +91,9 @@ function fixture() {
   return { store, calls, released, accepted, rejected, statusResults, delegatedSpecs, nestedErrors, referencedChecks, tasks, request,
     get controller() { return controller; }, get hostTools() { return hostTools; },
     setCount(value: number) { count = value; }, setHoldMain(value: boolean) { holdMain = value; }, checkInvalid() { checkInvalid = true; },
+    setDelegateConfigure(value: typeof delegateConfigure) { delegateConfigure = value; },
+    delegateConfiguring: () => delegateConfiguring,
+    releaseDelegateConfigure() { releaseDelegateConfigure?.(); },
     setResult(value: string) { resultText = value; },
     releaseDelegates() { for (const [id, resolve] of released) if (id.startsWith(delegationConversationPrefix(groupId))) resolve(); },
     async restart() {
@@ -175,6 +186,36 @@ test("a delegate runs independently while the group continues, then publishes on
     assert.ok(f.nestedErrors.every(Boolean));
     assert.equal((await f.hostTools!.run("delegate_task", { memberId: guest.id, task: "late" })).isError, true, "tools from an ended origin cannot create work");
   } finally { await f.cleanup(); }
+});
+
+test("delegation configure keeps a finished parent host busy and releases after a configure failure", async () => {
+  const f = fixture();
+  let parent: Promise<void> | undefined;
+  try {
+    f.setDelegateConfigure("hold");
+    parent = f.request("delegate-configure-hold");
+    await until(() => f.accepted.length === 1 && f.delegateConfiguring());
+    await parent;
+    assert.equal(f.controller.health().activeRuns, 0, "the parent has ended before delegated configure completes");
+    assert.equal(f.controller.health().busy, true, "delegated configure keeps the host busy");
+    f.releaseDelegateConfigure();
+    await until(() => f.released.size === 1);
+    f.releaseDelegates();
+    await until(() => f.tasks()[0].status === "completed");
+    assert.equal(f.controller.health().busy, false);
+
+    f.setDelegateConfigure("fail");
+    parent = f.request("delegate-configure-fail");
+    await parent;
+    await until(() => f.tasks().at(-1)?.status === "failed");
+    assert.equal(f.controller.health().activeRuns, 0);
+    assert.equal(f.controller.health().busy, false, "failed configure releases the busy state");
+    assert.equal(typeof f.controller.health().lastRunAgoMs, "number", "failed configure still touches group activity");
+  } finally {
+    f.releaseDelegateConfigure();
+    await parent;
+    await f.cleanup();
+  }
 });
 
 test("completion during an active foreground turn survives metadata saves and waits to publish", async () => {

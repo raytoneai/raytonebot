@@ -20,6 +20,7 @@ import type { AgentUXEvent } from "@agent-ux/protocol";
 
 import { createPiEventAdapter } from "../harness/adapters/piAdapter.ts";
 import { ConversationRequestError } from "./conversationRequestError.ts";
+import { normalizeConversationId } from "./piHostUtils.ts";
 import type { UserAnswers, UserQuestion } from "../runtime/userInput.ts";
 import type { ConversationStore, StoredConversation } from "./conversationStore.ts";
 import { isAgentPresetId, type AgentPresetId } from "./harnessCatalog.ts";
@@ -80,13 +81,17 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     watchers: Set<(event: AgentUXEvent) => void>; children: Map<string, string> }>();
   const resets = new Map<string, ReturnType<PiRuntimeController["newSession"]>>();
   const backfilled = new Set<string>();
+  /** Group routing and delegated work can be busy without owning a base engine run. */
+  let lastGroupTouchedAt: number | undefined;
+  const touchGroupActivity = () => { lastGroupTouchedAt = Date.now(); };
   const writeTurn = createGroupWriteQueue();
   const groupOf = (id?: string) => {
     if (!id) return undefined;
     const conversation = deps.store.get(id) as (StoredConversation & { group?: GroupMeta }) | undefined;
     return conversation?.group ? conversation : undefined;
   };
-  const delegation = createGroupDelegation({ ...deps, controller, settled: publishDelegations });
+  const delegation = createGroupDelegation({ ...deps, controller,
+    settled: (groupId) => { touchGroupActivity(); publishDelegations(groupId); } });
 
   /** Separate terminal turns avoid appending late text or a second terminal to a parent run. */
   function publishDelegations(groupId: string) {
@@ -112,6 +117,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       }
       const current = groupOf(groupId)?.group;
       if (!current) return;
+      touchGroupActivity();
       deps.store.setExtra(groupId, { group: { ...current,
         tasks: current.tasks?.map(item => item.id === task.id ? { ...item, notifiedAt: Date.now() } : item),
         lines: [...current.lines, { author: task.owner, text: result }].slice(-20),
@@ -198,6 +204,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       input = { ...input, attachments: input.attachments ?? original?.attachments };
     }
     active.set(groupId, slot);
+    touchGroupActivity();
     // Until a topic is summarized, a group is named by its members; a summarized topic is kept.
     const named = () => (meta.preserveTitle || deps.store.get(groupId)?.titleSource === "summary" ? {} : { title: groupTitle(meta.members, names) });
     const persistMeta = (extra: Record<string, unknown> = {}) => {
@@ -541,7 +548,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         }
         finally {
           delegation.closeOrigin(groupId, groupRunId);
-          active.delete(groupId); settle();
+          active.delete(groupId); touchGroupActivity(); settle();
           try { publishDelegations(groupId); } catch (error) { reportFailure("group.delegate_notification_failed", error); }
         }
       }
@@ -559,10 +566,32 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     return groupId && member && groupOf(groupId) ? { childId: childConversationId(groupId, member), id } : undefined;
   };
 
+  const groupAwaitingUser = (conversationId: string) => {
+    const group = groupOf(conversationId);
+    if (!group) return controller.awaitingUser(conversationId);
+    // The PM confirmation is held by the parent gate; child approvals/questions are held by
+    // the currently executing member's ordinary conversation gate.
+    if (controller.awaitingUser(conversationId)) return true;
+    const turn = active.get(conversationId);
+    if (!turn) return false;
+    return [...turn.children].some(([member, childRunId]) => {
+      const childId = childConversationId(conversationId, member);
+      return controller.getConversation(childId)?.activeRunId === childRunId && controller.awaitingUser(childId);
+    });
+  };
+
   return {
     ...controller,
     runGroupPrompt,
     setGroupMembers,
+    health() {
+      const base = controller.health();
+      const groupAge = lastGroupTouchedAt === undefined ? undefined : Math.max(0, Date.now() - lastGroupTouchedAt);
+      const ages = [base.lastRunAgoMs, groupAge].filter((age): age is number => age !== undefined);
+      return { ...base,
+        busy: base.busy || active.size > 0 || resets.size > 0 || delegation.hasActive(),
+        lastRunAgoMs: ages.length ? Math.min(...ages) : undefined };
+    },
     async runPrompt(input, onEvent, options) {
       if (deps.bots) input = deps.bots.input(input, input.conversationId ? deps.store.get(input.conversationId) : undefined);
       // Only top-level user requests can invite. A child prompt/tool result never alters the room.
@@ -595,7 +624,8 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
           void deps.titleGroup?.(entry.id, { prompt: firstRequest.text, provider }, firstRequest.text).catch(() => undefined);
         }
         return { ...entry, group: { ...group, preview }, running: entry.running || active.has(entry.id),
-          activeRunId: active.get(entry.id)?.runId ?? entry.activeRunId };
+          activeRunId: active.get(entry.id)?.runId ?? entry.activeRunId,
+          ...(groupAwaitingUser(entry.id) ? { awaitingUser: true } : {}) };
       }),
     followRun(conversationId, after, onEvent) {
       const slot = active.get(conversationId);
@@ -603,6 +633,9 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       for (const event of (deps.store.get(conversationId)?.events ?? []).slice(Math.max(0, after))) onEvent(event);
       slot.watchers.add(onEvent);
       return { done: slot.done, stop: () => slot.watchers.delete(onEvent) };
+    },
+    awaitingUser(conversationId) {
+      return groupAwaitingUser(normalizeConversationId(conversationId));
     },
     async abort(conversationId, runId) {
       if (!conversationId) {
@@ -674,6 +707,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         controller.preflightDeleteConversation(conversationId);
       }
       for (const conversationId of ids) controller.deleteConversation(conversationId);
+      backfilled.delete(id);
     },
     async newSession(conversationId) {
       if (conversationId && (active.has(conversationId) || delegation.hasActive(conversationId))) {

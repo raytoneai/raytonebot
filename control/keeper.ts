@@ -37,8 +37,12 @@ export const POLICY = {
 export type Observation = { state: "running" | "paused" | "unknown"; endAt?: number;
   /** Undefined when the app does not answer its health check. */
   activeRuns?: number;
+  /** Whether any host work or session operation is still busy; old apps omit this field. */
+  busy?: boolean;
   /** Milliseconds since the app last accepted or ended a turn, as the app itself measures it. */
   lastRunAgoMs?: number };
+
+const hostBusy = (seen: Observation) => seen.busy === true || (seen.activeRuns ?? 0) > 0;
 
 export type Action =
   | { kind: "renew"; seconds: number }
@@ -61,13 +65,13 @@ export function nextRoutineFire(routines: readonly RoutineSnapshot[], from: numb
 }
 
 /**
- * The last activity the keeper can prove: its own last entry, a turn the app reported, or a run in
- * flight right now. A short turn can begin and end between two ticks, so sampling `activeRuns`
+ * The last activity the keeper can prove: its own last entry, a turn the app reported, or host work
+ * in flight right now. A short turn can begin and end between two ticks, so sampling `activeRuns`
  * alone would report "nothing changed" and the pre-pause backup would be skipped. The app's answer
  * is an age, so a clock difference between host and sandbox cannot invent or hide activity.
  */
 export function seenActivity(record: Pick<BotRecord, "lastActivityAt">, seen: Observation, now: number): number {
-  const busy = (seen.activeRuns ?? 0) > 0 ? now : 0;
+  const busy = hostBusy(seen) ? now : 0;
   const reported = seen.lastRunAgoMs === undefined ? 0 : now - Math.max(0, seen.lastRunAgoMs);
   return Math.max(record.lastActivityAt ?? 0, reported, busy);
 }
@@ -85,7 +89,7 @@ export function decide(bot: BotRecord, seen: Observation, now: number): Action[]
   }
   if (seen.state !== "running") return [];
 
-  const busy = (seen.activeRuns ?? 0) > 0;
+  const busy = hostBusy(seen);
   const lastActivity = busy ? now : bot.lastActivityAt ?? 0;
   const routineSoon = fire !== undefined && fire - now <= POLICY.renewMarginMs + 5 * 60_000;
   const wanted = bot.keepAwake || busy || now - lastActivity < POLICY.idleMs || routineSoon;
@@ -94,7 +98,7 @@ export function decide(bot: BotRecord, seen: Observation, now: number): Action[]
 
   const lastBackup = bot.backups.at(-1)?.at ?? 0;
   const retryable = !bot.backupError || now - bot.backupError.at >= POLICY.backupRetryMs;
-  const idleNow = seen.activeRuns === 0;
+  const idleNow = seen.activeRuns === 0 && !busy;
   const pausingSoon = !wanted && remaining < POLICY.backupMarginMs && lastActivity > lastBackup;
   const dailyDue = bot.keepAwake && now - lastBackup >= POLICY.backupEveryMs;
   if (idleNow && retryable && (pausingSoon || dailyDue)) actions.push({ kind: "backup" });
@@ -137,13 +141,15 @@ async function tickBot(context: KeeperContext, id: string, now: () => number): P
   const seen: Observation = { state: info?.state ?? "unknown", endAt: info?.endAt };
   const access = readAccess(store, id);
   if (seen.state === "running") {
-    const health = await botGet(bot.url!, access.password, "/__agentcanvas/pi/health") as { activeRuns?: unknown; lastRunAgoMs?: unknown } | undefined;
+    const health = await botGet(bot.url!, access.password, "/__agentcanvas/pi/health") as { activeRuns?: unknown; busy?: unknown; lastRunAgoMs?: unknown } | undefined;
     if (typeof health?.activeRuns === "number") seen.activeRuns = health.activeRuns;
+    if (typeof health?.busy === "boolean") seen.busy = health.busy;
     if (typeof health?.lastRunAgoMs === "number") seen.lastRunAgoMs = health.lastRunAgoMs;
   }
   const at = now();
   store.update(id, (record) => {
-    record.sandbox = { state: seen.state, endAt: seen.endAt, activeRuns: seen.activeRuns, checkedAt: at };
+    record.sandbox = { state: seen.state, endAt: seen.endAt, activeRuns: seen.activeRuns,
+      ...(seen.busy === undefined ? {} : { busy: seen.busy }), checkedAt: at };
     const activity = seenActivity(record, seen, at);
     if (activity > (record.lastActivityAt ?? 0)) record.lastActivityAt = activity;
   });

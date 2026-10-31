@@ -141,7 +141,13 @@ class OperationsTest(unittest.TestCase):
             sandbox.scheduled_backup("test")
             health.assert_not_called()
             info.return_value = {"state": "running"}
+            health.return_value = {"status": "ok", "activeRuns": 0, "busy": True}
+            sandbox.scheduled_backup("test")
+            backup.assert_not_called()
             health.return_value = {"status": "ok", "activeRuns": 1}
+            sandbox.scheduled_backup("test")
+            backup.assert_not_called()
+            health.return_value = {"status": "ok", "activeRuns": 1, "busy": False}
             sandbox.scheduled_backup("test")
             backup.assert_not_called()
             health.return_value = {"status": "unreachable"}
@@ -154,6 +160,17 @@ class OperationsTest(unittest.TestCase):
             health.return_value = {"status": "ok", "activeRuns": 0}
             sandbox.scheduled_backup("test")
             backup.assert_called_once_with("test", quiet=True)
+
+    def test_app_health_forwards_valid_busy_and_accepts_old_service(self):
+        with tempfile.TemporaryDirectory() as directory, patch.object(sandbox, "STATE", Path(directory) / "state.json"), \
+                patch.object(sandbox, "http") as request:
+            (Path(directory) / "access.json").write_text(json.dumps({"password": "test-password"}))
+            request.return_value = (200, json.dumps({"status": "ok", "activeRuns": 0, "busy": True, "uptimeSeconds": 4}))
+            self.assertEqual(sandbox.app_health("test"), {"status": "ok", "activeRuns": 0, "busy": True, "uptimeSeconds": 4})
+            request.return_value = (200, json.dumps({"status": "ok", "activeRuns": 0, "uptimeSeconds": 5}))
+            self.assertEqual(sandbox.app_health("test"), {"status": "ok", "activeRuns": 0, "uptimeSeconds": 5})
+            request.return_value = (200, json.dumps({"status": "ok", "activeRuns": 0, "busy": "yes"}))
+            self.assertEqual(sandbox.app_health("test")["status"], "unavailable")
 
     def test_privileged_restore_keeps_bot_and_agent_ownership_separate(self):
         with tempfile.TemporaryDirectory() as directory:

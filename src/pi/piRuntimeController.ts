@@ -104,7 +104,7 @@ export type PiRuntimeController = {
   usage(): UsageState;
   /** Permission mode a turn gets when its client does not choose one (IM channels). */
   readonly defaultPermissionMode: PiPermissionMode;
-  health(): { status: "ok"; activeRuns: number; maxConcurrentRuns: number; uptimeSeconds: number; lastRunAgoMs?: number };
+  health(): { status: "ok"; activeRuns: number; maxConcurrentRuns: number; uptimeSeconds: number; busy: boolean; lastRunAgoMs?: number };
   state(conversationId?: string): Promise<PiRuntimeState>;
   configure(input: PiRuntimeConfiguration): Promise<PiRuntimeState>;
   /** `signal` belongs to the caller's stream: aborting it stops this run, and only once the run
@@ -854,6 +854,7 @@ export function createPiRuntimeController(options: {
     state,
     defaultPermissionMode,
     health: () => ({ status: "ok", activeRuns: runs.size, maxConcurrentRuns, uptimeSeconds: Math.floor((Date.now() - startedAt) / 1000),
+      busy: runs.size > 0 || configuring.size > 0 || resets.size > 0,
       // An age, not a timestamp: the keeper's clock and the sandbox's need not agree.
       lastRunAgoMs: lastRunTouchedAt === undefined ? undefined : Math.max(0, Date.now() - lastRunTouchedAt) }),
     async configure(input) {
