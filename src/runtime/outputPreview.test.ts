@@ -7,7 +7,7 @@ import { createServer, type ViteDevServer } from "vite";
 let server: ViteDevServer;
 let modules: Record<string, any>;
 before(async () => {
-  server = await createServer({ configFile: false, server: { middlewareMode: true }, optimizeDeps: { noDiscovery: true, include: [] } });
+  server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] } });
   modules = {};
   for (const path of ["components/agent-preview/outputframe/renderKind", "components/agent-preview/outputframe/artifactPreview", "components/agent-preview/outputframe/openedItemBody", "components/agent-preview/outputframe/OutputContent", "components/agent-preview/outputframe/OutputPanelModal", "exported-project", "i18n/uiCopy"]) {
     Object.assign(modules, await server.ssrLoadModule(`/src/${path}`));

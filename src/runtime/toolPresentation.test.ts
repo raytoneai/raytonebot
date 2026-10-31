@@ -14,7 +14,7 @@ let render: (tool: AgentUXToolTimelineItem, locale?: string) => string;
 type ToolCardModule = typeof import("../components/agent-preview/ToolCallCard.tsx");
 let outputPanelItemsFromTool: ToolCardModule["outputPanelItemsFromTool"];
 before(async () => {
-  server = await createServer({ configFile: false, server: { middlewareMode: true }, optimizeDeps: { noDiscovery: true, include: [] } });
+  server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] } });
   const { ToolCallCard, outputPanelItemsFromTool: panelItems } = await server.ssrLoadModule("/src/components/agent-preview/ToolCallCard.tsx");
   outputPanelItemsFromTool = panelItems;
   const { IconSetProvider } = await server.ssrLoadModule("/src/agentmatrix/IconSetContext.tsx");

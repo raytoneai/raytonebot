@@ -5,7 +5,7 @@ import { renderToStaticMarkup } from "react-dom/server";
 import { createServer } from "vite";
 
 test("conversation composer options override host defaults and reach the existing controls", async () => {
-  const server = await createServer({ configFile: false, server: { middlewareMode: true }, optimizeDeps: { noDiscovery: true, include: [] } });
+  const server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] } });
   try {
     const { ComposerFrame } = await server.ssrLoadModule("/src/components/agent-preview/ComposerFrame.tsx");
     const { ShellExtrasProvider } = await server.ssrLoadModule("/src/components/shell/ShellExtras.tsx");

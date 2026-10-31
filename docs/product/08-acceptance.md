@@ -7,6 +7,7 @@
 - HTTP 输入解析：五函数和其余 host 去注释后语法与 `2432baa` 一致；4 项新增测试覆盖输入范围/类型、渠道字段和模型选项、权限/审批回退及字符串原样保留。窄回归 62/62、构建、默认并发 667/667 完整测试、本机接口及云入口检查通过。[证据与边界](../../output/slimming-low-risk-2026-10-31/README.md)。未调用真实模型或部署。
 - CLI 工具规范化：8 个迁出声明及其余 9 个声明语法一致，原函数导出为同一引用；两个 translator 未改。3 项新增测试覆盖文件变更/坏记录、命令及 MCP 结果/error 优先级。窄回归 31/31、构建、默认并发 670/670 完整测试、本机及云入口检查通过；未调用真实 CLI/模型。
 - 聊天条目投影：两项迁出声明及其余 16 个声明语法一致；3 项新增测试覆盖按助手消息对齐、条目顺序/引用、短/空 history 与 preview 空白和空 timeline。连同原消息复制 SSR 窄回归 4/4、构建、默认并发 673/673 测试、本机/云入口检查通过；桌面群聊作者/顺序与 390px 全部 20 个开发场景通过，无横向溢出或 warn/error，见同一[验收记录](../../output/slimming-low-risk-2026-10-31/README.md)。未调用真实模型或部署。
+- SSR 收尾：六处 middleware 测试设 `hmr: false, ws: false`；仅关闭 HMR 的首轮仍有端口噪音，补齐当前 Vite 8.3.2 的独立 WebSocket 开关后，`node --test src/runtime/{artifactContent,composerOptions,messageCopy,outputPreview,shellGroup,toolPresentation}.test.ts` 默认并发 19/19、零跳过，日志无 WebSocket/24678 端口错误。`npm run typecheck` 与 `git diff --check` 通过；删除前确认根目录 `c` 与 `src/styles/app.css` 字节一致，删除后确认文件不存在。本次仅测试配置与临时文件清理，未重跑构建、完整测试、视觉或真实模型验收。
 
 ## 2026-10-31 第二轮瘦身：工具文件展示解析
 

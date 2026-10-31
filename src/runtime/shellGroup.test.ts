@@ -12,7 +12,7 @@ let GroupHeader: ShellExtrasModule["GroupHeader"];
 let GroupWelcome: ShellExtrasModule["GroupWelcome"];
 let ShellExtrasProvider: ShellExtrasModule["ShellExtrasProvider"];
 before(async () => {
-  server = await createServer({ configFile: false, server: { middlewareMode: true }, optimizeDeps: { noDiscovery: true, include: [] } });
+  server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] } });
   ({ GroupHeader, GroupWelcome, ShellExtrasProvider } = await server.ssrLoadModule("/src/components/shell/ShellExtras.tsx"));
 });
 after(async () => { await server?.close(); });

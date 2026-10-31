@@ -8,7 +8,7 @@ import { createPiEventAdapter } from "../harness/adapters/piAdapter.ts";
 import { branchMessageRuns, branchReplayEvents } from "./useMessageBranch.ts";
 
 test("real user and assistant messages expose copy, while empty streaming placeholders cannot be copied", async () => {
-  const server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false }, optimizeDeps: { noDiscovery: true, include: [] } });
+  const server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] } });
   try {
     const { ChatFrame } = await server.ssrLoadModule("/src/components/agent-preview/ChatFrame.tsx");
     const { LocaleProvider } = await server.ssrLoadModule("/src/i18n/LocaleContext.tsx");
