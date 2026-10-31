@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_BOTS } from "./botAppearance.ts";
-import { botModelConfiguration, conversationBotId, parseBotProfiles, resolveBotProfiles, updateBotProfile, type BotProfile } from "./botProfiles.ts";
+import { botModelConfiguration, conversationBotId, knownBotsForConversations, parseBotProfiles, resolveBotProfiles, resolveParticipantBot, updateBotProfile, type BotProfile } from "./botProfiles.ts";
 import { project } from "../exported-project.ts";
 import { DEFAULT_AGENT_SETTINGS } from "../pi/harnessCatalog.ts";
 import { groupSessionHistory } from "./useSessionHistoryGroups.ts";
@@ -9,6 +9,74 @@ import { mentionMatches, applyMention } from "./mentionCompletion.ts";
 import { applyBotRoleTemplate, botRoleTemplates } from "./botRoleTemplates.ts";
 
 const custom: BotProfile = { id: "bot_12345678-1234-1234-1234-123456789abc", presetId: "assistant", name: "  Muse  ", appearance: DEFAULT_BOTS.boy };
+
+test("known Bot profiles prefer current configuration and the first historical participant for duplicate IDs", () => {
+  const configured = { ...custom, name: "Current name", appearance: DEFAULT_BOTS.woman };
+  const planner = { id: "planner", presetId: "planner", name: "Pip", appearance: DEFAULT_BOTS.man } satisfies BotProfile;
+  const configuredHistory = { ...configured, name: "Old configured name" };
+  const firstHistorical = { id: "bot_72345678-1234-1234-1234-123456789abc", presetId: "planner" as const, name: "Old name" };
+  const laterHistorical = { ...firstHistorical, name: "Later name" };
+  const conversations = [
+    { availableBots: [configuredHistory, firstHistorical], groupParticipants: [laterHistorical] },
+    { groupParticipants: [{ ...laterHistorical, name: "Last name" }] },
+  ];
+  const before = structuredClone({ configured, planner, conversations });
+  const known = knownBotsForConversations([configured, planner], conversations);
+
+  assert.equal(known[0], configured);
+  assert.equal(known[0].name, "Current name");
+  assert.equal(known[0].appearance, DEFAULT_BOTS.woman);
+  assert.equal(known[2].name, "Old name");
+  assert.equal(known[2].appearance, DEFAULT_BOTS.man);
+  assert.equal(known.length, 3);
+  assert.deepEqual({ configured, planner, conversations }, before);
+});
+
+test("known Bot profiles preserve conversation and available/group participant ordering by engine", () => {
+  const bots = [
+    { ...custom, presetId: "assistant", name: "First assistant", appearance: DEFAULT_BOTS.woman, model: { provider: "first", model: "one" } },
+    { ...custom, id: "bot_22345678-1234-1234-1234-123456789abc", presetId: "assistant", name: "Second assistant", appearance: DEFAULT_BOTS.boy },
+    { ...custom, id: "planner", presetId: "planner", name: "Planner" },
+  ] satisfies BotProfile[];
+  const conversations = [{
+    id: "group_order", title: "order", createdAt: 0, events: [],
+    availableBots: [{ id: "bot_32345678-1234-1234-1234-123456789abc", presetId: "assistant" as const, name: "Available" }],
+    groupParticipants: [{ id: "bot_42345678-1234-1234-1234-123456789abc", presetId: "assistant" as const, name: "Participant" }],
+  }];
+  const known = knownBotsForConversations(bots, conversations);
+  assert.deepEqual(known.map(bot => [bot.id, bot.name]), [
+    [bots[0].id, "First assistant"], [bots[1].id, "Second assistant"], ["planner", "Planner"],
+    ["bot_32345678-1234-1234-1234-123456789abc", "Available"],
+    ["bot_42345678-1234-1234-1234-123456789abc", "Participant"],
+  ]);
+  assert.equal(known[3].appearance, bots[0].appearance);
+  assert.equal(known[3].model, bots[0].model);
+  assert.equal(known[4].appearance, bots[0].appearance);
+});
+
+test("participant Bot resolution keeps known references and inherits the original preset fallback appearance", () => {
+  const assistant = { id: "assistant", presetId: "assistant", name: "Raer", appearance: DEFAULT_BOTS.woman } satisfies BotProfile;
+  const planner = { id: "planner", presetId: "planner", name: "Tonny", appearance: DEFAULT_BOTS.man } satisfies BotProfile;
+  const knownBots = [assistant, planner];
+  const participants = [
+    { id: "bot_52345678-1234-1234-1234-123456789abc", presetId: "planner", name: "Pip" },
+    { id: "bot_62345678-1234-1234-1234-123456789abc", presetId: "builder", name: "Builder" },
+  ] as const;
+  const before = structuredClone({ knownBots, participants });
+  const known = resolveParticipantBot("assistant", knownBots, knownBots, participants);
+  const inherited = resolveParticipantBot(participants[0].id, knownBots, knownBots, participants);
+  const missingPreset = resolveParticipantBot(participants[1].id, [assistant], [planner], participants);
+
+  assert.equal(known, assistant);
+  assert.deepEqual(inherited, { ...planner, ...participants[0] });
+  assert.notEqual(inherited, planner);
+  assert.equal(inherited.appearance, planner.appearance);
+  assert.deepEqual(missingPreset, { ...planner, ...participants[1] });
+  assert.equal(missingPreset.appearance, planner.appearance, "missing preset keeps the first Bot fallback");
+  assert.equal(resolveParticipantBot("unknown", knownBots, knownBots), assistant, "no match falls back to assistant");
+  assert.equal(resolveParticipantBot("unknown", [], [planner]), planner, "missing assistant falls back to the first Bot");
+  assert.deepEqual({ knownBots, participants }, before);
+});
 
 test("role starting points preserve manual text, identity, model and capability choices", () => {
   const [research, planning] = botRoleTemplates("zh");

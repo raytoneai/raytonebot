@@ -20,7 +20,7 @@ import {
   type OutputPanelOpenRequest,
 } from "./components/agent-preview/outputframe/panelItem";
 import { useBotProfiles, bindBotConversation, forgetBotConversation, saveBotProfile, syncBotProfiles } from "./runtime/useBotProfiles";
-import { BOT_NAMES, botModelConfiguration, conversationBotId, type BotProfile } from "./runtime/botProfiles";
+import { BOT_NAMES, botModelConfiguration, conversationBotId, knownBotsForConversations, resolveParticipantBot, type BotProfile } from "./runtime/botProfiles";
 import { DEFAULT_NEW_BOT } from "./runtime/botAppearance";
 import type { BotEditorState } from "./components/shell/BotEditor";
 import type { SettingsSectionId } from "./components/settings/SettingsDialog";
@@ -293,22 +293,10 @@ export function AgentApp() {
     () => piConversations.find((conversation) => conversation.id === activePiConversationId) ?? piConversations[0],
     [activePiConversationId, piConversations],
   );
-  const knownBots = useMemo(() => {
-    const knownBots = [...bots];
-    for (const participant of piConversations.flatMap(conversation => [...conversation.availableBots ?? [], ...conversation.groupParticipants ?? []])) {
-      if (!knownBots.some(bot => bot.id === participant.id)) knownBots.push({ ...(bots.find(bot => bot.presetId === participant.presetId) ?? bots[0]), ...participant });
-    }
-    return knownBots;
-  }, [bots, piConversations]);
+  const knownBots = useMemo(() => knownBotsForConversations(bots, piConversations), [bots, piConversations]);
   const activeBot = knownBots.find(bot => bot.id === (activePiConversation.groupHostId ?? conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
     ?? bots.find(bot => bot.presetId === agentSettings.presetId) ?? bots[0];
-  const presetBot = (id: string) => {
-    const bot = knownBots.find(bot => bot.id === id);
-    if (bot) return bot;
-    const participant = activePiConversation.groupParticipants?.find(bot => bot.id === id);
-    const base = bots.find(bot => bot.presetId === (participant?.presetId ?? "assistant")) ?? bots[0];
-    return participant ? { ...base, ...participant } : base;
-  };
+  const presetBot = (id: string) => resolveParticipantBot(id, knownBots, bots, activePiConversation.groupParticipants);
   const conversationTitle = (conversation: EphemeralPiConversation) => groupConversationTitle(conversation, locale,
     bots, id => BOT_NAMES[presetBot(id).presetId]);
   const piSessionItems = useMemo(

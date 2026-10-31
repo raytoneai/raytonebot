@@ -1,0 +1,9 @@
+{
+  "baseline": "14daa5a",
+  "mergeComparisons": 150,
+  "resolutionComparisons": 4500,
+  "extractedBodiesIdentical": true,
+  "remainingShellSyntaxIdentical": true,
+  "activeBotAndStateMachinesUnchanged": true,
+  "memoDependenciesIdentical": true
+}

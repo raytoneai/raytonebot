@@ -1,6 +1,6 @@
 # Open issues
 
-Last updated 2026-10-04. Each issue records what was verified, what is unknown, and the options.
+Last updated 2026-10-31. Each issue records what was verified, what is unknown, and the options.
 Platform facts come from probes against `api.agentsphere.run` with throwaway sandboxes.
 
 **当前开发前提：**sandbox 暂由外部常驻服务（如 bot 注册／登录 Web server）负责唤醒，
@@ -337,4 +337,19 @@ The browser profile (`/home/raytone-browser/profile`, caches excluded) is in `ba
 browser. Chrome runs with `--password-store=basic`, so the cookies in a backup are readable by
 anyone holding the archive. Treat backup archives (`backups/` on this machine, and any off-site
 copy) as credentials: keep them private, and delete the profile from a backup before sharing it.
+
+## 10. Custom group members can crash the development fixture view
+
+**Status:** open, reproduced locally on 2026-10-31 before and after the Bot-resolution extraction.
+
+With `?devtools=1`, open a saved group containing a historical custom Bot, select the welcome
+fixture, then Built-in demo. `GroupHeader` still receives the custom member ID, while fixture
+mode omits `shellExtras.bots` and `useGroupBots()` falls back to built-in presets. Its unchecked
+`candidates.find(...)!.presetId` access throws. Ordinary fixture entry and the live historical
+group display both work separately.
+
+The pre-extraction shell at `14daa5a` reproduces the same failure. This cleanup preserves
+behavior and does not change GroupHeader or the session/stream state machines. A separate fix
+should make the fixture's member list and Bot catalog consistent, with coverage for unknown
+member IDs. [Reproduction and baseline evidence](output/slimming-shell-pure-2026-10-31/README.md).
 

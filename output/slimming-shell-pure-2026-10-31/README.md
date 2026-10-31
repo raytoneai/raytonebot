@@ -13,3 +13,16 @@
 - 真实浏览器在测试结束后独立运行：390 × 844 欢迎页与 19 个事件场景，共 20；文档宽度均为 390，warn/error 为零。[状态](group-typing-ui.json)、[截图](group-typing-ui.png)。
 
 仅使用隔离本机数据和开发场景；未调用真实模型、部署或重建成员并发执行。事件显示验证与真实模型验收分开记录。
+
+## 2. 历史 Bot 名单与成员解析
+
+- 基线 `14daa5a`；提取到已有 `botProfiles.ts` 的 `knownBotsForConversations` 与 `resolveParticipantBot`。shell 1,882 → 1,870 行。当前 Bot 选择、所有调用点和 memo 依赖保持不变，接口只要求实际使用的历史字段。
+- Review 要求补上真实的配置/历史同 ID 冲突，以及外观不同的同 preset 配置，避免测试无法分辨取错优先项。新增 3 项测试覆盖顺序、覆盖、回退、输入不变和引用身份。
+- [review 脚本](review-bot-resolution.mjs)、[结果](bot-resolution-review.json)：提取函数体相同；排除两个 initializer 后，完整 shell 语法一致。150 组名单合并、4,500 组解析与 Git 基线表达式结果一致。
+- 构建、默认并发 656/656 测试（无跳过）、本机接口和云入口检查通过：[构建](bot-resolution-build.log)、[测试](bot-resolution-tests.log)、[本机](bot-resolution-local.log)、[云入口](bot-resolution-cloud.log)。命令同第 1 项。
+- [隔离数据脚本](seed-browser-data.mjs)通过现有 store 写入两份合成已完成历史。浏览器验证 Archivist 保留历史名字并继承 planner 头像，当前 Raer 覆盖 Historical Raer；刷新重开及 `@A` 候选为 Archivist。桌面和窄屏正常：[自定义 Bot](bot-resolution-custom.png)、[群聊](bot-resolution-group.png)、[窄屏](bot-resolution-mobile.png)。
+- 普通会话入口的 20 个开发场景均通过，390px 无横向溢出，该轮 warn/error 为空：[记录](bot-resolution-ui.json)。
+
+额外路径发现旧缺陷：含历史自定义成员的群聊切换 welcome → Built-in demo，GroupHeader 访问找不到的候选成员而报错。fixture 模式未传 Bot catalog，组件退回内置名单，但仍收到自定义成员 ID。保留[本轮失败](fixture-custom-group-error.json)及[提取前复现](fixture-custom-group-baseline.json)。临时换回 `14daa5a` 的 shell 后复现同一错误，随后按 SHA-256 校验恢复工作源码，并重跑 AST 对照通过。已记入根目录 issue #10；本批没有更改 GroupHeader，也不声称这条路径通过。
+
+两个 review 脚本可传提交号作为目标源码，以便后续改动后复核相应批次；例如 `node output/slimming-shell-pure-2026-10-31/review-group-typing.mjs 14daa5a`。

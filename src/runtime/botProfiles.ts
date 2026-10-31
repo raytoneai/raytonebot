@@ -1,6 +1,8 @@
 import { DEFAULT_BOT_NAMES, isAgentPresetId, type AgentPresetId, type AgentSettings } from "../pi/harnessCatalog.ts";
 import { defaultProviderConnection, type AgentFrontendProject } from "../schema/agentuxConfig.ts";
 import { DEFAULT_BOTS, parseBotAppearance, parseBotAppearances, type BotAppearance, type BotAppearances, type BotKind } from "./botAppearance.ts";
+import type { EphemeralPiConversation } from "../pi/piConversationState.ts";
+import type { GroupParticipant } from "../pi/groupParticipants.ts";
 
 export type BotProfile = {
   id: string; presetId: AgentPresetId; name: string; appearance: BotAppearance;
@@ -12,6 +14,30 @@ export type BotProfile = {
 };
 export type BotConfigView = { revision: number; profiles: BotProfile[] };
 export type BotProfileStore = { profiles: BotProfile[]; conversations: Record<string, string> };
+
+export function knownBotsForConversations(
+  bots: readonly BotProfile[],
+  conversations: readonly Pick<EphemeralPiConversation, "availableBots" | "groupParticipants">[],
+): BotProfile[] {
+  const knownBots = [...bots];
+  for (const participant of conversations.flatMap(conversation => [...conversation.availableBots ?? [], ...conversation.groupParticipants ?? []])) {
+    if (!knownBots.some(bot => bot.id === participant.id)) knownBots.push({ ...(bots.find(bot => bot.presetId === participant.presetId) ?? bots[0]), ...participant });
+  }
+  return knownBots;
+}
+
+export function resolveParticipantBot(
+  id: string,
+  knownBots: readonly BotProfile[],
+  bots: readonly BotProfile[],
+  participants?: readonly GroupParticipant[],
+): BotProfile {
+  const bot = knownBots.find(bot => bot.id === id);
+  if (bot) return bot;
+  const participant = participants?.find(bot => bot.id === id);
+  const base = bots.find(bot => bot.presetId === (participant?.presetId ?? "assistant")) ?? bots[0];
+  return participant ? { ...base, ...participant } : base;
+}
 
 /** Shared by the live model display and submission; missing/disabled overrides never fall back. */
 export function botModelConfiguration(project: AgentFrontendProject, settings: AgentSettings, bot?: Pick<BotProfile, "model">) {
