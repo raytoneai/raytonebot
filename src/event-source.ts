@@ -1,25 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 
-import { liveEventSource } from "./adapters/backendAdapter";
 import { project } from "./exported-project";
 
 /**
- * The single event entry point for this app.
+ * The fixture-only event entry point for the preview surface.
  *
  * Fixtures are preview / development / test data — they are NOT product data, and no UI
- * component may reach for them. They are reachable only while `runtime.transport` is
- * "replay" or "mock"; with "sse" this module talks to the real backend through the
- * adapter in `./adapters/backendAdapter`. The dynamic import below keeps the fixtures out
- * of the main bundle: the build splits them into their own chunk which the live path never
- * requests. (The chunk file still ships — it just is not loaded.)
+ * component may reach for them. The fixture chunk is loaded only for an explicit development
+ * `?devtools=1|true` request or a non-empty `?stream=` request. An ordinary welcome page does
+ * not request it, and `runtime.transport: "sse"` does not fall back to fixtures.
  *
- * Either way the output is the same: an array of AgentCanvas standard events, which flows
- * on through the view model and `slotRegistry` into the existing components.
+ * Real turns are driven by Pi in `src/pi/piClient.ts`; this module only supplies explicit
+ * preview events to the existing view model and `slotRegistry` components.
  */
 export const isFixtureMode = project.runtime.transport !== "sse";
 
 type LoadedStream = { id: string; label: string; enabledSlots?: readonly string[]; load: () => AgentUXEvent[] };
+
+function queryValue(name: string): string {
+  if (typeof window === "undefined") return "";
+  return new URLSearchParams(window.location.search).get(name)?.trim() ?? "";
+}
+
+function shouldLoadFixtures(): boolean {
+  if (!isFixtureMode) return false;
+  if (queryValue("stream")) return true;
+  if (!import.meta.env.DEV) return false;
+  const devtools = queryValue("devtools");
+  return devtools === "1" || devtools === "true";
+}
 
 /**
  * `?stream=<id>` picks a stream with no UI involved, so screenshots and automation do not
@@ -30,8 +40,7 @@ type LoadedStream = { id: string; label: string; enabledSlots?: readonly string[
  * showing somebody else's demo transcript instead of the product's own first impression.
  */
 function requestedStreamId(streams: readonly LoadedStream[]): string {
-  if (typeof window === "undefined") return "";
-  const requested = new URLSearchParams(window.location.search).get("stream");
+  const requested = queryValue("stream");
   if (!requested) return "";
   const match = streams.find(
     (item) => item.id === requested || item.id.endsWith(":" + requested),
@@ -43,10 +52,10 @@ export type EventStreamOption = { id: string; label: string };
 
 export type EventSourceState = {
   events: AgentUXEvent[];
-  /** Empty unless a fixture mode is active. */
+  /** Empty unless the fixture chunk was explicitly loaded. */
   streams: EventStreamOption[];
   streamId: string;
-  /** Optional layout settings supplied by the selected preview, never by live events. */
+  /** Optional layout settings supplied by the selected preview. */
   enabledSlots?: readonly string[];
   setStreamId: (id: string) => void;
 };
@@ -54,11 +63,10 @@ export type EventSourceState = {
 export function useEventSource(): EventSourceState {
   const [loaded, setLoaded] = useState<LoadedStream[]>([]);
   const [streamId, setStreamId] = useState("");
-  const [liveEvents, setLiveEvents] = useState<AgentUXEvent[]>([]);
 
-  // Preview / development only. Dynamic so the live path never loads the fixture chunk.
+  // Preview / development only. Dynamic so the ordinary welcome/live path never loads the fixture chunk.
   useEffect(() => {
-    if (!isFixtureMode) return;
+    if (!shouldLoadFixtures()) return;
     let cancelled = false;
     void import("./demo-events").then((module) => {
       if (cancelled) return;
@@ -70,29 +78,11 @@ export function useEventSource(): EventSourceState {
     };
   }, []);
 
-  // Live backend. An unconfigured adapter yields no source, which leaves the app empty
-  // rather than quietly falling back to demo data.
-  useEffect(() => {
-    if (isFixtureMode) return;
-    const source = liveEventSource();
-    if (!source) {
-      console.warn(
-        "[AgentCanvas] transport is \"sse\" but no live source is configured — " +
-          "implement liveEventSource() in src/adapters/backendAdapter.ts.",
-      );
-      return;
-    }
-    return source.subscribe(
-      (incoming) => setLiveEvents((current) => [...current, ...incoming]),
-      (error) => console.error("[AgentCanvas] live event source failed:", error),
-    );
-  }, []);
-
   const events = useMemo(() => {
-    if (!isFixtureMode) return liveEvents;
+    if (!isFixtureMode) return [];
     const stream = loaded.find((item) => item.id === streamId);
     return stream ? stream.load() : [];
-  }, [liveEvents, loaded, streamId]);
+  }, [loaded, streamId]);
 
   const streams = useMemo(
     () => loaded.map((item) => ({ id: item.id, label: item.label })),

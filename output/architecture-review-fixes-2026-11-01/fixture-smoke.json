@@ -1,0 +1,135 @@
+[
+  {
+    "label": "Built-in demo",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\nAdd input validation to the search box, then show me the patch.\n\n已完成思考\n\nRead the current SearchInput, then add a validity check and loading state before wiring the request.\n\n编辑文件：已完成\n\nValidation and loading state added. The search button is disabled for invalid input and a spinner shows while results load.\n\nSearchInput.tsx\n文件\n打开\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n18 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nBuilt-in demo\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Group chat",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\n大家看一下附件里的网页方案，Tonny 先评审，Bob 再实现。\n\nRaer\n\n我会协调评审和实现，并回收结果。\n\nTonny\n\n方案已检查：先完成交互，再验证窄屏。\n\nBob\n\n已完成实现并通过检查。\n\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n14 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nGroup chat\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Coding agent",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n已完成思考\n\nPlanning changes and checking the current SearchInput implementation before editing.\n\n1 项操作\n编辑文件：已完成\n\nValidation and loading state added. The search button is disabled for invalid input and a spinner shows while results are loading.\n\nSearchInput.tsx\n文件\n打开\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n20 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nCoding agent\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Reasoning kinds",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n已完成思考\n\nPublic summary can be shown in ordinary reasoning mode.\n\n思考中\n思考中\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n8 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nReasoning kinds\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Tool approval",
+    "chatHeight": 365.90625,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n移除临时缓存：等待审批\nrm -rf .agent/tmp-cache\n输入\nrm -rf .agent/tmp-cache\nFetch release metadata：已完成\n200 OK · v1.8.0\n需要权限\n递归移除 .agent/tmp-cache？\n允许一次\n始终允许\n拒绝\ni\n始终允许: 此 Agent 以后使用该工具不再询问（受保护操作仍会询问）\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n10 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nTool approval\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Error block",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\nE_WRITE_FILE\n\nEACCES: permission denied, open /repo/src/SearchInput.tsx\n\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n2 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nError block\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Artifact action",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\nContact action form\n文件\n打开\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n4 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nArtifact action\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Capability tray",
+    "chatHeight": 0,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n能力\n\nAgentUX 能力事件\n\nFilesystem\n\nFilesystem tools and allowed-root descriptors available to this run.\n\n3\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n1 个事件\n今天想让我帮你做些什么？\n请求权限\n中等\n发送\n事件流(仅开发)\nCapability tray\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "HTML artifact stream",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\nWriting a comparison page you can open in the output panel.\n\n修改文件：准备参数\n正在修改\ncompare-plans.html\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n8 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nHTML artifact stream\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Basic text",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\nHello world\n\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n6 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nBasic text\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Normal turn",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\n你都有什么功能？\n\n我可以回答问题、总结信息，并起草清晰内容。 我可以查看文件、解释代码，并协助规划或应用修改。 我可以跟踪任务、提示错误，并在完成后展示输出或产物。\n\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n8 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nNormal turn\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Streaming thinking + message",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\n比较三个方案。\n\n已完成思考\n\n我比较了价格、实施风险和支持覆盖。\n\n方案 B 在成本和交付风险之间最平衡。\n\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n11 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nStreaming thinking + message\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Tool approval + completion",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\n创建仪表盘摘要文件。\n\n修改文件：已完成\n318ms\n\n仪表盘摘要文件已准备好。已整理今日核心指标、异常趋势和待跟进事项，方便快速浏览支持团队的当前状态。下一步可以直接打开输出面板核对文件结构。\n\ndashboard.md\n文件\n打开\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n17 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nTool approval + completion\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "MCP success + interrupt",
+    "chatHeight": 365.90625,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\n运行发布检查。\n\n1 项操作\n\nPublish the release.\n\nPublish production release · release-tools (MCP)：等待审批\n{\n输入\n{\n  \"environment\": \"production\"\n}\n需要权限\nApprove publish?\n允许一次\n始终允许\n拒绝\ni\n始终允许: 此 Agent 以后使用该工具不再询问（受保护操作仍会询问）\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n16 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nMCP success + interrupt\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Runtime boot + sync",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\nruntime\nRuntime booting\n\nboot started\n\nruntime\nworkspace sync\n\nhydrate\n\nruntime\nworkspace sync\n\n3/8\n\nruntime\nOne optional resource was unavailable and was skipped.\nruntime\nworkspace sync\n\n8/8\n\nruntime\nRuntime ready\n\nboot completed\n\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n14 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nRuntime boot + sync\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Retrying incident",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\nGenerate the launch brief.\n\nmodel_rate_limited_error\n\nThe model provider is temporarily rate limited.\n\nsession\n已安排自动重试\n\nThe launch brief is ready.\n\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n11 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nRetrying incident\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Exhausted incident",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\n\nSummarize the release risks.\n\nmodel_request_failed_error\n\nThe model provider did not return a valid response after the allowed retries.\n\nretries_exhausted\n\nRetries exhausted\n\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n6 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nExhausted incident\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Terminal incident",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\nruntime_resume_unrecoverable_error\n\nThe previous sandbox can no longer be resumed.\n\nsession_terminated\n\nSession terminated\n\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n3 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nTerminal incident\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  },
+  {
+    "label": "Config, spans, deletion",
+    "chatHeight": 489.203125,
+    "scrollWidth": 1280,
+    "text": "Agent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n编码 Agent\nconfig\nConfig updated (rev 2)\n\ntool_permission_mode, skill_refs\n\nruntime\n上下文已压缩\n\n91842 → 28400 tokens\n\nmodel\nModel claude-sonnet-4-20250514\n\nanthropic\n\nsession\nSession 已删除\n调试面板\n\n规范事件、运行时状态与 render-core 投影。\n\n10 个事件\n请求权限\n中等\n发送\n事件流(仅开发)\nConfig, spans, deletion\n工作头像预览\n正在思考\n正在查阅\n正在修改\n正在执行\n正在回复\n等你确认\n结束 / 停止",
+    "width": 1280
+  }
+]

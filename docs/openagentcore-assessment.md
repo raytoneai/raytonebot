@@ -93,9 +93,9 @@ Core 按 Project 隔离资源，同一 Project 的所有 key 共享权限与资�
 保留界面和组件，但接入至少涉及两条链路：
 
 - **读链路：** OpenAgentCore SSE/Turns/Items → AgentUX 标准事件 → 现有投影与组件；覆盖文本、工具、取消、错误、文件和产物。断线后恢复历史及去重是实际工作，现有 passthrough adapter 不适用。
-- **写链路：** 创建/选择 Session、发输入、取消、function result、上传/下载；同时映射选定模型和可用配置。当前 `agent-shell.tsx` 的提交仍直接调用 `runPiTurn()`，因此只填写 `liveEventSource()` 不会完成迁移。
+- **写链路：** 创建/选择 Session、发输入、取消、function result、上传/下载；同时映射选定模型和可用配置。当前 `agent-shell.tsx` 的提交仍直接调用 `runPiTurn()`，因此只改旧的事件源接缝不会完成迁移。
 
-本地核对位置：[backendAdapter.ts](../src/adapters/backendAdapter.ts)、[event-source.ts](../src/event-source.ts)、[agent-shell.tsx](../src/agent-shell.tsx)、[piClient.ts](../src/pi/piClient.ts)。
+本地核对位置：[event-source.ts](../src/event-source.ts)、[agent-shell.tsx](../src/agent-shell.tsx)、[piClient.ts](../src/pi/piClient.ts)。2026-11-01 现行入口说明：本段早期研究引用的 `backendAdapter.ts` 导出残留已删除；真实 turn 仍由 `piClient.ts` 驱动，`event-source.ts` 仅负责显式 fixture replay。本文件其余结论仍是 2026-10-02 的历史判断。
 
 **比复制其整个 UI 更有价值的是 Parsar 的小段接入实现：** 服务端保管 Project key、API allowlist、创建 Session 的幂等恢复、实时流与历史对齐。它已有示例路径，可以减少从零猜契约的工作；只借实际需要的部分。[示例代码导航][examples]、[流恢复实现][live]
 

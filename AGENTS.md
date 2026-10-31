@@ -70,9 +70,10 @@ How to extend:
 Pi / CLI events -> piAdapter -> AgentUX StandardEvent -> view model -> existing components
 ```
 
-Real turns go through `runPiTurn()` in `src/pi/piClient.ts`, not `liveEventSource()`. Keep
-`runtime.transport` in `src/exported-project.ts` on `"replay"`: it gates the devtools fixture
-stream, and `"sse"` without a live source renders an empty conversation.
+Real turns go through `runPiTurn()` in `src/pi/piClient.ts`. Keep `runtime.transport` in
+`src/exported-project.ts` on `"replay"`: it preserves the fixture preview mode; `src/event-source.ts`
+only loads an explicitly requested fixture chunk and has no SSE fallback, so `"sse"` without
+Pi events renders an empty conversation.
 Architecture, routes and data locations: `docs/product/02-architecture.md`. Engines and the
 permission model: `docs/product/10-agents-and-permissions.md`.
 
@@ -86,8 +87,9 @@ permission model: `docs/product/10-agents-and-permissions.md`.
 - `src/components/**` — fix defects, or extend an owner listed above. No parallel components,
   no restructuring of the slot layout.
 - Fixtures under `src/` are preview and test data, never product data. `src/event-source.ts`
-  loads them with a dynamic import so the live path never requests that chunk. Do not import
-  a fixture from a component to make something appear.
+  dynamically loads them only for `?devtools=1|true` in development or a non-empty `?stream=`;
+  an ordinary welcome/live page never requests that chunk. Do not import a fixture from a
+  component to make something appear.
 
 ## Secrets
 
