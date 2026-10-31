@@ -2,27 +2,9 @@ import { AGENT_UX_EVENT_TYPES, type AgentUXEvent } from "@agent-ux/protocol";
 import { limitEventText } from "./eventLimits.ts";
 
 /**
- * Admission layer: our protocol and our components are the contract.
- *
- * A backend does not get to render however it likes. Everything entering the transcript is
- * first resolved to a concept this UI actually has a component for; anything that resolves to
- * nothing is routed to the diagnostics channel instead of leaking through as an un-designed
- * generic row. Two real integrations failed exactly that way — harness bookkeeping, plan/todo
- * updates and raw args JSON rendered as conversation rows that looked nothing like the
- * composed design.
- *
- * The layer does three things, all in our terms rather than a given backend's:
- *
- * 1. Resolves tool names to our canonical concepts through an alias table we own. A harness
- *    calling its writer `write`, `create_file` or `str_replace_editor` all land on the same
- *    concept, so the same component renders.
- * 2. Derives the events a backend usually does not emit. Almost no harness has a first-class
- *    "artifact" event — it writes a file with a tool. Without derivation the artifact panel is
- *    empty for every real backend, which is what a PPT-generating run hit.
- * 3. Normalizes titles. An adapter that dumps args JSON into `title` produces rows like
- *    `write {"file_path":"…","content":"<!DOCTYPE html>…"}`; the title is rebuilt from args.
- *
- * Whatever it cannot place is reported, never rendered.
+ * Read-only normalization preview for AgentUX replay diagnostics.
+ * It reports existing presentation concepts, preview-derived artifacts, and held-back events;
+ * input is unchanged and the shell never substitutes the returned events for replay.
  */
 
 export type ToolConcept =
@@ -37,12 +19,7 @@ export type ToolConcept =
   | "delete"
   | "plan";
 
-/**
- * Our canonical vocabulary. Keys are the concepts the components render; values are the
- * spellings we accept for them. Extend the values freely — that is us widening our own
- * standard, and it is how a new backend is onboarded without touching a component. Adding a
- * *key* means a new component has to exist for it first.
- */
+/** Tool-name aliases for the existing presentation concepts. */
 export const TOOL_CONCEPT_ALIASES: Record<ToolConcept, readonly string[]> = {
   "read-file": ["read_file", "read", "open_file", "scan_file", "cat", "view_file", "get_file"],
   "read-image": ["read_image", "view_image", "image"],
@@ -54,18 +31,11 @@ export const TOOL_CONCEPT_ALIASES: Record<ToolConcept, readonly string[]> = {
   validate: ["validate", "test", "check", "verify", "lint", "typecheck", "run_tests", "run_checks"],
   fetch: ["fetch", "web.fetch", "web_search", "http", "curl", "browse"],
   delete: ["rm", "delete", "delete_file", "remove_file", "filesystem.rm"],
-  // Plan snapshots render as artifacts; omit raw plan tool rows from the transcript.
+  // Plan snapshots use the existing artifact presentation; omit raw plan tool rows from preview.
   plan: ["todo", "todos", "update_todo", "update_todo_list", "todo_write", "plan", "update_plan", "task_list"],
 };
 
-/**
- * The spelling each concept is rewritten to before it reaches a component.
- *
- * Components carry their own matchers (`buildToolDisplaySpec` resolves a tool to an action
- * from its name), and those matchers only know the canonical spellings. A harness calling its
- * reader `read` therefore still rendered as an un-designed generic row even after the concept
- * resolved here — so admission also canonicalises the name. Components stay untouched.
- */
+/** Canonical tool names recorded by the diagnostic preview for known concepts. */
 const CANONICAL_TOOL_NAME: Record<ToolConcept, string> = {
   "read-file": "read_file",
   "read-image": "read_image",
@@ -79,21 +49,13 @@ const CANONICAL_TOOL_NAME: Record<ToolConcept, string> = {
   plan: "plan",
 };
 
-/** Concepts that have no component; recognised so they can be reported, not rendered. */
+/** Concepts whose raw tool rows are represented by another existing presentation. */
 export const UNRENDERED_CONCEPTS: readonly ToolConcept[] = ["plan"];
 
 /** Concepts whose successful completion produces a file we can show as an artifact. */
 const ARTIFACT_PRODUCING: readonly ToolConcept[] = ["write-file", "edit-file"];
 
-/**
- * Markers for harness bookkeeping that some backends emit as tool calls: runtime context
- * snapshots, permission/sandbox/approval config updates, token accounting, injected system
- * reminders. Rendering these as agent activity buries the actual conversation — one real
- * integration filled the transcript with them and left the file operations unfindable.
- *
- * Matched against the tool name, title and id, case-insensitively. A backend that words them
- * differently extends the list through `options.diagnosticMarkers` rather than editing here.
- */
+/** Tool markers used to identify harness bookkeeping in the diagnostic preview. */
 export const DIAGNOSTIC_MARKERS: readonly string[] = [
   "runtime-context", "runtime_context", "runtime context",
   "system-reminder", "system_reminder",
@@ -104,14 +66,7 @@ export const DIAGNOSTIC_MARKERS: readonly string[] = [
   "config-update", "config_update",
 ];
 
-/**
- * The types we admit, read from the SDK rather than kept as a local copy.
- *
- * A hand-maintained list here sat five types behind the SDK — `run.awaiting_input`,
- * `reasoning.summary`, `tool.call.error`, `step.started`, `step.finished` — every one of which
- * the components do render. Anything absent from this set is dropped as `unknown-type`, so a
- * stale copy silently deletes working events. One source only.
- */
+/** Protocol types recognised by the preview; unknown types are reported without changing input. */
 const KNOWN_TYPES: ReadonlySet<string> = new Set(AGENT_UX_EVENT_TYPES);
 
 export type NormalizeOptions = {
@@ -125,15 +80,7 @@ export type NormalizeOptions = {
   normalizeTitles?: boolean;
 };
 
-/**
- * Why an event was held out of the transcript.
- *
- * There is deliberately no "unknown tool" reason. Rejecting a tool call we have no concept for
- * also deletes the interaction attached to it — on a real fixture it removed an
- * `awaiting_approval`, and the approval buttons simply vanished. A tool we cannot label still
- * renders through the component's own matcher, and a plain card the user can act on beats a
- * missing one. Unrecognised tools are admitted and listed in `undesignedTools` instead.
- */
+/** Why the diagnostic preview marked an event as held back. Unknown tool names remain listed in `undesignedTools`. */
 export type RejectedEvent = {
   event: unknown;
   reason: "diagnostic" | "unrenderable-concept" | "unknown-type";
@@ -141,23 +88,19 @@ export type RejectedEvent = {
 };
 
 export type NormalizeResult = {
-  /** Conversation events, normalized. Safe to replay into the view model. */
+  /** Events retained by the diagnostic preview; not an instruction to replace actual replay. */
   events: AgentUXEvent[];
   /** Everything received, in order — the debug dock shows this. */
   allEvents: unknown[];
-  /** Kept out of the transcript, with the reason. */
+  /** Marked as held back by the diagnostic preview, with the reason. */
   rejected: RejectedEvent[];
   /** Artifact events we synthesised, and from which tool call. */
   derivedArtifacts: Array<{ toolCallId: string; path: string }>;
   /** Tool titles we rebuilt because they carried raw JSON. */
   normalizedTitles: Array<{ toolCallId: string; from: string; to: string }>;
-  /** Tool names rewritten to their canonical spelling so components resolve them. */
+  /** Canonical tool names recorded by the diagnostic preview. */
   canonicalizedNames: Array<{ toolCallId: string; from: string; to: string }>;
-  /**
-   * Tool calls admitted without a concept of ours. They render through the component's own
-   * matcher, which may or may not have a designed card for them — worth reporting so an alias
-   * can be added, but never worth deleting the call over.
-   */
+  /** Tool calls with no matching existing concept, retained in the preview for inspection. */
   undesignedTools: Array<{ toolCallId: string; name: string }>;
 };
 
@@ -323,16 +266,7 @@ function artifactKindFor(path: string): string {
   return "code";
 }
 
-/**
- * Admit and normalize a raw event stream.
- *
- * Order matters: diagnostics are removed first, then tool events are resolved to a concept,
- * then artifacts are derived from completed writes. The returned `events` are the only ones
- * that should reach the view model.
- *
- * The input is `unknown[]` on purpose — it arrives from a vendor adapter or a network stream,
- * so a missing `type` or a non-object payload is expected input, not a type error.
- */
+/** Build a read-only diagnostic preview for a raw event stream; the input and replay remain untouched. */
 export function normalizeAgentUXEvents(
   input: readonly unknown[],
   options: NormalizeOptions = {},
@@ -384,8 +318,8 @@ export function normalizeAgentUXEvents(
     }
 
     if (isDiagnostic(event, extraMarkers)) {
-      // Later events of the same call carry no name, so blacklist the id too — otherwise the
-      // `finished` event slipped through and left a half-rendered row.
+      // Later events of the same call carry no name, so remember the id too — otherwise the
+      // `finished` event slipped through and left a half-rendered row in the preview.
       const diagnosticId = str(payload.toolCallId);
       if (diagnosticId) rejectedCalls.add(diagnosticId);
       rejected.push({ event, reason: "diagnostic", detail: str(payload.name) ?? type });
@@ -404,8 +338,8 @@ export function normalizeAgentUXEvents(
       concepts.set(id, concept);
 
       if (!concept) {
-        // Admitted, not dropped: the component's own matcher gets a shot at it, and whatever
-        // interaction the call carries (an approval, a result) survives.
+        // Retained in the preview: the component's own matcher gets a shot at it, and whatever
+        // interaction the call carries (an approval, a result) remains in the actual replay.
         undesignedTools.push({ toolCallId: id, name: str(payload.name) ?? "(no name)" });
       }
       if (concept && UNRENDERED_CONCEPTS.includes(concept)) {
@@ -415,7 +349,8 @@ export function normalizeAgentUXEvents(
       }
     }
 
-    // Every later event of a rejected call is rejected too, so no half-rendered rows appear.
+    // Every later event of a preview-held call is marked too, so no half-rendered rows appear
+    // in the diagnostic projection.
     if (rejectedCalls.has(id)) {
       const reason = concepts.get(id) ? "unrenderable-concept" : "diagnostic";
       rejected.push({ event, reason, detail: type });

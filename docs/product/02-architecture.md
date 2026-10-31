@@ -142,7 +142,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
   → slots/slotRegistry → 组件
 ```
 
-界面上缺东西时，先查 `piAdapter.ts` 发出的事件和回放结果，不是加组件。`runtime/eventNormalizer` 与 `admissionReport` 保留为诊断模块，不在当前 shell 的实际回放调用链上。
+界面上缺东西时，先查 `piAdapter.ts` 发出的事件和回放结果，不是加组件。`runtime/eventNormalizer` 与 `admissionReport` 是只读诊断预演模块；开发模式带 `?devtools=1` 时，shell 对实际 `replayEvents` 生成报告并交给现有 DebugDock，但不替换 replay、不写事件存储或重接游标，生产模式不执行。
 
 `runtime/conversationStream.ts` 统一发送与重接路径的会话快照、事件追加、群成员元数据、逐帧提交和等待状态。权威快照替换先取消旧帧；等待按工具或请求分别跟踪，提问内容更新立即提交。Shell 保留提交准备、接受确认、重试和停止策略；卸载先使订阅身份失效，再关闭本地连接，主机任务继续执行。
 

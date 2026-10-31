@@ -1,25 +1,13 @@
 import { AGENT_UX_EVENT_TYPES } from "@agent-ux/protocol";
-import { DIAGNOSTIC_MARKERS } from "./eventNormalizer";
-import { isShellTool } from "./toolDisplaySpec";
+import { DIAGNOSTIC_MARKERS } from "./eventNormalizer.ts";
+import { isShellTool } from "./toolDisplaySpec.ts";
 
 /**
- * Event contract: what the UI needs from a backend, and whether it got it.
+ * Read-only report of the event contract the UI expects from an adapter.
  *
- * The adapter is the only hand-written link between a backend and this UI, and when it maps
- * something badly nothing complains — the components faithfully render whatever arrives. A
- * real integration failed exactly that way: harness diagnostics were mapped as tool calls
- * and flooded the conversation, `reasoning.delta` arrived with empty content so the thinking
- * block rendered blank, and tool events carried no `args`/`result` so file cards degraded to
- * a bare line. Everything "worked"; nothing was right.
- *
- * This module makes those failures observable:
- *
- * - `inspectAgentUXEvents()` reports per-surface coverage, concrete issues with fixes, and
- *   which events would land in the conversation without looking like agent activity.
- * - `isConversationEvent()` keeps that last group out of the main timeline by default.
- *
- * It is a report, not a gate: a backend that simply does not emit reasoning is *degraded*,
- * not broken, and the UI should show one less block rather than refuse to render.
+ * `inspectAgentUXEvents()` reports per-surface coverage and concrete adapter issues;
+ * `isConversationEvent()` identifies harness bookkeeping for that report. This module is not a
+ * gate and does not mutate the source stream.
  */
 
 export type EventSeverity = "error" | "warning";
@@ -59,7 +47,7 @@ export type ContractReport = {
   countsByType: Record<string, number>;
   issues: EventIssue[];
   coverage: SurfaceCoverage[];
-  /** Events routed away from the conversation because they are not agent activity. */
+  /** Events the report marks as non-conversational; the source replay is unchanged. */
   diagnosticCounts: Record<string, number>;
   /** True when every surface is "ok" and there are no error-severity issues. */
   consistent: boolean;
@@ -106,13 +94,7 @@ function matchesDiagnosticMarker(event: unknown, extraMarkers: readonly string[]
   );
 }
 
-/**
- * Whether an event belongs in the main conversation timeline.
- *
- * Everything the UI treats as agent activity — text, reasoning, tool calls, artifacts,
- * capabilities, run lifecycle — is conversational. Harness bookkeeping is not; it still
- * reaches the debug dock, it just does not pollute the transcript.
- */
+/** Whether the report classifies an event as conversation activity. */
 export function isConversationEvent(event: unknown, extraMarkers: readonly string[] = []): boolean {
   return !matchesDiagnosticMarker(event, extraMarkers);
 }
@@ -284,13 +266,13 @@ export function inspectAgentUXEvents(
 
   const unfinished = [...startedToolCalls].filter((id) => !finishedToolCalls.has(id));
   issue("warning", "tool.call.finished", unfinished.length,
-    "有 tool.call.started 没有对应的 tool.call.finished，卡片会停在运行中",
-    "每个工具调用结束时发一条 tool.call.finished（含 status）");
+    "若该回合已结束仍未看到对应的 tool.call.finished，需要核对终态；运行中或等待审批时可正常存在",
+    "若该回合已结束，补发 tool.call.finished（含 status）或确认相应终态");
 
   const uniqueUnknown = [...new Set(unknownTypes)];
   issue("warning", "*", uniqueUnknown.length,
     `收到 ${uniqueUnknown.length} 种未知事件类型：${uniqueUnknown.slice(0, 5).join(", ")}`,
-    "只发协议定义的标准事件；其余请在适配器里丢弃或映射成标准类型");
+    "只发协议定义的标准事件；其余请在适配器里映射成标准类型或按产品需要忽略");
 
   const diagnosticTotal = Object.values(diagnosticCounts).reduce((sum, n) => sum + n, 0);
   if (diagnosticTotal > 0) {
@@ -298,7 +280,7 @@ export function inspectAgentUXEvents(
       severity: "warning",
       type: "*",
       count: diagnosticTotal,
-      message: `${diagnosticTotal} 条事件被识别为 harness 内部信息（运行时配置 / token 计费 / 系统提示注入），已移出对话流`,
+      message: `${diagnosticTotal} 条事件被识别为 harness 内部信息（运行时配置 / token 计费 / 系统提示注入），报告标记为非主对话诊断信息`,
       fix: "确认这些确实不该出现在对话里；需要展示就在 bottom-dock 的调试面板查看",
     });
   }
@@ -352,14 +334,16 @@ export function inspectAgentUXEvents(
   };
 }
 
-/** One-line-per-finding text report, shared by the dev console warning and the CLI gate. */
+/** Compact text report for the read-only diagnostic dock. */
 export function formatContractReport(report: ContractReport): string {
   const lines: string[] = [];
-  const mark = { ok: "OK  ", degraded: "WARN", missing: "FAIL" } as const;
+  const mark = { ok: "OK  ", degraded: "WARN", missing: "INFO" } as const;
 
   lines.push(`事件总数 ${report.totalEvents}，UI 面覆盖:`);
   for (const surface of report.coverage) {
-    lines.push(`  [${mark[surface.status]}] ${surface.label}${surface.detail ? ` — ${surface.detail}` : ""}`);
+    const detail = surface.status === "missing" && surface.detail
+      ? `未观测/未覆盖：${surface.detail}` : surface.detail;
+    lines.push(`  [${mark[surface.status]}] ${surface.label}${detail ? ` — ${detail}` : ""}`);
   }
 
   if (report.issues.length > 0) {
@@ -372,11 +356,16 @@ export function formatContractReport(report: ContractReport): string {
   }
 
   const okCount = report.coverage.filter((surface) => surface.status === "ok").length;
+  const degradedCount = report.coverage.filter((surface) => surface.status === "degraded").length;
+  const missingCount = report.coverage.filter((surface) => surface.status === "missing").length;
+  const errorCount = report.issues.filter((item) => item.severity === "error").length;
   lines.push("");
   lines.push(
     report.consistent
       ? `一致 — ${okCount}/${report.coverage.length} 个 UI 面全部由事件驱动`
-      : `不一致 — 仅 ${okCount}/${report.coverage.length} 个 UI 面完整，不建议上生产`,
+      : errorCount > 0
+        ? `存在 ${errorCount} 个协议错误；已观测 ${okCount}/${report.coverage.length} 个 UI 面`
+        : `覆盖未完成 — ${okCount}/${report.coverage.length} 个 UI 面完整，${degradedCount} 个待核对，${missingCount} 个未观测/未覆盖`,
   );
 
   return lines.join("\n");

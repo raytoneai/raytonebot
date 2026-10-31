@@ -24,7 +24,7 @@
 
 ## 硬规则
 
-- **不新增并行 UI 组件**。界面缺状态时，先查 `piAdapter.ts` 发出的 AgentUX 事件和 `src/runtime/admissionReport.ts`。现有组件已覆盖文本、思考、工具全生命周期、审批、产物、错误、重试、中断。
+- **不新增并行 UI 组件**。界面缺状态时，先查 `piAdapter.ts` 发出的 AgentUX 事件和只读的 `src/runtime/admissionReport.ts` 诊断预演（开发模式 `?devtools=1` 可在现有 DebugDock 查看）。现有组件已覆盖文本、思考、工具全生命周期、审批、产物、错误、重试、中断。
 - **不引入新的后端、数据库或框架**，除非 [07](07-decisions.md) 新增了对应 ADR 且用户同意。
 - **不改 `vendor/`**；`slotRegistry.tsx` 保持穷举。
 - **密钥不入库、不入 bundle、不入日志**：`E2B_API_KEY` / `ARIADRA_API_KEY` 只交给沙箱外受信任的部署工具，不写入 bot 沙箱或 Agent 环境；模型 key 从主机环境、私有 env 文件或主机加密 Provider 存储读取；浏览器只持未提交输入，不持久保存密钥。访问凭据和 env 路径按对应部署手册管理。文档里写变量名，不写值。

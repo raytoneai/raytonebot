@@ -98,6 +98,7 @@ import { useSkills } from "./runtime/useSkills";
 import { useUsage } from "./runtime/useUsage";
 import { conversationHistoryGroup, useSessionHistoryGroups } from "./runtime/useSessionHistoryGroups";
 import { groupConversationFaces, groupConversationPreviews, groupConversationTitle, groupFields, groupMembersOf, groupTypingMember } from "./runtime/groupConversationView";
+import { admitEvents } from "./runtime/admissionReport";
 
 const THEME_KEY = "raytonebot.theme";
 const PERMISSION_DEFAULT_KEY = "raytonebot.permissionDefault";
@@ -336,6 +337,9 @@ export function AgentApp() {
   const groupTyping = useMemo(() => groupTypingMember(activePiConversation, events), [events, activePiConversationId]);
   const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(historyFeedbackEvents(visibleEvents, activePiConversationId, historyMessage), questionCopy[locale].skipped))
     .map(identityEventForReplay).map(artifactEventForReplay), [visibleEvents, activePiConversationId, historyMessage, locale]);
+  const showDevtools = devtoolsRequested();
+  // Read-only preview for developers: never feed the normalized result back into replay or storage.
+  const admission = useMemo(() => showDevtools ? admitEvents(replayEvents) : undefined, [replayEvents, showDevtools]);
   // Render the selected history immediately; an effect replay exposes the previous branch for one render.
   const viewModel = useMemo(() => createAgentUXViewModel(replayAgentUXEvents(replayEvents), {
     policy: {
@@ -351,13 +355,13 @@ export function AgentApp() {
 
   const activeProject = useMemo(
     () => ({ ...configuredProject,
-      layout: { ...configuredProject.layout, slots: configuredProject.layout.slots.map((slot) => enabledSlots?.includes(slot.id) ? { ...slot, enabled: true } : slot) },
+      layout: { ...configuredProject.layout, slots: configuredProject.layout.slots.map((slot) => enabledSlots?.includes(slot.id) || (showDevtools && slot.id === "debug") ? { ...slot, enabled: true } : slot) },
       output: { ...configuredProject.output, source: outputPanel.source === "console" ? "console" as const : "artifact" as const },
       conversation: streamId && !activityPreview ? configuredProject.conversation : {
         ...configuredProject.conversation, agentAvatar: false, userAvatar: false, speakerLabels: false,
       },
     }),
-    [configuredProject, outputPanel.source, streamId, activityPreview, enabledSlots],
+    [configuredProject, outputPanel.source, streamId, activityPreview, enabledSlots, showDevtools],
   );
   const modelBot = streamId || isGroupConversation(activePiConversation) ? undefined : activeBot;
   const activeModel = botModelConfiguration(activeProject, agentSettings, modelBot);
@@ -1320,6 +1324,7 @@ export function AgentApp() {
     project: activeProject,
     viewModel: displayViewModel,
     events,
+    admission,
     // Pass an empty string: ChatFrame's sample default would otherwise appear as a user message.
     // Pi user messages already arrive through the AgentUX event stream.
     previewPrompt: "",
@@ -1590,7 +1595,7 @@ export function AgentApp() {
   );
 
   const appearance = activeTheme.appearance;
-  const showPicker = devtoolsRequested() && isFixtureMode && streams.length > 0;
+  const showPicker = showDevtools && isFixtureMode && streams.length > 0;
   const soloStack = (
     <section className="preview-stack preview-stack-solo" inert={compact && drawerOpen} data-welcome={isWelcome ? "true" : undefined}>
       {renderSlots(visibleLayoutSlots, "main", slotContext)}

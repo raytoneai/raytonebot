@@ -4261,10 +4261,56 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 }
 
 .debug-dock {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr);
-  height: 100%;
+  display: block;
+  min-width: 0;
+  max-width: 100%;
   overflow: hidden;
+}
+
+.debug-summary {
+  display: list-item;
+  max-width: 100%;
+  padding: 0;
+  cursor: pointer;
+  list-style-position: inside;
+}
+
+.debug-summary-content {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-width: 0;
+  width: calc(100% - 1.25rem);
+  padding: 10px 12px;
+  vertical-align: middle;
+}
+
+.debug-summary-content > div {
+  min-width: 0;
+}
+
+.debug-details,
+.debug-grid,
+.debug-pane {
+  min-width: 0;
+}
+
+.debug-details[open] .debug-grid {
+  max-height: min(390px, calc(100dvh - 180px));
+  overflow-x: hidden;
+  overflow-y: auto;
+  align-content: start;
+}
+
+.debug-details[open] .debug-pane {
+  overflow: visible;
+}
+
+.debug-details[open] .debug-pane pre {
+  max-width: 100%;
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
 }
 
 .debug-header span {
