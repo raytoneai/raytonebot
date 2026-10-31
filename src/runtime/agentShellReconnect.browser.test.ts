@@ -12,7 +12,15 @@ import { DEFAULT_BOTS } from "./botAppearance.ts";
 import { BOT_NAMES } from "./botProfiles.ts";
 
 type Scenario = "approval" | "group";
-type LiveState = { response?: ServerResponse; summaryRequests: number; title: string };
+type LiveState = {
+  response?: ServerResponse;
+  summaryRequests: number;
+  title: string;
+  liveOpened: number;
+  liveClosed: number;
+  trackUnmount: boolean;
+  requestsAfterUnmount: string[];
+};
 
 const runtimeState = {
   available: true, cwd: "/tmp/raytonebot-test", running: false, provider: "openai", model: "gpt-4o",
@@ -54,15 +62,24 @@ test("AgentApp restores off-screen waits, settles run.error, and retitles later 
 }, async (t) => {
   const cacheDir = mkdtempSync(join(tmpdir(), "rtb-agent-shell-reconnect-"));
   let scenario: Scenario = "approval";
-  const live: LiveState = { summaryRequests: 0, title: "Old group title" };
+  const live: LiveState = {
+    summaryRequests: 0,
+    title: "Old group title",
+    liveOpened: 0,
+    liveClosed: 0,
+    trackUnmount: false,
+    requestsAfterUnmount: [],
+  };
   let snapshotEvents: ReturnType<typeof approvalSnapshot> = approvalSnapshot();
-  const pageHtml = `<meta name="viewport" content="width=device-width, initial-scale=1"><div id="root"></div><script type="module">
+  const pageHtml = `<meta name="viewport" content="width=device-width, initial-scale=1"><button id="unmount-app" type="button">Unmount</button><div id="root"></div><script type="module">
     import { createElement as h } from 'react';
     import { createRoot } from 'react-dom/client';
     import { AgentApp } from '/src/agent-shell.tsx';
     import { LocaleProvider } from '/src/i18n/LocaleContext.tsx';
     import '/src/styles/app.css';
-    createRoot(document.getElementById('root')).render(h(LocaleProvider, null, h(AgentApp)));
+    const appRoot = createRoot(document.getElementById('root'));
+    appRoot.render(h(LocaleProvider, null, h(AgentApp)));
+    document.getElementById('unmount-app').addEventListener('click', () => appRoot.unmount());
   </script>`;
   const server = await createServer({
     root: process.env.RAYTONEBOT_TEST_ROOT ?? process.cwd(),
@@ -83,6 +100,7 @@ test("AgentApp restores off-screen waits, settles run.error, and retitles later 
         const requestUrl = new URL(req.url ?? "/", "http://raytonebot.test");
         if (!requestUrl.pathname.startsWith("/__agentcanvas/pi")) { next(); return; }
         const path = requestUrl.pathname;
+        if (live.trackUnmount) live.requestsAfterUnmount.push(`${req.method ?? "GET"} ${path}`);
         const group = scenario === "group";
         const conversationId = group ? "group_reconnect" : "planner_approval";
         const events = group ? groupSnapshot() : snapshotEvents;
@@ -103,6 +121,8 @@ test("AgentApp restores off-screen waits, settles run.error, and retitles later 
           res.setHeader("content-type", "application/x-ndjson");
           res.setHeader("cache-control", "no-store");
           res.flushHeaders?.();
+          live.liveOpened++;
+          res.once("close", () => { live.liveClosed++; });
           live.response = res;
           return;
         }
@@ -163,6 +183,38 @@ test("AgentApp restores off-screen waits, settles run.error, and retitles later 
       sendLive(event("run.finished", "approval-run", { status: "error" }, 4), true);
       await approvalPage.waitForFunction(() => !document.querySelector('.shell-agent-face[data-status="running"]'));
       } finally { await approvalPage.close(); }
+    });
+
+    await t.test("unmount closes the live subscription without stopping the host", async () => {
+      scenario = "approval";
+      snapshotEvents = approvalSnapshot();
+      live.response = undefined;
+      live.trackUnmount = false;
+      live.requestsAfterUnmount = [];
+      const openedBefore = live.liveOpened;
+      const closedBefore = live.liveClosed;
+      const page = await browser!.newPage();
+      try {
+        await page.clock.install();
+        await page.goto(`${base}agent-shell-reconnect`);
+        const liveDeadline = Date.now() + 5_000;
+        while ((!live.response || live.liveOpened <= openedBefore) && Date.now() < liveDeadline)
+          await new Promise(resolve => setTimeout(resolve, 10));
+        assert.ok(live.response && live.liveOpened > openedBefore, "the test page must hold its live HTTP subscription open");
+
+        live.trackUnmount = true;
+        await page.locator("#unmount-app").evaluate(button => (button as HTMLButtonElement).click());
+        await page.waitForFunction(() => document.getElementById("root")?.childElementCount === 0);
+        const closeDeadline = Date.now() + 5_000;
+        while (live.liveClosed <= closedBefore && Date.now() < closeDeadline)
+          await new Promise(resolve => setTimeout(resolve, 10));
+        assert.equal(live.liveClosed, closedBefore + 1, "React unmount closes the live HTTP subscription");
+        await new Promise(resolve => setTimeout(resolve, 100));
+        assert.deepEqual(live.requestsAfterUnmount, [], "unmount does not call host or abort endpoints");
+      } finally {
+        live.trackUnmount = false;
+        await page.close();
+      }
     });
 
     await t.test("a later group turn refreshes and adopts its summary title", async () => {

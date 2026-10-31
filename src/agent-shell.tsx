@@ -83,7 +83,7 @@ import { pendingChannelSetup } from "./runtime/channelSetup";
 import { useChannelSetup } from "./runtime/useChannelSetup";
 import { pendingVaultRequest } from "./runtime/vaultRequest";
 import { useVaultRequest } from "./runtime/useVaultRequest";
-import { applyPendingConversationWait, pendingConversationWaits } from "./runtime/pendingConversationWait";
+import { createConversationStream } from "./runtime/conversationStream";
 import { finishedHtmlEdits } from "./runtime/liveHtmlWrite";
 import { approvalRequestKey } from "./runtime/approvalSubmission";
 import { approvalForReplay, identityEventForReplay } from "./runtime/replayIdentity";
@@ -100,8 +100,6 @@ import { conversationHistoryGroup, useSessionHistoryGroups } from "./runtime/use
 import { groupConversationFaces, groupConversationPreviews, groupConversationTitle, groupFields, groupMembersOf, groupTypingMember } from "./runtime/groupConversationView";
 
 const THEME_KEY = "raytonebot.theme";
-/** Events after which a tool call is no longer waiting on the user. */
-const APPROVAL_SETTLED_EVENTS = new Set(["tool.call.running", "tool.call.result", "tool.call.error", "tool.call.finished", "run.finished", "run.error"]);
 const PERMISSION_DEFAULT_KEY = "raytonebot.permissionDefault";
 
 // Rejected requests also synthesize run.started + user text, so those are not acceptance.
@@ -161,7 +159,6 @@ import { lastRunOutcome, nextQueueStep, queuedPrompt, type QueuedMessage } from 
 import { useComposerDrafts } from "./runtime/useComposerDrafts";
 import { branchReplayEvents, useMessageBranch } from "./runtime/useMessageBranch";
 import { piCancelledTurnEvents } from "./pi/piCancelledTurn";
-import { createPiFrameCommit } from "./pi/piFrameCommit";
 
 const noop = () => {};
 
@@ -268,6 +265,12 @@ export function AgentApp() {
   const [dismissedApprovalKey, setDismissedApprovalKey] = useState<string | null>(null);
   const approvalAbortRefs = useRef(new Map<string, AbortController>());
   const piAbortRefs = useRef(new Map<string, AbortController>());
+  useEffect(() => () => {
+    // A page unmount must invalidate queued commits without stopping host work.
+    const controllers = [...piAbortRefs.current.values()];
+    piAbortRefs.current.clear();
+    for (const controller of controllers) controller.abort();
+  }, []);
   const storedRunIds = useRef(new Map<string, Set<string>>());
   const preparingPiRefs = useRef(new Set<string>());
   const runStop = useRunStop(piAbortRefs, preparingPiRefs);
@@ -783,6 +786,19 @@ export function AgentApp() {
     return next;
   };
 
+  const createShellConversationStream = (
+    conversationId: string,
+    controller: AbortController,
+    initial: EphemeralPiConversation,
+  ) => createConversationStream(initial, {
+    isCurrent: () => piAbortRefs.current.get(conversationId) === controller,
+    commit: conversation => {
+      setPiConversations((current) => replacePiConversation(current, conversation));
+      if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
+    },
+    onAwaiting: awaiting => setAwaitingConversationIds((current) => toggleIn(current, conversationId, awaiting)),
+  });
+
   async function submitToPi(prompt: string, context?: ComposerSubmitContext & { requestId?: string }, target = activePiConversation,
     queued?: { requestId: string; agentPreset: AgentPresetId; artifactSubmission?: import("./runtime/artifactForm").ArtifactSubmission }) {
     if (runningConversationIds.has(target.id)) return false;
@@ -800,18 +816,15 @@ export function AgentApp() {
     const presetId = queued?.agentPreset ?? agentSettings.presetId;
     const fromDraft = !queued && Boolean(context?.draftSnapshot);
     if (fromDraft) setAcceptingConversationIds((current) => toggleIn(current, conversationId, true));
-    let nextConversation: EphemeralPiConversation = {
+    const nextConversation: EphemeralPiConversation = {
       ...titlePiConversation(target, normalizedPrompt),
       agentPreset: presetId,
     };
     let turnStartEventCount = nextConversation.events.length;
     let promptAttempted = false;
     let reattach = false;
-    let pendingWaits = new Set<string>();
     // The run keeps going when the user opens another conversation; only the one on screen is drawn.
-    const showIfActive = (conversation: EphemeralPiConversation) => {
-      if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
-    };
+    const stream = createShellConversationStream(conversationId, controller, nextConversation);
     const runId = queued?.requestId ?? context?.requestId ?? "pi_export_" + crypto.randomUUID();
     messageSubmissions.current.set(runId, { prompt: normalizedPrompt, attachments: (context?.attachments ?? [])
       .map((file, index) => ({ ...file, id: context?.draftSnapshot?.attachmentIds[index] ?? crypto.randomUUID() })) });
@@ -822,31 +835,25 @@ export function AgentApp() {
       messageSubmissions.current.delete(runId);
       setFollowProblems((current) => ({ ...current, [conversationId]: undefined }));
       setHistoryProblems((current) => current[conversationId] === "incomplete" ? { ...current, [conversationId]: undefined } : current);
-      composer.accepted(nextConversation, new Set([runId]));
+      composer.accepted(stream.current, new Set([runId]));
       if (fromDraft) setAcceptingConversationIds((current) => toggleIn(current, conversationId, false));
       context?.onAccepted?.();
     };
-    // Coalesce frame commits so long replies stay responsive while each event is still appended individually.
-    const commit = createPiFrameCommit<EphemeralPiConversation>((conversation) => {
-      setPiConversations((current) => replacePiConversation(current, conversation));
-      showIfActive(conversation);
-    });
     try {
       const syncedBots = await syncBotProfiles();
       // Reopening and reattaching share this load; a new turn never starts from an empty stub.
-      if (nextConversation.stored && nextConversation.events.length === 0) {
-        nextConversation = await loadStoredConversation(nextConversation);
-        turnStartEventCount = nextConversation.events.length;
+      let snapshot = stream.current;
+      if (snapshot.stored && snapshot.events.length === 0) {
+        snapshot = await loadStoredConversation(snapshot);
+        turnStartEventCount = snapshot.events.length;
       }
       if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
-      pendingWaits = pendingConversationWaits(nextConversation.events);
-      const botId = nextConversation.groupHostId ?? conversationBotId(syncedBots.store, nextConversation) ?? presetId;
+      stream.replace(snapshot);
+      const botId = stream.current.groupHostId ?? conversationBotId(syncedBots.store, stream.current) ?? presetId;
       const targetBot = syncedBots.profiles.find(bot => bot.id === botId);
       const model = botModelConfiguration(activeProject, { ...agentSettings, presetId }, isGroup ? undefined : targetBot);
-      setPiConversations((current) => replacePiConversation(current, nextConversation));
-      showIfActive(nextConversation);
       // CLI local-login runs bring their own model unless the Bot has a provider override.
-      if (isGroup || settingsUseProvider(model.settings)) await synchronizePiRuntime(activeProject, nextConversation.id, controller.signal, isGroup ? undefined : targetBot);
+      if (isGroup || settingsUseProvider(model.settings)) await synchronizePiRuntime(activeProject, stream.current.id, controller.signal, isGroup ? undefined : targetBot);
       const attachments: PiPromptAttachment[] = [];
       const referencedConversationIds: string[] = [];
       const attachmentScope = isGroup ? "shared" : presetId;
@@ -864,13 +871,13 @@ export function AgentApp() {
         attachments.push(uploaded);
       }
       if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
-      if (context?.draftSnapshot) await composer.submitted(nextConversation, { requestId: runId, ...context.draftSnapshot });
+      if (context?.draftSnapshot) await composer.submitted(stream.current, { requestId: runId, ...context.draftSnapshot });
       if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
       preparingPiRefs.current.delete(conversationId);
       promptAttempted = true;
       for await (const event of (isGroup ? runGroupTurn : runPiTurn)({
-        ...(isGroup ? { members: groupMembersOf(nextConversation) } : {}),
-        conversationId: nextConversation.id,
+        ...(isGroup ? { members: groupMembersOf(stream.current) } : {}),
+        conversationId: stream.current.id,
         botId,
         availableBots: syncedBots.profiles.map(({ id, name, presetId }) => ({ id, name, presetId })),
         requestId: runId,
@@ -888,40 +895,28 @@ export function AgentApp() {
         locale,
       }, { signal: controller.signal })) {
         if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
-          commit.cancel();
+          stream.cancel();
           return false;
         }
         if (confirmsPromptAccepted(event)) onAccepted();
-        if (event.type === "group.members.updated") nextConversation = { ...nextConversation, ...groupFields(event.payload) };
-        nextConversation = appendPiConversationEvents(nextConversation, [event]);
-        commit.push(nextConversation);
-        if (event.type === "tool.call.awaiting_approval" || event.type === "run.awaiting_input") {
-          // Waiting on the user, so it cannot wait on a frame.
-          commit.flush();
-          applyPendingConversationWait(pendingWaits, event);
-          setAwaitingConversationIds((current) => toggleIn(current, conversationId, pendingWaits.size > 0));
-        } else if (event.type === "run.started" || APPROVAL_SETTLED_EVENTS.has(event.type) || event.payload.inputRequestId) {
-          applyPendingConversationWait(pendingWaits, event);
-          setAwaitingConversationIds((current) => toggleIn(current, conversationId, pendingWaits.size > 0));
-        }
+        stream.append(event);
       }
-      commit.flush();
+      stream.flush();
       // The host titles a new conversation with its model during the first turn.
-      if (turnStartEventCount === 0 || isGroupConversation(nextConversation)) refreshConversationTitle(conversationId);
+      if (turnStartEventCount === 0 || isGroupConversation(stream.current)) refreshConversationTitle(conversationId);
       // The turn already delivered its terminal; a metadata refresh failure must not reattach it.
       await refreshPiRuntime().catch(() => undefined);
     } catch (error) {
       // Cancelled, not flushed: a frame still queued holds the conversation as it was *before*
       // the error events were appended, and letting it land after the commit below would erase
       // them from the screen.
-      commit.cancel();
+      stream.cancel();
       if (controller.signal.aborted) {
         // The abort severed the stream, so the server's own wrap-up events never arrive.
         // Close whatever is still open locally (text/tool/reasoning blocks + a cancelled
         // run terminal) so the transcript never keeps a half-finished turn.
-        const closed = appendPiConversationEvents(nextConversation, promptAttempted ? piCancelledTurnEvents(nextConversation.events) : []);
-        setPiConversations((current) => replacePiConversation(current, closed));
-        showIfActive(closed);
+        const closed = appendPiConversationEvents(stream.current, promptAttempted ? piCancelledTurnEvents(stream.current.events) : []);
+        stream.replace(closed);
       } else if (promptAttempted && !(error instanceof PiRequestError)) {
         // A lost connection cannot tell us whether the host is running or has just finished.
         // Reattach in either case and read its authoritative result; never replay the prompt.
@@ -931,12 +926,10 @@ export function AgentApp() {
         // Include the prompt only if this turn emitted no events; otherwise the transcript already contains it.
         const errorEvents = piErrorTurnEvents({
           message,
-          prompt: nextConversation.events.length === turnStartEventCount ? normalizedPrompt : undefined,
+          prompt: stream.current.events.length === turnStartEventCount ? normalizedPrompt : undefined,
           runId,
         });
-        nextConversation = appendPiConversationEvents(nextConversation, errorEvents);
-        setPiConversations((current) => replacePiConversation(current, nextConversation));
-        showIfActive(nextConversation);
+        stream.replace(appendPiConversationEvents(stream.current, errorEvents));
       }
     } finally {
       preparingPiRefs.current.delete(conversationId);
@@ -949,7 +942,7 @@ export function AgentApp() {
         }
       }
     }
-    if (reattach) void followRun(nextConversation, { requestId: runId, prompt: normalizedPrompt, onAccepted });
+    if (reattach) void followRun(stream.current, { requestId: runId, prompt: normalizedPrompt, onAccepted });
     // Acceptance clears the composer explicitly; failures before it preserve the draft/files.
     return false;
   }
@@ -967,62 +960,41 @@ export function AgentApp() {
     piAbortRefs.current.set(conversationId, controller);
     runStop.bind(controller, submission?.requestId ?? conversation.activeRunId);
     setRunningConversationIds((current) => toggleIn(current, conversationId, true));
-    const showIfActive = (next: EphemeralPiConversation) => {
-      if (activeConversationIdRef.current === next.id) setPiEvents([...next.events]);
-    };
-    const commit = createPiFrameCommit<EphemeralPiConversation>((next) => {
-      if (piAbortRefs.current.get(conversationId) !== controller) return;
-      setPiConversations((current) => replacePiConversation(current, next));
-      showIfActive(next);
-    });
-    let current = conversation;
-    let pendingWaits = pendingConversationWaits(current.events);
+    const stream = createShellConversationStream(conversationId, controller, conversation);
     let retries = 0;
     let reload = !preloaded;
     try {
       while (!controller.signal.aborted) {
         try {
           // A reconnect always reads again: the host may have moved on while the stream was down.
-          if (reload) current = await loadStoredConversation(current);
+          let snapshot = stream.current;
+          if (reload) snapshot = await loadStoredConversation(snapshot);
           reload = true;
-          if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
+          if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
           if (controller.signal.aborted) break;
-          pendingWaits = pendingConversationWaits(current.events);
-          setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, pendingWaits.size > 0));
-          runStop.bind(controller, current.activeRunId ?? [...current.events].reverse().find(event => event.type === "run.started")?.runId);
+          stream.replace(snapshot);
+          runStop.bind(controller, stream.current.activeRunId ?? [...stream.current.events].reverse().find(event => event.type === "run.started")?.runId);
           // Saved and live events are the host's stored transcript; rejected prompts are never saved.
-          if (submission && current.events.some((event) => event.runId === submission.requestId)) submission.onAccepted?.();
-          setPiConversations((list) => replacePiConversation(list, current));
-          showIfActive(current);
-          const requestId = submission && !current.events.some((event) => event.runId === submission.requestId)
+          if (submission && stream.current.events.some((event) => event.runId === submission.requestId)) submission.onAccepted?.();
+          const requestId = submission && !stream.current.events.some((event) => event.runId === submission.requestId)
             ? submission.requestId : undefined;
-          for await (const event of followPiTurn(conversationId, current.events.length, { signal: controller.signal, requestId })) {
-            if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
+          for await (const event of followPiTurn(conversationId, stream.current.events.length, { signal: controller.signal, requestId })) {
+            if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
             if (controller.signal.aborted) break;
             if (event.type === "run.started") runStop.bind(controller, event.runId);
             if (event.runId) liveRunIds.current.add(event.runId);
             if (submission && event.runId === submission.requestId) submission.onAccepted?.();
             retries = 0;
-            if (event.type === "group.members.updated") current = { ...current, ...groupFields(event.payload) };
-            current = appendPiConversationEvents(current, [event]);
-            commit.push(current);
-            if (event.type === "tool.call.awaiting_approval" || event.type === "run.awaiting_input") {
-              commit.flush();
-              applyPendingConversationWait(pendingWaits, event);
-              setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, pendingWaits.size > 0));
-            } else if (event.type === "run.started" || APPROVAL_SETTLED_EVENTS.has(event.type) || event.payload.inputRequestId) {
-              applyPendingConversationWait(pendingWaits, event);
-              setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, pendingWaits.size > 0));
-            }
+            stream.append(event);
           }
-          if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
-          commit.flush();
+          if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
+          stream.flush();
           // A first turn started elsewhere (IM, another tab) is titled by the host as it ends.
-          if (current.events.filter((event) => event.type === "run.started").length === 1 || isGroupConversation(current)) refreshConversationTitle(conversationId);
+          if (stream.current.events.filter((event) => event.type === "run.started").length === 1 || isGroupConversation(stream.current)) refreshConversationTitle(conversationId);
           break;
         } catch (error) {
-          if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
-          commit.flush();
+          if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
+          stream.flush();
           if (controller.signal.aborted) break;
           // A missing conversation or denied access is definitive; a network failure/5xx is not.
           if (error instanceof PiRequestError && error.status < 500) throw error;
@@ -1032,18 +1004,17 @@ export function AgentApp() {
       }
       if (controller.signal.aborted) {
         // Stopped from here: the host's own wrap-up events are not coming over this stream.
-        const closed = appendPiConversationEvents(current, piCancelledTurnEvents(current.events));
-        setPiConversations((list) => replacePiConversation(list, closed));
-        showIfActive(closed);
+        const closed = appendPiConversationEvents(stream.current, piCancelledTurnEvents(stream.current.events));
+        stream.replace(closed);
       }
     } catch (error) {
-      if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
+      if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
       // Connection failure is not a host terminal and must never advance its event cursor.
       setFollowProblems((problems) => ({ ...problems, [conversationId]: {
         message: featureError(locale, error instanceof Error ? error : "Pi runtime failed."),
-        prompt: submission && !current.events.some((event) => event.runId === submission.requestId && event.type === "text.started"
+        prompt: submission && !stream.current.events.some((event) => event.runId === submission.requestId && event.type === "text.started"
           && (event.payload as { role?: string }).role === "user") ? submission.prompt : undefined,
-        runId: submission?.requestId ?? [...current.events].reverse().find((event) => event.type === "run.started")?.runId
+        runId: submission?.requestId ?? [...stream.current.events].reverse().find((event) => event.type === "run.started")?.runId
           ?? `pi_follow_${Date.now().toString(36)}`,
       } }));
     } finally {

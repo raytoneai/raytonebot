@@ -1,21 +1,4 @@
-/**
- * One React commit per animation frame, for the live Pi turn loop.
- *
- * A Pi turn streams one canonical event at a time. Committing each one is quadratic, not merely
- * wasteful: `runtime.replay(events)` re-parses *and re-sorts the whole event list* on every
- * commit (`vendor/agent-ux/runtime/dist/index.js:31`), then the view model, the localization
- * pass and the output panel are all rebuilt. Over a turn of n events that is O(n² log n), which
- * is why a real reply visibly slowed down as it grew.
- *
- * A frame is the useful ceiling — nothing painted between two frames was ever seen. The latest
- * value wins, so no event is lost; only intermediate renders are. What the screen finally shows
- * is unchanged, which is the property `vendorParity.test.tsx` ("renders a streamed turn exactly
- * like a replayed one") holds this to.
- *
- * Lives here rather than in either shell because the editor (`App.tsx`) and the generated export
- * (`export/scaffoldManifest.ts`) each run their own copy of the turn loop; a coalescer written
- * twice is a coalescer that will differ.
- */
+/** Coalesce streamed conversation snapshots to one React commit per animation frame. */
 export type PiFrameCommit<T> = {
   /** Queue a value. The most recent one is what gets committed. */
   push(value: T): void;

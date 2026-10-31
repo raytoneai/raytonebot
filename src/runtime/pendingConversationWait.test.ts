@@ -17,7 +17,7 @@ test("tracks several approval waits independently and run.error settles them", (
   assert.equal(waits.size, 0);
 });
 
-test("only a matching tool progress settles an approval, while a new run clears stale waits", () => {
+test("progress without an input request leaves approval pending, while a new run clears stale waits", () => {
   const waits = pendingConversationWaits([
     event("tool.call.awaiting_approval", "old-run", { toolCallId: "write" }),
   ]);

@@ -9,6 +9,7 @@ const WAIT_SEPARATOR = "\u0000";
  * inside a turn.
  */
 export type PendingConversationWaits = Set<string>;
+export type PendingConversationWaitUpdate = "announced" | "settled";
 
 function waitKey(runId: string, kind: "approval" | "input", id: string): string {
   return `${runId}${WAIT_SEPARATOR}${kind}${WAIT_SEPARATOR}${id}`;
@@ -22,63 +23,63 @@ function stringValue(value: unknown): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
-function removeRun(waits: PendingConversationWaits, runId?: string) {
-  if (!runId) {
-    waits.clear();
-    return;
-  }
+function removeRun(waits: PendingConversationWaits, runId: string | undefined) {
+  if (!runId) return;
   const prefix = `${runId}${WAIT_SEPARATOR}`;
   for (const key of waits) if (key.startsWith(prefix)) waits.delete(key);
 }
 
 function removeTool(waits: PendingConversationWaits, runId: string | undefined, toolCallId: string | undefined) {
-  if (!toolCallId) return;
-  const prefix = `${runId ?? ""}${WAIT_SEPARATOR}approval${WAIT_SEPARATOR}${toolCallId}`;
-  for (const key of waits) if (key === prefix || (!runId && key.endsWith(`${WAIT_SEPARATOR}approval${WAIT_SEPARATOR}${toolCallId}`))) waits.delete(key);
+  if (!runId || !toolCallId) return;
+  waits.delete(waitKey(runId, "approval", toolCallId));
 }
 
 function removeInput(waits: PendingConversationWaits, runId: string | undefined, requestId: string | undefined) {
-  if (!requestId) return;
-  const prefix = `${WAIT_SEPARATOR}input${WAIT_SEPARATOR}${requestId}`;
-  for (const key of waits) {
-    if (key === `${runId ?? ""}${prefix}` || (!runId && key.endsWith(prefix))) waits.delete(key);
-  }
+  if (!runId || !requestId) return;
+  waits.delete(waitKey(runId, "input", requestId));
 }
 
 /** Apply one event without rescanning the conversation transcript. */
-export function applyPendingConversationWait(waits: PendingConversationWaits, event: AgentUXEvent): void {
+export function applyPendingConversationWait(
+  waits: PendingConversationWaits,
+  event: AgentUXEvent,
+): PendingConversationWaitUpdate | undefined {
   const payload = payloadOf(event);
   const runId = stringValue(event.runId);
 
   if (event.type === "run.started") {
     // A conversation has one active turn. Drop a stale wait before recording the new turn.
     waits.clear();
-    return;
+    return "settled";
   }
 
   if (event.type === "run.finished" || event.type === "run.error") {
     removeRun(waits, runId);
-    return;
+    return "settled";
   }
 
   if (event.type === "tool.call.awaiting_approval") {
     const toolCallId = stringValue(payload.toolCallId);
-    if (toolCallId) waits.add(waitKey(runId ?? "", "approval", toolCallId));
-    return;
+    if (runId && toolCallId) waits.add(waitKey(runId, "approval", toolCallId));
+    return runId && toolCallId ? "announced" : undefined;
   }
 
   if (event.type === "run.awaiting_input") {
     const requestId = stringValue(payload.requestId);
-    if (requestId) waits.add(waitKey(runId ?? "", "input", requestId));
-    return;
+    if (runId && requestId) waits.add(waitKey(runId, "input", requestId));
+    return runId && requestId ? "announced" : undefined;
   }
 
   if (["tool.call.running", "tool.call.result", "tool.call.error", "tool.call.finished"].includes(event.type)) {
     removeTool(waits, runId, stringValue(payload.toolCallId));
+    return "settled";
   }
 
   // The adapter normalizes question, vault and channel answers to tool.call.progress.
-  if (event.type === "tool.call.progress") removeInput(waits, runId, stringValue(payload.inputRequestId));
+  if (event.type === "tool.call.progress" && stringValue(payload.inputRequestId)) {
+    removeInput(waits, runId, stringValue(payload.inputRequestId));
+    return "settled";
+  }
 }
 
 export function pendingConversationWaits(events: readonly AgentUXEvent[]): PendingConversationWaits {
