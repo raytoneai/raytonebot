@@ -1,0 +1,19 @@
+{
+  "scenarios": [
+    "live-poll-stale-edit-rejected-draft-preserved",
+    "source-date-add-clear-no-invented-date",
+    "three-locales-desktop-and-390px"
+  ],
+  "pageErrors": [],
+  "screenshots": [
+    "batch2-memory-en-1280.png",
+    "batch2-memory-en-390.png",
+    "batch2-memory-en-390-fields.png",
+    "batch2-memory-zh-1280.png",
+    "batch2-memory-zh-390.png",
+    "batch2-memory-zh-390-fields.png",
+    "batch2-memory-ja-1280.png",
+    "batch2-memory-ja-390.png",
+    "batch2-memory-ja-390-fields.png"
+  ]
+}

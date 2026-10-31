@@ -382,7 +382,8 @@ export function createPiHttpHost(options: {
               const scope = body.scope as import("./memoryTypes.ts").MemoryScope | undefined;
               if (scope?.kind === "bot" && !bots.view().profiles.some(bot => bot.id === scope.id)) throw new MemoryError("Memory Bot is unavailable.", 404);
               if (scope?.kind === "group" && (typeof scope.id !== "string" || !/^[a-zA-Z0-9._:-]{1,160}$/.test(scope.id) || scope.id.includes(".m.") || !store.get(scope.id)?.group)) throw new MemoryError("Memory group is unavailable.", 404);
-              sendJson(res, id ? 200 : 201, { memory: id ? memory.update(id, body.text, scope) : memory.add(body.text, scope) });
+              const evidence = body.evidence as import("./memoryTypes.ts").MemoryEvidence | null | undefined;
+              sendJson(res, id ? 200 : 201, { memory: id ? memory.update(id, body.text, scope, evidence, body.expectedText as string | undefined) : memory.add(body.text, scope, evidence as import("./memoryTypes.ts").MemoryEvidence | undefined) });
             }
             else if (req.method === "DELETE" && id) { memory.remove(id); sendJson(res, 200, { ok: true }); }
             else sendJson(res, 404, { error: "Unknown memory request." });

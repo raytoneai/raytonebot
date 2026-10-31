@@ -1,15 +1,21 @@
-# 首批任务 Skills
+# 任务 Skills
 
-这两条 Skill 只使用现有的文本 Skills、Bot 分配、联网/文件工具和 `publish_artifact`；不新增 schema、自动导入器、权限或模型设置。
+这些文件是现有 RaytoneBot Settings 可保存的 `name`、`description`、`instructions` 文本，不是 Codex `SKILL.md`，也不会因放进仓库而自动安装。首批两条使用现有 Bot 分配、联网/文件工具和 `publish_artifact`；记忆审计复用现有记忆工具，不新增自动导入器、权限或模型设置。
 
-2026-11-01 已通过原服务保存并分配给**本机 Raer**，重新加载后的 `read_skill` 两条均可读取；其他 Bot、模型和权限未变。配置修改前已备份，安装身份及回退文件位置见[本机安装记录](../../output/first-batch-optimizations-2026-11-01/local-skill-install.json)。其他主机仍按以下步骤安装，未同步到云。
+| Skill | 用途 | 安装状态 |
+| --- | --- | --- |
+| [有来源的研究报告](source-backed-research-report.md) | 研究并登记单文件报告 | 首批已安装到本机 Raer |
+| [已有报告增量更新](incremental-report-update.md) | 保留原内容，按新证据更新报告 | 首批已安装到本机 Raer |
+| [记忆审计](memory-audit.md) | 完整读取可见记忆，审阅疑似冲突并执行获准的具体变更 | 仓库可选文本；本批未保存到应用或分配给 Bot |
+
+2026-11-01 首批两条已通过原服务保存并分配给**本机 Raer**，重新加载后的 `read_skill` 两条均可读取；其他 Bot、模型和权限未变。配置修改前已备份，安装身份及回退文件位置见[本机安装记录](../../output/first-batch-optimizations-2026-11-01/local-skill-install.json)。其他主机仍按以下步骤安装，未同步到云。
 
 ## 手工安装与分配
 
 1. 打开 RaytoneBot 的 Settings → **MCP & Skills**，选择 **Add Skill**。
 2. 将每个文件的 `name`、`description`、`instructions` 三段分别复制到对应字段，保持 Enabled 后保存。现有校验限制为：name ≤ 80、description ≤ 300、instructions ≤ 16,000 字符；不要粘贴本文件标题或说明。
 3. 打开目标 Bot 的 **Edit** → **Engine, model and capabilities** → **Skills**，勾选对应 Skill 并保存。只分配实际要验收的 Bot；Skill 文本不改变该 Bot 的模型、工具或权限。
-4. 研究或更新任务的最终交付应是一个 `.md`、`.txt` 或 `.pdf` 文件，并由 Skill 要求用 `publish_artifact({path, preserveVersion: true})` 登记；以工具成功回执为准。
+4. 首批研究或更新任务的最终交付应是一个 `.md`、`.txt` 或 `.pdf` 文件，并由 Skill 要求用 `publish_artifact({path, preserveVersion: true})` 登记；以工具成功回执为准。记忆审计不要求另建报告文件；安装前确认运行主机支持分页 `recall_memories` 和 `remember` 的 `replaceId`、`expectedText`、`evidence` 参数，不能用先删后建替代。用户要求审计时才使用；仍沿用既有审批和可见范围。
 
 ## 六场景手工对照记录
 

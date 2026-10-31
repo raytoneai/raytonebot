@@ -3,7 +3,7 @@ import { featureText } from "../../i18n/copy/features.ts";
 
 import { type SettingsCopy } from "../../i18n/copy/settings";
 import { useLocale } from "../../i18n/LocaleContext";
-import { MEMORY_COUNT_LIMIT, MEMORY_TEXT_LIMIT, type MemoryScope, type MemoryView } from "../../pi/memoryTypes";
+import { MEMORY_COUNT_LIMIT, MEMORY_EVIDENCE_URL_LIMIT, MEMORY_TEXT_LIMIT, type MemoryScope, type MemoryView } from "../../pi/memoryTypes";
 import type { MemoriesState } from "../../runtime/useMemories";
 import { useBotNames } from "../shell/ShellExtras";
 import { Button, Input, SelectMenu, Switch } from "../ui";
@@ -11,11 +11,17 @@ import { Dot } from "./SettingsShared";
 
 export const memoryScopeKey = (scope?: MemoryScope) => !scope || scope.kind === "global" ? "global" : `${scope.kind}:${scope.id}`;
 type MemoryScopeOption = { scope: MemoryScope; label: string; available: boolean };
+const sourceUrl = (value?: string) => {
+  try { const url = new URL(value ?? ""); return /^(https?:)$/.test(url.protocol) ? url : undefined; }
+  catch { return undefined; }
+};
 
 export function MemorySection({ t, state, scopes = [], initialScope }: { t: SettingsCopy; state: MemoriesState; scopes?: { scope: MemoryScope; label: string }[]; initialScope?: MemoryScope }) {
   const c = t.memory;
   const { locale } = useLocale();
   const [draft, setDraft] = useState("");
+  const [url, setUrl] = useState("");
+  const [checkedAt, setCheckedAt] = useState("");
   const [filter, setFilter] = useState(initialScope ? memoryScopeKey(initialScope) : "all");
   const [addScope, setAddScope] = useState(memoryScopeKey(initialScope));
   const memory = state.memory;
@@ -31,7 +37,12 @@ export function MemorySection({ t, state, scopes = [], initialScope }: { t: Sett
   const memories = [...(memory?.memories ?? [])].reverse().filter(item => filter === "all" || memoryScopeKey(item.scope) === filter);
   const addFailure = state.actionError?.id === "new" ? state.actionError.message : undefined;
   const selectedAddScope = available.find(option => memoryScopeKey(option.scope) === addScope)?.scope;
-  const add = async () => { if (!state.busy && draft.trim() && selectedAddScope && await state.save(undefined, draft, selectedAddScope)) setDraft(""); };
+  const add = async () => {
+    if (!state.busy && draft.trim() && selectedAddScope && await state.save(undefined, draft, selectedAddScope,
+      url.trim() ? { url: url.trim(), ...(checkedAt ? { checkedAt } : {}) } : undefined)) {
+      setDraft(""); setUrl(""); setCheckedAt("");
+    }
+  };
   return (
     <>
       <p className="settings-intro">{featureText(locale, "Memories can be shared globally, with one Bot, or within one group. Chat saves default to the current Bot or group; global memories are available in every conversation.")}</p>
@@ -58,6 +69,7 @@ export function MemorySection({ t, state, scopes = [], initialScope }: { t: Sett
         </div>
       ) : null}
       {memory ? (
+        <>
         <div className="settings-field-row settings-memory-controls">
           <Input value={draft} disabled={Boolean(state.busy)} maxLength={MEMORY_TEXT_LIMIT} placeholder={c.addPlaceholder} aria-label={c.addPlaceholder}
             onChange={(event) => setDraft(event.target.value)}
@@ -66,6 +78,15 @@ export function MemorySection({ t, state, scopes = [], initialScope }: { t: Sett
             options={available.map(option => ({ value: memoryScopeKey(option.scope), label: option.label }))} />
           <Button size="sm" disabled={!draft.trim() || Boolean(state.busy) || !selectedAddScope} onClick={() => void add()}>{c.add}</Button>
         </div>
+        <details className="settings-model-options"><summary>{featureText(locale, "Source details (optional)")}</summary>
+          <div className="settings-model-limits">
+          <label>{featureText(locale, "Source URL")}<Input type="url" value={url} maxLength={MEMORY_EVIDENCE_URL_LIMIT} disabled={Boolean(state.busy)}
+            placeholder="https://" onChange={event => { if (event.target.value.trim() !== url.trim()) setCheckedAt(""); setUrl(event.target.value); }} /></label>
+          <label>{featureText(locale, "Recorded check date (optional)")}<Input type="date" value={checkedAt} disabled={Boolean(state.busy) || !url.trim()}
+            onChange={event => setCheckedAt(event.target.value)} /></label>
+          </div>
+        </details>
+        </>
       ) : null}
       {addFailure ? <span className="settings-status" data-tone="error" role="status"><Dot />{c.failed(addFailure)}</span> : null}
     </>
@@ -78,6 +99,10 @@ function MemoryRow({ t, memory, state, scopes }: { t: SettingsCopy; memory: Memo
   const botNames = useBotNames();
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(memory.text);
+  const [originalText, setOriginalText] = useState(memory.text);
+  const [url, setUrl] = useState(memory.evidence?.url ?? "");
+  const [checkedAt, setCheckedAt] = useState(memory.evidence?.checkedAt ?? "");
+  const [evidenceChanged, setEvidenceChanged] = useState(false);
   const [scopeKey, setScopeKey] = useState(memoryScopeKey(memory.scope));
   const [scopeChanged, setScopeChanged] = useState(false);
   const [confirming, setConfirming] = useState(false);
@@ -87,11 +112,18 @@ function MemoryRow({ t, memory, state, scopes }: { t: SettingsCopy; memory: Memo
   const selectedScope = scopes.find(option => memoryScopeKey(option.scope) === scopeKey);
   const validScope = !scopeChanged || selectedScope?.available;
   const scopeLabel = scopes.find(option => memoryScopeKey(option.scope) === memoryScopeKey(memory.scope))?.label;
-  const reset = () => { setText(memory.text); setScopeKey(memoryScopeKey(memory.scope)); setScopeChanged(false); };
-  const save = async () => { if (!busy && validScope && await state.save(memory.id, text, scopeChanged ? selectedScope?.scope : undefined)) setEditing(false); };
+  const evidenceUrl = sourceUrl(memory.evidence?.url);
+  const reset = () => {
+    setText(memory.text); setOriginalText(memory.text); setScopeKey(memoryScopeKey(memory.scope)); setScopeChanged(false);
+    setUrl(memory.evidence?.url ?? ""); setCheckedAt(memory.evidence?.checkedAt ?? ""); setEvidenceChanged(false);
+  };
+  const save = async () => {
+    const evidence = evidenceChanged ? url.trim() ? { url: url.trim(), ...(checkedAt ? { checkedAt } : {}) } : null : undefined;
+    if (!busy && validScope && await state.save(memory.id, text, scopeChanged ? selectedScope?.scope : undefined, evidence, originalText)) setEditing(false);
+  };
   return (
     <div className="settings-row settings-memory-row">
-      <span className="settings-row-main">
+      <div className="settings-row-main">
         {editing ? (
           <Input value={text} maxLength={MEMORY_TEXT_LIMIT} autoFocus disabled={busy} aria-label={c.edit} onChange={(event) => setText(event.target.value)}
             onKeyDown={(event) => {
@@ -102,9 +134,20 @@ function MemoryRow({ t, memory, state, scopes }: { t: SettingsCopy; memory: Memo
         {editing ? <SelectMenu ariaLabel={featureText(locale, "Memory scope")} value={scopeKey} disabled={busy}
           onValueChange={value => { setScopeKey(value); setScopeChanged(value !== memoryScopeKey(memory.scope)); }}
           options={scopes.map(option => ({ value: memoryScopeKey(option.scope), label: option.label, disabled: !option.available }))} /> : null}
+        {editing ? <details className="settings-model-options"><summary>{featureText(locale, "Source details (optional)")}</summary>
+          <div className="settings-model-limits">
+          <label>{featureText(locale, "Source URL")}<Input type="url" value={url} maxLength={MEMORY_EVIDENCE_URL_LIMIT} disabled={busy}
+            placeholder="https://" onChange={event => { if (event.target.value.trim() !== url.trim()) setCheckedAt(""); setUrl(event.target.value); setEvidenceChanged(true); }} /></label>
+          <label>{featureText(locale, "Recorded check date (optional)")}<Input type="date" value={checkedAt} disabled={busy || !url.trim()}
+            onChange={event => { setCheckedAt(event.target.value); setEvidenceChanged(true); }} /></label>
+          </div>
+        </details> : evidenceUrl ? <span className="settings-row-sub">
+          <a href={evidenceUrl.href} target="_blank" rel="noopener noreferrer" title={memory.evidence?.url}>{featureText(locale, "Source")} · {evidenceUrl.hostname}</a>
+          {memory.evidence?.checkedAt ? ` · ${featureText(locale, "Recorded check date")}: ${memory.evidence.checkedAt}` : ""}
+        </span> : null}
         <span className="settings-row-sub">{scopeLabel} · {memory.source ? c.savedBy(botNames[memory.source.botId ?? memory.source.agent] ?? botNames[memory.source.agent], when) : c.addedByYou(when)}</span>
         {failure ? <span className="settings-status" data-tone="error" role="status"><Dot />{c.failed(failure)}</span> : null}
-      </span>
+      </div>
       {editing ? (
         <>
           <Button size="sm" disabled={busy || !text.trim() || !validScope} onClick={() => void save()}>{c.save}</Button>

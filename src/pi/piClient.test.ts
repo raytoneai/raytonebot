@@ -2,7 +2,28 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setImmediate } from "node:timers/promises";
 import type { AgentUXEvent } from "@agent-ux/protocol";
-import { abortPiRun, followPiTurn, getArtifactVersions, piArtifactVersionDownloadUrl, PiRequestError, resolvePiApproval, submitPiApproval, runPiTurn } from "./piClient.ts";
+import { abortPiRun, followPiTurn, getArtifactVersions, piArtifactVersionDownloadUrl, PiRequestError, resolvePiApproval, saveMemory, submitPiApproval, runPiTurn } from "./piClient.ts";
+
+test("memory saves preserve source metadata, explicit removal, and stale-edit preconditions", async () => {
+  const calls: { url: string; body: unknown }[] = [];
+  const fetcher: typeof fetch = async (url, init) => {
+    calls.push({ url: String(url), body: JSON.parse(String(init?.body)) });
+    return Response.json({ memory: { id: "item", text: "Updated", createdAt: 1, updatedAt: 2 } });
+  };
+  const evidence = { url: "https://example.com/release", checkedAt: "2026-10-30" };
+  await saveMemory(undefined, "Added", fetcher, { kind: "global" }, evidence);
+  await saveMemory("item", "Updated", fetcher, undefined, null, "Original");
+  await saveMemory("item", "Legacy client", fetcher);
+  assert.deepEqual(calls.map(call => call.body), [
+    { text: "Added", scope: { kind: "global" }, evidence },
+    { text: "Updated", evidence: null, expectedText: "Original" },
+    { text: "Legacy client" },
+  ]);
+  assert.ok(calls[0].url.endsWith("/memories"));
+  assert.ok(calls[1].url.endsWith("/memories/item"));
+  await assert.rejects(saveMemory("item", "Draft", async () => Response.json({ error: "Memory changed. Review the current text." }, { status: 409 }),
+    undefined, evidence, "Original"), error => error instanceof PiRequestError && error.status === 409 && /Memory changed/.test(error.message));
+});
 
 test("artifact version metadata and exact download URLs preserve conversation and projected identity", async () => {
   const calls: string[] = [];

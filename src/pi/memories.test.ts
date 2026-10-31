@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { mkdtempSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -55,6 +55,72 @@ test("memories are one list on disk: deduplicated, never secrets, capped, editab
     for (let i = 0; i < 100; i += 1) memory.add(`Fact number ${i}.`);
     assert.throws(() => memory.add("One more."), /full/);
     assert.doesNotMatch(readFileSync(join(dataDir, "memories.json"), "utf8"), /hunter2/);
+  } finally { rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("memory evidence survives storage, recall and bounded notes without implying host verification", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-evidence-"));
+  try {
+    const memory = createMemoryService({ dataDir });
+    const legacy = memory.add("An undated preference.");
+    const evidence = { url: "https://example.com/source?edition=2", checkedAt: "2024-02-29" };
+    const saved = memory.add("The service currently supports feature A.", undefined, evidence);
+    assert.deepEqual(saved.evidence, evidence);
+    assert.equal(legacy.evidence, undefined);
+    const restored = createMemoryService({ dataDir });
+    assert.deepEqual(restored.state(), memory.state());
+    const recalled = JSON.parse((await restored.toolsFor({ conversationId: "chat", agent: "assistant" })!.run("recall_memories", {})).text);
+    assert.deepEqual(recalled.memories[0].evidence, evidence);
+    const note = restored.noteFor("chat")!.text!;
+    assert.match(note, /https:\/\/example.com\/source\?edition=2/);
+    assert.match(note, /2024-02-29/);
+    assert.match(note, /supplied[\s\S]*not host verification/);
+    assert.match(note, /[Rr]echeck[\s\S]*time-sensitive/);
+    assert.deepEqual(restored.update(saved.id, "Reworded supported feature.").evidence, evidence, "legacy text-only edits preserve evidence");
+    assert.deepEqual(restored.update(saved.id, "Reworded supported feature.", undefined, { url: evidence.url }).evidence, { url: evidence.url }, "no check date is invented");
+    assert.equal(restored.update(saved.id, "An unsourced preference.", undefined, null).evidence, undefined);
+    for (let i = 0; i < 20; i += 1) restored.add(`Source-backed fact ${i}.`, undefined, { url: `https://example.com/${"x".repeat(1800)}?item=${i}` });
+    const bounded = restored.noteFor("bounded")!.text!;
+    assert.ok(bounded.length < 4600, String(bounded.length));
+    assert.match(bounded, /older memories not shown/);
+  } finally { rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("duplicate remembers report existing evidence and reject conflicting supplied evidence", async () => {
+  const memory = createMemoryService();
+  const evidence = { url: "https://example.com/original", checkedAt: "2024-01-01" };
+  const saved = memory.add("Uses feature A.", undefined, evidence);
+  assert.throws(() => memory.add("Uses feature A.", undefined, { url: "https://example.com/new" }), /replace/i);
+  assert.equal(memory.add("Uses feature A.", undefined, evidence).id, saved.id);
+  const tools = memory.toolsFor({ conversationId: "chat", agent: "assistant" })!;
+  const existing = JSON.parse((await tools.run("remember", { text: "uses feature A." })).text);
+  assert.equal(existing.id, saved.id);
+  assert.deepEqual(existing.evidence, evidence);
+  const conflict = await tools.run("remember", { text: "Uses feature A.", evidence: { ...evidence, checkedAt: "2026-11-01" } });
+  assert.equal(conflict.isError, true);
+  assert.match(conflict.text, /replace/i);
+  assert.deepEqual(memory.state().memories, [saved]);
+});
+
+test("invalid evidence is rejected without changing memory state or its persisted version", () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-invalid-evidence-"));
+  try {
+    const memory = createMemoryService({ dataDir });
+    const saved = memory.add("Saved fact.");
+    const original = readFileSync(join(dataDir, "memories.json"), "utf8");
+    const invalid = [
+      null, {}, { url: "" }, { url: "https:example.com" }, { url: "ftp://example.com" }, { url: "javascript:alert(1)" },
+      { url: "https://user:secret@example.com" }, { url: "https://example.com/\nextra" }, { url: `https://example.com/${"x".repeat(2048)}` },
+      { url: "https://example.com/?token=sk-abcdefghijklmnopqrstuvwx" }, { url: "https://example.com/?%70assword=hunter2" },
+      { url: "https://example.com", verified: true }, { url: "https://example.com", checkedAt: 20261101 },
+      ...["", "0000-01-01", "2025-02-29", "1900-02-29", "2026-04-31", "2026-13-01", "2026-1-01", "2026-11-01T00:00:00Z"].map(checkedAt => ({ url: "https://example.com", checkedAt })),
+    ];
+    for (const evidence of invalid) {
+      assert.throws(() => memory.add("Invalid new fact.", undefined, evidence as never));
+      if (evidence !== null) assert.throws(() => memory.update(saved.id, "Invalid edit.", undefined, evidence as never));
+      assert.deepEqual(memory.state().memories, [saved]);
+      assert.equal(readFileSync(join(dataDir, "memories.json"), "utf8"), original);
+    }
   } finally { rmSync(dataDir, { recursive: true, force: true }); }
 });
 
@@ -164,6 +230,114 @@ test("remember resolves owners from the run, deduplicates only within its scope,
   }
   assert.equal(memory.state().memories.some(item => item.text === "Unwanted."), false);
   assert.deepEqual(JSON.parse((await memory.toolsFor({ conversationId: "legacy", agent: "planner" })!.run("remember", { text: "Old caller." })).text).scope, { kind: "global" });
+});
+
+test("remember replaces a visible record atomically at capacity and clears stale evidence unless supplied", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-replace-"));
+  try {
+    let time = 1;
+    const memory = createMemoryService({ dataDir, now: () => time });
+    const source = { conversationId: "chat", agent: "assistant" as const, botId: botA, groupId: "room:a" };
+    const tools = memory.toolsFor(source)!;
+    const saved = JSON.parse((await tools.run("remember", { text: "The old supported feature.", scope: "bot" })).text);
+    const old = memory.update(saved.id, saved.text, undefined, { url: "https://example.com/old", checkedAt: "2024-01-01" });
+    for (let i = 0; i < 99; i += 1) memory.add(`Other fact ${i}.`);
+    time = 2;
+    const result = await tools.run("remember", { text: "The new supported feature.", replaceId: old.id, expectedText: old.text });
+    assert.equal(result.isError, false);
+    const replaced = memory.state().memories.find(item => item.id === old.id)!;
+    assert.equal(replaced.text, "The new supported feature.");
+    assert.equal(replaced.evidence, undefined, "old evidence cannot certify the replacement");
+    assert.equal(replaced.createdAt, old.createdAt);
+    assert.equal(replaced.updatedAt, 2);
+    assert.deepEqual(replaced.scope, old.scope, "a group caller replacing its Bot memory keeps the Bot scope");
+    assert.deepEqual(replaced.source, old.source);
+    assert.equal(memory.state().memories.length, 100);
+    const evidence = { url: "https://example.com/new", checkedAt: "2026-11-01" };
+    const sourced = JSON.parse((await tools.run("remember", { text: "The verified replacement.", replaceId: old.id, expectedText: replaced.text, evidence })).text);
+    assert.deepEqual(sourced.evidence, evidence);
+    assert.equal(sourced.id, old.id);
+    assert.deepEqual(createMemoryService({ dataDir }).state(), memory.state());
+  } finally { rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("replacement rejects stale text, inaccessible records and invalid input without changing memories", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-replace-invalid-"));
+  try {
+    const memory = createMemoryService({ dataDir });
+    const own = memory.add("Original Bot fact.", { kind: "bot", id: botA }, { url: "https://example.com/original" });
+    const privateBot = memory.add("Private Bot fact.", { kind: "bot", id: botB });
+    const privateGroup = memory.add("Private group fact.", { kind: "group", id: "room:b" });
+    const tools = memory.toolsFor({ conversationId: "chat", agent: "assistant", botId: botA, groupId: "room:a" })!;
+    const original = memory.state();
+    const persisted = readFileSync(join(dataDir, "memories.json"), "utf8");
+    memory.noteFor("chat", { botId: botA, groupId: "room:a" })!.delivered();
+    const missing = await tools.run("remember", { text: "Replacement.", replaceId: "missing", expectedText: "Unknown original." });
+    assert.equal(missing.isError, true);
+    for (const item of [privateBot, privateGroup]) {
+      assert.deepEqual(await tools.run("remember", { text: "Replacement.", replaceId: item.id, expectedText: item.text }), missing);
+    }
+    for (const input of [
+      { text: "Replacement.", replaceId: own.id }, { text: "Replacement.", expectedText: own.text },
+      { text: "Replacement.", replaceId: own.id, expectedText: "Stale original." },
+      { text: "Replacement.", replaceId: own.id, expectedText: own.text, scope: "global" },
+      { text: "Replacement.", replaceId: own.id, expectedText: own.text, evidence: { url: "https://example.com", checkedAt: "2026-02-30" } },
+      { text: "password: secret", replaceId: own.id, expectedText: own.text },
+    ]) assert.equal((await tools.run("remember", input)).isError, true);
+    assert.throws(() => memory.update(own.id, "Overwritten.", undefined, null, "Original Bot fact. "), /Memory changed/,
+      "manual edits compare the exact captured text, without normalizing a stale draft");
+    assert.throws(() => memory.update(own.id, "Overwritten.", undefined, null, null as never), /expectedText/);
+    assert.deepEqual(memory.state(), original);
+    assert.equal(readFileSync(join(dataDir, "memories.json"), "utf8"), persisted);
+    assert.equal(memory.noteFor("chat", { botId: botA, groupId: "room:a" }), undefined, "failed replacement does not advance the version");
+    memory.update(own.id, "Changed in Settings.");
+    const stale = await tools.run("remember", { text: "Replacement.", replaceId: own.id, expectedText: own.text });
+    assert.equal(stale.isError, true);
+    assert.match(stale.text, /Memory changed/);
+    assert.equal(memory.state().memories.find(item => item.id === own.id)?.text, "Changed in Settings.");
+  } finally { rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("failed replacement persistence leaves the prior memory available after restart", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-replace-write-"));
+  const displaced = `${dataDir}-saved`;
+  try {
+    const memory = createMemoryService({ dataDir });
+    const saved = memory.add("Original fact.", undefined, { url: "https://example.com/original" });
+    const tools = memory.toolsFor({ conversationId: "chat", agent: "assistant" })!;
+    renameSync(dataDir, displaced);
+    writeFileSync(dataDir, "Blocks the memory directory.");
+    const result = await tools.run("remember", { text: "Replacement.", replaceId: saved.id, expectedText: saved.text });
+    assert.equal(result.isError, true);
+    assert.deepEqual(memory.state().memories, [saved]);
+    rmSync(dataDir);
+    renameSync(displaced, dataDir);
+    assert.deepEqual(createMemoryService({ dataDir }).state().memories, [saved]);
+  } finally {
+    rmSync(dataDir, { recursive: true, force: true });
+    rmSync(displaced, { recursive: true, force: true });
+  }
+});
+
+test("replacement rejects another record's text in the same scope but allows text from another scope", async () => {
+  const memory = createMemoryService();
+  const own = memory.add("Own original fact.", { kind: "bot", id: botA });
+  memory.add("Another Bot A fact.", { kind: "bot", id: botA });
+  const other = memory.add("Bot B fact.", { kind: "bot", id: botB });
+  const tools = memory.toolsFor({ conversationId: "chat", agent: "assistant", botId: botA })!;
+  const original = memory.state();
+  const collision = await tools.run("remember", { replaceId: own.id, expectedText: own.text, text: "  ANOTHER   BOT A FACT. " });
+  assert.equal(collision.isError, true);
+  assert.match(collision.text, /already has this text/);
+  assert.deepEqual(memory.state(), original);
+  assert.throws(() => memory.update(own.id, other.text, { kind: "bot", id: botB }), /already has this text/);
+  assert.deepEqual(memory.state(), original);
+  const allowed = await tools.run("remember", { replaceId: own.id, expectedText: own.text, text: other.text });
+  assert.equal(allowed.isError, false);
+  assert.equal(memory.state().memories.length, 3);
+  const legacy = memory.add("Legacy global fact.");
+  const global = memory.add("Different global fact.", { kind: "global" });
+  assert.throws(() => memory.update(global.id, legacy.text), /already has this text/, "legacy and explicit global share the same effective scope");
 });
 
 test("recall retrieves older eligible memories with stable metadata and bounded read-only results", async () => {
@@ -429,6 +603,9 @@ test("scope persistence preserves legacy global entries and text-only edits; mal
       [{ ...legacy, scope: { kind: "global", id: "unexpected" } }],
       [{ ...legacy, scope: { kind: "unknown" } }],
       [{ ...legacy, source: { ...legacy.source, botId: "wrong" } }],
+      [{ ...legacy, evidence: null }],
+      [{ ...legacy, evidence: { url: "https://example.com", checkedAt: "2025-02-29" } }],
+      [{ ...legacy, evidence: { url: "https://user:secret@example.com" } }],
       [{ ...legacy, id: "../invalid" }],
       [legacy, legacy],
       Array.from({ length: 101 }, (_, i) => ({ ...legacy, id: `m${i}` })),
@@ -497,8 +674,10 @@ test("the host adds the memory note to the model's copy of the prompt and serves
   };
   try {
     assert.deepEqual((await call("")).body, { enabled: true, memories: [] });
-    const added = await call("", "POST", { text: "Prefers short answers." });
+    const evidence = { url: "https://example.com/preferences", checkedAt: "2026-11-01" };
+    const added = await call("", "POST", { text: "Prefers short answers.", evidence });
     assert.equal(added.status, 201);
+    assert.deepEqual((added.body.memory as Json).evidence, evidence);
     assert.equal((await call("", "POST", { text: "sk-abcdefghijklmnopqrstuvwxyz" })).status, 400);
     await host.controller.runPrompt({ conversationId: "chat", prompt: "你好" }, () => {});
     await host.controller.runPrompt({ conversationId: "chat", prompt: "再来" }, () => {});
@@ -508,9 +687,14 @@ test("the host adds the memory note to the model's copy of the prompt and serves
       "the transcript keeps what the user typed");
 
     const id = (added.body.memory as Json).id as string;
-    assert.equal((await call(`/${id}`, "POST", { text: "Prefers short answers in Chinese." })).status, 200);
+    assert.equal((await call(`/${id}`, "POST", { text: "Should not overwrite.", expectedText: "Stale original." })).status, 409);
+    assert.equal((await call(`/${id}`, "POST", { text: "Prefers short answers in Chinese.", expectedText: "Prefers short answers." })).status, 200);
     await host.controller.runPrompt({ conversationId: "chat", prompt: "第三轮" }, () => {});
     assert.match(prompts[2], /updated[\s\S]*in Chinese/);
+    const clearedEvidence = await call(`/${id}`, "POST", { text: "Prefers short answers in Chinese.", evidence: null, expectedText: "Prefers short answers in Chinese." });
+    assert.equal(clearedEvidence.status, 200);
+    assert.equal((clearedEvidence.body.memory as Json).evidence, undefined);
+    assert.equal((await call(`/${id}`, "POST", { text: "Should not overwrite.", evidence: { url: "https://example.com", checkedAt: "2025-02-29" } })).status, 400);
     assert.equal((await call("/settings", "POST", { enabled: false })).body.enabled, false);
     assert.equal((await call(`/${id}`, "DELETE")).status, 200);
     assert.equal((await call(`/${id}`, "DELETE")).status, 404);

@@ -1,0 +1,12 @@
+(!) Your Vite config uses features that are unsupported by `configLoader: 'native'`, which is planned to become the default in a future major version of Vite:
+  - import "../schema/agentuxConfig" without a file extension (src/pi/piProviderSync.ts:1:41). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/vaultRequest.ts:1:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/vault.ts:1:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/settings.ts:1:32). Add the file extension
+  - import "../locales" without a file extension (src/i18n/copy/composer.ts:4:32). Add the file extension
+  - import "./piClient" without a file extension (src/pi/piProviderSync.ts:2:67). Add the file extension
+  - import "../../pi/vaultRequestTypes" without a file extension (src/i18n/copy/vaultRequest.ts:2:37). Add the file extension
+  - import "./schema/agentuxConfig" without a file extension (src/exported-project.ts:1:43). Add the file extension
+  - import "../theme/themeTokens" without a file extension (src/schema/agentuxConfig.ts:9:36). Add the file extension
+Set `VITE_CONFIG_NATIVE_IGNORE_WARNING=true` to suppress this warning.
+{"scenarios":["live-poll-stale-edit-rejected-draft-preserved","source-date-add-clear-no-invented-date","three-locales-desktop-and-390px"],"pageErrors":[],"screenshots":["batch2-memory-en-1280.png","batch2-memory-en-390.png","batch2-memory-en-390-fields.png","batch2-memory-zh-1280.png","batch2-memory-zh-390.png","batch2-memory-zh-390-fields.png","batch2-memory-ja-1280.png","batch2-memory-ja-390.png","batch2-memory-ja-390-fields.png"]}

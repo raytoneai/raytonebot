@@ -2,6 +2,22 @@ import type { AppLocale } from "../locales.ts";
 
 /** Copy for product surfaces added after the original shell. English text is the typed key. */
 export const featureCopy = {
+  "Source details (optional)": {
+    "zh": "来源信息（可选）",
+    "ja": "出典の詳細（任意）"
+  },
+  "Source URL": {
+    "zh": "来源网址",
+    "ja": "出典 URL"
+  },
+  "Recorded check date (optional)": {
+    "zh": "记录的核对日期（可选）",
+    "ja": "記録された確認日（任意）"
+  },
+  "Recorded check date": {
+    "zh": "记录的核对日期",
+    "ja": "記録された確認日"
+  },
   "Could not save. Check the connection and retry.": {
     "zh": "保存失败，请检查连接后重试。",
     "ja": "保存できませんでした。接続を確認して再試行してください。"

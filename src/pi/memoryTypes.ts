@@ -4,6 +4,8 @@ import type { AgentPresetId } from "./harnessCatalog.ts";
 
 export type MemoryScope = { kind: "global" } | { kind: "bot"; id: string } | { kind: "group"; id: string };
 export type MemoryContext = { botId?: string; groupId?: string };
+/** A submitted source and optional check date, not verification performed by the host. */
+export type MemoryEvidence = { url: string; checkedAt?: string };
 
 export type MemoryView = {
   id: string;
@@ -12,6 +14,7 @@ export type MemoryView = {
   updatedAt: number;
   /** Missing on legacy entries, which remain global. */
   scope?: MemoryScope;
+  evidence?: MemoryEvidence;
   /** Saved by an agent in a conversation, or added by hand in Settings when absent. */
   source?: { conversationId: string; agent: AgentPresetId; botId?: string };
 };
@@ -20,3 +23,4 @@ export type MemoryState = { enabled: boolean; memories: MemoryView[] };
 
 export const MEMORY_TEXT_LIMIT = 300;
 export const MEMORY_COUNT_LIMIT = 100;
+export const MEMORY_EVIDENCE_URL_LIMIT = 2048;

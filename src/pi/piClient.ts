@@ -5,7 +5,7 @@ import type { PiApprovalDecision } from "../harness/adapters/piAdapter.ts";
 import type { ChannelPatch, ChannelPlatform, ChannelView } from "./imChannels/types.ts";
 import type { RoutineDefinitionPatch, RoutineView } from "./routineTypes.ts";
 import type { McpServerInput, McpServerView } from "./mcpTypes.ts";
-import type { MemoryState, MemoryView } from "./memoryTypes.ts";
+import type { MemoryEvidence, MemoryScope, MemoryState, MemoryView } from "./memoryTypes.ts";
 import type { VaultLoginInput, VaultState } from "./vaultTypes.ts";
 import type { VaultRequestAnswer, VaultUseResult } from "./vaultRequestTypes.ts";
 import type { BrowserInput, BrowserViewState } from "./browser/browserProtocol.ts";
@@ -304,9 +304,10 @@ export async function getMemories(fetcher: typeof fetch = fetch): Promise<Memory
 }
 
 /** Adds a memory (no id) or rewrites one. */
-export async function saveMemory(id: string | undefined, text: string, fetcher: typeof fetch = fetch, scope?: import("./memoryTypes.ts").MemoryScope): Promise<MemoryView> {
+export async function saveMemory(id: string | undefined, text: string, fetcher: typeof fetch = fetch, scope?: MemoryScope, evidence?: MemoryEvidence | null, expectedText?: string): Promise<MemoryView> {
   const path = id ? `${PI_API_PREFIX}/memories/${encodeURIComponent(id)}` : `${PI_API_PREFIX}/memories`;
-  return (await requestJson<{ memory: MemoryView }>(fetcher, path, { text, ...(scope ? { scope } : {}) }, AbortSignal.timeout(15_000))).memory;
+  return (await requestJson<{ memory: MemoryView }>(fetcher, path, { text, ...(scope ? { scope } : {}),
+    ...(evidence !== undefined ? { evidence } : {}), ...(expectedText !== undefined ? { expectedText } : {}) }, AbortSignal.timeout(15_000))).memory;
 }
 
 export async function getSkills(): Promise<import("./skillTypes.ts").SkillState> {

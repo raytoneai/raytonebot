@@ -21,4 +21,17 @@
 
 日志：`batch1-memory-tests.log`、`batch1-build.log`、`batch1-tests.log`、`batch1-local-check.log`、`batch1-cloud-check.log`。
 
-限制：未用真实外部模型构造长对话压缩，不承诺同一轮内自动重试已经补回记忆；旧 Codex 原生线程保留原 dynamic tool schema，分页参数可能需新建会话后才可见。本批无 UI/事件投影改动，未重复视觉验收。后续内容维护、项目交接和导出仍待各批实施。
+限制：未用真实外部模型构造长对话压缩，不承诺同一轮内自动重试已经补回记忆；旧 Codex 原生线程保留原 dynamic tool schema，新增工具参数可能需新建会话后才可见。本批无 UI/事件投影改动，未重复视觉验收。提交：`1617adb`。
+
+## 第二批：内容维护
+
+- `remember` 可带 replaceId/expectedText 原位替换，保留 ID/范围/创建信息；越范围 ID 与不存在 ID 同样拒绝，过时原文不覆盖，满容量仍能替换。原 connector 授权策略不变，没有新增强制审批。新建和修改都拒绝同范围相同文本；不自动合并/删除另一条。
+- 可选 evidence 记录 HTTP(S) URL 和真实日历格式的核对日期。旧数据兼容；不抓取网页、不自动填今天、不把记录日期称为主机核验。替换默认清旧证据；设置可保留/清除，网址变化清旧日期。
+- Memory 原分区增改来源，安全链接、三语标签。轮询后旧编辑提交 409 并保留草稿；未编辑证据时不回写旧值。主代理截图 review 补暗色链接对比和窄屏输入宽度；没有并行面板。
+- 新增可选 `docs/task-skills/memory-audit.md`，在用户请求下完整分页、按主题列疑似冲突和理由，授权后才改并回读。通过现有 Skills 服务字段校验；此批仅保存仓库文本，尚未安装到真实 Bot。
+
+验证：25 项记忆测试、14 项客户端测试、11 项设置浏览器测试通过。主代理 build、隔离 check:local 和 `memory-browser-review.mjs` 通过，覆盖真实 API 下的新增/清除证据、并发文本改写拒绝和草稿保留；en/zh/ja 的桌面亮色与 390px 暗色截图已查看。`fixture-browser-check.mjs` 复用上一批已有脚本，在隔离数据里检查欢迎页及 19 个事件场景、桌面/窄屏，全部通过。
+
+完整回归首次为 757 项：755 通过、1 项 DSH 跳过、1 项既有浏览器 popup click stalled。未修改浏览器代码或测试超时，单项复跑通过；再次默认并发 `npm test` 为 756 通过、1 跳过、0 失败。首次失败和复跑分别保存在 `batch2-tests.log`、`batch2-popup-recheck.log`、`batch2-tests-recheck.log`；不宣称该间歇超时已经解决。
+
+限制：expectedText 校验文本，不是整条记录的历史版本控制；没有语义冲突自动判定、时效事实强制联网或真实模型质量对测。项目交接与导出仍待后续批次。

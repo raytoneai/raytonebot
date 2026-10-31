@@ -180,9 +180,10 @@
 }
 .settings-memory-row { flex-wrap: wrap; }
 .settings-memory-row .settings-row-main { flex-basis: 220px; }
+.settings-memory-row a { color: var(--accent-text); }
 .settings-memory-controls { display: flex; flex-wrap: wrap; gap: 8px; margin: 12px 0; }
 .settings-memory-controls > .ui-select-wrap { flex: 0 1 220px; max-width: 100%; }
-.settings-memory-controls > .ui-input { flex: 1 1 240px; }
+.settings-field-row.settings-memory-controls > .ui-input { flex: 1 1 240px; }
 .settings-skills { margin-top: 28px; padding-top: 20px; border-top: var(--border-width) solid var(--border-subtle); }
 
 .settings-row-sub {

@@ -401,6 +401,8 @@ HTTP host 共用一个 BotConfigStore，网页、IM、例行任务和群聊运�
 
 `memories.ts` 继续使用 `<dataDir>/memories.json`，旧记录无 scope 时视为 global；新 scope 为 `{kind:"global"}`、`{kind:"bot",id}` 或 `{kind:"group",id}`。注入、`recall_memories` 与 `forget` 只处理全局、当前 Bot、当前父群可见的记忆；模型不能自报另一个 owner ID。`remember` 单聊默认当前 Bot，群聊默认当前群，可显式选择当前可用范围；写入/删除仍走 connector 审批。Settings 原 Memory 分区负责范围选择与全局管理。总量仍为 100 条、每条 300 字符，提示有约 4000 字符预算；提示与 recall 按最近修改优先，时间相同时最近写入优先。只读 recall 用最多 200 字符的字面查询每页返回最多 20 条；`nextCursor` 可作下一页 `cursor`，绑定存储版本、规范化查询与 Bot/群范围，任一保存变化后需从第一页重新读取，不跨快照拼接。关闭后既有工具句柄也拒绝操作。
 
+记忆可带 `evidence: {url, checkedAt?}`：HTTP(S) 来源网址及可选真实日历日期 YYYY-MM-DD，由提交者记录，主机不抓取或证明来源。提示、recall 和原 Memory 设置行展示该信息；更换网址清掉界面旧核对日期。`remember({text, replaceId, expectedText, evidence?})` 可原位替换当前可见条目，保留 ID/创建时间/范围，不先删除；旧原文不符则拒绝，不能同时改 scope。替换不提供 evidence 时清除旧证据，避免旧来源为新内容背书。普通设置更新省略 evidence 保留、null 清除，带 expectedText 可拒绝过时文本编辑；未更改证据的界面编辑不回写旧证据。新增/更新都拒绝制造同范围的相同文本；不同证据的重复新增要求明确替换。仍沿原 connector 审批及已授权例外，没有额外候选队列或自动语义删除。
+
 `conversationHistoryTools.ts` 直接读取 ConversationStore 的公共用户/助手文本，复用 `conversationSearch.ts` 按 `runId + textId` 累积流式内容；不读取 reasoning、工具原始内容、Vault 等专用秘密输入或引擎原生会话。`search_chat_history` 默认当前可见会话、最多 20 个命中；`read_chat_history` 用 textId/可选 runId 返回目标及合计至多十条邻居。结果保留 conversationId、角色、时间与稳定消息锚点，序列化输出最多 16000 字符，显式标注截断；越权、记录删除、歧义锚点均返回错误。跨会话范围仅来自上述用户引用，群成员与只读委派由宿主传入父群 ID，隐藏子会话即使被点名也拒绝读取。
 
 `botSkills.ts` 将共享文本库保存在 `<dataDir>/skills.json`（0600），Settings 原 MCP 分区负责增删改、开关，BotEditor 负责分配。保存/删除带 revision，冲突 409；单条指令最多 16000 字符、总量最多 100 条、文件最多 2 MiB。模型只先收到已分配且启用的名称/说明索引（约 6000 字符），相关时用 `read_skill` 读取正文，调用时再检查最新分配与开关。内容是用户当前任务下的参考指引，不授予动作权限；不扫描个人技能目录、不加载模块或执行附带脚本。损坏记录保留并停用读取/保存，修复后重启。
