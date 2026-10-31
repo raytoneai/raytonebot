@@ -920,7 +920,7 @@ export function createPiRuntimeController(options: {
       // No await after the final checks: another prompt cannot take this conversation or slot.
       let settle!: () => void;
       const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, groupConversation: options?.groupConversation, groupId: options?.groupId, delegated: options?.delegated, extraHostTools: options?.extraHostTools,
-        references, turn: { provider: input.provider, model: input.model, locale: input.locale }, vaultAbort: new AbortController(), stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
+        references, turn: { provider: input.provider, model: input.model, locale: input.locale }, vaultAbort: new AbortController(), stopRequested: false, watchers: new Set([onEvent]), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
       learning.interrupt();
       lastRunTouchedAt = Date.now();
@@ -949,8 +949,15 @@ export function createPiRuntimeController(options: {
       let opened = false;
       const recorder = createConversationRecorder({ store, conversationId, runId: input.requestId,
         broadcast(event) {
-          onEvent(event);
-          for (const watcher of slot.watchers) watcher(event);
+          for (const watcher of slot.watchers) {
+            try { watcher(event); }
+            catch {
+              slot.watchers.delete(watcher);
+              // Keep diagnostics metadata-only and guard the logger itself: a broken
+              // subscriber must never become a new run failure.
+              try { log("run.subscriber_failed", { conversationId, status: "subscriber_failed" }); } catch { /* diagnostics only */ }
+            }
+          }
         },
         stop: () => { void abortRuns(conversationId, slot.runId).catch(() => undefined); },
       });

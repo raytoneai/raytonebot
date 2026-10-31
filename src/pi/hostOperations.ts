@@ -21,7 +21,7 @@ export function runLimits(env: NodeJS.ProcessEnv = process.env): RunLimits {
 /** Metadata only: never accept prompts, tool args/results, provider URLs, or raw errors. */
 export function runtimeLogger(dataDir: string) {
   const file = join(dirname(dataDir), "logs", "runtime.jsonl");
-  return (event: "run.started" | "run.ended" | "run.limit" | "run.checkpoint_failed" | "approval.resolved"
+  return (event: "run.started" | "run.ended" | "run.limit" | "run.checkpoint_failed" | "run.subscriber_failed" | "approval.resolved"
     | "channel.connected" | "channel.connect_failed" | "channel.run_failed" | "channel.message_failed"
     | "conversation.titled" | "conversation.title_failed" | "browser.input_batch", fields: {
     conversationId?: string; platform?: string; harness?: string; status?: string; durationMs?: number; outputBytes?: number;

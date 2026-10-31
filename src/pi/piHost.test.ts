@@ -3,6 +3,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "nod
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
+import type { AgentUXEvent } from "@agent-ux/protocol";
 
 import { createPiRuntimeController, type PiBridgeFactory } from "./piHost.ts";
 import { createBrowserService } from "./browser/browserService.ts";
@@ -607,6 +608,60 @@ test("a watcher sees saved events past `after`, then live ones; leaving does not
     assert.equal(seen.length, controller.getConversation("a")!.events.length - 1, "live events followed without gaps");
     assert.deepEqual(aborted, []);
     assert.equal(controller.listConversations().find((entry) => entry.id === "a")?.running, false);
+  } finally {
+    controller.dispose();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("a throwing initial subscriber is detached without stopping the engine or losing its terminal", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-host-broadcast-initial-failure-"));
+  const { factory, release, aborted } = streamingBridges();
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  let calls = 0;
+  try {
+    const run = controller.runPrompt({ conversationId: "a", prompt: "hi" }, () => {
+      calls++;
+      throw new Error("subscriber must not stop the run");
+    });
+    for (let i = 0; i < 50 && !release.has("a"); i++) await tick();
+    assert.ok(release.has("a"), "the engine reached its held turn despite the first callback failure");
+    release.get("a")!();
+    await assert.doesNotReject(run);
+    assert.equal(calls, 1, "the failed initial subscriber is removed after its first event");
+    const saved = controller.getConversation("a")!;
+    assert.equal(saved.events.at(-1)?.type, "run.finished");
+    assert.equal(saved.events.at(-1)?.payload.status, "success");
+    assert.deepEqual(aborted, []);
+  } finally {
+    controller.dispose();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
+test("a throwing live watcher is detached while a healthy watcher receives the remaining terminal sequence", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-host-broadcast-live-failure-"));
+  const { factory, release, aborted } = streamingBridges();
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  let badCalls = 0;
+  try {
+    const run = controller.runPrompt({ conversationId: "a", prompt: "hi" }, () => undefined);
+    for (let i = 0; i < 50 && !release.has("a"); i++) await tick();
+    assert.ok(release.has("a"));
+    const after = controller.getConversation("a")!.events.length;
+    const bad = controller.followRun("a", after, () => {
+      badCalls++;
+      throw new Error("live watcher must be isolated");
+    });
+    const healthyEvents: AgentUXEvent[] = [];
+    const healthy = controller.followRun("a", after, event => healthyEvents.push(event));
+    assert.ok(bad && healthy);
+    release.get("a")!();
+    await assert.doesNotReject(Promise.all([run, healthy!.done]));
+    assert.equal(badCalls, 1, "the bad watcher is called once and then removed");
+    assert.deepEqual(healthyEvents, controller.getConversation("a")!.events.slice(after));
+    assert.equal(healthyEvents.at(-1)?.type, "run.finished");
+    assert.deepEqual(aborted, []);
   } finally {
     controller.dispose();
     rmSync(dataDir, { recursive: true, force: true });
