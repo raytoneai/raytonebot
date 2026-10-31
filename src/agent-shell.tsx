@@ -266,11 +266,18 @@ export function AgentApp() {
   const [dismissedApprovalKey, setDismissedApprovalKey] = useState<string | null>(null);
   const approvalAbortRefs = useRef(new Map<string, AbortController>());
   const piAbortRefs = useRef(new Map<string, AbortController>());
-  useEffect(() => () => {
-    // A page unmount must invalidate queued commits without stopping host work.
-    const controllers = [...piAbortRefs.current.values()];
-    piAbortRefs.current.clear();
-    for (const controller of controllers) controller.abort();
+  const componentMountedRef = useRef(false);
+  useEffect(() => {
+    // Reject late starts after unmount; effect replay restores ownership.
+    componentMountedRef.current = true;
+    return () => {
+      componentMountedRef.current = false;
+      summaryRequest.current++;
+      // A page unmount must invalidate queued commits without stopping host work.
+      const controllers = [...piAbortRefs.current.values()];
+      piAbortRefs.current.clear();
+      for (const controller of controllers) controller.abort();
+    };
   }, []);
   const storedRunIds = useRef(new Map<string, Set<string>>());
   const preparingPiRefs = useRef(new Set<string>());
@@ -556,10 +563,11 @@ export function AgentApp() {
   // Conversations saved by the host (earlier visits, other browsers, before a restart) appear in
   // the sidebar at once; their transcripts load when opened.
   const syncStoredConversations = () => {
+    if (!componentMountedRef.current) return;
     const request = ++summaryRequest.current;
     return listStoredConversations()
     .then(({ conversations: stored, unreadable }) => {
-      if (request !== summaryRequest.current) return;
+      if (!componentMountedRef.current || request !== summaryRequest.current) return;
       setHistoryListFailed(unreadable.length > 0);
       const stubs = stored.filter((entry) => entry.eventCount > 0).map(storedStub);
       setPiConversations((current) => {
@@ -582,7 +590,7 @@ export function AgentApp() {
       setAwaitingConversationIds((current) => stored.reduce((next, entry) => entry.awaitingUser ? toggleIn(next, entry.id, true)
         : !entry.running ? toggleIn(next, entry.id, false) : next, current));
     })
-    .catch(() => { if (request === summaryRequest.current) setHistoryListFailed(true); });
+    .catch(() => { if (componentMountedRef.current && request === summaryRequest.current) setHistoryListFailed(true); });
   };
   const syncStoredRef = useRef(syncStoredConversations);
   syncStoredRef.current = syncStoredConversations;
@@ -805,6 +813,7 @@ export function AgentApp() {
 
   async function submitToPi(prompt: string, context?: ComposerSubmitContext & { requestId?: string }, target = activePiConversation,
     queued?: { requestId: string; agentPreset: AgentPresetId; artifactSubmission?: import("./runtime/artifactForm").ArtifactSubmission }) {
+    if (!componentMountedRef.current) return false;
     if (runningConversationIds.has(target.id)) return false;
     const normalizedPrompt = prompt.trim();
     if (!normalizedPrompt) return false;
@@ -958,6 +967,7 @@ export function AgentApp() {
    */
   /** `preloaded`: `conversation` was just read from the host, so the first pass skips reading it again. */
   async function followRun(conversation: EphemeralPiConversation, submission?: { requestId: string; prompt: string; onAccepted?: () => void }, preloaded = false) {
+    if (!componentMountedRef.current) return;
     const conversationId = conversation.id;
     if (piAbortRefs.current.has(conversationId)) return;
     const controller = new AbortController();

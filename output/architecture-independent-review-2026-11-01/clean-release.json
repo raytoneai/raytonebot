@@ -1,0 +1,20 @@
+{
+  "file": "/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-independent-release-full-G3i3fG/raytonebot-42064159.tar.gz",
+  "bytes": 9130199,
+  "sha256": "497232ec0cc5adeb685b45f9d74f9d508f5c15e43221eef55949c28650d7ade8",
+  "commit": "420641591068c57c44ced9566d8ef6b012d9c67d",
+  "dirty": false,
+  "builtAt": "2026-10-31T18:05:34.024Z",
+  "manifest": {
+    "app": "raytonebot",
+    "package": "agentmatrix",
+    "commit": "420641591068c57c44ced9566d8ef6b012d9c67d",
+    "dirty": false,
+    "builtAt": "2026-10-31T18:05:34.024Z",
+    "sdkVersion": "0.11.0",
+    "contractVersion": "0.154.0",
+    "entry": "scripts/cloud-preview.mjs",
+    "port": 5188
+  },
+  "vendorFilesChecked": 24
+}

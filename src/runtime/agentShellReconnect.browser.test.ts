@@ -14,6 +14,10 @@ import { BOT_NAMES } from "./botProfiles.ts";
 type Scenario = "approval" | "group";
 type LiveState = {
   response?: ServerResponse;
+  holdInitialConversations: boolean;
+  initialConversationsResponse?: ServerResponse;
+  releaseInitialConversations: () => void;
+  conversationsRequests: number;
   summaryRequests: number;
   title: string;
   liveOpened: number;
@@ -63,6 +67,9 @@ test("AgentApp restores off-screen waits, settles run.error, and retitles later 
   const cacheDir = mkdtempSync(join(tmpdir(), "rtb-agent-shell-reconnect-"));
   let scenario: Scenario = "approval";
   const live: LiveState = {
+    holdInitialConversations: false,
+    releaseInitialConversations: () => {},
+    conversationsRequests: 0,
     summaryRequests: 0,
     title: "Old group title",
     liveOpened: 0,
@@ -72,13 +79,14 @@ test("AgentApp restores off-screen waits, settles run.error, and retitles later 
   };
   let snapshotEvents: ReturnType<typeof approvalSnapshot> = approvalSnapshot();
   const pageHtml = `<meta name="viewport" content="width=device-width, initial-scale=1"><button id="unmount-app" type="button">Unmount</button><div id="root"></div><script type="module">
-    import { createElement as h } from 'react';
+    import { createElement as h, StrictMode } from 'react';
     import { createRoot } from 'react-dom/client';
     import { AgentApp } from '/src/agent-shell.tsx';
     import { LocaleProvider } from '/src/i18n/LocaleContext.tsx';
     import '/src/styles/app.css';
     const appRoot = createRoot(document.getElementById('root'));
-    appRoot.render(h(LocaleProvider, null, h(AgentApp)));
+    const strict = new URLSearchParams(location.search).has('strict');
+    appRoot.render(strict ? h(StrictMode, null, h(LocaleProvider, null, h(AgentApp))) : h(LocaleProvider, null, h(AgentApp)));
     document.getElementById('unmount-app').addEventListener('click', () => appRoot.unmount());
   </script>`;
   const server = await createServer({
@@ -114,6 +122,17 @@ test("AgentApp restores off-screen waits, settles run.error, and retitles later 
           ...(group ? { group: { members: ["assistant", "planner"], hostId: "assistant", preserveTitle: false } } : {}),
         };
         if (path === "/__agentcanvas/pi/conversations" && req.method === "GET") {
+          live.conversationsRequests++;
+          if (live.holdInitialConversations) {
+            res.statusCode = 200;
+            res.setHeader("content-type", "application/json");
+            res.flushHeaders?.();
+            live.initialConversationsResponse = res;
+            live.releaseInitialConversations = () => {
+              if (!res.writableEnded) res.end(JSON.stringify({ conversations: [summary], unreadable: [] }));
+            };
+            return;
+          }
           json(res, { conversations: [summary], unreadable: [] }); return;
         }
         if (path.startsWith("/__agentcanvas/pi/conversations/") && path.endsWith("/live")) {
@@ -213,6 +232,84 @@ test("AgentApp restores off-screen waits, settles run.error, and retitles later 
         assert.deepEqual(live.requestsAfterUnmount, [], "unmount does not call host or abort endpoints");
       } finally {
         live.trackUnmount = false;
+        await page.close();
+      }
+    });
+
+    await t.test("StrictMode effect replay preserves the initial live follow", async () => {
+      scenario = "approval";
+      snapshotEvents = approvalSnapshot();
+      live.response = undefined;
+      live.holdInitialConversations = false;
+      live.conversationsRequests = 0;
+      live.trackUnmount = false;
+      live.requestsAfterUnmount = [];
+      const openedBefore = live.liveOpened;
+      const closedBefore = live.liveClosed;
+      const page = await browser!.newPage();
+      try {
+        await page.clock.install();
+        await page.goto(`${base}agent-shell-reconnect?strict=1`);
+        const liveDeadline = Date.now() + 5_000;
+        while ((!live.response || live.liveOpened <= openedBefore) && Date.now() < liveDeadline)
+          await new Promise(resolve => setTimeout(resolve, 10));
+        const requestsDeadline = Date.now() + 5_000;
+        while (live.conversationsRequests < 2 && Date.now() < requestsDeadline)
+          await new Promise(resolve => setTimeout(resolve, 10));
+        assert.ok(live.conversationsRequests >= 2, "StrictMode root replay must issue the initial history list twice");
+        assert.ok(live.response && live.liveOpened > openedBefore, "StrictMode replay must still open the initial live subscription");
+
+        await page.locator("#unmount-app").evaluate(button => (button as HTMLButtonElement).click());
+        await page.waitForFunction(() => document.getElementById("root")?.childElementCount === 0);
+        live.trackUnmount = true;
+        const closeDeadline = Date.now() + 5_000;
+        while (live.liveClosed <= closedBefore && Date.now() < closeDeadline)
+          await new Promise(resolve => setTimeout(resolve, 10));
+        await page.clock.fastForward(16_000);
+        assert.equal(live.liveClosed, closedBefore + 1, "StrictMode unmount closes its live subscription");
+        assert.deepEqual(live.requestsAfterUnmount, [], "StrictMode unmount does not call host or abort endpoints");
+      } finally {
+        live.trackUnmount = false;
+        await page.close();
+      }
+    });
+
+    await t.test("unmount before the initial conversation list resolves does not restart a follow", async () => {
+      scenario = "approval";
+      snapshotEvents = approvalSnapshot();
+      live.response = undefined;
+      live.holdInitialConversations = true;
+      live.initialConversationsResponse = undefined;
+      live.releaseInitialConversations = () => {};
+      live.trackUnmount = false;
+      live.requestsAfterUnmount = [];
+      const page = await browser!.newPage();
+      try {
+        await page.clock.install();
+        const heldListResponsePromise = page.waitForResponse(response => {
+          const url = new URL(response.url());
+          return response.request().method() === "GET" && url.pathname === "/__agentcanvas/pi/conversations";
+        });
+        await page.goto(`${base}agent-shell-reconnect`);
+        const heldListResponse = await heldListResponsePromise;
+        const historyDeadline = Date.now() + 5_000;
+        while (!live.initialConversationsResponse && Date.now() < historyDeadline)
+          await new Promise(resolve => setTimeout(resolve, 10));
+        assert.ok(live.initialConversationsResponse, "the test page must hold the initial conversation list open");
+
+        await page.locator("#unmount-app").evaluate(button => (button as HTMLButtonElement).click());
+        await page.waitForFunction(() => document.getElementById("root")?.childElementCount === 0);
+        live.trackUnmount = true;
+        live.holdInitialConversations = false;
+        const responseFinished = heldListResponse.finished();
+        live.releaseInitialConversations();
+        await responseFinished;
+        await page.clock.fastForward(16_000);
+        assert.deepEqual(live.requestsAfterUnmount, [], "a late initial history response does not start history/live/retry requests after unmount");
+      } finally {
+        live.trackUnmount = false;
+        live.holdInitialConversations = false;
+        live.releaseInitialConversations();
         await page.close();
       }
     });
