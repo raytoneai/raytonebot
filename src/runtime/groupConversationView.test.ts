@@ -1,8 +1,9 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
+import type { AgentUXEvent } from "@agent-ux/protocol";
 import type { EphemeralPiConversation } from "../pi/piConversationState.ts";
-import { groupConversationFaces, groupConversationPreviews, groupConversationTitle, groupFields, groupMembersOf } from "./groupConversationView.ts";
+import { groupConversationFaces, groupConversationPreviews, groupConversationTitle, groupFields, groupMembersOf, groupTypingMember } from "./groupConversationView.ts";
 
 const conversation = (groupMembers?: string[]): EphemeralPiConversation => ({
   id: "group_test",
@@ -10,6 +11,56 @@ const conversation = (groupMembers?: string[]): EphemeralPiConversation => ({
   createdAt: 0,
   events: [],
   ...(groupMembers ? { groupMembers } : {}),
+});
+
+const typingEvent = (type: string, payload?: unknown, fields: Record<string, unknown> = {}): AgentUXEvent =>
+  ({ type, payload, ...fields } as unknown as AgentUXEvent);
+
+test("groupTypingMember returns no member outside groups and ignores invalid starts", () => {
+  const events = [
+    typingEvent("group.member.started", { member: "assistant" }),
+    typingEvent("group.member.started", { member: "invalid" }),
+    typingEvent("group.member.started", null),
+  ];
+  const before = structuredClone(events);
+
+  assert.equal(groupTypingMember({ ...conversation(), id: "ordinary_conversation" }, events), undefined);
+  assert.equal(groupTypingMember(conversation(["assistant"]), events), "assistant");
+  assert.deepEqual(events, before);
+});
+
+test("groupTypingMember clears on output IDs from all supported event families", () => {
+  const cases: Array<[string, AgentUXEvent]> = [
+    ["text.started messageId", typingEvent("text.started", {}, { messageId: "assistant~message" })],
+    ["tool.call.running toolCallId", typingEvent("tool.call.running", { toolCallId: "assistant~tool" })],
+    ["text.delta textId", typingEvent("text.delta", { textId: "assistant~text" })],
+    ["reasoning.started reasoningId", typingEvent("reasoning.started", { reasoningId: "assistant~reasoning" })],
+    ["artifact.delta artifactId", typingEvent("artifact.delta", { artifactId: "assistant~artifact" })],
+  ];
+  for (const [label, output] of cases) {
+    assert.equal(groupTypingMember(conversation(["assistant"]), [
+      typingEvent("group.member.started", { member: "assistant" }), output,
+    ]), undefined, label);
+  }
+});
+
+test("groupTypingMember keeps the latest member until matching output or a run terminal", () => {
+  const events = [
+    typingEvent("group.member.started", { member: "assistant" }),
+    typingEvent("group.member.started", { member: "planner" }),
+    typingEvent("text.delta", { textId: "assistant~older-output" }),
+    typingEvent("custom.event", null),
+  ];
+  const before = structuredClone(events);
+  assert.equal(groupTypingMember(conversation(["assistant", "planner"]), events), "planner");
+  assert.deepEqual(events, before);
+
+  for (const terminal of ["run.finished", "run.error"]) {
+    assert.equal(groupTypingMember(conversation(["assistant"]), [
+      typingEvent("group.member.started", { member: "assistant" }),
+      typingEvent(terminal, null),
+    ]), undefined, terminal);
+  }
 });
 
 test("groupFields preserves the distinction between false and missing group metadata", () => {

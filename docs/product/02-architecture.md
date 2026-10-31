@@ -256,7 +256,7 @@ AgentSphere 沙箱
 
 `src/runtime/useAutoHiddenRails.ts` 观测 shell 容器宽度，封装 660/860 的左右栏隐藏阈值与 ResizeObserver 生命周期；shell 保留布局是否含侧栏、欢迎页、手动折叠、抽屉和输出面板可用性的组合判断。断点基于容器宽度，等于阈值时仍可显示对应栏。
 
-`src/runtime/groupConversationView.ts` 提供群摘要投影、成员过滤/回退、群聊标题、预览与头像映射的纯计算。不读写 React 状态或调用接口；shell 保留 Bot 身份解析和头像配置，以名字/角色解析函数及配置参数传入。标题沿用当前配置名 → 会话保存名 → 成员 ID 的优先级；预览沿用现有 Bot 解析的名字或默认角色名匹配，不把这两套规则合并。会话恢复、成员更新与流式事件处理仍在 shell。
+`src/runtime/groupConversationView.ts` 提供群摘要投影、成员过滤/回退、群聊标题、预览、头像及等待成员首个输出的显示投影。只读传入数据，不更新 React 状态或调用接口；shell 保留 Bot 身份解析和头像配置，以名字/角色解析函数及配置参数传入。标题沿用当前配置名 → 会话保存名 → 成员 ID 的优先级；预览沿用现有 Bot 解析的名字或默认角色名匹配，不把这两套规则合并。会话恢复、成员更新与流式事件处理仍在 shell。
 
 `src/pi/piHost.ts` 是兼容导出入口。`piRuntimeController.ts` 管理会话、运行、审批与各引擎；`piHttpHost.ts` 组合主机服务并处理 HTTP，直接依赖控制器；`piSdkBridge.ts` 管理 Pi SDK 会话、模型注册、工具包装与模型租约。共同的记录/错误/会话 ID 校验在 `piHostUtils.ts`。原公共导出保持可用，SDK 与可选工具继续动态加载，不改变原生会话绑定、审批或隔离边界。
 

@@ -73,7 +73,6 @@ import {
 } from "./pi/piClient";
 import { piRuntimeConfigurationForProvider } from "./pi/piProviderSync";
 import { isGroupConversation } from "./pi/piConversationState";
-import { validParticipantId } from "./pi/groupParticipants";
 import { isAgentPresetId, loadAgentSettings, saveAgentSettings, settingsUseProvider, type AgentPresetId, type AgentSettings } from "./pi/harnessCatalog";
 import { CustomAvatarsProvider, AgentPersonaProvider, type AgentPersona, type AvatarKind } from "./avatars/AgentPersona";
 import type { TranscriptScroll } from "./runtime/useTranscriptScroll";
@@ -97,7 +96,7 @@ import { useMemories } from "./runtime/useMemories";
 import { useSkills } from "./runtime/useSkills";
 import { useUsage } from "./runtime/useUsage";
 import { conversationHistoryGroup, useSessionHistoryGroups } from "./runtime/useSessionHistoryGroups";
-import { groupConversationFaces, groupConversationPreviews, groupConversationTitle, groupFields, groupMembersOf } from "./runtime/groupConversationView";
+import { groupConversationFaces, groupConversationPreviews, groupConversationTitle, groupFields, groupMembersOf, groupTypingMember } from "./runtime/groupConversationView";
 
 const THEME_KEY = "raytonebot.theme";
 /** Events after which a tool call is no longer waiting on the user. */
@@ -355,20 +354,7 @@ export function AgentApp() {
   const visibleEvents = useMemo(() => isGroupConversation(activePiConversation) && !devtoolsRequested()
     ? events.filter((event) => event.visibility !== "debug") : events, [events, activePiConversationId]);
   // In a group, the member that started working and has produced nothing visible yet.
-  const groupTyping = useMemo((): string | undefined => {
-    if (!isGroupConversation(activePiConversation)) return undefined;
-    let pending: string | undefined;
-    for (const event of events) {
-      const payload = (event.payload ?? {}) as Record<string, unknown>;
-      if (event.type === "group.member.started" && validParticipantId(payload.member)) pending = payload.member;
-      else if (event.type === "run.finished" || event.type === "run.error") pending = undefined;
-      else if (pending && /^(text|reasoning|tool\.call|artifact)\./.test(event.type)) {
-        const ids = [event.messageId, payload.toolCallId, payload.textId, payload.reasoningId, payload.artifactId];
-        if (ids.some((id) => typeof id === "string" && id.startsWith(`${pending}~`))) pending = undefined;
-      }
-    }
-    return pending;
-  }, [events, activePiConversationId]);
+  const groupTyping = useMemo(() => groupTypingMember(activePiConversation, events), [events, activePiConversationId]);
   const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(historyFeedbackEvents(visibleEvents, activePiConversationId, historyMessage), questionCopy[locale].skipped))
     .map(identityEventForReplay).map(artifactEventForReplay), [visibleEvents, activePiConversationId, historyMessage, locale]);
   // Render the selected history immediately; an effect replay exposes the previous branch for one render.

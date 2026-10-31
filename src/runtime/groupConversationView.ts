@@ -1,6 +1,7 @@
 import { isGroupConversation, type EphemeralPiConversation } from "../pi/piConversationState.ts";
 import { validParticipantId } from "../pi/groupParticipants.ts";
 import type { StoredConversationSummary } from "../pi/piClient.ts";
+import type { AgentUXEvent } from "@agent-ux/protocol";
 import { isGroupRosterTitle, groupRosterTitle } from "../i18n/copy/features.ts";
 import type { AppLocale } from "../i18n/locales.ts";
 import type { AgentPresetId } from "../pi/harnessCatalog.ts";
@@ -17,6 +18,21 @@ export function groupFields(entry: object): Pick<EphemeralPiConversation, "group
 export function groupMembersOf(conversation: EphemeralPiConversation): string[] {
   const members = (conversation.groupMembers ?? []).filter(validParticipantId);
   return members.length ? members : ["assistant", "planner", "builder"];
+}
+
+export function groupTypingMember(conversation: EphemeralPiConversation, events: readonly AgentUXEvent[]): string | undefined {
+  if (!isGroupConversation(conversation)) return undefined;
+  let pending: string | undefined;
+  for (const event of events) {
+    const payload = (event.payload ?? {}) as Record<string, unknown>;
+    if (event.type === "group.member.started" && validParticipantId(payload.member)) pending = payload.member;
+    else if (event.type === "run.finished" || event.type === "run.error") pending = undefined;
+    else if (pending && /^(text|reasoning|tool\.call|artifact)\./.test(event.type)) {
+      const ids = [event.messageId, payload.toolCallId, payload.textId, payload.reasoningId, payload.artifactId];
+      if (ids.some((id) => typeof id === "string" && id.startsWith(`${pending}~`))) pending = undefined;
+    }
+  }
+  return pending;
 }
 
 export function groupConversationTitle(
