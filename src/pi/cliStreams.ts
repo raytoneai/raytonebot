@@ -179,6 +179,7 @@ export function createClaudeStreamTranslator(emit: Emit, initialTaskPlan?: unkno
       if (line.parent_tool_use_id != null) return;
       if (type === "system") {
         if (stringValue(line.subtype) === "init") sessionId = stringValue(line.session_id) ?? sessionId;
+        else if (line.subtype === "compact_boundary") emit({ type: "context_compacted" });
         return;
       }
       if (type === "stream_event") {

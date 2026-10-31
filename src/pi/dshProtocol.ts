@@ -69,6 +69,12 @@ export function createDshProtocol(options: {
       clientInfo: { name: "raytonebot", version: "0.1.0" }, clientCapabilities: {} } },
     get finished() { return finished; },
     get failure() { return failure; },
+    /** ACP omits compaction events; the host plugin reports them over its existing socket. */
+    contextCompacted(nativeSession: unknown) {
+      if (!sessionId || nativeSession !== sessionId || finished) return false;
+      options.emit({ type: "context_compacted" });
+      return true;
+    },
     cancel(send: Send) {
       if (sessionId) send({ jsonrpc: "2.0", method: "session/cancel", params: { sessionId } });
     },

@@ -198,6 +198,116 @@ test("recall retrieves older eligible memories with stable metadata and bounded 
   }
 });
 
+test("recall cursors traverse every matching scoped memory once across bounded pages", async () => {
+  const memory = createMemoryService({ now: () => 123 });
+  const expected: string[] = [];
+  for (let i = 0; i < 43; i += 1) {
+    const scope = i % 3 === 0 ? { kind: "global" as const }
+      : i % 3 === 1 ? { kind: "bot" as const, id: botA } : { kind: "group" as const, id: "room:a" };
+    expected.unshift(memory.add(`Searchable fact ${i}.`, scope).id);
+    if (i % 2 === 0) {
+      memory.add(`Searchable private Bot fact ${i}.`, { kind: "bot", id: botB });
+      memory.add(`Searchable private group fact ${i}.`, { kind: "group", id: "room:b" });
+    }
+  }
+  memory.add("An unrelated visible fact.");
+  const tools = memory.toolsFor({ conversationId: "chat", agent: "assistant", botId: botA, groupId: "room:a" })!;
+  memory.noteFor("chat", { botId: botA, groupId: "room:a" })!.delivered();
+  const found: string[] = [];
+  let cursor: string | undefined;
+  for (const count of [20, 20, 3]) {
+    const result = await tools.run("recall_memories", { query: "  SEARCHABLE   FACT  ", limit: 20, ...(cursor ? { cursor } : {}) });
+    assert.equal(result.isError, false);
+    const page = JSON.parse(result.text);
+    assert.equal(page.memories.length, count);
+    assert.equal(page.total, 43, "the total counts only eligible query matches");
+    found.push(...page.memories.map((item: Json) => item.id as string));
+    assert.equal(page.hasMore, found.length < 43);
+    if (page.hasMore) assert.equal(typeof page.nextCursor, "string", "every incomplete page can be continued");
+    else assert.equal(page.nextCursor, undefined);
+    cursor = page.nextCursor;
+  }
+  assert.deepEqual(found, expected, "equal timestamps retain newest insertion first with no repeats or omissions");
+  assert.equal(memory.noteFor("chat", { botId: botA, groupId: "room:a" }), undefined, "paging is read-only");
+});
+
+test("editing an old memory brings it into the bounded note and first recall page", async () => {
+  let time = 1;
+  const memory = createMemoryService({ now: () => time });
+  const old = memory.add("The old preference.");
+  for (let i = 0; i < 40; i += 1) {
+    time += 1;
+    memory.add(`${"Detailed preference ".repeat(10)}${i}.`);
+  }
+  assert.doesNotMatch(deliveredNote(memory, "chat")!, /The old preference/);
+  time += 1;
+  memory.update(old.id, "The revised preference.");
+  const note = deliveredNote(memory, "chat")!;
+  assert.match(note, /updated[^\n]*\n- \([^\n]+\) The revised preference\./);
+  assert.ok(note.length < 4600);
+  assert.match(note, /older memories not shown/);
+  const tools = memory.toolsFor({ conversationId: "chat", agent: "assistant" })!;
+  const first = JSON.parse((await tools.run("recall_memories", { limit: 1 })).text);
+  assert.equal(first.memories[0].id, old.id);
+});
+
+test("recall rejects malformed, stale and mismatched cursors without revealing scoped results", async () => {
+  const memory = createMemoryService();
+  for (let i = 0; i < 25; i += 1) memory.add(`Shared fact ${i}.`);
+  const privateMemory = memory.add("Private Bot fact.", { kind: "bot", id: botB });
+  const source = { conversationId: "chat", agent: "assistant" as const, botId: botA, groupId: "room:a" };
+  const tools = memory.toolsFor(source)!;
+  const cursor = JSON.parse((await tools.run("recall_memories", { query: "fact", limit: 20 })).text).nextCursor as string;
+  const invalid = await tools.run("recall_memories", { query: "fact", cursor: "invalid" });
+  assert.equal(invalid.isError, true);
+  assert.match(invalid.text, /cursor/);
+  for (const value of [null, false, 1, {}, [], "", "x".repeat(65), `${cursor}x`, cursor.replace(/^\d+/, "0"), cursor.replace(/^\d+/, "100"), cursor.replace(/^\d+/, "1")]) {
+    assert.deepEqual(await tools.run("recall_memories", { query: "fact", cursor: value }), invalid);
+  }
+  for (const query of [undefined, "Shared fact", "no results"]) {
+    assert.deepEqual(await tools.run("recall_memories", { query, cursor }), invalid, "a cursor cannot change its query even if matches overlap");
+  }
+  for (const context of [{ botId: botB, groupId: "room:a" }, { botId: botA, groupId: "room:b" }, {}]) {
+    const other = memory.toolsFor({ conversationId: "other", agent: "assistant", ...context })!;
+    assert.deepEqual(await other.run("recall_memories", { query: "fact", cursor }), invalid,
+      "another scope receives the same error as a malformed cursor, with no totals or memory data");
+  }
+  const continuation = JSON.parse((await tools.run("recall_memories", { query: " FACT ", cursor, limit: 3 })).text);
+  assert.equal(continuation.memories.length, 3, "normalized queries and a changed page size can continue");
+  assert.equal(continuation.hasMore, true);
+  for (const change of [
+    () => memory.update(privateMemory.id, "Changed private Bot fact."),
+    () => memory.add("New shared fact."),
+    () => memory.remove(privateMemory.id),
+    () => { memory.setEnabled(false); memory.setEnabled(true); },
+  ]) {
+    const current = JSON.parse((await tools.run("recall_memories", { query: "fact", limit: 20 })).text).nextCursor;
+    change();
+    assert.deepEqual(await tools.run("recall_memories", { query: "fact", cursor: current }), invalid,
+      "any saved version change expires a cursor instead of skipping or repeating results");
+  }
+});
+
+test("same-timestamp memory order and cursors survive a host restart", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-cursor-"));
+  try {
+    let time = 123;
+    const memory = createMemoryService({ dataDir, now: () => time });
+    const ids = ["First fact.", "Second fact.", "Third fact.", "Fourth fact."].map(text => memory.add(text).id);
+    time = 122;
+    memory.update(ids[0], "Edited first fact.");
+    const source = { conversationId: "chat", agent: "assistant" as const, botId: botA };
+    const first = JSON.parse((await memory.toolsFor(source)!.run("recall_memories", { limit: 2 })).text);
+    assert.deepEqual(first.memories.map((item: Json) => item.id), [ids[0], ids[3]], "an edit stays newest when the clock repeats or moves backwards");
+    const restored = createMemoryService({ dataDir });
+    const next = JSON.parse((await restored.toolsFor(source)!.run("recall_memories", { limit: 2, cursor: first.nextCursor })).text);
+    assert.deepEqual(next.memories.map((item: Json) => item.id), [ids[2], ids[1]]);
+    assert.equal(next.hasMore, false);
+    assert.equal(next.nextCursor, undefined);
+    assert.match(restored.noteFor("chat")!.text!, /Edited first fact[\s\S]*Fourth fact[\s\S]*Third fact[\s\S]*Second fact/);
+  } finally { rmSync(dataDir, { recursive: true, force: true }); }
+});
+
 test("scoped delivery receipts acknowledge only their captured version and context", async () => {
   const memory = createMemoryService();
   memory.add("Shared first fact.");
@@ -215,6 +325,83 @@ test("scoped delivery receipts acknowledge only their captured version and conte
   assert.match(memory.noteFor("chat", { botId: botB, groupId: "room:a" })!.text!, /Later scoped fact/);
   await memory.toolsFor({ conversationId: "chat", agent: "assistant", ...context })!.run("remember", { text: "Known in this run." });
   assert.equal(memory.noteFor("chat", context), undefined, "a caller already current does not replay its own save");
+});
+
+test("invalidating a memory receipt refreshes only its conversation and scope despite late acknowledgements", async () => {
+  const memory = createMemoryService();
+  memory.add("Shared saved fact.");
+  const context = { botId: botA, groupId: "room:a" };
+  const otherContext = { botId: botB, groupId: "room:a" };
+  const first = memory.noteFor("chat", context)!;
+  first.delivered();
+  memory.noteFor("chat", otherContext)!.delivered();
+  memory.noteFor("other-chat", context)!.delivered();
+  memory.invalidate("chat", context);
+  first.delivered();
+  const pending = memory.noteFor("chat", context)!;
+  assert.match(pending.text!, /Shared saved fact/);
+  assert.equal(memory.noteFor("chat", otherContext), undefined);
+  assert.equal(memory.noteFor("other-chat", context), undefined);
+  memory.invalidate("chat", context);
+  pending.delivered();
+  assert.match(memory.noteFor("chat", context)!.text!, /Shared saved fact/,
+    "a callback prepared before the latest invalidation cannot consume its refresh");
+  await memory.toolsFor({ conversationId: "chat", agent: "assistant", ...context })!.run("remember", { text: "New saved fact." });
+  const refresh = memory.noteFor("chat", context)!;
+  assert.match(refresh.text!, /New saved fact[\s\S]*Shared saved fact/, "a local save does not settle an invalidated receipt");
+  refresh.delivered();
+  first.delivered();
+  pending.delivered();
+  assert.equal(memory.noteFor("chat", context), undefined, "the accepted refresh is delivered only once");
+});
+
+test("a conversation reset invalidates all of its memory contexts while explicit empty scope stays exact", () => {
+  const memory = createMemoryService();
+  memory.add("Shared saved fact.");
+  const contexts = [{}, { botId: botA }, { botId: botB, groupId: "room:a" }];
+  const receipts = contexts.map(context => memory.noteFor("chat", context)!);
+  for (const receipt of receipts) receipt.delivered();
+  memory.noteFor("another-chat", contexts[2])!.delivered();
+  memory.invalidate("chat", {});
+  const legacy = memory.noteFor("chat")!;
+  assert.match(legacy.text!, /Shared saved fact/);
+  assert.equal(memory.noteFor("chat", contexts[1]), undefined);
+  assert.equal(memory.noteFor("chat", contexts[2]), undefined);
+  legacy.delivered();
+  memory.invalidate("chat");
+  for (const receipt of [...receipts, legacy]) receipt.delivered();
+  for (const context of contexts) {
+    const refresh = memory.noteFor("chat", context)!;
+    assert.match(refresh.text!, /Shared saved fact/);
+    refresh.delivered();
+    assert.equal(memory.noteFor("chat", context), undefined);
+  }
+  assert.equal(memory.noteFor("another-chat", contexts[2]), undefined);
+});
+
+test("invalidating memory preserves cleared and disabled notices and unseen delivery semantics", () => {
+  for (const disable of [false, true]) {
+    const memory = createMemoryService();
+    const saved = memory.add("Saved fact.");
+    const pending = memory.noteFor("chat")!;
+    memory.invalidate("chat");
+    pending.delivered();
+    const initial = memory.noteFor("chat")!;
+    assert.match(initial.text!, /Saved fact/);
+    assert.doesNotMatch(initial.text!, /updated:/, "a rejected old receipt does not make an unseen note delivered");
+    initial.delivered();
+    if (disable) memory.setEnabled(false); else memory.remove(saved.id);
+    const cleared = memory.noteFor("chat")!;
+    cleared.delivered();
+    memory.invalidate("chat");
+    cleared.delivered();
+    const reminder = memory.noteFor("chat")!;
+    assert.match(reminder.text!, /cleared or switched off/);
+    reminder.delivered();
+    assert.equal(memory.noteFor("chat"), undefined);
+    memory.invalidate("never-seen");
+    assert.equal(memory.noteFor("never-seen")!.text, undefined, "invalidation does not invent previously delivered memories");
+  }
 });
 
 test("scope persistence preserves legacy global entries and text-only edits; malformed files fail closed", () => {

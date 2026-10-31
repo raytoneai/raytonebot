@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { test } from "node:test";
@@ -69,6 +69,145 @@ test("stopping during engine preflight does not acknowledge undelivered memories
     await runtime.runPrompt({ conversationId: "memory-stop", prompt: "Retry" }, () => {});
     assert.match(received[0], /Use metric units/);
   } finally { runtime.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("only successful Pi compaction refreshes scoped memory on the next turn, even after model failure", async () => {
+  for (const [event, refresh] of [
+    [{ type: "compaction_end", result: {} }, true],
+    [{ type: "compaction_end", result: {}, aborted: true }, false],
+    [{ type: "compaction_end", errorMessage: "Could not compact" }, false],
+    [{ type: "compaction_end" }, false],
+    [{ type: "compaction_start" }, false],
+    [{ type: "unknown_event" }, false],
+  ] as const) {
+    const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-compact-"));
+    const memory = createMemoryService();
+    memory.add("Use metric units.", { kind: "group", id: "group" });
+    memory.noteFor("other", { botId: "assistant", groupId: "group" })?.delivered();
+    const prompts: string[] = [], listeners: ((event: any) => void)[] = [];
+    let emit = (_event: any) => {};
+    const runtime = createPiRuntimeController({ cwd: dataDir, dataDir, memory, bridgeFactory: async () => ({
+      subscribe(listener) { emit = listener; listeners.push(listener); return () => {}; },
+      async prompt(text) {
+        prompts.push(text);
+        emit({ type: "message_start", message: { role: "assistant" } });
+        if (prompts.length === 1) {
+          emit(event);
+          // An acceptance callback from this pre-compaction prompt must not consume the refresh.
+          emit({ type: "message_start", message: { role: "assistant" } });
+          throw new Error("Model failed after the compaction event");
+        }
+      },
+      abort: async () => {}, dispose() {}, configure: async () => {},
+      state: async () => ({ models: [], tools: [] }), newSession: async () => {},
+    }) });
+    const run = () => runtime.runPrompt({ conversationId: "scoped", prompt: "Continue" }, () => {}, { groupId: "group" });
+    try {
+      await run(); await run();
+      assert.match(prompts[0], /Use metric units/);
+      assert.equal(prompts[1].includes("Use metric units"), refresh, JSON.stringify(event));
+      assert.equal(memory.noteFor("other", { botId: "assistant", groupId: "group" }), undefined);
+      listeners[0]({ type: "compaction_end", result: {} });
+      await run();
+      assert.doesNotMatch(prompts[2], /Memory from RaytoneBot/, "a stale listener cannot invalidate a later native turn");
+    } finally { runtime.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+  }
+});
+
+test("a native session reset refreshes every memory context of only that conversation", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-reset-"));
+  const memory = createMemoryService();
+  memory.add("Use metric units.");
+  const prompts: string[] = [];
+  const runtime = createPiRuntimeController({ cwd: dataDir, dataDir, memory, bridgeFactory: async () => ({
+    subscribe: () => () => {}, prompt: async text => { prompts.push(text); },
+    abort: async () => {}, dispose() {}, configure: async () => {},
+    state: async () => ({ models: [], tools: [] }), newSession: async () => {},
+  }) });
+  try {
+    await runtime.runPrompt({ conversationId: "reset", prompt: "First" }, () => {}, { groupId: "group" });
+    memory.noteFor("reset", { botId: "builder" })?.delivered();
+    memory.noteFor("other", { botId: "assistant", groupId: "group" })?.delivered();
+    await runtime.newSession("reset");
+    await runtime.runPrompt({ conversationId: "reset", prompt: "After reset" }, () => {}, { groupId: "group" });
+    assert.match(prompts[1], /Use metric units/);
+    assert.ok(memory.noteFor("reset", { botId: "builder" }));
+    assert.equal(memory.noteFor("other", { botId: "assistant", groupId: "group" }), undefined);
+  } finally { runtime.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("a failed native session reset preserves memory delivery receipts", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-memory-reset-error-"));
+  const memory = createMemoryService();
+  memory.add("Use metric units.");
+  const runtime = createPiRuntimeController({ cwd: dataDir, dataDir, memory, bridgeFactory: async () => ({
+    subscribe: () => () => {}, prompt: async () => {}, abort: async () => {}, dispose() {}, configure: async () => {},
+    state: async () => ({ models: [], tools: [] }), newSession: async () => { throw new Error("Reset failed"); },
+  }) });
+  try {
+    await runtime.runPrompt({ conversationId: "reset", prompt: "First" }, () => {});
+    await assert.rejects(runtime.newSession("reset"), /Reset failed/);
+    assert.equal(memory.noteFor("reset", { botId: "assistant" }), undefined);
+  } finally { runtime.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("split CLI compaction lines refresh the next prompt without adding a UI step", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-cli-memory-"));
+  const executable = join(dataDir, "fake-cli");
+  const previousClaude = process.env.RAYTONEBOT_CLAUDE_BIN, previousCodex = process.env.RAYTONEBOT_CODEX_BIN;
+  writeFileSync(executable, `#!/usr/bin/env node
+const fs = require('node:fs');
+const codex = process.argv.includes('app-server');
+const path = ${JSON.stringify(dataDir)} + (codex ? '/codex-prompts' : '/claude-prompts');
+const send = value => process.stdout.write(JSON.stringify(value) + '\\n');
+require('node:readline').createInterface({input:process.stdin}).on('line', async raw => {
+  const m = JSON.parse(raw);
+  if (m.method === 'initialize') send({id:m.id,result:{}});
+  if (m.method === 'thread/start' || m.method === 'thread/resume') send({id:m.id,result:{thread:{id:'native'}}});
+  if (m.method !== 'turn/start' && m.type !== 'user') return;
+  const first = !fs.existsSync(path);
+  fs.appendFileSync(path, JSON.stringify(codex ? m.params.input[0].text : m.message.content) + '\\n');
+  if (!codex) send({type:'system',subtype:'init',session_id:'native'});
+  if (first) {
+    const boundary = JSON.stringify(codex
+      ? {method:'item/completed',params:{threadId:'native',item:{type:'contextCompaction',id:'compact'}}}
+      : {type:'system',subtype:'compact_boundary',compact_metadata:{trigger:'auto',pre_tokens:120000}}) + '\\n';
+    process.stdout.write(boundary.slice(0,17));
+    await new Promise(resolve => setTimeout(resolve,5));
+    process.stdout.write(boundary.slice(17));
+  }
+  if (codex) {
+    send({id:'turn',result:{turn:{id:'turn'}}});
+    send({method:'turn/completed',params:{threadId:'native',turn:{status:first?'failed':'completed',error:{message:'Model failed'}}}});
+  } else {
+    send({type:'assistant',session_id:'native',uuid:'message',message:{id:'message',content:[{type:'text',text:'Reply'}]}});
+    send({type:'result',subtype:first?'error_during_execution':'success',is_error:first,errors:first?['Model failed']:[],session_id:'native'});
+  }
+});
+`);
+  chmodSync(executable, 0o700);
+  process.env.RAYTONEBOT_CLAUDE_BIN = process.env.RAYTONEBOT_CODEX_BIN = executable;
+  const memory = createMemoryService();
+  memory.add("Use metric units.");
+  const runtime = createPiRuntimeController({ cwd: dataDir, dataDir, memory });
+  try {
+    for (const agentPreset of ["planner", "builder"] as const) {
+      const events: AgentUXEvent[] = [];
+      for (let i = 0; i < 3; i++) await runtime.runPrompt({ conversationId: agentPreset, agentPreset, prompt: "Continue",
+        claudeCodeModelSource: "local-login", codexModelSource: "local-login" }, event => events.push(event), { signal: AbortSignal.timeout(10000) });
+      const prompts = readFileSync(join(dataDir, agentPreset === "planner" ? "claude-prompts" : "codex-prompts"), "utf8").trim().split("\n").map(line => JSON.parse(line));
+      assert.equal(prompts.length, 3);
+      assert.match(prompts[0], /Use metric units/);
+      assert.match(prompts[1], /Use metric units/);
+      assert.doesNotMatch(prompts[2], /Memory from RaytoneBot/);
+      assert.equal(events.some(event => JSON.stringify(event).includes("compaction")), false);
+    }
+  } finally {
+    runtime.dispose();
+    if (previousClaude === undefined) delete process.env.RAYTONEBOT_CLAUDE_BIN; else process.env.RAYTONEBOT_CLAUDE_BIN = previousClaude;
+    if (previousCodex === undefined) delete process.env.RAYTONEBOT_CODEX_BIN; else process.env.RAYTONEBOT_CODEX_BIN = previousCodex;
+    rmSync(dataDir, { recursive: true, force: true });
+  }
 });
 
 test("each model turn receives fresh account context without persisting it as the user's message", async () => {

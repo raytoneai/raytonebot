@@ -1,5 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { createServer } from "node:net";
+import { mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { createDshProtocol, normalizeDshTool } from "./dshProtocol.ts";
 import { dshPatch } from "./dshHarness.ts";
 import { BotConfigStore } from "./botConfig.ts";
@@ -19,6 +23,56 @@ function fixture(overrides: Partial<Parameters<typeof createDshProtocol>[0]> = {
   return { protocol, push, update, permission, sent, events, permissions, abort };
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
+
+test("DSH accepts compaction notifications only for its active native session, including close flush", () => {
+  const f = fixture();
+  f.events.length = 0;
+  assert.equal(f.protocol.contextCompacted(undefined), false);
+  assert.equal(f.protocol.contextCompacted("other"), false);
+  assert.deepEqual(f.events, []);
+  assert.equal(f.protocol.contextCompacted("session-1"), true);
+  f.push({ id: "prompt", error: { message: "Model failed after compaction" } });
+  assert.equal(f.protocol.contextCompacted("session-1"), true, "the session flush completes before close returns");
+  assert.deepEqual(f.events, [{ type: "context_compacted" }, { type: "context_compacted" }]);
+  f.push({ id: "close", result: {} });
+  assert.equal(f.protocol.contextCompacted("session-1"), false);
+});
+
+test("DSH bridge forwards successful compaction and flush waits for the host receipt", async () => {
+  const dir = mkdtempSync(join(tmpdir(), "rtb-dsh-compact-"));
+  const socketPath = join(dir, "host.sock");
+  const hooks = new Map<string, (...args: any[]) => any>();
+  let receive!: (value: any) => void, acknowledge!: () => void;
+  const received = new Promise<any>(resolve => { receive = resolve; });
+  const server = createServer(socket => socket.once("data", data => {
+    receive(JSON.parse(String(data)));
+    acknowledge = () => socket.end(JSON.stringify({ text: "", isError: false }) + "\n");
+  }));
+  await new Promise<void>(resolve => server.listen(socketPath, resolve));
+  try {
+    const pluginPath = "./runtime/dshPlugin.mjs";
+    const { apply } = await import(pluginPath);
+    await apply({ on: (name: string, hook: (...args: any[]) => any) => hooks.set(name, hook),
+      tools: { guard() {} }, provide() {} }, { socketPath, tools: [] });
+    assert.ok(hooks.has("session/event"));
+    assert.ok(hooks.has("session/flush"));
+    hooks.get("session/event")!({ id: "session-1" }, { type: "compaction/start", data: {} });
+    hooks.get("session/event")!({ id: "session-1" }, { type: "unknown", data: {} });
+    hooks.get("session/event")!({ id: "session-1" }, { type: "compaction/end", data: { error: "Failed" } });
+    await hooks.get("session/flush")!();
+    hooks.get("session/event")!({ id: "session-1" }, { type: "compaction/end", data: {} });
+    assert.deepEqual(await received, { event: "context_compacted", sessionId: "session-1" });
+    let flushed = false;
+    const pending = hooks.get("session/flush")!().then(() => { flushed = true; });
+    await flush();
+    assert.equal(flushed, false);
+    acknowledge(); await pending;
+    assert.equal(flushed, true);
+  } finally {
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    rmSync(dir, { recursive: true, force: true });
+  }
+});
 
 test("DSH normalizes real file and bash arguments before shared policy evaluation", () => {
   assert.deepEqual(normalizeDshTool("edit", { file_path: "a.txt", old_string: "a", new_string: "b" }, "/workspace"),

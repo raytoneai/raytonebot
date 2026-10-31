@@ -38,6 +38,19 @@ function hostCall(path, request, signal) {
 
 /** All tool dispatches, including native tools, require a host authorization. */
 export async function apply(ctx, config) {
+  const notifications = new Set();
+  let notificationError;
+  ctx.on("session/event", (session, event) => {
+    if (event.type !== "compaction/end" || event.data?.error) return;
+    const pending = hostCall(config.socketPath, { event: "context_compacted", sessionId: session.id }, AbortSignal.timeout(5000))
+      .catch(error => { notificationError ??= error; }).finally(() => notifications.delete(pending));
+    notifications.add(pending);
+  });
+  // Session events are fire-and-forget; ACP awaits this flush before closing the session.
+  ctx.on("session/flush", async () => {
+    await Promise.all(notifications);
+    if (notificationError) throw notificationError;
+  });
   const allowed = new Set();
   ctx.on("tools/pre-execute", async (exec, next) => {
     if (!exec.agent) return { kind: "deny", reason: "Missing RaytoneBot session." };

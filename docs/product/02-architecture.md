@@ -46,7 +46,7 @@
 
 2026-10-18 sandbox 内可靠性补充（本机工作树）：`settingsFile.ts` 统一区分 ENOENT 与不可读/结构错误。记忆、MCP、例行任务和 IM 的坏文件保留并拒绝保存，设置接口返回错误；不可用的工具/时钟/连接器停用，普通聊天主机仍可启动。用户修复后重启重新读取，不自动替换为默认配置。授权和 IM 配置、映射、Telegram 游标在文件成功替换后才更新内存。
 
-记忆 `noteFor` 现在返回说明及捕获版本的交付确认函数；附件校验先执行，Pi 的原生 preflight 接受、CLI 的原生 turn/assistant 身份确认后才提交版本。成功完成和测试 bridge 的助手事件也可确认；接受前失败不消费版本，迟到的旧确认不能抹掉新版本。
+记忆 `noteFor` 返回说明及捕获版本的交付确认函数；附件校验先执行，Pi 的原生 preflight 接受、CLI 的原生 turn/assistant 身份确认后才提交版本。成功完成和测试 bridge 的助手事件也可确认；接受前失败不消费版本，迟到的旧确认不能抹掉新版本。成功压缩或显式重置原生会话会使相应投递记录失效，旧回执不能重新确认；下一次用户轮次补发最新记忆，不承诺同一轮压缩重试已经补回。
 
 浏览器内部 IPC 的动作可携带不暴露给模型的 `downloadOwner` token；worker 按 Page/Frame 记录所属任务，在 `Browser.downloadWillBegin` 时把 token 固定进 GUID 记录，完成事件带回同一 token。host 据此找发起任务的保存回调并检查取消状态。读账号/快照/切标签不转移归属；用户接管先清页面归属，没有任务归属的手动下载不进入任意 Agent 工作区，会报告丢弃。关闭浏览器清理归属；未知 frame 同样不猜保存目标。HTTP 接口及界面结构未改变。
 
@@ -399,7 +399,7 @@ HTTP host 共用一个 BotConfigStore，网页、IM、例行任务和群聊运�
 
 ### 有范围的长期上下文与文本 Skills（ADR-055）
 
-`memories.ts` 继续使用 `<dataDir>/memories.json`，旧记录无 scope 时视为 global；新 scope 为 `{kind:"global"}`、`{kind:"bot",id}` 或 `{kind:"group",id}`。注入、`recall_memories` 与 `forget` 只处理全局、当前 Bot、当前父群可见的记忆；模型不能自报另一个 owner ID。`remember` 单聊默认当前 Bot，群聊默认当前群，可显式选择当前可用范围；写入/删除仍走 connector 审批。Settings 原 Memory 分区负责范围选择与全局管理。总量仍为 100 条、每条 300 字符，提示有约 4000 字符预算；只读 recall 用最多 200 字符的字面查询返回最多 20 条，补查提示中省略的旧记忆。关闭后既有工具句柄也拒绝操作。
+`memories.ts` 继续使用 `<dataDir>/memories.json`，旧记录无 scope 时视为 global；新 scope 为 `{kind:"global"}`、`{kind:"bot",id}` 或 `{kind:"group",id}`。注入、`recall_memories` 与 `forget` 只处理全局、当前 Bot、当前父群可见的记忆；模型不能自报另一个 owner ID。`remember` 单聊默认当前 Bot，群聊默认当前群，可显式选择当前可用范围；写入/删除仍走 connector 审批。Settings 原 Memory 分区负责范围选择与全局管理。总量仍为 100 条、每条 300 字符，提示有约 4000 字符预算；提示与 recall 按最近修改优先，时间相同时最近写入优先。只读 recall 用最多 200 字符的字面查询每页返回最多 20 条；`nextCursor` 可作下一页 `cursor`，绑定存储版本、规范化查询与 Bot/群范围，任一保存变化后需从第一页重新读取，不跨快照拼接。关闭后既有工具句柄也拒绝操作。
 
 `conversationHistoryTools.ts` 直接读取 ConversationStore 的公共用户/助手文本，复用 `conversationSearch.ts` 按 `runId + textId` 累积流式内容；不读取 reasoning、工具原始内容、Vault 等专用秘密输入或引擎原生会话。`search_chat_history` 默认当前可见会话、最多 20 个命中；`read_chat_history` 用 textId/可选 runId 返回目标及合计至多十条邻居。结果保留 conversationId、角色、时间与稳定消息锚点，序列化输出最多 16000 字符，显式标注截断；越权、记录删除、歧义锚点均返回错误。跨会话范围仅来自上述用户引用，群成员与只读委派由宿主传入父群 ID，隐藏子会话即使被点名也拒绝读取。
 

@@ -182,8 +182,15 @@ export function createCodexAppServer(options: {
       else if (line.method === "turn/plan/updated") {
         if (threadId && params.threadId === threadId) options.emit({ type: "plan_update", plan: params.plan, explanation: params.explanation });
       }
+      else if (line.method === "thread/compacted") {
+        if (threadId && params.threadId === threadId) options.emit({ type: "context_compacted" });
+      }
       else if (line.method === "item/started" || line.method === "item/completed") {
         const item = record(params.item);
+        if (item.type === "contextCompaction") {
+          if (line.method === "item/completed" && threadId && params.threadId === threadId) options.emit({ type: "context_compacted" });
+          return;
+        }
         items.set(String(item.id), item);
         translator.push({ type: line.method === "item/started" ? "item.started" : "item.completed", item: legacyItem(item, options.cwd) });
       } else if (line.method === "turn/completed") {

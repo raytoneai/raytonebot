@@ -617,6 +617,7 @@ export function createPiRuntimeController(options: {
     onEvent: (event: AgentUXEvent) => void,
     modelPrompt: string,
   ) => {
+    const slot = runs.get(conversationId)!;
     const current = await bridge(conversationId);
     requireEnabledProvider(input.provider ?? (await current.state()).provider);
     current.setRolePrompt?.(rolePrompt(isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant", layout, { sandboxed, locale: input.locale, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }));
@@ -638,7 +639,11 @@ export function createPiRuntimeController(options: {
       requiresApproval: (toolName, args) => toolName !== "ask_user" && approvalGate.requiresApproval(toolName, args),
     });
     const unsubscribe = current.subscribe((event) => {
-      if (event.type === "message_start" && asRecord(event.message).role === "assistant") runs.get(conversationId)?.memoryDelivered?.();
+      if (runs.get(conversationId) !== slot) return;
+      if (event.type === "compaction_end" && event.result && event.aborted !== true && !event.errorMessage) {
+        memory?.invalidate(conversationId, { botId: slot.turn.botId, groupId: slot.groupId });
+      }
+      if (event.type === "message_start" && asRecord(event.message).role === "assistant") slot.memoryDelivered?.();
       // The SDK reports a cancelled approval/tool as an error before abort() settles.
       // Leave it open for the final cancellation, rather than persisting a false failure.
       if (runs.get(conversationId)?.stopRequested && event.type === "tool_execution_end" && event.isError === true) return;
@@ -666,7 +671,6 @@ export function createPiRuntimeController(options: {
       // with no await between this check and the prompt.
       if (runs.get(conversationId)?.stopRequested) return;
       adapter.startUserMessage(prompt);
-      const slot = runs.get(conversationId)!;
       if (current.steer && !slot.groupConversation) slot.steer = async (text, requestId) => {
         await current.steer!(withReplyLanguage(text, input.locale));
         adapter.startUserMessage(text, requestId);
@@ -727,14 +731,20 @@ export function createPiRuntimeController(options: {
       store.setCliSession(conversationId, { harness, id });
       cliSessions.set(conversationId, { harness, id });
     };
-    const emit = (event: PiWireEvent) => adapter.apply(event);
+    const slot = runs.get(conversationId)!;
+    const emit = (event: PiWireEvent) => {
+      if (runs.get(conversationId) !== slot) return;
+      // Host bookkeeping only: CLI boundaries must not fabricate a visible Pi compaction step.
+      if (event.type === "context_compacted") memory?.invalidate(conversationId, { botId: slot.turn.botId, groupId: slot.groupId });
+      else adapter.apply(event);
+    };
     // Claude reports a checkpoint for every assistant message; only the last one is a branch point,
     // so keep it in memory and write the conversation once when the run ends.
     let nativeTurn: NativeTurnCheckpoint | undefined;
     const onNativeTurn = ({ sessionId, id }: { sessionId: string; id: string }) => {
       if (harness === "dsh") return; // ACP has native resume but no trustworthy fork checkpoint.
       nativeTurn = harness === "claude-code" ? { harness, sessionId, afterMessageId: id } : { harness, sessionId, turnId: id };
-      runs.get(conversationId)?.memoryDelivered?.();
+      slot.memoryDelivered?.();
     };
     const onUserInput = (request: UserInputRequest) => askUser(conversationId, request);
     let lease: { revoke(): void } | undefined;
@@ -757,7 +767,7 @@ export function createPiRuntimeController(options: {
           cwd: runCwd, home: join(dataDir, "dsh", encodeURIComponent(conversationId)), prompt: modelPrompt,
           systemPrompt: rolePrompt(role, layout, { sandboxed, locale: input.locale, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
           permissionMode, resumeId, signal: run.signal, emit, onSessionId, onUserInput,
-          onAccepted: () => runs.get(conversationId)?.memoryDelivered?.(),
+          onAccepted: () => slot.memoryDelivered?.(),
           provider, webTools, mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role), hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
             const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
@@ -1220,6 +1230,7 @@ export function createPiRuntimeController(options: {
         store.reset(id);
         const current = await bridge(id);
         await current.newSession();
+        memory?.invalidate(id);
         // A new session starts with an empty transcript, so its tool set has to be announced
         // again or `CapabilityTray` would stay empty for the rest of the conversation's life.
         announcedCapabilities.delete(id);

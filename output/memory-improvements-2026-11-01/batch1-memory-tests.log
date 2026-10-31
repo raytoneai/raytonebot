@@ -1,0 +1,26 @@
+✔ preparing a memory note does not deliver it, and an old receipt cannot consume a newer version (1.13875ms)
+✔ memories are one list on disk: deduplicated, never secrets, capped, editable and removable (14.755583ms)
+✔ a conversation sees memories on its first turn and again only after they change (0.435375ms)
+✔ a long list is cut at the note limit with a count of what was left out (0.281375ms)
+✔ notes and recall isolate Bots and groups while legacy memories stay global (0.337667ms)
+✔ remember resolves owners from the run, deduplicates only within its scope, and retains Bot attribution (0.251375ms)
+✔ recall retrieves older eligible memories with stable metadata and bounded read-only results (0.785625ms)
+✔ recall cursors traverse every matching scoped memory once across bounded pages (0.732333ms)
+✔ editing an old memory brings it into the bounded note and first recall page (0.335292ms)
+✔ recall rejects malformed, stale and mismatched cursors without revealing scoped results (0.646375ms)
+✔ same-timestamp memory order and cursors survive a host restart (0.9525ms)
+✔ scoped delivery receipts acknowledge only their captured version and context (0.091958ms)
+✔ invalidating a memory receipt refreshes only its conversation and scope despite late acknowledgements (0.103541ms)
+✔ a conversation reset invalidates all of its memory contexts while explicit empty scope stays exact (0.085208ms)
+✔ invalidating memory preserves cleared and disabled notices and unseen delivery semantics (0.064209ms)
+✔ scope persistence preserves legacy global entries and text-only edits; malformed files fail closed (1.572542ms)
+✔ remember and forget ask like connector calls, through every engine's host-tool channel (2.301458ms)
+✔ the host adds the memory note to the model's copy of the prompt and serves the settings routes (65.041416ms)
+ℹ tests 18
+ℹ suites 0
+ℹ pass 18
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 426.575708

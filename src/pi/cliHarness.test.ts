@@ -72,6 +72,20 @@ test("Claude Code: unstreamed assistant message, subagent noise, failure", () =>
   assert.equal(translator.failure, "max turns");
 });
 
+test("Claude compaction boundaries are host signals, excluding subagents and unknown system events", () => {
+  const events: Wire[] = [];
+  const translator = createClaudeStreamTranslator(event => events.push(event));
+  translator.push({ type: "system", subtype: "compact_boundary", parent_tool_use_id: "subagent" });
+  translator.push({ type: "system", subtype: "compact_start" });
+  translator.push({ type: "system", subtype: "unknown" });
+  translator.push({ type: "stream_event", event: { type: "compact_boundary" } });
+  assert.deepEqual(events, []);
+  translator.push({ type: "system", subtype: "compact_boundary", compact_metadata: { trigger: "auto", pre_tokens: 120000 } });
+  translator.push({ type: "result", subtype: "error_during_execution", is_error: true, errors: ["Model failed"] });
+  assert.deepEqual(events, [{ type: "context_compacted" }]);
+  assert.equal(translator.failure, "Model failed");
+});
+
 test("Codex exec stream (captured from 0.153.4)", () => {
   const events: Wire[] = [];
   const translator = createCodexStreamTranslator((event) => events.push(event));

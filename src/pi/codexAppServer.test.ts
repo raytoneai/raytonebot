@@ -4,6 +4,28 @@ import { createCodexAppServer } from "./codexAppServer.ts";
 
 type Json = Record<string, unknown>;
 
+test("Codex completed compaction invalidates context even when the following model turn fails", () => {
+  const events: Json[] = [];
+  const abort = new AbortController();
+  const protocol = createCodexAppServer({ cwd: "/workspace", prompt: "continue", signal: abort.signal,
+    emit: event => events.push(event), onSessionId() {}, onPermission: async () => true });
+  const push = (method: string, params: Json = {}) => protocol.push({ method, params }, () => {});
+  push("item/completed", { threadId: "unknown", item: { type: "contextCompaction", id: "early" } });
+  protocol.push({ id: "thread", result: { thread: { id: "thread" } } }, () => {});
+  push("item/started", { threadId: "thread", item: { type: "contextCompaction", id: "pending" } });
+  push("item/completed", { threadId: "other", item: { type: "contextCompaction", id: "foreign" } });
+  push("item/completed", { threadId: "thread", item: { type: "futureItem", id: "unknown" } });
+  push("thread/compactionFailed", { threadId: "thread" });
+  assert.deepEqual(events, []);
+  push("item/completed", { threadId: "thread", item: { type: "contextCompaction", id: "complete" } });
+  push("thread/compacted", { threadId: "thread" });
+  assert.deepEqual(events, [{ type: "context_compacted" }, { type: "context_compacted" }]);
+  push("turn/completed", { threadId: "thread", turn: { status: "failed", error: { message: "Model failed" } } });
+  push("item/completed", { threadId: "thread", item: { type: "contextCompaction", id: "late" } });
+  assert.equal(events.length, 2);
+  assert.equal(protocol.failure, "Model failed");
+});
+
 test("Codex user input is independent of permissions, validates thread, and returns native answer arrays", async () => {
   const sent: Json[] = [], requests: { signal: AbortSignal; resolve(value: Record<string, string[]> | null): void }[] = [];
   const abort = new AbortController();

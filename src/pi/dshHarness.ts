@@ -96,9 +96,12 @@ export async function runDsh(options: DshRunOptions): Promise<void> {
         let result: HostToolResult;
         try {
           const request = JSON.parse(text.slice(0, newline));
-          if (!specs.some(spec => spec.name === request.name)
+          if (request.event === "context_compacted") {
+            if (!protocol.contextCompacted(request.sessionId)) throw new Error("Unknown DSH session.");
+            result = { text: "", isError: false };
+          } else if (!specs.some(spec => spec.name === request.name)
             || !protocol.takeAuthorization(request.callId, request.name, request.args, request.sessionId)) throw new Error("Unapproved host tool call.");
-          if (request.name === "ask_user" && questions) {
+          else if (request.name === "ask_user" && questions) {
             const value = await questions.execute(request.callId, request.args, signal, undefined, {} as never);
             result = { text: value.content.filter(c => c.type === "text").map(c => c.text).join("\n"), isError: false };
           } else if (request.name === "update_plan") {
