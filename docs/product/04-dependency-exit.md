@@ -33,7 +33,7 @@ Git 纳管的目录为：
 
 新 clone 或 worktree 不再需要从完整工作树手工复制这些目录；`npm ci`、构建和部署直接使用仓库中的冻结字节。缺失时仍会出现包入口无法解析或找不到类型声明，应先检查 Git checkout 是否完整。
 
-AgentMatrix `--clean` 发布脚本目前仍在 `buildReleaseFromHead()` 中把当前工作树的 `vendor/` 复制进临时 checkout。该兼容补丁暂时保留，后续在干净发布验证后移除。
+AgentMatrix `--clean` 发布脚本的 `buildReleaseFromHead()` 现在直接使用 detached `HEAD` 中已纳管的 `vendor/`，不再删除或从当前工作树复制 `vendor/`；干净发布归档因此直接携带 Git 中的冻结字节。
 
 ## 导出残留代码
 

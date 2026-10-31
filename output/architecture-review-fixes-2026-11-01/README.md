@@ -14,3 +14,5 @@
 - 云入口诊断：只记录 pathname 和校验后的代理元数据白名单；查询参数、认证头、Cookie、自定义头不入日志，容量有界且失败不影响请求。主代理要求减少多余辅助函数后复核；`cloud-preview.mjs --check` 覆盖 Basic、handoff、session、查询串、恶意 Origin、容量与写入失败，全部通过。`npm run build`、`git diff --check` 通过。未重跑与此独立脚本无关的完整运行时测试。
 
 - 冻结依赖纳管：`.gitignore` 限定根 `/dist/`，24 个现有文件、136,884 字节原样收录，主代理逐文件核对[SHA-256 清单](vendor.sha256)。以 HEAD 导出加拟纳管文件生成隔离副本，独立 `npm ci`、构建通过，file 依赖指向副本自身的 vendor；AgentMatrix 发布测试 14/14 通过。未重建 vendor；发布复制补丁留至下一项验证后清理。
+
+- 干净发布：移除 `buildReleaseFromHead` 的 vendor 删除/复制补丁。实际从 `40a51f2` 的 detached HEAD 构建并打包成功，清单 `dirty=false`，包内 24 文件哈希均与 HEAD 一致，10 项私密/本机路径排除规则未变。发布测试 14/14、差异检查通过。归档 SHA-256：`4c4d779f85c602e0a98d1e9bf5939b8223cf7a031b5d1d12aa923bd651de6b93`；仅构建，未上传或部署。
