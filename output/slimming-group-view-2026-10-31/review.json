@@ -1,0 +1,37 @@
+{
+  "baseline": "34a7f71",
+  "movedFunctionBodiesIdentical": [
+    "groupFields",
+    "groupMembersOf"
+  ],
+  "retainedFunctionsIdentical": [
+    "readSetting",
+    "storeSetting",
+    "waitForReconnect",
+    "devtoolsRequested",
+    "openArtifact",
+    "showBrowser",
+    "refreshPiRuntime",
+    "synchronizePiRuntime",
+    "loadStoredConversation",
+    "submitToPi",
+    "followRun",
+    "refreshPiConversation",
+    "sendQueued",
+    "resumeQueue",
+    "selectProvider",
+    "updateProvider",
+    "refreshConversationTitle",
+    "deletePiConversation",
+    "renamePiConversation",
+    "storedStub",
+    "setGroupMembers",
+    "startNewSession",
+    "changeAgentSettings",
+    "startConversationWith",
+    "openStoredConversation",
+    "selectPiConversation"
+  ],
+  "unchangedEffectMemoCallbackCalls": 34,
+  "productionChanges": "one import and removal of the two original local declarations"
+}

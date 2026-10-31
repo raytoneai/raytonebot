@@ -97,6 +97,7 @@ import { useMemories } from "./runtime/useMemories";
 import { useSkills } from "./runtime/useSkills";
 import { useUsage } from "./runtime/useUsage";
 import { conversationHistoryGroup, useSessionHistoryGroups } from "./runtime/useSessionHistoryGroups";
+import { groupFields, groupMembersOf } from "./runtime/groupConversationView";
 
 const THEME_KEY = "raytonebot.theme";
 /** Events after which a tool call is no longer waiting on the user. */
@@ -1246,21 +1247,10 @@ export function AgentApp() {
     setPiConversations((current) => current.map((entry) => entry.id === id ? { ...entry, title: saved, titleSource: "user" } : entry));
   }
 
-  // Group chat: members and the last message come with the host's summary of the conversation.
-  function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupParticipants" | "groupHostId" | "groupPreview" | "botId" | "availableBots" | "titleSource" | "groupTitlePreserved"> {
-    const group = (entry as StoredConversationSummary).group;
-    const saved = entry as StoredConversationSummary;
-    return { ...(saved.titleSource ? { titleSource: saved.titleSource } : {}), ...(saved.botId ? { botId: saved.botId, availableBots: saved.availableBots } : {}), ...(group ? { groupMembers: group.members, groupParticipants: group.participants, groupHostId: group.hostId, groupPreview: group.preview, ...(group.preserveTitle !== undefined ? { groupTitlePreserved: group.preserveTitle } : {}) } : {}) };
-  }
   /** A saved conversation the sidebar lists before its transcript is opened. */
   function storedStub(entry: StoredConversationSummary): EphemeralPiConversation {
     return { id: entry.id, title: entry.title, createdAt: entry.createdAt, agentPreset: entry.agentPreset,
       activeRunId: entry.activeRunId, events: [], stored: true, ...groupFields(entry) };
-  }
-  // Group chat: members live on the conversation; the host keeps its own copy per turn.
-  function groupMembersOf(conversation: EphemeralPiConversation): string[] {
-    const members = (conversation.groupMembers ?? []).filter(validParticipantId);
-    return members.length ? members : ["assistant", "planner", "builder"];
   }
   async function setGroupMembers(conversationId: string, members: string[]) {
     const previous = piConversations.find(entry => entry.id === conversationId);
