@@ -199,6 +199,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 | `src/pi/harnessCatalog.ts` | 浏览器 + Node | 角色、引擎 id、设置存储 |
 | `src/pi/cliStreams.ts` | 纯函数 | Claude/Codex 输出 → Pi 事件 |
 | `src/pi/cliHarness.ts` | Node | 启动 CLI、stdio 审批、续接、终止 |
+| `src/pi/cliHarnessConfig.ts` | Node | CLI 命令、argv、环境变量构造；原公开函数仍从 cliHarness 导出，执行逻辑留原处 |
 | `src/pi/permissionPolicy.ts`、`approvalGate.ts` | Node | 权限分类与审批等待 |
 | `src/pi/runtime/process.ts`、`childEnv.ts` | Node | 进程组终止、密钥剥离 |
 | `src/avatars/*` | 浏览器 | 角色头像（SVG + 动画），由 `AgentPersonaProvider` 提供 |
