@@ -1,0 +1,45 @@
+{
+  "baseline": "a097103",
+  "retainedFunctionsIdentical": [
+    "readSetting",
+    "storeSetting",
+    "waitForReconnect",
+    "devtoolsRequested",
+    "openArtifact",
+    "showBrowser",
+    "refreshPiRuntime",
+    "synchronizePiRuntime",
+    "loadStoredConversation",
+    "submitToPi",
+    "followRun",
+    "refreshPiConversation",
+    "sendQueued",
+    "resumeQueue",
+    "selectProvider",
+    "updateProvider",
+    "refreshConversationTitle",
+    "deletePiConversation",
+    "renamePiConversation",
+    "storedStub",
+    "setGroupMembers",
+    "startNewSession",
+    "changeAgentSettings",
+    "startConversationWith",
+    "openStoredConversation",
+    "selectPiConversation"
+  ],
+  "unchangedHookCalls": 34,
+  "unchangedIdentityResolvers": [
+    "knownBots",
+    "activeBot",
+    "presetBot"
+  ],
+  "unchangedUIProps": [
+    "welcomeGroup",
+    "headerAgent",
+    "composerMentions"
+  ],
+  "titleComparisons": 4320,
+  "mappingComparisons": 2880,
+  "inputsUnchanged": true
+}

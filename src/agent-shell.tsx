@@ -1,4 +1,4 @@
-import { featureText, featureError, groupRosterTitle, isGroupRosterTitle } from "./i18n/copy/features.ts";
+import { featureText, featureError, groupRosterTitle } from "./i18n/copy/features.ts";
 import { useLearning } from "./runtime/useLearning";
 import { useVault } from "./runtime/useVault";
 import { useTaskRecovery } from "./runtime/useTaskRecovery";
@@ -97,7 +97,7 @@ import { useMemories } from "./runtime/useMemories";
 import { useSkills } from "./runtime/useSkills";
 import { useUsage } from "./runtime/useUsage";
 import { conversationHistoryGroup, useSessionHistoryGroups } from "./runtime/useSessionHistoryGroups";
-import { groupFields, groupMembersOf } from "./runtime/groupConversationView";
+import { groupConversationFaces, groupConversationPreviews, groupConversationTitle, groupFields, groupMembersOf } from "./runtime/groupConversationView";
 
 const THEME_KEY = "raytonebot.theme";
 /** Events after which a tool call is no longer waiting on the user. */
@@ -310,14 +310,8 @@ export function AgentApp() {
     const base = bots.find(bot => bot.presetId === (participant?.presetId ?? "assistant")) ?? bots[0];
     return participant ? { ...base, ...participant } : base;
   };
-  const conversationTitle = (conversation: EphemeralPiConversation) => {
-    if (!isGroupConversation(conversation) || conversation.titleSource || conversation.groupTitlePreserved) return conversation.title;
-    const names = groupMembersOf(conversation).map(id => bots.find(bot => bot.id === id)?.name
-      ?? conversation.groupParticipants?.find(bot => bot.id === id)?.name ?? id);
-    const originalNames = groupMembersOf(conversation).map(id => BOT_NAMES[presetBot(id).presetId]);
-    return [names, originalNames].some(roster => isGroupRosterTitle(conversation.title, roster))
-      ? groupRosterTitle(names, locale) : conversation.title;
-  };
+  const conversationTitle = (conversation: EphemeralPiConversation) => groupConversationTitle(conversation, locale,
+    bots, id => BOT_NAMES[presetBot(id).presetId]);
   const piSessionItems = useMemo(
     () => piConversationSidebarItems(piConversations
       .filter((conversation) => conversation.events.length > 0 || conversation.stored || hasComposerState(composer.drafts[conversation.id]))
@@ -1544,12 +1538,9 @@ export function AgentApp() {
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
     ) : undefined,
     // Only groups still titled with their roster: the last thing said names the row instead.
-    groupPreviews: Object.fromEntries(piConversations.flatMap((entry) => entry.groupPreview && isGroupConversation(entry) && !entry.titleSource && !entry.groupTitlePreserved
-      && [groupMembersOf(entry).map((m) => presetBot(m).name), groupMembersOf(entry).map((m) => BOT_NAMES[presetBot(m).presetId])]
-        .some(names => isGroupRosterTitle(entry.title, names))
-      ? [[entry.id, entry.groupPreview.text.replace(/\s+/g, " ").trim()]] : [])),
-    groupFaces: Object.fromEntries(piConversations.filter((entry) => isGroupConversation(entry))
-      .map((entry) => [entry.id, groupMembersOf(entry).map((m) => PRESET_AVATARS[presetBot(m).presetId])])),
+    groupPreviews: groupConversationPreviews(piConversations,
+      id => presetBot(id).name, id => BOT_NAMES[presetBot(id).presetId]),
+    groupFaces: groupConversationFaces(piConversations, PRESET_AVATARS, id => presetBot(id).presetId),
     sidebarFooter: <SidebarFooter onOpenSettings={() => openSettings("providers")} />,
     headerAgent: <div className="shell-chat-participants">{isGroupConversation(activePiConversation) ? (
       <GroupHeader avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)} hostId={activePiConversation.groupHostId}
