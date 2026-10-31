@@ -1,0 +1,20 @@
+{
+  "aligned": true,
+  "details": {
+    "x": 349.5,
+    "y": 149.515625
+  },
+  "display": "grid",
+  "message": {
+    "bottom": 147.515625,
+    "x": 349.5,
+    "y": 125.3984375
+  },
+  "pageOverflow": false,
+  "stacked": true,
+  "title": {
+    "bottom": 123.3984375,
+    "x": 349.5,
+    "y": 104.5
+  }
+}

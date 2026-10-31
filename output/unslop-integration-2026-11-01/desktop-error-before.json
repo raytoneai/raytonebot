@@ -1,0 +1,58 @@
+{
+  "children": [
+    {
+      "display": "flex",
+      "gridArea": "auto",
+      "position": "static",
+      "rect": {
+        "height": 15,
+        "width": 15,
+        "x": 332.5,
+        "y": 105.5
+      },
+      "tag": "SPAN"
+    },
+    {
+      "display": "block",
+      "gridArea": "auto",
+      "position": "static",
+      "rect": {
+        "height": 18.8984375,
+        "width": 85.6875,
+        "x": 349.5,
+        "y": 104.5
+      },
+      "tag": "STRONG"
+    },
+    {
+      "display": "block",
+      "gridArea": "auto",
+      "position": "static",
+      "rect": {
+        "height": 22.1171875,
+        "width": 212.9453125,
+        "x": 437.1875,
+        "y": 104.5
+      },
+      "tag": "P"
+    },
+    {
+      "display": "block",
+      "gridArea": "auto",
+      "position": "static",
+      "rect": {
+        "height": 61.234375,
+        "width": 379.4140625,
+        "x": 652.1328125,
+        "y": 104.5
+      },
+      "tag": "DETAILS"
+    }
+  ],
+  "classes": "error-item",
+  "display": "flex",
+  "flexDirection": "row",
+  "gridAutoFlow": "row",
+  "gridTemplateColumns": "none",
+  "parent": "assistant-lane"
+}

@@ -1,0 +1,146 @@
+[
+  {
+    "size": {
+      "width": 1280,
+      "height": 720
+    },
+    "errorCase": "Error block",
+    "rows": [
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "无法保存文件"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 1280,
+      "height": 720
+    },
+    "errorCase": "Retrying incident",
+    "rows": [
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 1280,
+      "height": 720
+    },
+    "errorCase": "Exhausted incident",
+    "rows": [
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      },
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 1280,
+      "height": 720
+    },
+    "errorCase": "Terminal incident",
+    "rows": [
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      },
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "errorCase": "Error block",
+    "rows": [
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "无法保存文件"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "errorCase": "Retrying incident",
+    "rows": [
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "errorCase": "Exhausted incident",
+    "rows": [
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      },
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      }
+    ]
+  },
+  {
+    "size": {
+      "width": 390,
+      "height": 844
+    },
+    "errorCase": "Terminal incident",
+    "rows": [
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      },
+      {
+        "aligned": true,
+        "overflow": false,
+        "stacked": true,
+        "title": "操作未完成"
+      }
+    ]
+  }
+]

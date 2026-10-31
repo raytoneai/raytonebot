@@ -1,0 +1,18 @@
+{
+  "base": "c8f1f77",
+  "uiCommit": "dc501bf",
+  "mainAtReview": "08b50093e350973f9194ae9aa54c03d785757543",
+  "committedFileOverlap": [
+    "src/styles/app.css"
+  ],
+  "findings": [
+    "app.css: UI error details/header weights and architectural DebugDock rules affect separate selectors.",
+    "UI error rendering consumes the existing view-model shape and does not change events, retry state, approvals or cursors.",
+    "Read-only diagnostics do not feed normalized events back to replay or storage.",
+    "UI changes have no imports from the legacy adapters being removed.",
+    "Settings polling fixes are already included in the UI branch base."
+  ],
+  "mergeTreeCheck": "No textual conflicts at reviewed main head.",
+  "finalMainBeforeMerge": "e40f7e32654584759405847215b6387a5d15cd21",
+  "finalMergeTreeCheck": "No textual conflicts; reviewed merge tree equals actual merge index."
+}

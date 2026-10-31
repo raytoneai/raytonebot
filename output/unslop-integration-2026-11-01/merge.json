@@ -1,0 +1,15 @@
+{
+  "mainBefore": "e40f7e32654584759405847215b6387a5d15cd21",
+  "uiCommit": "dc501bf542c6a3e8da855106450bcf8ad3e57a80",
+  "mergeCommit": "2cb1da372f6bb2112a25b0ece9828301c963f6cf",
+  "mergeTree": "84458b0bd252f566cab594aa27c8f7c6184a9b22",
+  "backupDirectory": "/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/raytone-unslop-merge-backup-hcqc6eu8",
+  "preservedUncommittedFiles": [
+    "docs/competitive-reassessment-2026-10-29.md",
+    "docs/feasibility.md",
+    "docs/multi-agent-collaboration-research.md",
+    "docs/product/11-parity.md"
+  ],
+  "roadmapResearchChangesPreserved": true,
+  "originalAuditMatchedAndReplacedByReviewedVersion": true
+}

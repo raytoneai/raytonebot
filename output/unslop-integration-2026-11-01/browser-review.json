@@ -1,0 +1,39 @@
+{
+  "checkedCommit": "2cb1da3",
+  "sourceFollowup": "src/styles/agentmatrix.css error layout",
+  "navigation": [
+    {
+      "pageOverflow": false,
+      "selected": "开发者模式",
+      "stage": "desktop-to-mobile",
+      "visible": true
+    },
+    {
+      "pageOverflow": false,
+      "selected": "Appearance",
+      "stage": "locale",
+      "visible": true
+    },
+    {
+      "pageOverflow": false,
+      "selected": "外観",
+      "stage": "locale",
+      "visible": true
+    },
+    {
+      "pageOverflow": false,
+      "selected": "外观",
+      "stage": "locale",
+      "visible": true
+    }
+  ],
+  "disclosures": {
+    "debugHeight": 320.7890625,
+    "debugOpen": true,
+    "errorOpen": true,
+    "errorText": "无法保存文件Could not write the generated file.技术详情E_WRITE_FILEEACCES: permission denied, open /repo/src/SearchInput.tsx",
+    "pageOverflow": false
+  },
+  "finalErrorLayoutCases": 8,
+  "logs": []
+}

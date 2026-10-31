@@ -1,0 +1,18 @@
+(node:48130) ExperimentalWarning: localStorage is not available because --localstorage-file was not provided.
+(Use `node --trace-warnings ...` to show where the warning was created)
+✔ the error fixture leads with its user message and keeps diagnostics behind a closed disclosure in every locale (430.538542ms)
+✔ unknown errors retain their original message without inventing recovery guidance, including collapsed mode (2.610417ms)
+✔ details preserve the raw message when developerMessage is absent and omit duplicate body text (2.135833ms)
+✔ retry, exhausted, terminal and history errors keep their state-specific titles and retry animation (2.878541ms)
+✔ tool disclosures, output close and opened output tabs use localized accessible names (5.657208ms)
+✔ narrow settings reveal offscreen sections using only the required horizontal rail movement (0.3745ms)
+✔ dialog scale transitions do not leave the selected section clipped (0.082291ms)
+✔ desktop, hidden and unselected navigation need no scrolling (0.069667ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 630.013708

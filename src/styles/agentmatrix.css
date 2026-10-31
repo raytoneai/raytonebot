@@ -508,7 +508,8 @@ svg.lucide { stroke-width: 1.5; }
 .step-item[data-status="failed"] .step-icon,
 .step-item[data-status="error"] .step-icon { color: var(--danger); }
 .step-kind { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
-.error-item { display: flex; align-items: flex-start; gap: 8px; flex-wrap: wrap; }
+.error-item { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; }
+.error-item > :is(strong, p, details, small) { grid-column: 2; min-width: 0; }
 .error-icon { color: var(--danger); margin-top: 1px; }
 .tool-source-icon { color: var(--text-muted); margin-right: 2px; }
 
