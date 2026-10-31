@@ -21,31 +21,60 @@ export function useImChannels(active: boolean, model: ChannelModel | undefined):
   const [error, setError] = useState<string>();
   const [saving, setSaving] = useState<ChannelPlatform>();
   const [saveError, setSaveError] = useState<ImChannelsState["saveError"]>();
+  const locked = useRef(false);
+  const generation = useRef(0);
+  const mounted = useRef(true);
   const modelRef = useRef(model);
   modelRef.current = model;
 
   useEffect(() => {
-    if (!active) return;
-    let cancelled = false;
-    const load = () => listImChannels().then((value) => {
-      if (cancelled) return;
+    mounted.current = true;
+    return () => { mounted.current = false; generation.current++; };
+  }, []);
+
+  const load = useCallback(async () => {
+    if (!mounted.current || locked.current) return;
+    const request = ++generation.current;
+    try {
+      const value = await listImChannels();
+      if (!mounted.current || request !== generation.current) return;
       setChannels(value);
       setError(undefined);
-    }, (failure: unknown) => { if (!cancelled) setError(failure instanceof Error ? failure.message : String(failure)); });
-    void load();
-    const timer = window.setInterval(() => void load(), 3_000);
-    return () => { cancelled = true; window.clearInterval(timer); };
-  }, [active]);
+    } catch (failure) {
+      if (mounted.current && request === generation.current) setError(failure instanceof Error ? failure.message : String(failure));
+    }
+  }, []);
+
+  useEffect(() => {
+    if (!active) return;
+    let stopped = false;
+    let timer: number | undefined;
+    const poll = async () => {
+      await load();
+      if (!stopped) timer = window.setTimeout(() => void poll(), 3_000);
+    };
+    void poll();
+    return () => { stopped = true; generation.current++; window.clearTimeout(timer); };
+  }, [active, load]);
 
   const save = useCallback(async (platform: ChannelPlatform, patch: ChannelPatch) => {
+    if (locked.current || !mounted.current) return;
+    locked.current = true;
+    const request = ++generation.current;
     setSaving(platform);
     setSaveError(undefined);
     try {
-      setChannels(await updateImChannel(platform, { ...patch, ...(modelRef.current ? { model: modelRef.current } : {}) }));
+      const value = await updateImChannel(platform, { ...patch, ...(modelRef.current ? { model: modelRef.current } : {}) });
+      if (!mounted.current || request !== generation.current) return;
+      setChannels(value);
+      setError(undefined);
     } catch (failure) {
-      setSaveError({ platform, message: failure instanceof Error ? failure.message : String(failure) });
+      if (mounted.current && request === generation.current) {
+        setSaveError({ platform, message: failure instanceof Error ? failure.message : String(failure) });
+      }
     } finally {
-      setSaving(undefined);
+      locked.current = false;
+      if (mounted.current) setSaving(undefined);
     }
   }, []);
 
