@@ -83,6 +83,7 @@ import { pendingChannelSetup } from "./runtime/channelSetup";
 import { useChannelSetup } from "./runtime/useChannelSetup";
 import { pendingVaultRequest } from "./runtime/vaultRequest";
 import { useVaultRequest } from "./runtime/useVaultRequest";
+import { applyPendingConversationWait, pendingConversationWaits } from "./runtime/pendingConversationWait";
 import { finishedHtmlEdits } from "./runtime/liveHtmlWrite";
 import { approvalRequestKey } from "./runtime/approvalSubmission";
 import { approvalForReplay, identityEventForReplay } from "./runtime/replayIdentity";
@@ -100,7 +101,7 @@ import { groupConversationFaces, groupConversationPreviews, groupConversationTit
 
 const THEME_KEY = "raytonebot.theme";
 /** Events after which a tool call is no longer waiting on the user. */
-const APPROVAL_SETTLED_EVENTS = new Set(["tool.call.running", "tool.call.result", "tool.call.error", "tool.call.finished", "run.finished"]);
+const APPROVAL_SETTLED_EVENTS = new Set(["tool.call.running", "tool.call.result", "tool.call.error", "tool.call.finished", "run.finished", "run.error"]);
 const PERMISSION_DEFAULT_KEY = "raytonebot.permissionDefault";
 
 // Rejected requests also synthesize run.started + user text, so those are not acceptance.
@@ -806,6 +807,7 @@ export function AgentApp() {
     let turnStartEventCount = nextConversation.events.length;
     let promptAttempted = false;
     let reattach = false;
+    let pendingWaits = new Set<string>();
     // The run keeps going when the user opens another conversation; only the one on screen is drawn.
     const showIfActive = (conversation: EphemeralPiConversation) => {
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
@@ -837,6 +839,7 @@ export function AgentApp() {
         turnStartEventCount = nextConversation.events.length;
       }
       if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
+      pendingWaits = pendingConversationWaits(nextConversation.events);
       const botId = nextConversation.groupHostId ?? conversationBotId(syncedBots.store, nextConversation) ?? presetId;
       const targetBot = syncedBots.profiles.find(bot => bot.id === botId);
       const model = botModelConfiguration(activeProject, { ...agentSettings, presetId }, isGroup ? undefined : targetBot);
@@ -895,9 +898,11 @@ export function AgentApp() {
         if (event.type === "tool.call.awaiting_approval" || event.type === "run.awaiting_input") {
           // Waiting on the user, so it cannot wait on a frame.
           commit.flush();
-          setAwaitingConversationIds((current) => toggleIn(current, conversationId, true));
-        } else if (APPROVAL_SETTLED_EVENTS.has(event.type) || event.payload.inputRequestId) {
-          setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
+          applyPendingConversationWait(pendingWaits, event);
+          setAwaitingConversationIds((current) => toggleIn(current, conversationId, pendingWaits.size > 0));
+        } else if (event.type === "run.started" || APPROVAL_SETTLED_EVENTS.has(event.type) || event.payload.inputRequestId) {
+          applyPendingConversationWait(pendingWaits, event);
+          setAwaitingConversationIds((current) => toggleIn(current, conversationId, pendingWaits.size > 0));
         }
       }
       commit.flush();
@@ -971,6 +976,7 @@ export function AgentApp() {
       showIfActive(next);
     });
     let current = conversation;
+    let pendingWaits = pendingConversationWaits(current.events);
     let retries = 0;
     let reload = !preloaded;
     try {
@@ -981,6 +987,8 @@ export function AgentApp() {
           reload = true;
           if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
           if (controller.signal.aborted) break;
+          pendingWaits = pendingConversationWaits(current.events);
+          setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, pendingWaits.size > 0));
           runStop.bind(controller, current.activeRunId ?? [...current.events].reverse().find(event => event.type === "run.started")?.runId);
           // Saved and live events are the host's stored transcript; rejected prompts are never saved.
           if (submission && current.events.some((event) => event.runId === submission.requestId)) submission.onAccepted?.();
@@ -1000,15 +1008,17 @@ export function AgentApp() {
             commit.push(current);
             if (event.type === "tool.call.awaiting_approval" || event.type === "run.awaiting_input") {
               commit.flush();
-              setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, true));
-            } else if (APPROVAL_SETTLED_EVENTS.has(event.type) || event.payload.inputRequestId) {
-              setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, false));
+              applyPendingConversationWait(pendingWaits, event);
+              setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, pendingWaits.size > 0));
+            } else if (event.type === "run.started" || APPROVAL_SETTLED_EVENTS.has(event.type) || event.payload.inputRequestId) {
+              applyPendingConversationWait(pendingWaits, event);
+              setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, pendingWaits.size > 0));
             }
           }
           if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
           commit.flush();
           // A first turn started elsewhere (IM, another tab) is titled by the host as it ends.
-          if (current.events.filter((event) => event.type === "run.started").length === 1) refreshConversationTitle(conversationId);
+          if (current.events.filter((event) => event.type === "run.started").length === 1 || isGroupConversation(current)) refreshConversationTitle(conversationId);
           break;
         } catch (error) {
           if (piAbortRefs.current.get(conversationId) !== controller) { commit.cancel(); return; }
