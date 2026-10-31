@@ -1,0 +1,18 @@
+✔ artifact retrieval searches all conversations before paging and keeps exact replay identities (18.193584ms)
+✔ catalog excludes hidden conversations, private/outside/link files and non-deliverables (7.442416ms)
+✔ history budgets report incomplete results and stop before loading or replaying beyond their limits (5.013333ms)
+✔ missing registered files and unreadable history are explicit; newer inserts do not duplicate seek pages (5.279791ms)
+✔ group artifact ownership permits only its actual member workspace and the shared workspace (3.5535ms)
+✔ branch catalog results match the source UI replay without inheriting excluded later runs (4.761167ms)
+✔ explicit shell artifacts use real files, latest-path deduplication and existing file boundaries (11.751875ms)
+✔ preserved deliveries keep A/B bytes through source deletion and restart, then delete with the conversation (89.243208ms)
+✔ preserveVersion rejects unsupported formats, oversized files and aborted captures before publishing (7.321959ms)
+✔ group versions keep same-preset Bots on their exact projected identities (26.209083ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 504.588167

@@ -630,7 +630,13 @@ export function AgentApp() {
   const rightPanelVisible = rightPanelAvailable && !rightCollapsed;
 
   function openArtifact(request: OutputPanelOpenRequest) {
-    const item = normalizeOutputPanelRequest(request);
+    const normalized = normalizeOutputPanelRequest(request);
+    // Artifact identity is carried by the event; source ownership comes from the active
+    // conversation, never from a display filename. This keeps version lookup scoped when an
+    // existing artifact launcher opens a file directly.
+    const item = normalized.artifactId && !normalized.conversationId
+      ? { ...normalized, conversationId: activePiConversationId }
+      : normalized;
     const path = typeof request === "string" ? request : request.workspacePath;
     if (item.kind === "file" && path && !item.downloadUrl) {
       const author = artifactAuthor(item.id);
@@ -654,7 +660,7 @@ export function AgentApp() {
         ?? replayEvents.find(event => event.type === "text.started" && event.runId === origin.runId && event.payload.role === "user") : undefined;
       if (typeof message?.payload.textId === "string") setSearchTarget({ conversationId: activePiConversationId, textId: message.payload.textId, nonce: crypto.randomUUID() });
       setPendingSource(undefined);
-      openArtifact(outputPanelItemFromRenderedArtifact(artifact, activeProject));
+      openArtifact(outputPanelItemFromRenderedArtifact(artifact, activeProject, activePiConversationId));
     } else {
       const message = replayEvents.find(event => event.type === "text.started" && (pendingSource.textId
         ? event.payload.textId === pendingSource.textId : event.runId === pendingSource.runId && event.payload.role === "assistant"));

@@ -301,7 +301,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
           }
           if (event.type === "text.delta" && typeof (event.payload as { delta?: unknown }).delta === "string") text += (event.payload as { delta: string }).delta;
           emit([retag(event, member, groupRunId, childRunId)]);
-        }, { signal: abort.signal, waitForCapacity: true, groupConversation: true, groupId, readOnly,
+        }, { signal: abort.signal, waitForCapacity: true, groupConversation: true, groupId, publicRunId: groupRunId, readOnly,
           ...(member === hostId && record ? { extraHostTools: delegation.toolsFor({ groupId, requestId: groupRunId, hostId,
             parentId: root?.id, input, signal: abort.signal, isCurrent: () => active.get(groupId) === slot }) } : {}) });
         if (failure !== undefined) throw new Error(failure);

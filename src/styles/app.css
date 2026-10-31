@@ -356,6 +356,54 @@ textarea:focus-visible {
   grid-template-rows: auto minmax(0, 1fr);
 }
 
+/* Saved deliveries add a selector/status row before the document body. Keep those
+   controls intrinsic so the expanded reader never compresses the selector to zero. */
+.artifact-frame[data-expanded="true"] .opened-output-item[data-versioned="true"] {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.artifact-frame[data-expanded="true"] .opened-output-item[data-versioned="true"] > :not(.artifact-title):not(.markdown-preview):not(pre):not(.pdf-output-preview):not(.image-output-preview):not(.audio-output-preview):not(.video-output-preview):not(.html-output-preview) {
+  flex: 0 0 auto;
+  min-height: max-content;
+  overflow: visible;
+}
+
+.artifact-frame[data-expanded="true"] .opened-output-item[data-versioned="true"] > :is(.markdown-preview, pre, .pdf-output-preview, .image-output-preview, .audio-output-preview, .video-output-preview, .html-output-preview) {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+}
+
+/* Long source URLs must wrap in saved Markdown; code/table blocks keep their own x-scroll. */
+.artifact-frame[data-expanded="true"] .opened-output-item[data-versioned="true"] > .markdown-preview {
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  overflow-x: hidden;
+}
+
+.artifact-frame[data-expanded="true"] .opened-output-item[data-versioned="true"] > .markdown-preview > :not(.md-code-block):not(table) {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.artifact-frame[data-expanded="true"] .opened-output-item[data-versioned="true"] > .markdown-preview > :is(p, li, h4, h5, h6, blockquote, a),
+.artifact-frame[data-expanded="true"] .opened-output-item[data-versioned="true"] > .markdown-preview > :not(.markdown-table-wrap) :is(p, li, h4, h5, h6, blockquote, a) {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.artifact-frame[data-expanded="true"] .opened-output-item[data-versioned="true"] > .markdown-preview :is(pre.md-code-block, .markdown-table-wrap) {
+  min-width: 0;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.artifact-frame[data-expanded="true"] .opened-output-item[data-versioned="true"] > .markdown-preview .markdown-table {
+  min-width: max-content;
+}
+
 .artifact-frame[data-expanded="true"] .opened-output-item > :not(.artifact-title) {
   min-height: 0;
   overflow: auto;

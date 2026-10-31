@@ -1,5 +1,6 @@
 """Run: python3 -m unittest discover -s scripts/agentsphere -p 'test_*.py'."""
 import io
+import os
 import subprocess
 import tarfile
 import tempfile
@@ -11,6 +12,49 @@ from backup_data import DATA_PATHS, REQUIRED_PATHS, create_archive, restore_arch
 
 
 class BackupRecoveryTest(unittest.TestCase):
+    def test_delivered_version_links_cannot_cross_the_private_restore_boundary(self):
+        for hard_link in (False, True):
+            with self.subTest(hard_link=hard_link), tempfile.TemporaryDirectory() as temporary:
+                root = Path(temporary)
+                for name in REQUIRED_PATHS:
+                    (root / name.lstrip("/")).mkdir(parents=True)
+                versions = root / "home/user/.raytonebot/data.artifact-versions"
+                versions.mkdir()
+                (versions / "original.bin").write_bytes(b"delivery")
+                if hard_link:
+                    os.link(versions / "original.bin", versions / "linked.bin")
+                else:
+                    (versions / "linked.bin").symlink_to("original.bin")
+                archive = root / "backup.tgz"
+                with self.assertRaisesRegex(ValueError, "must not contain links"):
+                    create_archive(archive, root)
+                self.assertFalse(archive.exists())
+
+    def test_delivered_versions_round_trip_without_provider_or_vault_secrets(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            source, target, archive = base / "source", base / "target", base / "data.tgz"
+            for name in REQUIRED_PATHS:
+                (source / name.lstrip("/")).mkdir(parents=True)
+            versions = source / "home/user/.raytonebot/data.artifact-versions"
+            versions.mkdir(mode=0o700)
+            (versions / "version.json").write_text('{"artifactId":"published_version_example"}')
+            (versions / "version.bin").write_bytes(b"original delivery")
+            for suffix in ("provider-secrets", "vault"):
+                secret = source / f"home/user/.raytonebot/data.{suffix}"
+                secret.mkdir()
+                (secret / "private.enc").write_bytes(b"excluded")
+            create_archive(archive, source)
+            restore_archive(archive, target)
+            restored = target / versions.relative_to(source)
+            self.assertEqual((restored / "version.bin").read_bytes(), b"original delivery")
+            self.assertEqual((restored / "version.json").read_bytes(), (versions / "version.json").read_bytes())
+            self.assertEqual(restored.stat().st_mode & 0o777, 0o700)
+            self.assertEqual((restored / "version.bin").stat().st_mode & 0o777, 0o600)
+            self.assertEqual((restored / "version.json").stat().st_mode & 0o777, 0o600)
+            for suffix in ("provider-secrets", "vault"):
+                self.assertFalse((target / f"home/user/.raytonebot/data.{suffix}").exists())
+
     def test_browser_profile_keeps_logins_and_leaves_caches_out(self):
         with tempfile.TemporaryDirectory() as temporary:
             source, archive = Path(temporary) / "source", Path(temporary) / "data.tgz"

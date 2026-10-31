@@ -1,6 +1,18 @@
 import { useCallback, useState } from "react";
 import type { OutputPanelItem } from "../components/agent-preview/outputframe/panelItem";
 import type { OutputPanelSource } from "../components/agent-preview/outputframe/types";
+import { isVersionedArtifactId } from "./artifactVersions.ts";
+
+function isVersionedItem(item: OutputPanelItem): boolean {
+  const identity = item.versionOriginArtifactId ?? item.artifactId ?? item.id;
+  return isVersionedArtifactId(identity.startsWith("artifact:") ? identity.slice("artifact:".length) : identity);
+}
+
+/** Open tabs share a path only for ordinary live files; preserved identities stay separate. */
+export function sameOutputPanelItem(entry: OutputPanelItem, item: OutputPanelItem): boolean {
+  return entry.id === item.id
+    || (!isVersionedItem(entry) && !isVersionedItem(item) && Boolean(item.workspacePath && entry.workspacePath === item.workspacePath));
+}
 
 export function useOutputPanel(initialSource: OutputPanelSource) {
   // Closed until asked for, matching the configurator: a run with nothing to show should not
@@ -17,7 +29,7 @@ export function useOutputPanel(initialSource: OutputPanelSource) {
 
   const openItem = useCallback((item: OutputPanelItem, rightPanelAvailable: boolean) => {
     setItems((current) => {
-      const index = current.findIndex((entry) => entry.id === item.id || Boolean(item.workspacePath && entry.workspacePath === item.workspacePath));
+      const index = current.findIndex((entry) => sameOutputPanelItem(entry, item));
       if (index >= 0) {
         const next = [...current];
         next[index] = item;

@@ -2,7 +2,25 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import { setImmediate } from "node:timers/promises";
 import type { AgentUXEvent } from "@agent-ux/protocol";
-import { abortPiRun, followPiTurn, PiRequestError, resolvePiApproval, submitPiApproval, runPiTurn } from "./piClient.ts";
+import { abortPiRun, followPiTurn, getArtifactVersions, piArtifactVersionDownloadUrl, PiRequestError, resolvePiApproval, submitPiApproval, runPiTurn } from "./piClient.ts";
+
+test("artifact version metadata and exact download URLs preserve conversation and projected identity", async () => {
+  const calls: string[] = [];
+  const response = { versions: [{ versionId: "v-a", artifactId: "builder~published_version_11111111-1111-1111-1111-111111111111", createdAt: 1, size: 3, sha256: "hash" }], selectedVersionId: "v-a" };
+  const loaded = await getArtifactVersions("chat id", "builder~published_version_11111111-1111-1111-1111-111111111111", async (url, init) => {
+    calls.push(String(url));
+    assert.equal(init?.method, undefined);
+    return Response.json(response);
+  });
+  assert.deepEqual(loaded, response);
+  const query = new URL(calls[0], "http://test").searchParams;
+  assert.equal(query.get("conversationId"), "chat id");
+  assert.equal(query.get("artifactId"), "builder~published_version_11111111-1111-1111-1111-111111111111");
+  const download = new URL(piArtifactVersionDownloadUrl("chat id", response.versions[0].artifactId, response.versions[0].versionId), "http://test");
+  assert.equal(download.searchParams.get("conversationId"), "chat id");
+  assert.equal(download.searchParams.get("artifactId"), response.versions[0].artifactId);
+  assert.equal(download.searchParams.get("versionId"), "v-a");
+});
 
 test("approval delivery checks the exact request after losing a receipt and only resends while still pending", async () => {
   for (const pending of [false, true]) {

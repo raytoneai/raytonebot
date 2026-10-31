@@ -1,5 +1,13 @@
 # 02 架构
 
+## 显式交付版本（2026-11-01）
+
+`publish_artifact({path, preserveVersion: true})` 在现有主机中保存单文件 `.md`、`.txt`、`.pdf` 的交付字节；省略参数仍只登记当前工作文件。`artifactTool.ts` 从 `openWorkspaceFile` 已验证的句柄有界读取，并核对读取前后的文件状态。`artifactVersions.ts` 在 `<dataDir>.artifact-versions/` 保存主机生成身份、会话/轮次/产物关联、时间、大小、SHA-256 与独立字节文件，成功保存后才发原 artifact 事件。上限为单文件 20 MiB、文件字节合计 500 MiB；达到配额拒绝新保存，不淘汰旧版本。存储目录/文件为 0700/0600，加入文件接口与 Agent 工具的私有路径；同 UID 本机进程不是强隔离边界。
+
+版本元数据沿 `GET /__agentcanvas/pi/artifacts/versions?conversationId=&artifactId=` 查询；下载沿原 `GET/HEAD /__agentcanvas/pi/files/download?conversationId=&artifactId=&versionId=`。主机以来源会话中的公开成功事件和版本记录匹配身份，不接受存储磁盘路径。群聊同时保存公开轮次和成员源轮次，不能按文件名或拆分 runId 猜测归属。版本随来源会话删除；源工作文件覆盖或删除不影响已保存字节。没有版本的历史不补造快照，分支复制的历史事件也不复制来源版本。
+
+原 Output 内选择交付时版本或当前工作文件；历史只读，当前文件继续走既有预览/编辑，精确版本不会被同路径新事件替换。保存版本的列表和标签保留独立身份。协议/vendor 不变，不新增面板、数据库、后台扫描或自动保存。Markdown 的外链资源不随字节冻结；恢复仍依赖磁盘和备份。AgentSphere 普通备份纳入该同级目录；AgentMatrix 的持久化/备份限制仍按其 runbook。实现取舍见 ADR-057，验收见 [首批优化记录](../../output/first-batch-optimizations-2026-11-01/README.md)。
+
 ## RSL 可选学习（2026-10-29）
 
 `src/pi/learning/` 在现有主机内管理独立 `learning/state.json`。`GET/POST /__agentcanvas/pi/learning` 由原鉴权与 Origin 检查保护，设置保存带 revision。SettingsDialog 的开发者分区管理开关、每日预算、候选审核/停用/删除及用量。默认关闭。

@@ -5,6 +5,7 @@ import type { UiCopy } from "../../../i18n/uiCopy";
 import type { AgentFrontendProject } from "../../../schema/agentuxConfig";
 import type { OutputPanelOpenRequest } from "../OutputFrame";
 import { artifactBody } from "../../../runtime/artifactContent";
+import { isVersionedArtifactId } from "../../../runtime/artifactVersions.ts";
 
 type ArtifactMediaKind = "image" | "audio" | "video";
 
@@ -75,6 +76,7 @@ function artifactLaunchKind(item: AgentUXArtifactTimelineItem, copy: UiCopy): st
 function artifactLaunchOpenRequest(item: AgentUXArtifactTimelineItem, copy: UiCopy, project: AgentFrontendProject): OutputPanelOpenRequest {
   const originalTitle = item.title ?? item.id;
   const workspacePath = item.uri?.startsWith("file://") ? item.uri.slice(7) : undefined;
+  const versioned = isVersionedArtifactId(item.id);
   const mediaKind = artifactMediaKind(item);
   if (mediaKind) {
     const title = originalTitle.split("/").filter(Boolean).pop() ?? originalTitle;
@@ -84,6 +86,8 @@ function artifactLaunchOpenRequest(item: AgentUXArtifactTimelineItem, copy: UiCo
       kind: "file",
       title,
       subtitle: originalTitle,
+      versionOriginArtifactId: versioned ? item.id : undefined,
+      versionSelection: versioned ? "version" : undefined,
       workspacePath,
       language: mediaKind,
       body: artifactBody(item),
@@ -100,6 +104,7 @@ function artifactLaunchOpenRequest(item: AgentUXArtifactTimelineItem, copy: UiCo
       kind: "file",
       title: artifactLaunchTitle(item),
       subtitle: originalTitle,
+      ...(versioned ? { artifactId: item.id, versionOriginArtifactId: item.id, versionSelection: "version" as const } : {}),
       workspacePath,
       language: website ? "html" : undefined,
       body: item.artifactKind === "diff" ? undefined : artifactBody(item),
@@ -109,6 +114,8 @@ function artifactLaunchOpenRequest(item: AgentUXArtifactTimelineItem, copy: UiCo
   return {
     id: `artifact:${item.id}`,
     artifactId: item.id,
+    versionOriginArtifactId: versioned ? item.id : undefined,
+    versionSelection: versioned ? "version" : undefined,
     kind: item.artifactKind === "diff" ? "review" : "file",
     title: artifactLaunchTitle(item),
     subtitle: originalTitle,

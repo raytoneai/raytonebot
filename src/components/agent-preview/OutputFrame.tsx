@@ -239,7 +239,7 @@ export function OutputFrame({
           tools={viewModel.timeline.filter((item) => item.kind === "tool")}
           artifacts={artifacts}
           catalog={artifactCatalog}
-          onOpenArtifact={(item) => onOpenFile?.(outputPanelItemFromRenderedArtifact(item, project))}
+          onOpenArtifact={(item) => onOpenFile?.(outputPanelItemFromRenderedArtifact(item, project, artifactCatalog?.conversationId))}
           liveHtml={liveHtml}
         />}
       </section>

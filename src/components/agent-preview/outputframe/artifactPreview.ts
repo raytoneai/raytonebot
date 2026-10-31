@@ -6,6 +6,7 @@ import { languageFromFileName } from "./panelItem";
 import { languageFromTitle, outputItemRenderKind } from "./renderKind";
 import { looksLikeUnifiedDiff } from "../../../runtime/unifiedDiff";
 import { artifactBody } from "../../../runtime/artifactContent";
+import { isVersionedArtifactId } from "../../../runtime/artifactVersions.ts";
 
 export function resolveArtifactRenderer(
   artifact: AgentUXArtifactTimelineItem | undefined,
@@ -76,9 +77,10 @@ export function artifactCodePreview(artifact: AgentUXArtifactTimelineItem, copy:
   };
 }
 
-export function outputPanelItemFromRenderedArtifact(artifact: AgentUXArtifactTimelineItem, project: AgentFrontendProject) {
+export function outputPanelItemFromRenderedArtifact(artifact: AgentUXArtifactTimelineItem, project: AgentFrontendProject, conversationId?: string) {
   const originalTitle = artifact.title ?? artifact.id;
   const title = originalTitle.split("/").filter(Boolean).pop() ?? originalTitle;
+  const versioned = isVersionedArtifactId(artifact.id);
   const renderKind = outputItemRenderKind({
     id: `artifact:${artifact.id}`,
     kind: "file",
@@ -90,6 +92,10 @@ export function outputPanelItemFromRenderedArtifact(artifact: AgentUXArtifactTim
     kind: "file" as const,
     title,
     subtitle: originalTitle,
+    artifactId: artifact.id,
+    conversationId,
+    versionOriginArtifactId: versioned ? artifact.id : undefined,
+    versionSelection: versioned ? "version" as const : undefined,
     workspacePath: artifact.uri?.startsWith("file://") ? artifact.uri.slice(7) : undefined,
     mediaSrc: artifact.uri,
     language: languageFromFileName(title),

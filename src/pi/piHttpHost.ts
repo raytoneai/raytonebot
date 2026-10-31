@@ -1,7 +1,7 @@
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve as resolvePath } from "node:path";
 import { isAppLocale } from "../i18n/locales.ts";
-import { ArtifactCatalogError, listArtifactCatalog } from "./artifactCatalog.ts";
+import { ArtifactCatalogError, artifactVersionsResponse, listArtifactCatalog, resolvePublishedArtifactIdentity } from "./artifactCatalog.ts";
 import { BotConfigError, BotConfigStore } from "./botConfig.ts";
 import { createBotSkillsService, SkillsError } from "./botSkills.ts";
 import { browserLoginUrl } from "./browser/browserPolicy.ts";
@@ -35,6 +35,7 @@ import { createRoutineService, RoutineError, type RoutineService } from "./routi
 import { requireAgentIsolation } from "./runtime/agentProcess.ts";
 import { VaultError, VaultStore } from "./vault.ts";
 import { VaultRequestError } from "./vaultRequests.ts";
+import { ArtifactVersionError, ArtifactVersionStore } from "./artifactVersions.ts";
 import { sendWorkspaceFile } from "./workspaceDownload.ts";
 import { createWorkspaceDocument, listWorkspaceFiles, openWorkspaceFile, readWorkspaceDocument, replaceWorkspaceDocument, searchWorkspaceDocuments, uploadWorkspaceFile, WorkspaceFileError } from "./workspaceFiles.ts";
 import { resolveWorkspaceLayout, type WorkspaceLayout } from "./workspaceLayout.ts";
@@ -59,15 +60,18 @@ export function createPiHttpHost(options: {
   browser?: false | BrowserService;
   /** Local testing override; sandbox deployments use the private sibling directory. */
   vaultDir?: string;
+  /** Host-owned explicit delivery snapshots; tests may inject a temporary store. */
+  artifactVersions?: ArtifactVersionStore;
 }) {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: options.cwd });
   const sandboxed = options.sandboxed ?? process.env.RAYTONEBOT_SANDBOX === "1";
-  const vaultDir = resolvePath(sandboxed ? `${options.dataDir ?? defaultDataDir()}.vault` : options.vaultDir ?? process.env.RAYTONEBOT_VAULT_DIR ?? `${options.dataDir ?? defaultDataDir()}.vault`);
-  const privatePaths = [options.dataDir ?? defaultDataDir(), `${options.dataDir ?? defaultDataDir()}.provider-secrets`, vaultDir];
+  const dataDir = options.dataDir ?? defaultDataDir();
+  const artifactVersions = options.artifactVersions ?? new ArtifactVersionStore(`${dataDir}.artifact-versions`);
+  const vaultDir = resolvePath(sandboxed ? `${dataDir}.vault` : options.vaultDir ?? process.env.RAYTONEBOT_VAULT_DIR ?? `${dataDir}.vault`);
+  const privatePaths = [dataDir, `${dataDir}.provider-secrets`, vaultDir, artifactVersions.root];
   // Bound below: the setup needs the channel manager, which needs the controller.
   let channelSetup: ReturnType<typeof createChannelSetup> | undefined;
   let routines: RoutineService | undefined;
-  const dataDir = options.dataDir ?? defaultDataDir();
   const providers = new ProviderStore(join(`${dataDir}.provider-secrets`, "providers.enc"));
   const vault = new VaultStore(join(vaultDir, "logins.enc"));
   const bots = new BotConfigStore(join(dataDir, "bots.json"));
@@ -76,7 +80,7 @@ export function createPiHttpHost(options: {
   const mcp = createMcpService({ dataDir, log: runtimeLogger(dataDir) });
   const memory = createMemoryService({ dataDir, log: runtimeLogger(dataDir) });
   const browser = options.browser === false ? undefined : options.browser ?? createBrowserService({ dataDir, log: runtimeLogger(dataDir) });
-  const controller = createPiRuntimeController({ ...options, layout, store, bots, providers, vault, vaultDir, channelSetup: (run) => channelSetup!.run(run),
+  const controller = createPiRuntimeController({ ...options, layout, store, bots, providers, vault, vaultDir, artifactVersions, channelSetup: (run) => channelSetup!.run(run),
     createRoutine: (input) => routines!.create(input), mcpTools: (botId) => mcp.toolkit(botId ? bots.require(botId).mcpServerIds : undefined, serverId => !botId || bots.require(botId).mcpServerIds?.includes(serverId) !== false), memory, skills, browser });
   routines = createRoutineService({ dataDir, bots, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
   const stopClock = options.routineClock === false ? undefined : routines.startClock();
@@ -233,6 +237,17 @@ export function createPiHttpHost(options: {
             }
             sendJson(res, req.method === "POST" ? 201 : 200, { ...document, ...(id ? { source: { conversationId: id, title: controller.getConversation(id)?.title, artifactId } } : {}) });
           } else sendJson(res, 405, { error: "Unsupported document operation." });
+          return true;
+        }
+        if ((req.method === "GET" || req.method === "HEAD") && url.pathname === `${PI_API_PREFIX}/files/download` && url.searchParams.has("versionId")) {
+          const conversationId = stringField(Object.fromEntries(url.searchParams), "conversationId");
+          const artifactId = stringField(Object.fromEntries(url.searchParams), "artifactId");
+          const versionId = stringField(Object.fromEntries(url.searchParams), "versionId");
+          if (!conversationId || !artifactId || !versionId) throw new ArtifactCatalogError("conversationId, artifactId and versionId are required.", 400);
+          const identity = await resolvePublishedArtifactIdentity({ store, layout, excluded: privatePaths, bots: bots.catalog(), conversationId, artifactId });
+          const entry = await artifactVersions.open({ conversationId: identity.conversationId, artifactId: identity.artifactId, versionId,
+            scope: identity.scope, path: identity.path, agent: identity.agent });
+          await sendWorkspaceFile(req, res, entry);
           return true;
         }
         if ((req.method === "GET" || req.method === "HEAD") && url.pathname === `${PI_API_PREFIX}/files/download`) {
@@ -450,8 +465,15 @@ export function createPiHttpHost(options: {
           }
           return true;
         }
+        if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/artifacts/versions`) {
+          const conversationId = url.searchParams.get("conversationId"), artifactId = url.searchParams.get("artifactId");
+          if (!conversationId || !artifactId) throw new ArtifactCatalogError("conversationId and artifactId are required.", 400);
+          sendJson(res, 200, await artifactVersionsResponse({ store, versions: artifactVersions, layout, excluded: privatePaths, bots: bots.catalog(), conversationId, artifactId }));
+          return true;
+        }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/artifacts`) {
           sendJson(res, 200, await listArtifactCatalog({ store, layout, excluded: privatePaths, bots: bots.catalog(),
+            versions: artifactVersions,
             query: url.searchParams.get("query") ?? undefined, conversationId: url.searchParams.get("conversationId") ?? undefined,
             limit: Number(url.searchParams.get("limit") ?? 50), cursor: url.searchParams.get("cursor") ?? undefined }));
           return true;
@@ -645,7 +667,7 @@ export function createPiHttpHost(options: {
         }
         sendJson(res, 404, { error: "Unknown Pi endpoint." });
       } catch (error) {
-        if (!res.headersSent) sendJson(res, error instanceof VaultRequestError ? error.statusCode : error instanceof ConversationRequestError || error instanceof VaultError || error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError || error instanceof ArtifactCatalogError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
+        if (!res.headersSent) sendJson(res, error instanceof VaultRequestError ? error.statusCode : error instanceof ConversationRequestError || error instanceof VaultError || error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError || error instanceof ArtifactCatalogError || error instanceof ArtifactVersionError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
         else if (!res.destroyed) res.end();
       }
       return true;

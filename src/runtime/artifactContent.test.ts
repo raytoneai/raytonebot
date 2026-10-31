@@ -69,6 +69,43 @@ test("open file tabs refresh the exact path and never adopt another directory's 
   assert.equal(updated.body, undefined, "refresh reads actual file bytes instead of the prior snapshot");
 });
 
+test("historical tabs stay frozen while an explicit current selection follows the latest event", () => {
+  const a = createPiEventAdapter({ runId: "versioned-refresh" });
+  a.apply({ type: "artifact_published", artifactId: "published_version_11111111-1111-1111-1111-111111111111", title: "/work/report.md", uri: "file:///work/report.md" });
+  a.apply({ type: "artifact_published", artifactId: "published_version_22222222-2222-2222-2222-222222222222", title: "/work/report.md", uri: "file:///work/report.md" });
+  const timeline = createAgentUXViewModel(a.events).timeline;
+  const historical = { id: "artifact:published_version_11111111-1111-1111-1111-111111111111", artifactId: "published_version_11111111-1111-1111-1111-111111111111", kind: "file" as const, title: "report.md", workspacePath: "/work/report.md", body: "A", versionSelection: "version" as const };
+  const current = { ...historical, versionSelection: "current" as const, versions: [{ versionId: "old", artifactId: historical.artifactId, createdAt: 1, size: 1, sha256: "hash" }] };
+  assert.equal(refreshArtifactItems([historical], timeline)[0], historical);
+  const refreshed = refreshArtifactItems([current], timeline)[0];
+  assert.equal(refreshed.artifactId, "published_version_22222222-2222-2222-2222-222222222222");
+  assert.equal(refreshed.versions, undefined, "a new current event forces version metadata to refresh");
+  assert.equal(refreshed.revision, "published_version_22222222-2222-2222-2222-222222222222");
+});
+
+test("current mode preserves the saved-version origin after a later ordinary write", () => {
+  const a = createPiEventAdapter({ runId: "versioned-live-revision" });
+  const origin = "published_version_11111111-1111-1111-1111-111111111111";
+  a.apply({ type: "artifact_published", artifactId: origin, title: "/work/report.md", uri: "file:///work/report.md" });
+  a.apply({ type: "artifact_published", artifactId: "ordinary_write", title: "/work/report.md", uri: "file:///work/report.md" });
+  const item = {
+    id: `artifact:${origin}`,
+    artifactId: origin,
+    versionOriginArtifactId: origin,
+    kind: "file" as const,
+    title: "report.md",
+    workspacePath: "/work/report.md",
+    body: "current before write",
+    versionSelection: "current" as const,
+    versions: [{ versionId: "v-a", artifactId: origin, createdAt: 1, size: 7, sha256: "hash" }],
+  };
+  const [refreshed] = refreshArtifactItems([item], createAgentUXViewModel(a.events).timeline);
+  assert.equal(refreshed.artifactId, "ordinary_write");
+  assert.equal(refreshed.versionOriginArtifactId, origin, "the source delivery remains addressable");
+  assert.equal(refreshed.versionSelection, "current");
+  assert.equal(refreshed.versions, undefined, "metadata is refreshed after the live revision changes");
+});
+
 test("group artifact ownership survives replay wrapping and is never inferred from a filename", () => {
   for (const id of ['builder~file', 'artifact:builder~file', 'artifact:["group","artifactId","builder~file"]']) assert.equal(artifactAuthor(id), "builder");
   assert.equal(artifactAuthor('artifact:["group","artifactId","bot_11111111-1111-1111-1111-111111111111~file"]'), "bot_11111111-1111-1111-1111-111111111111");

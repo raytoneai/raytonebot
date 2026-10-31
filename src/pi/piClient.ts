@@ -11,6 +11,7 @@ import type { VaultRequestAnswer, VaultUseResult } from "./vaultRequestTypes.ts"
 import type { BrowserInput, BrowserViewState } from "./browser/browserProtocol.ts";
 import type { AppLocale } from "../i18n/locales.ts";
 import type { AgentHarnessStatus, AgentPresetId, ClaudeCodeModelSource } from "./harnessCatalog.ts";
+import type { ArtifactVersionsResponse } from "../runtime/artifactVersions.ts";
 
 export const PI_API_PREFIX = "/__agentcanvas/pi";
 
@@ -41,6 +42,27 @@ export async function uploadPiFile(file: File, scope: PiFileScope, signal?: Abor
 
 export function piFileDownloadUrl(scope: PiFileScope, path: string): string {
   return `${PI_API_PREFIX}/files/download?${new URLSearchParams({ scope, path })}`;
+}
+
+/** Resolve the exact bytes captured for a published artifact version. */
+export function piArtifactVersionDownloadUrl(conversationId: string, artifactId: string, versionId: string): string {
+  return `${PI_API_PREFIX}/files/download?${new URLSearchParams({ conversationId, artifactId, versionId })}`;
+}
+
+/** Version metadata is fetched only when a versioned artifact is opened. */
+export async function getArtifactVersions(
+  conversationId: string,
+  artifactId: string,
+  fetcher: typeof fetch = fetch,
+  signal?: AbortSignal,
+): Promise<ArtifactVersionsResponse> {
+  const timeout = AbortSignal.timeout(15_000);
+  return requestJson<ArtifactVersionsResponse>(
+    fetcher,
+    `${PI_API_PREFIX}/artifacts/versions?${new URLSearchParams({ conversationId, artifactId })}`,
+    undefined,
+    signal ? AbortSignal.any([signal, timeout]) : timeout,
+  );
 }
 
 /** Reused attachments may have been removed since the original turn. Check before acceptance. */

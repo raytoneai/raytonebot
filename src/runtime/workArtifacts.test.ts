@@ -14,3 +14,10 @@ test("deliverables exclude plans, source, directory snapshots and unsaved diffs;
   ]);
   assert.deepEqual(files.map((item) => item.id), ['new', 'html', 'audio']);
 });
+
+test("saved versions keep same-path A/B deliveries instead of path de-duplicating them", () => {
+  const versionA = artifact("published_version_11111111-1111-1111-1111-111111111111", "report.md", "file:///report.md");
+  const versionB = artifact("published_version_22222222-2222-2222-2222-222222222222", "report.md", "file:///report.md");
+  const current = artifact("current", "report.md", "file:///report.md");
+  assert.deepEqual(workArtifacts([versionA, versionB, current]).map(item => item.id), [versionA.id, versionB.id, current.id]);
+});

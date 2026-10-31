@@ -9,7 +9,7 @@ let modules: Record<string, any>;
 before(async () => {
   server = await createServer({ configFile: false, server: { middlewareMode: true, hmr: false, ws: false }, optimizeDeps: { noDiscovery: true, include: [] } });
   modules = {};
-  for (const path of ["components/agent-preview/outputframe/renderKind", "components/agent-preview/outputframe/artifactPreview", "components/agent-preview/outputframe/openedItemBody", "components/agent-preview/outputframe/OutputContent", "components/agent-preview/outputframe/OutputPanelModal", "exported-project", "i18n/uiCopy"]) {
+  for (const path of ["components/agent-preview/outputframe/renderKind", "components/agent-preview/outputframe/artifactPreview", "components/agent-preview/outputframe/openedItemBody", "components/agent-preview/outputframe/OutputContent", "components/agent-preview/outputframe/OutputPanelModal", "components/agent-preview/outputframe/OutputTabs", "exported-project", "i18n/uiCopy"]) {
     Object.assign(modules, await server.ssrLoadModule(`/src/${path}`));
   }
 });
@@ -46,4 +46,38 @@ test("inline and expanded previews expose close for a single file without adding
   const modal = renderToStaticMarkup(createElement(modules.OutputPanelModal, { items: [item], onCloseItem() {}, onClose() {} }));
   assert.match(modal, /关闭 change.patch/);
   assert.doesNotMatch(modal, /class="output-tabs"/);
+});
+
+test("a versioned artifact without source conversation context never falls back to the live file", () => {
+  const copy = modules.uiCopy.zh.workspace.outputFrame;
+  const item = {
+    id: "artifact:published_version_11111111-1111-1111-1111-111111111111",
+    artifactId: "published_version_11111111-1111-1111-1111-111111111111",
+    kind: "file" as const,
+    title: "report.md",
+    workspacePath: "/work/report.md",
+    downloadUrl: "/__agentcanvas/pi/files/download?scope=assistant&path=report.md",
+  };
+  const html = renderToStaticMarkup(createElement(modules.OpenedOutputItem, { item, copy }));
+  assert.match(html, /交付版本缺少来源会话上下文/);
+  assert.doesNotMatch(html, /files\/download/);
+});
+
+test("saved version labels remain distinct when deliveries share a timestamp and size", () => {
+  const copy = modules.uiCopy.en.workspace.outputFrame;
+  const item = {
+    id: "artifact:published_version_11111111-1111-1111-1111-111111111111",
+    artifactId: "published_version_11111111-1111-1111-1111-111111111111",
+    kind: "file" as const,
+    title: "report.md",
+    downloadUrl: "/__agentcanvas/pi/files/download?scope=assistant&path=report.md",
+    versions: [
+      { versionId: "v-a", artifactId: "published_version_11111111-1111-1111-1111-111111111111", createdAt: 1_700_000_000_000, size: 3, sha256: "a" },
+      { versionId: "v-b", artifactId: "published_version_22222222-2222-2222-2222-222222222222", createdAt: 1_700_000_000_000, size: 3, sha256: "b" },
+    ],
+    selectedVersionId: "v-a",
+  };
+  const html = renderToStaticMarkup(createElement(modules.OpenedOutputItem, { item, copy }));
+  assert.match(html, /交付版本 #1/);
+  assert.match(html, /交付版本 #2/);
 });

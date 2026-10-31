@@ -1085,6 +1085,38 @@ export const featureCopy = {
   "Please wait for the current reply to finish before changing members.": {
     "zh": "请等当前回复结束后再调整成员。",
     "ja": "現在の返信が終了してからメンバーを変更してください。"
+  },
+  "Delivered version": {
+    "zh": "交付版本",
+    "ja": "納品時のバージョン"
+  },
+  "Current workspace file": {
+    "zh": "当前工作区文件",
+    "ja": "現在のワークスペースファイル"
+  },
+  "Read-only saved version": {
+    "zh": "只读交付版本",
+    "ja": "読み取り専用の保存バージョン"
+  },
+  "Loading saved versions…": {
+    "zh": "正在加载交付版本…",
+    "ja": "保存済みバージョンを読み込み中…"
+  },
+  "Could not load saved versions. Retry to view this delivery.": {
+    "zh": "无法加载交付版本。请重试以查看这次交付。",
+    "ja": "保存済みバージョンを読み込めません。この納品を表示するには再試行してください。"
+  },
+  "Saved version context is unavailable. Open the source conversation to view it.": {
+    "zh": "交付版本缺少来源会话上下文。请打开来源对话查看。",
+    "ja": "保存済みバージョンの元会話がありません。元の会話を開いて表示してください。"
+  },
+  "Saved version is unavailable. Retry to view this delivery.": {
+    "zh": "交付版本不可用。请重试以查看这次交付。",
+    "ja": "保存済みバージョンを利用できません。この納品を表示するには再試行してください。"
+  },
+  "File previews show captured delivery contents when selected; current workspace files remain live.": {
+    "zh": "选中交付版本时预览保存的内容；当前工作区文件仍会显示最新内容。",
+    "ja": "納品バージョンを選ぶと保存時の内容を表示し、現在のワークスペースファイルは最新内容を表示します。"
   }
 } satisfies Record<string, Record<Exclude<AppLocale, "en">, string>>;
 

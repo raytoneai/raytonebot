@@ -2,6 +2,8 @@
 
 调研日期：2026-10-05。范围来自 [feasibility.md](feasibility.md)、[nightly OpenBot 调研](nightly-openbot-assessment.md)、[OpenAgentCore 调研](openagentcore-assessment.md) 与 [参考项目对齐记录](product/11-parity.md)。联网核对官方仓库，并沿建群、消息路由、执行上下文、结果回传和持久化链路阅读固定提交源码。以下是实现层面的证据，未进行上游完整服务或真实模型验收。
 
+本文保留历史快照。2026-11-01 新增 [OpenMausBot 研究](openmausbot-source-research-2026-11-01.md)，关注团队配置复用、外部 MCP/CLI 编排和协作完成条件；当前 RaytoneBot 差距与建议见[综合竞品复评](competitive-reassessment-2026-10-29.md)，不以本文早期缺口判断当前实现。
+
 ## 结论与项目地图
 
 **两个 OpenBot 和 botiverse Raft 都有真正的产品内群聊。CopilotKit OpenBot 偏“多 Bot 按顺序回答、@ 接力”；nightly OpenBot 偏“群内任务有一个负责人，显式委派并回收结果”。** Raft 偏“常驻成员各自判断是否发言，用认领锁防重复”。其他项目分别是专家会话、后台任务、专家路由或原生子 Agent，不能只凭名字里的 Multi-Agent 判断存在拉群功能。

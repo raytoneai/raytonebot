@@ -15,6 +15,7 @@ import type { PendingUserInput, UserAnswers } from "../runtime/userInput.ts";
 import { PiApprovalGate, type PiPermissionMode } from "./approvalGate.ts";
 import { ApprovalMemory } from "./approvalMemory.ts";
 import { artifactTools } from "./artifactTool.ts";
+import { ArtifactVersionStore } from "./artifactVersions.ts";
 import { BotConfigStore } from "./botConfig.ts";
 import { createBotSkillsService } from "./botSkills.ts";
 import { type BrowserService } from "./browser/browserService.ts";
@@ -100,6 +101,7 @@ export type PiBridgeFactory = (input: {
 }) => Promise<PiSessionBridge>;
 
 export type PiRuntimeController = {
+  readonly artifactVersions: ArtifactVersionStore;
   learning: ReturnType<typeof createLearningService>;
   usage(): UsageState;
   /** Permission mode a turn gets when its client does not choose one (IM channels). */
@@ -112,7 +114,7 @@ export type PiRuntimeController = {
    *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards.
    *  Internal group children may `waitForCapacity`; cancelling that wait leaves no receipt.
    *  `title` names a new conversation instead of its first prompt (a routine's own name). */
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean; groupId?: string; delegated?: boolean; extraHostTools?: import("./memories.ts").HostTools; readOnly?: boolean }): Promise<void>;
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean; groupId?: string; publicRunId?: string; delegated?: boolean; extraHostTools?: import("./memories.ts").HostTools; readOnly?: boolean }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   steer(conversationId: string, runId: string, requestId: string, text: string): Promise<boolean>;
@@ -180,12 +182,15 @@ export function createPiRuntimeController(options: {
   skills?: ReturnType<typeof createBotSkillsService>;
   /** The shared browser (ADR-040): its tools each run, its snapshot judges each action. */
   browser?: BrowserService;
+  /** Host-owned explicit delivery snapshots; tests may inject a temporary store. */
+  artifactVersions?: ArtifactVersionStore;
 }): GroupController {
   const { cwd } = options;
   const botConfig = options.bots;
   const dataDir = options.dataDir ?? defaultDataDir();
   const store = options.store ?? createConversationStore(dataDir);
   const usage = createUsageService({ dataDir });
+  const artifactVersions = options.artifactVersions ?? new ArtifactVersionStore(`${dataDir}.artifact-versions`);
   const learning = createLearningService({ dataDir, busy: () => runs.size > 0 });
   const limits = options.limits ?? runLimits();
   const log = runtimeLogger(dataDir);
@@ -213,8 +218,8 @@ export function createPiRuntimeController(options: {
   const workspaces = [...new Set([cwd, ...Object.values(layout.agents), ...(layout.shared ? [layout.shared] : [])])];
   const appRoot = options.appRoot ?? process.cwd();
   const vaultDir = options.vaultDir ?? `${dataDir}.vault`;
-  const privatePaths = [dataDir, `${dataDir}.provider-secrets`, vaultDir];
-  const secretPaths = [...defaultSecretPaths(), `${dataDir}.provider-secrets`, vaultDir];
+  const privatePaths = [dataDir, `${dataDir}.provider-secrets`, vaultDir, artifactVersions.root];
+  const secretPaths = [...defaultSecretPaths(), `${dataDir}.provider-secrets`, vaultDir, artifactVersions.root];
   // In the sandbox agents run as their own user with their own home; locally it is the developer's.
   const protectedPaths = defaultProtectedPaths({ workspaces, agentHome: process.env.RAYTONEBOT_AGENT_HOME?.trim() || undefined });
   /** The bot's own code: agents may read it (reviewing it is a normal task), never change it. */
@@ -299,6 +304,7 @@ export function createPiRuntimeController(options: {
     fromChannel?: boolean;
     groupConversation?: boolean;
     groupId?: string;
+    publicRunId?: string;
     delegated?: boolean;
     references?: string[];
     extraHostTools?: import("./memories.ts").HostTools;
@@ -337,10 +343,30 @@ export function createPiRuntimeController(options: {
   /** remember / forget and the browser for one conversation's agent; downloads land in its own workspace. */
   const hostToolsFor = (conversationId: string, agent: AgentPresetId) => {
     const toolkit = mergeHostTools(
-    artifactTools(layout, agent, privatePaths, (file) => {
+    artifactTools(layout, agent, privatePaths, async (file, capture, signal) => {
       const slot = runs.get(conversationId);
-      if (!slot?.adapter || slot.stopRequested) throw new Error("The artifact run is no longer active.");
-      slot.adapter.apply({ type: "artifact_published", ...file });
+      if (!slot?.adapter || slot.stopRequested || signal?.aborted) throw new Error("The artifact run is no longer active.");
+      if (!capture) {
+        slot.adapter.apply({ type: "artifact_published", ...file });
+        return;
+      }
+      // Group events are projected with the member identity before the parent conversation is
+      // persisted. Store that exact public identity so HTTP history cannot guess by filename.
+      const publicConversationId = slot.groupId ?? conversationId;
+      const publicRunId = slot.publicRunId ?? slot.runId;
+      const eventArtifactId = slot.groupId ? `${slot.turn.botId ?? agent}~${file.artifactId}` : file.artifactId;
+      const publicArtifactId = JSON.stringify([publicRunId, "artifactId", eventArtifactId]);
+      let saved: Awaited<ReturnType<ArtifactVersionStore["save"]>> | undefined;
+      try {
+        saved = await artifactVersions.save({ conversationId: publicConversationId, sourceConversationId: conversationId,
+          artifactId: publicArtifactId, sourceArtifactId: file.artifactId, eventArtifactId, scope: capture.scope, path: capture.path,
+          agent, name: capture.name, title: file.title, mimeType: file.mimeType, bytes: capture.bytes, versionId: capture.versionId, runId: publicRunId, sourceRunId: slot.runId });
+        if (slot.stopRequested || signal?.aborted || runs.get(conversationId) !== slot) throw new Error("The artifact run is no longer active.");
+        slot.adapter.apply({ type: "artifact_published", ...file });
+      } catch (error) {
+        await saved?.rollback().catch(() => {});
+        throw error;
+      }
     }),
     options.vault && options.browser ? vaultToolsFor({ store: options.vault, browser: options.browser, conversationId,
       currentRun: () => {
@@ -847,6 +873,7 @@ export function createPiRuntimeController(options: {
   };
 
   const api: PiRuntimeController = {
+    artifactVersions,
     learning,
     usage: () => usage.list(),
     state,
@@ -917,7 +944,7 @@ export function createPiRuntimeController(options: {
       }
       // No await after the final checks: another prompt cannot take this conversation or slot.
       let settle!: () => void;
-      const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, groupConversation: options?.groupConversation, groupId: options?.groupId, delegated: options?.delegated, extraHostTools: options?.extraHostTools,
+      const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, groupConversation: options?.groupConversation, groupId: options?.groupId, publicRunId: options?.publicRunId, delegated: options?.delegated, extraHostTools: options?.extraHostTools,
         references, turn: { provider: input.provider, model: input.model, locale: input.locale }, vaultAbort: new AbortController(), stopRequested: false, watchers: new Set(), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
       learning.interrupt();
@@ -1088,10 +1115,12 @@ export function createPiRuntimeController(options: {
       }
     },
     deleteConversation(id) {
-      if (runs.has(normalizeConversationId(id))) {
+      const normalized = normalizeConversationId(id);
+      if (runs.has(normalized)) {
         throw new Error("A run is already active in this conversation. Stop it before deleting the conversation.");
       }
-      store.remove(normalizeConversationId(id));
+      store.remove(normalized);
+      artifactVersions.removeConversationsSync([normalized]);
     },
     renameConversation(id, title) {
       const normalized = normalizeConversationId(id);
