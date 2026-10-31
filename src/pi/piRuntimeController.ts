@@ -467,7 +467,10 @@ export function createPiRuntimeController(options: {
     const created = (existing ? existing.then(current => current.dispose()) : Promise.resolve()).then(() => bridgeFactory({ delegated: slot?.delegated, hostTools: hostToolsFor(id, "assistant"), cwd, approvalGate: gateFor(id), sessionDir: join(dataDir, "pi-sessions", encodeURIComponent(id)), onUserInput: (request) => askUser(id, request),
       ...(options.channelSetup && !slot?.delegated ? { onChannelSetup: (request: ChannelSetupRequest) => setupChannel(id, request) } : {}),
       ...(options.createRoutine && !slot?.delegated ? { onCreateRoutine: (request: RoutineRequest) => createRoutine(id, request) } : {}) })).catch((error) => {
-      bridgePromises.delete(id);
+      if (bridgePromises.get(id) === created) {
+        bridgePromises.delete(id);
+        bridgeToolContexts.delete(id);
+      }
       throw error;
     });
     bridgePromises.set(id, created);

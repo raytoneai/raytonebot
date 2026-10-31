@@ -57,6 +57,55 @@ test("deleting a conversation drops its bridge and capability announcement befor
   }
 });
 
+test("a rejected bridge from before id reuse cannot evict the replacement bridge", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-conversation-delete-rejected-bridge-"));
+  const store = createConversationStore(dataDir);
+  store.begin("reuse", "assistant", "saved");
+  let factoryCalls = 0;
+  let enterFirstFactory!: () => void;
+  let rejectFirstFactory!: (error: Error) => void;
+  const firstFactoryEntered = new Promise<void>(resolve => { enterFirstFactory = resolve; });
+  const firstFactory = new Promise<Awaited<ReturnType<PiBridgeFactory>>>((_, reject) => { rejectFirstFactory = reject; });
+  const disposedModels: string[] = [];
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, store,
+    bridgeFactory: async () => {
+      factoryCalls++;
+      if (factoryCalls === 1) {
+        enterFirstFactory();
+        return firstFactory;
+      }
+      let model = "default";
+      return {
+        subscribe: () => () => {},
+        async prompt() {},
+        async abort() {},
+        dispose() { disposedModels.push(model); },
+        async configure(input) { if (input.model) model = input.model; },
+        async newSession() {},
+        async state() { return { models: [], tools: [], model }; },
+      };
+    } });
+  let didDispose = false;
+  try {
+    const oldState = controller.state("reuse");
+    await firstFactoryEntered;
+    controller.deleteConversation("reuse");
+    await controller.configure({ conversationId: "reuse", model: "configured-new-model" });
+    rejectFirstFactory(new Error("old bridge failed"));
+    await oldState;
+    const reusedState = await controller.state("reuse");
+    assert.equal(reusedState.model, "configured-new-model");
+    assert.equal(factoryCalls, 2, "the configured replacement bridge remains cached");
+    controller.dispose();
+    didDispose = true;
+    await new Promise<void>(resolve => setImmediate(resolve));
+    assert.deepEqual(disposedModels, ["configured-new-model"], "only the replacement bridge is disposed");
+  } finally {
+    if (!didDispose) controller.dispose();
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("deletion rejects a pending configuration and leaves the conversation record", async () => {
   const dataDir = mkdtempSync(join(tmpdir(), "rtb-conversation-delete-config-"));
   const store = createConversationStore(dataDir);
