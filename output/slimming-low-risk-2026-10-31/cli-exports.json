@@ -1,0 +1,7 @@
+{
+  "compatibleExports": [
+    "normalizeClaudeTool",
+    "displayCommand"
+  ],
+  "sameFunctionReferences": true
+}

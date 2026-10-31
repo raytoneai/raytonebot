@@ -1,0 +1,18 @@
+{
+  "baseline": "2432baa",
+  "sourcePath": "src/pi/cliStreams.ts",
+  "destinationPath": "src/pi/cliToolNormalization.ts",
+  "movedDeclarations": [
+    "NormalizedTool",
+    "CLAUDE_TOOL_NAMES",
+    "normalizeClaudeTool",
+    "codexTool",
+    "codexToolOutput",
+    "displayCommand",
+    "asRecord",
+    "stringValue"
+  ],
+  "movedSyntaxIdentical": true,
+  "remainingDeclarations": 9,
+  "remainingSyntaxIdentical": true
+}

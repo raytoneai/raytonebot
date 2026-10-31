@@ -197,7 +197,8 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 | 新模块 | 运行位置 | 作用 |
 | --- | --- | --- |
 | `src/pi/harnessCatalog.ts` | 浏览器 + Node | 角色、引擎 id、设置存储 |
-| `src/pi/cliStreams.ts` | 纯函数 | Claude/Codex 输出 → Pi 事件 |
+| `src/pi/cliStreams.ts` | Node | Claude/Codex 流式输出 → Pi 事件；保留各自的翻译状态 |
+| `src/pi/cliToolNormalization.ts` | 纯函数 | Claude/Codex 工具名称、参数与结果规范化；原公开函数/类型仍从 cliStreams 导出 |
 | `src/pi/cliHarness.ts` | Node | 启动 CLI、stdio 审批、续接、终止 |
 | `src/pi/cliHarnessConfig.ts` | Node | CLI 命令、argv、环境变量构造；原公开函数仍从 cliHarness 导出，执行逻辑留原处 |
 | `src/pi/permissionPolicy.ts`、`approvalGate.ts` | Node | 权限分类与审批等待 |

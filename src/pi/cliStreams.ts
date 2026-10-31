@@ -1,58 +1,15 @@
 import type { PiWireEvent } from "../harness/adapters/piAdapter.ts";
 import { createClaudeTaskPlan } from "./claudeTaskPlan.ts";
+import { asRecord, codexTool, codexToolOutput, normalizeClaudeTool, stringValue, type NormalizedTool } from "./cliToolNormalization.ts";
+export { displayCommand, normalizeClaudeTool, type NormalizedTool } from "./cliToolNormalization.ts";
 
-/**
- * Translate CLI harness output into Pi's session-event vocabulary.
- *
- * Pi events are what `piAdapter` already turns into AgentUX events — text and reasoning
- * blocks, the full tool lifecycle, approvals, file artifacts. Feeding Claude Code and Codex
- * through the same adapter keeps every engine on one rendering path; nothing here knows about
- * the UI. Pure functions only: the process side lives in `cliHarness.ts`.
- *
+/** Translate stateful CLI streams into Pi session events; process management lives in `cliHarness.ts`.
  * Formats were captured from the real CLIs on 2026-10-03 (Claude Code 2.1.287
  * `stream-json --include-partial-messages`, Codex CLI 0.153.4 `exec --json`).
  */
 
 type Emit = (event: PiWireEvent) => void;
 type Json = Record<string, unknown>;
-
-/** Tool name and arguments as Pi spells them, so titles, approvals and artifacts line up. */
-export type NormalizedTool = { name: string; args: Json };
-
-const CLAUDE_TOOL_NAMES: Record<string, string> = {
-  Read: "read",
-  Write: "write",
-  Edit: "edit",
-  MultiEdit: "edit",
-  NotebookEdit: "edit",
-  Bash: "bash",
-  Grep: "grep",
-  Glob: "find",
-  LS: "ls",
-  // The host's web tools (cliHarness CLAUDE_HOST_MCP), named as Pi and Codex name them.
-  mcp__raytone__web_search: "web_search",
-  mcp__raytone__web_fetch: "web_fetch",
-  mcp__raytone__remember: "remember",
-  mcp__raytone__forget: "forget",
-};
-
-export function normalizeClaudeTool(name: string, input: unknown): NormalizedTool {
-  const raw = asRecord(input);
-  // Every host tool in the `raytone` server is named as Pi and Codex name it.
-  const mapped = CLAUDE_TOOL_NAMES[name] ?? (name.startsWith("mcp__raytone__") ? name.slice("mcp__raytone__".length) : undefined);
-  if (!mapped) return { name, args: raw };
-  const { file_path: filePath, notebook_path: notebookPath, old_string: oldText, new_string: newText, ...rest } = raw;
-  const path = stringValue(filePath) ?? stringValue(notebookPath);
-  return {
-    name: mapped,
-    args: {
-      ...rest,
-      ...(path ? { path } : {}),
-      ...(oldText !== undefined ? { oldText } : {}),
-      ...(newText !== undefined ? { newText } : {}),
-    },
-  };
-}
 
 type ClaudeBlock = { kind: "text" | "thinking" | "tool"; toolId?: string; toolName?: string; json: string };
 
@@ -350,52 +307,6 @@ export function createCodexStreamTranslator(emit: Emit): CodexStreamTranslator {
   };
 }
 
-function codexTool(itemType: string | undefined, item: Json): NormalizedTool | undefined {
-  switch (itemType) {
-    case "command_execution":
-      return { name: "bash", args: { command: displayCommand(stringValue(item.command) ?? "") } };
-    case "file_change": {
-      const changes = Array.isArray(item.changes) ? item.changes.map(asRecord) : [];
-      const first = changes[0];
-      const path = first ? stringValue(first.path) : undefined;
-      return {
-        name: first && stringValue(first.kind) === "add" && changes.length === 1 ? "write" : "edit",
-        args: { ...(path ? { path } : {}), changes },
-      };
-    }
-    case "mcp_tool_call":
-      return {
-        name: [stringValue(item.server), stringValue(item.tool)].filter(Boolean).join(".") || "mcp",
-        args: asRecord(item.arguments),
-      };
-    case "web_search":
-      return { name: "web_search", args: { query: stringValue(item.query) ?? "" } };
-    default:
-      // Error notices and future item types carry no tool to show.
-      return undefined;
-  }
-}
-
-function codexToolOutput(itemType: string | undefined, item: Json): string {
-  if (itemType === "command_execution") return stringValue(item.aggregated_output) ?? "";
-  if (itemType === "file_change") {
-    const changes = Array.isArray(item.changes) ? item.changes.map(asRecord) : [];
-    return changes.map((change) => `${stringValue(change.kind) ?? "update"} ${stringValue(change.path) ?? ""}`).join("\n");
-  }
-  if (item.error != null) return typeof item.error === "string" ? item.error : JSON.stringify(item.error);
-  if (item.result !== undefined) return typeof item.result === "string" ? item.result : JSON.stringify(item.result);
-  return "";
-}
-
-/** Codex wraps commands in the login shell (`/bin/zsh -lc ls`); show what the agent ran. */
-export function displayCommand(command: string): string {
-  const wrapped = /^\/\S*\/(?:ba|z)?sh\s+-l?c\s+([\s\S]+)$/.exec(command.trim());
-  if (!wrapped) return command;
-  const inner = wrapped[1].trim();
-  const quoted = /^(['"])([\s\S]*)\1$/.exec(inner);
-  return quoted ? quoted[2] : inner;
-}
-
 function toolResultText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return content == null ? "" : JSON.stringify(content);
@@ -406,14 +317,6 @@ function toolResultText(content: unknown): string {
     })
     .filter(Boolean)
     .join("\n");
-}
-
-function asRecord(value: unknown): Json {
-  return value && typeof value === "object" && !Array.isArray(value) ? value as Json : {};
-}
-
-function stringValue(value: unknown): string | undefined {
-  return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
 function parseJson(value: string): unknown {
