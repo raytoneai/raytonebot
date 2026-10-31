@@ -9,7 +9,7 @@
 
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { promisify } from "node:util";
@@ -103,7 +103,8 @@ export async function buildReleaseFromHead({ repoRoot, outDir, log = () => {} })
   const checkout = mkdtempSync(join(tmpdir(), "raytonebot-release-"));
   await run("git", ["worktree", "add", "--detach", checkout, "HEAD"], repoRoot);
   try {
-    symlinkSync(join(repoRoot, "node_modules"), join(checkout, "node_modules"));
+    log("release: installing checkout dependencies");
+    await run("npm", ["ci", "--include=dev", "--no-audit", "--no-fund", "--loglevel=error"], checkout);
     log(`release: building HEAD in ${checkout}`);
     return await buildRelease({ repoRoot: checkout, outDir, skipBuild: false, log });
   } finally {
@@ -124,8 +125,10 @@ export function readSdkVersion(repoRoot) {
 
 export function readContractVersion(repoRoot) {
   try {
-    const url = import.meta.resolve("@agentmatrix.pro/sdk");
-    const source = readFileSync(new URL(url), "utf8");
+    const sdkRoot = join(resolve(repoRoot), "node_modules", "@agentmatrix.pro", "sdk");
+    const sdkPackage = JSON.parse(readFileSync(join(sdkRoot, "package.json"), "utf8"));
+    if (typeof sdkPackage.main !== "string") return "unknown";
+    const source = readFileSync(join(sdkRoot, sdkPackage.main), "utf8");
     return /CONTRACT_VERSION\s*=\s*"([^"]+)"/.exec(source)?.[1] ?? "unknown";
   } catch {
     return "unknown";
