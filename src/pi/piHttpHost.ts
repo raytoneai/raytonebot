@@ -215,23 +215,27 @@ export function createPiHttpHost(options: {
             const source = controller.listConversations().flatMap(c => (c.documents ?? []).filter(d => d.scope === document.scope && d.path === document.path).map(d => ({ conversationId: c.id, title: c.title, artifactId: d.artifactId })))[0];
             sendJson(res, 200, { ...document, source });
           } else if (req.method === "POST" || req.method === "PUT") {
-            if (controller.health().busy) throw new WorkspaceFileError(409, "Wait for running tasks to finish before saving a document.");
-            const body = await readJson(req), id = stringField(body, "conversationId"), artifactId = stringField(body, "artifactId");
-            if (id && !controller.getConversation(id)) throw new WorkspaceFileError(404, "Source conversation is unavailable.");
-            if (artifactId && artifactId.length > 1000) throw new WorkspaceFileError(400, "Invalid artifact reference.");
-            const document = req.method === "PUT"
-              ? await replaceWorkspaceDocument(layout, body.scope, body.path, body.content, body.version, privatePaths)
-              : await createWorkspaceDocument(layout, body.scope, body.name, body.content, privatePaths);
-            if (req.method === "PUT" && !id) {
-              for (const source of controller.listConversations()) for (const reference of source.documents ?? []) {
-                if (reference.scope === document.scope && reference.path === document.path) controller.registerDocument(source.id, { ...reference, updatedAt: Date.now() });
+            const body = await readJson(req);
+            const saved = await controller.withIdleWrite(async () => {
+              const id = stringField(body, "conversationId"), artifactId = stringField(body, "artifactId");
+              if (id && !controller.getConversation(id)) throw new WorkspaceFileError(404, "Source conversation is unavailable.");
+              if (artifactId && artifactId.length > 1000) throw new WorkspaceFileError(400, "Invalid artifact reference.");
+              const document = req.method === "PUT"
+                ? await replaceWorkspaceDocument(layout, body.scope, body.path, body.content, body.version, privatePaths)
+                : await createWorkspaceDocument(layout, body.scope, body.name, body.content, privatePaths);
+              if (req.method === "PUT" && !id) {
+                for (const source of controller.listConversations()) for (const reference of source.documents ?? []) {
+                  if (reference.scope === document.scope && reference.path === document.path) controller.registerDocument(source.id, { ...reference, updatedAt: Date.now() });
+                }
               }
-            }
-            if (id) {
-              try { controller.registerDocument(id, { scope: document.scope, path: document.path, name: document.name, artifactId, updatedAt: Date.now() }); }
-              catch { throw new WorkspaceFileError(500, `Document saved at ${document.path}, but its source could not be recorded. Check storage before retrying.`); }
-            }
-            sendJson(res, req.method === "POST" ? 201 : 200, { ...document, ...(id ? { source: { conversationId: id, title: controller.getConversation(id)?.title, artifactId } } : {}) });
+              if (id) {
+                try { controller.registerDocument(id, { scope: document.scope, path: document.path, name: document.name, artifactId, updatedAt: Date.now() }); }
+                catch { throw new WorkspaceFileError(500, `Document saved at ${document.path}, but its source could not be recorded. Check storage before retrying.`); }
+              }
+              return { status: req.method === "POST" ? 201 : 200,
+                body: { ...document, ...(id ? { source: { conversationId: id, title: controller.getConversation(id)?.title, artifactId } } : {}) } };
+            });
+            sendJson(res, saved.status, saved.body);
           } else sendJson(res, 405, { error: "Unsupported document operation." });
           return true;
         }

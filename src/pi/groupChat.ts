@@ -74,6 +74,7 @@ type Deps = {
 export type GroupController = PiRuntimeController & {
   setGroupMembers(id: string, members: string[], bots?: GroupParticipant[], hostId?: string): StoredConversation;
   runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void): Promise<void>;
+  withIdleWrite<T>(callback: () => Promise<T>): Promise<T>;
 };
 
 export function attachGroupChat(controller: PiRuntimeController, deps: Deps): GroupController {
@@ -83,6 +84,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
   const backfilled = new Set<string>();
   /** Group routing and delegated work can be busy without owning a base engine run. */
   let lastGroupTouchedAt: number | undefined;
+  let idleWriteActive = false;
   const touchGroupActivity = () => { lastGroupTouchedAt = Date.now(); };
   const writeTurn = createGroupWriteQueue();
   const groupOf = (id?: string) => {
@@ -92,6 +94,16 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
   };
   const delegation = createGroupDelegation({ ...deps, controller,
     settled: (groupId) => { touchGroupActivity(); publishDelegations(groupId); } });
+  const hostBusy = () => idleWriteActive || controller.health().busy || active.size > 0 || resets.size > 0 || delegation.hasActive();
+  const assertNoIdleWrite = () => {
+    if (idleWriteActive) throw new ConversationRequestError("A document save is in progress. Wait for it to finish.", 409);
+  };
+  const withIdleWrite = async <T>(callback: () => Promise<T>): Promise<T> => {
+    if (hostBusy()) throw new ConversationRequestError("Wait for running tasks to finish before saving a document.", 409);
+    idleWriteActive = true;
+    try { return await callback(); }
+    finally { idleWriteActive = false; }
+  };
 
   /** Separate terminal turns avoid appending late text or a second terminal to a parent run. */
   function publishDelegations(groupId: string) {
@@ -160,6 +172,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     let prompt = userPrompt;
     if (!groupId || !prompt) throw new Error("A group conversation and prompt are required.");
     for (let reset = resets.get(groupId); reset; reset = resets.get(groupId)) await reset;
+    assertNoIdleWrite();
     if (active.has(groupId)) throw new Error("This group already has a turn in progress.");
     if (controller.getConversation(groupId)?.activeRunId) throw new Error("This conversation already has a turn in progress.");
     const groupRunId = input.requestId ?? `group_${randomUUID()}`;
@@ -584,15 +597,17 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     ...controller,
     runGroupPrompt,
     setGroupMembers,
+    withIdleWrite,
     health() {
       const base = controller.health();
       const groupAge = lastGroupTouchedAt === undefined ? undefined : Math.max(0, Date.now() - lastGroupTouchedAt);
       const ages = [base.lastRunAgoMs, groupAge].filter((age): age is number => age !== undefined);
       return { ...base,
-        busy: base.busy || active.size > 0 || resets.size > 0 || delegation.hasActive(),
+        busy: hostBusy(),
         lastRunAgoMs: ages.length ? Math.min(...ages) : undefined };
     },
     async runPrompt(input, onEvent, options) {
+      assertNoIdleWrite();
       if (deps.bots) input = deps.bots.input(input, input.conversationId ? deps.store.get(input.conversationId) : undefined);
       // Only top-level user requests can invite. A child prompt/tool result never alters the room.
       if (options?.groupConversation || !input.conversationId) return controller.runPrompt(input, onEvent, options);
@@ -678,6 +693,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       return child ? controller.resolveUserInput(child.childId, child.id, answers) : false;
     },
     deleteConversation(id) {
+      assertNoIdleWrite();
       if (active.has(id) || delegation.hasActive(id) || resets.has(id)) {
         throw new ConversationRequestError("A run or session operation is already active in this conversation. Stop it before deleting the conversation.", 409);
       }
@@ -710,6 +726,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       backfilled.delete(id);
     },
     async newSession(conversationId) {
+      assertNoIdleWrite();
       if (conversationId && (active.has(conversationId) || delegation.hasActive(conversationId))) {
         throw new ConversationRequestError("Stop this conversation's run before starting a new session.", 409);
       }

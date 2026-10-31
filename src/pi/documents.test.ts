@@ -3,7 +3,7 @@ import { test } from "node:test";
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile, link, stat } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { createServer } from "node:http";
+import { createServer, request as httpRequest } from "node:http";
 import { createPiHttpHost, type PiBridgeFactory } from "./piHost.ts";
 import { ensureWorkspaceLayout, resolveWorkspaceLayout } from "./workspaceLayout.ts";
 import { createWorkspaceDocument, readWorkspaceDocument, replaceWorkspaceDocument, searchWorkspaceDocuments } from "./workspaceFiles.ts";
@@ -79,4 +79,122 @@ test("document HTTP saves source metadata, conflicts preserve bytes, and a new c
     const foreign = await fetch(`${url}/documents`, { method: "POST", headers: { origin: "https://example.com", "content-type": "application/json" }, body: JSON.stringify({ scope: "shared", name: "bad.md", content: "no" }) });
     assert.equal(foreign.status, 403);
   } finally { host.dispose(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(root, { recursive: true, force: true }); }
+});
+
+test("a document body that finishes after a run starts is rejected before any file write", async () => {
+  const root = await mkdtemp(join(tmpdir(), "rtb-doc-body-race-"));
+  const layout = resolveWorkspaceLayout({ fallbackCwd: root, root: join(root, "work") }); ensureWorkspaceLayout(layout);
+  let release!: () => void, markStarted!: () => void, markRequestArrived!: () => void;
+  const started = new Promise<void>(resolve => { markStarted = resolve; });
+  const requestArrived = new Promise<void>(resolve => { markRequestArrived = resolve; });
+  const factory: PiBridgeFactory = async () => ({
+    subscribe: () => () => {},
+    prompt: async () => { markStarted(); await new Promise<void>(resolve => { release = resolve; }); },
+    abort: async () => { release?.(); }, configure: async () => {}, state: async () => ({ models: [], tools: [] }),
+    newSession: async () => {}, dispose() {},
+  });
+  const host = createPiHttpHost({ cwd: layout.agents.assistant, dataDir: join(root, "data"), layout, bridgeFactory: factory, routineClock: false, browser: false });
+  const server = createServer((req, res) => {
+    if (req.method === "POST" && req.url?.endsWith("/documents")) markRequestArrived();
+    void host.handle(req, res);
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+  const body = JSON.stringify({ scope: "shared", name: "Race.md", content: "must not be written" });
+  let request: ReturnType<typeof httpRequest> | undefined;
+  let running: Promise<void> | undefined;
+  try {
+    const response = new Promise<{ status: number; body: string }>((resolve, reject) => {
+      request = httpRequest(url + "/documents", { method: "POST", headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) } }, response => {
+        const chunks: Buffer[] = [];
+        response.on("data", chunk => chunks.push(Buffer.from(chunk)));
+        response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
+      });
+      request.on("error", reject);
+    });
+    const split = Math.floor(body.length / 2);
+    request!.write(body.slice(0, split));
+    await requestArrived;
+    running = host.controller.runPrompt({ conversationId: "body-race", prompt: "hold" }, () => {});
+    await started;
+    request!.write(body.slice(split));
+    request!.end();
+    const result = await response;
+    assert.equal(result.status, 409, result.body);
+    await assert.rejects(stat(join(layout.shared!, "Race.md")));
+    release();
+    await running;
+  } finally {
+    request?.destroy(); release?.();
+    await host.controller.abort(); await running;
+    host.dispose(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("the document write window blocks solo, group and invitation admission until metadata is saved", async () => {
+  const root = await mkdtemp(join(tmpdir(), "rtb-doc-write-window-"));
+  const layout = resolveWorkspaceLayout({ fallbackCwd: root, root: join(root, "work") }); ensureWorkspaceLayout(layout);
+  const factory: PiBridgeFactory = async () => ({
+    subscribe: () => () => {}, prompt: async () => {}, abort: async () => {}, configure: async () => {},
+    state: async () => ({ models: [], tools: [] }), newSession: async () => {}, dispose() {},
+  });
+  const host = createPiHttpHost({ cwd: layout.agents.assistant, dataDir: join(root, "data"), layout, bridgeFactory: factory, routineClock: false, browser: false });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+  const post = (value: unknown) => fetch(url + "/documents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
+  const guest = { id: "bot_88888888-8888-8888-8888-888888888888", name: "Reviewer", presetId: "assistant" as const };
+  let release!: () => void, entered!: () => void;
+  const writeEntered = new Promise<void>(resolve => { entered = resolve; });
+  const saveRelease = new Promise<void>(resolve => { release = resolve; });
+  const originalWithIdleWrite = host.controller.withIdleWrite.bind(host.controller);
+  const originalRegisterDocument = host.controller.registerDocument.bind(host.controller);
+  let metadataAttempt: Promise<void> | undefined;
+  host.controller.registerDocument = (conversationId, document) => {
+    metadataAttempt = host.controller.runPrompt({ conversationId: "blocked-metadata", requestId: "metadata", prompt: "metadata" }, () => {});
+    void metadataAttempt.catch(() => undefined);
+    originalRegisterDocument(conversationId, document);
+  };
+  let holdNext = true;
+  host.controller.withIdleWrite = <T>(callback: () => Promise<T>) => originalWithIdleWrite(async () => {
+    if (holdNext) { holdNext = false; entered(); await saveRelease; }
+    return callback();
+  });
+  let save: Promise<Response> | undefined;
+  try {
+    await host.controller.runPrompt({ conversationId: "source", prompt: "source" }, () => {});
+    save = post({ scope: "shared", name: "Window.md", content: "saved", conversationId: "source", artifactId: "window" });
+    await writeEntered;
+    assert.equal(host.controller.health().busy, true);
+    assert.equal(host.controller.health().activeRuns, 0);
+    assert.throws(() => host.controller.deleteConversation("source"), (error: unknown) => error instanceof Error
+      && /document save/i.test(error.message) && (error as { status?: unknown }).status === 409);
+    await assert.rejects(host.controller.newSession("source"), (error: unknown) => error instanceof Error
+      && /document save/i.test(error.message) && (error as { status?: unknown }).status === 409);
+    assert.ok(host.controller.getConversation("source"), "the metadata source remains while the save is in flight");
+    await assert.rejects(host.controller.runPrompt({ conversationId: "blocked-solo", requestId: "solo", prompt: "solo" }, () => {}), /document save/i);
+    await assert.rejects(host.controller.runGroupPrompt({ conversationId: "blocked-group", requestId: "group", prompt: "@Raer group", members: ["assistant"] }, () => {}), /document save/i);
+    await assert.rejects(host.controller.runPrompt({ conversationId: "blocked-invite", requestId: "invite", prompt: "@Reviewer inspect", availableBots: [guest] }, () => {}), /document save/i);
+    assert.equal(host.controller.getConversation("blocked-solo"), undefined);
+    assert.equal(host.controller.getConversation("blocked-group"), undefined);
+    assert.equal(host.controller.getConversation("blocked-invite"), undefined);
+    release();
+    const saved = await save;
+    assert.equal(saved.status, 201);
+    const document = await saved.json();
+    assert.equal(host.controller.getConversation("source")?.documents?.[0].path, document.path, "metadata is registered by the gated save");
+    assert.ok(metadataAttempt);
+    await assert.rejects(metadataAttempt, /document save/i);
+    assert.equal(host.controller.getConversation("blocked-metadata"), undefined);
+    assert.equal(await readFile(join(layout.shared!, document.path), "utf8"), "saved");
+    await assert.rejects(host.controller.withIdleWrite(async () => { throw new Error("controlled document failure"); }), /controlled document failure/);
+    await host.controller.runPrompt({ conversationId: "after-document-error", prompt: "after" }, () => {});
+    assert.ok(host.controller.getConversation("after-document-error"));
+  } finally {
+    release();
+    await save?.catch(() => undefined);
+    await host.controller.abort(); host.dispose(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve()));
+    await rm(root, { recursive: true, force: true });
+  }
 });
