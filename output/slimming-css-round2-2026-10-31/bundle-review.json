@@ -1,0 +1,15 @@
+{
+  "before": {
+    "name": "index-Dzz6q_tB.css",
+    "bytes": 287270,
+    "gzipBytes": 45011
+  },
+  "after": {
+    "name": "index-DNef5kSs.css",
+    "bytes": 259238,
+    "gzipBytes": 41055
+  },
+  "savedBytes": 28032,
+  "savedGzipBytes": 3956,
+  "otherChunksUnchanged": true
+}

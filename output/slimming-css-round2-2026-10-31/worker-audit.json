@@ -1,0 +1,2048 @@
+{
+  "baseline": "0d8faf6",
+  "scope": {
+    "css": "src/styles/app.css",
+    "corpusRoots": [
+      "src",
+      "vendor",
+      "node_modules/@agent-ux",
+      "node_modules/katex",
+      "node_modules/mermaid",
+      "node_modules/react-markdown",
+      "node_modules/remark-gfm",
+      "node_modules/rehype-katex",
+      "index.html"
+    ],
+    "filesScanned": 1534,
+    "matching": "Exact class-token boundary matching; ignored main app.css itself, searched other CSS plus source and relevant package JS/TS/HTML/JSON. Dynamic className, classList, attribute and keyframe construction reviewed separately.",
+    "noCssEdits": true
+  },
+  "countReconciliation": {
+    "initialSubstringCandidateCount": 178,
+    "exactTokenCandidateCount": 207,
+    "newExactBoundaryCandidates": 29,
+    "compoundRulesAddedBecauseEachBranchRequiresAnUnproducedWrapper": 9,
+    "fullyUnreferencedComplexRulesHeld": 8,
+    "additionalMixedComplexRulesHeld": 26,
+    "genericButtonRulesHeld": 2,
+    "textControlRuleHeld": 1,
+    "finalRuleRemovals": 205
+  },
+  "retentionBoundary": [
+    "Selectors containing any literal class token found in src/vendor/rendering dependencies remain in place, including mixed comma lists.",
+    "All :is/:where/:not/:has rules are held for semantic review even when their class tokens are absent.",
+    "Markdown, KaTeX, Mermaid and other generated-content styles remain unless their producer/output path is demonstrably absent; no deletion candidate relies on those generated classes.",
+    "Responsive, reduced-motion and color-scheme rules are retained unless their entire selector rule independently meets removal criteria.",
+    "Generic button/text-control selectors remain held; Button uses ui-button plus explicit caller class and data-variant, with no variant-derived class mapping.",
+    "All generated media, artifact, Markdown, KaTeX and Mermaid style families are held despite lexical gaps.",
+    "Any comma-list rule with one emitted branch remains whole; every :is/:where/:not/:has rule remains whole.",
+    "Final removal list has 205 rule nodes: 207 exact-token candidates gained 9 compound rules with only unproduced scenario/provider wrapper classes, while 8 fully unreferenced complex selectors, 1 text-control rule, and 2 generic primary/secondary button rules remain held. The broader 34-rule complex review list includes 26 mixed-context rules held regardless of lexical status."
+  ],
+  "familyEvidence": [
+    {
+      "family": "legacy app shell and configurator chrome",
+      "lines": "129-533",
+      "selectors": [
+        ".app-shell",
+        ".schema-strip",
+        ".brand-block",
+        ".language-picker",
+        ".language-trigger",
+        ".language-menu",
+        ".language-option",
+        ".scenario-picker",
+        ".run-mode-picker",
+        ".view-switch",
+        ".mode-toggle-button",
+        ".selected-components-*",
+        ".topbar-deploy-button"
+      ],
+      "currentReplacement": "The running shell is composed by AgentApp, SessionSidebar, ShellExtras, ComposerFrame and SettingsDialog; current selectors use .preview-frame/.composer-frame/.shell-* / .settings-* classes.",
+      "evidence": "Exact class-token searches found no TS/TSX/JS/HTML producer in src, vendor or the scanned renderer packages. Dynamic className expressions and classList APIs do not construct these names. index.html only mounts the app root.",
+      "decision": "Candidate for deletion except generic button selectors, which remain held."
+    },
+    {
+      "family": "preset navigation, skeleton and accordion",
+      "lines": "712-950",
+      "selectors": [
+        ".workspace-layout",
+        ".preset-skel-line",
+        ".preset-skel-card",
+        ".preset-iconbar*",
+        ".preset-icon-*",
+        ".rail-title-*",
+        ".preset-accordion-*",
+        ".preset-detail-*"
+      ],
+      "currentReplacement": "Current navigation lives in SessionSidebar/AgentSwitcher; current generic skeleton component emits .ui-skeleton with data-shape. It has no current call sites. No preset navigation/accordion component exists in src.",
+      "evidence": "No exact class or prefix construction in TS/TSX/JS/HTML, no classList mapping, and no relevant package output. The old classes appear only in app.css and its comments.",
+      "decision": "Candidate for deletion; also remove preset-skel-shimmer and preset-accordion-in after their only style references are removed."
+    },
+    {
+      "family": "old provider settings and floating model controls",
+      "lines": "1058-1380,2254-2400",
+      "selectors": [
+        ".provider-picker-section",
+        ".provider-toggle-*",
+        ".provider-launcher-row",
+        ".provider-default-button",
+        ".provider-connection-*",
+        ".provider-field*",
+        ".provider-secret-note*",
+        ".provider-floating-*"
+      ],
+      "currentReplacement": "SettingsDialog providers use .settings-provider-* and .settings-* classes; ComposerFrame model selection uses .provider-model-picker/.provider-model-menu.",
+      "evidence": "Exact old class tokens and provider-* concatenation do not occur in app JSX, vendor, or scanned dependencies. Button/SelectMenu receive explicit current className values; no provider class builder/classList exists. Related scoped CSS selectors also require the unproduced provider-floating class.",
+      "decision": "Candidate for deletion; preserve shared comma rules that have a live branch and preserve all complex selectors."
+    },
+    {
+      "family": "old agent preset/settings selectors",
+      "lines": "2400-2542",
+      "selectors": [
+        ".agent-settings-section*",
+        ".agent-preset-*",
+        ".debug-surface"
+      ],
+      "currentReplacement": "The current shell agent selector is AgentSwitcher (.shell-agents/.shell-header-agent); per-Bot editing uses BotEditor (.bot-editor-*); settings use .settings-*.",
+      "evidence": "No JSX or runtime DOM emitter for these exact class names or class prefixes.",
+      "decision": "Candidate for deletion."
+    },
+    {
+      "family": "old approval decisions and stepper",
+      "lines": "4081-4404",
+      "selectors": [
+        ".approval-decision",
+        ".approval-undo",
+        ".inline-approval-stepper"
+      ],
+      "currentReplacement": "Current chat approval surfaces in chatframe/approval.tsx emit .inline-approval-* and .external-approval-* classes.",
+      "evidence": "No emitter for .approval-decision/.approval-undo/.inline-approval-stepper in src, vendor, or scanned dependencies. Current components use distinct classes. Mixed comma lists with active inline approval classes are held intact.",
+      "decision": "Candidate for deletion of rules whose every branch requires one of the old classes; retain mixed lists and all complex selectors."
+    },
+    {
+      "family": "old command menu",
+      "lines": "9061-9088",
+      "selectors": [
+        ".command-backdrop",
+        ".command-menu",
+        ".command-input-row"
+      ],
+      "currentReplacement": "No command-menu component or command palette exists in the current app tree.",
+      "evidence": "Exact class and command-* builder searches return no TSX/JS/HTML producer or relevant dependency output.",
+      "decision": "Candidate for deletion."
+    },
+    {
+      "family": "git status/actions and harness import",
+      "lines": "5425,5709-5890,7328",
+      "selectors": [
+        ".git-status",
+        ".commit-message-panel",
+        ".git-actions",
+        ".harness-import*"
+      ],
+      "currentReplacement": "GitFrame emits .git-panel, which is intentionally hidden in the preview; it does not emit status/actions/commit markup. No harness-import editor component is present.",
+      "evidence": "No matching JSX/DOM output or dynamic class assembly. The shared .artifact-content/.capability-list/.changed-files/.git-status rule at line 5425 is retained because other branches are active; GitFrame .git-panel hide rule remains.",
+      "decision": "Candidate only for standalone old git/harness rules; mixed lists retained."
+    },
+    {
+      "family": "writing parameters and old welcome/style controls",
+      "lines": "958-1028,10231-10236",
+      "selectors": [
+        ".style-switch-actions",
+        ".message-action-picker",
+        ".message-action-choice",
+        ".writing-params",
+        ".writing-param*",
+        ".welcome-settings",
+        ".welcome-field"
+      ],
+      "currentReplacement": "Current writing reveal uses WritingText and requestAnimationFrame; no old parameter slider, message action picker, or welcome settings editor component is mounted.",
+      "evidence": "No exact producer, class mapping, or classList writes in source or relevant dependencies.",
+      "decision": "Candidate for deletion."
+    },
+    {
+      "family": "legacy generic button/model-picker selectors",
+      "lines": "448-533,5201-5352,5798",
+      "selectors": [
+        ".primary-button",
+        ".secondary-button",
+        ".text-control",
+        ".model-picker"
+      ],
+      "currentReplacement": "Button emits .ui-button plus the explicit className and stores variant in data-variant; ComposerFrame uses .send-button and .provider-model-picker.",
+      "evidence": "No `${variant}-button` mapping, primary-button/secondary-button/text-control/model-picker exact emitter, or classList creation. However these are generic/compatibility styles and .text-control is named in old CSS comments; the target explicitly requires conservative retention.",
+      "decision": "Hold every primary-button, secondary-button and text-control rule. Candidate .model-picker rules may be removed after review; current ComposerFrame uses provider-model-picker/provider-model-menu, not the exact old class."
+    },
+    {
+      "family": "markdown, KaTeX, Mermaid and generated media/output",
+      "lines": "generated by selectors across output section",
+      "selectors": [
+        "media-*",
+        "generated-*",
+        "artifact-*",
+        "markdown-*",
+        "md-*",
+        "katex-*",
+        "mermaid-*",
+        "audio/video/image output*"
+      ],
+      "currentReplacement": "MarkdownText, opened Markdown output, lazy KaTeX, and MermaidDiagram render dynamic content and SVG/classes; HTML artifacts use an iframe with separate document/style context.",
+      "evidence": "The runtime can produce renderer-owned classes and user/model generated media. A no-literal result is insufficient for these selectors.",
+      "decision": "Retain all candidate-looking generated content/media rules."
+    }
+  ],
+  "dynamicClassReview": [
+    {
+      "target": "button variants",
+      "evidence": "src/components/ui/button.tsx emits className = `ui-button ${className}` only; variant is data-variant. All existing callers pass explicit className values. No `${variant}-button` mapping found; classList.add/toggle and setAttribute(class) scans found no relevant writer.",
+      "decision": "Keep generic primary/secondary/text-control selector rules anyway."
+    },
+    {
+      "target": "preset skeleton/accordion",
+      "evidence": "Search of JSX templates, className interpolations, object class maps, DOM classList writes, vendor and relevant dependencies found no preset-skel/preset-accordion construction. Skeleton primitive emits only ui-skeleton and data-shape and has no current call sites. preset-skel-shimmer and preset-accordion-in are used only by their obsolete class rules; no dynamic animation-name constructor exists.",
+      "decision": "No dynamic producer found."
+    },
+    {
+      "target": "provider classes",
+      "evidence": "Current providers and composer use settings-provider-* / provider-model-* explicit literals. No provider-${...}, className map, classList writer, or external renderer emission found for old provider-floating/launcher/toggle/field classes.",
+      "decision": "No dynamic producer found; provider old families are candidate, with mixed/complex rules preserved."
+    },
+    {
+      "target": "approval, command, git and harness families",
+      "evidence": "Current approval JSX emits inline-approval-* / external-approval-*; GitFrame emits git-panel; command palette/harness import editor producers are absent. Exact legacy family searches and className/classList scans found no hidden builder.",
+      "decision": "No dynamic producer found for listed old names."
+    },
+    {
+      "target": "generated content",
+      "evidence": "ReactMarkdown creates code nodes, local Mermaid emits SVG and KaTeX is lazy-loaded; artifact HTML runs in an iframe. This makes output-class absence insufficient evidence for media/generated-content families.",
+      "decision": "Retain generated-content families conservatively."
+    },
+    {
+      "target": "model-picker exact token boundary",
+      "evidence": "Boundary-aware matching distinguishes .model-picker from the longer .provider-model-picker token. Current ComposerFrame emits provider-model-picker/provider-model-menu only; no model-picker exact emitter, class map, classList writer, or relevant dependency output found.",
+      "decision": "Candidate old .model-picker rules."
+    }
+  ],
+  "animationDecision": [
+    {
+      "name": "preset-skel-shimmer",
+      "keyframesAt": [
+        745
+      ],
+      "cssReferences": [
+        {
+          "line": 742,
+          "prop": "animation",
+          "value": "preset-skel-shimmer 1.3s ease-in-out infinite"
+        }
+      ],
+      "nonCssLiteralReference": false,
+      "dynamicConstructionReview": "No animationName/CSS animation string constructor found.",
+      "decision": "Delete with its only referencing obsolete preset rule; after that deletion no CSS or source references remain.",
+      "cssReferencesOnlyInRulesToDelete": true
+    },
+    {
+      "name": "preset-accordion-in",
+      "keyframesAt": [
+        873
+      ],
+      "cssReferences": [
+        {
+          "line": 863,
+          "prop": "animation",
+          "value": "preset-accordion-in var(--motion-base) var(--ease-out)"
+        }
+      ],
+      "nonCssLiteralReference": false,
+      "dynamicConstructionReview": "No animationName/CSS animation string constructor found.",
+      "decision": "Delete with its only referencing obsolete preset rule; after that deletion no CSS or source references remain.",
+      "cssReferencesOnlyInRulesToDelete": true
+    },
+    {
+      "name": "tool-progress-preview",
+      "keyframesAt": [
+        9265
+      ],
+      "cssReferences": [],
+      "nonCssLiteralReference": false,
+      "dynamicConstructionReview": "No animationName/CSS animation string constructor found.",
+      "decision": "Delete with related dead rule or as an independently unreferenced keyframe."
+    },
+    {
+      "name": "assistant-typewriter-in",
+      "keyframesAt": [
+        10002
+      ],
+      "cssReferences": [],
+      "nonCssLiteralReference": false,
+      "dynamicConstructionReview": "No assistant-${motion}-in or equivalent interpolation found; WritingText uses requestAnimationFrame chunk reveal.",
+      "decision": "Delete with related dead rule or as an independently unreferenced keyframe."
+    },
+    {
+      "name": "assistant-chunked-in",
+      "keyframesAt": [
+        10011
+      ],
+      "cssReferences": [],
+      "nonCssLiteralReference": false,
+      "dynamicConstructionReview": "No assistant-${motion}-in or equivalent interpolation found; WritingText uses requestAnimationFrame chunk reveal.",
+      "decision": "Delete with related dead rule or as an independently unreferenced keyframe."
+    }
+  ],
+  "genericSelectorReview": [
+    {
+      "startLine": 448,
+      "endLine": 453,
+      "selector": ".primary-button.topbar-deploy-button",
+      "classes": [
+        "primary-button"
+      ]
+    },
+    {
+      "startLine": 484,
+      "endLine": 504,
+      "selector": ".primary-button,\n.secondary-button,\n.icon-button,\n.send-button,\n.text-control",
+      "classes": [
+        "primary-button",
+        "secondary-button",
+        "text-control"
+      ]
+    },
+    {
+      "startLine": 506,
+      "endLine": 511,
+      "selector": ".primary-button,\n.send-button",
+      "classes": [
+        "primary-button"
+      ]
+    },
+    {
+      "startLine": 521,
+      "endLine": 524,
+      "selector": ".primary-button:hover:not(:disabled)",
+      "classes": [
+        "primary-button"
+      ]
+    },
+    {
+      "startLine": 525,
+      "endLine": 528,
+      "selector": ".secondary-button:hover:not(:disabled)",
+      "classes": [
+        "secondary-button"
+      ]
+    },
+    {
+      "startLine": 529,
+      "endLine": 532,
+      "selector": ".primary-button:active:not(:disabled)",
+      "classes": [
+        "primary-button"
+      ]
+    },
+    {
+      "startLine": 533,
+      "endLine": 535,
+      "selector": ".secondary-button:active:not(:disabled)",
+      "classes": [
+        "secondary-button"
+      ]
+    },
+    {
+      "startLine": 5201,
+      "endLine": 5204,
+      "selector": ".text-control",
+      "classes": [
+        "text-control"
+      ]
+    },
+    {
+      "startLine": 5342,
+      "endLine": 5350,
+      "selector": ".ui-button.text-control[data-size]",
+      "classes": [
+        "text-control"
+      ]
+    },
+    {
+      "startLine": 5352,
+      "endLine": 5355,
+      "selector": ".ui-button.text-control[data-size]:hover",
+      "classes": [
+        "text-control"
+      ]
+    },
+    {
+      "startLine": 5798,
+      "endLine": 5802,
+      "selector": ".git-actions .secondary-button",
+      "classes": [
+        "secondary-button"
+      ]
+    },
+    {
+      "startLine": 7970,
+      "endLine": 7981,
+      "selector": ".preview-frame .context-chip,\n.preview-frame .provider-model-picker,\n.preview-frame .model-picker,\n.preview-frame .budget-mode-trigger,\n.preview-frame .combined-model-budget-trigger,\n.preview-frame .permission-mode-trigger,\n.preview-frame .ui-button.text-control[data-size]",
+      "classes": [
+        "text-control"
+      ]
+    },
+    {
+      "startLine": 8420,
+      "endLine": 8432,
+      "selector": ".preview-frame[data-style-preset=\"native\"] .tool-preview,\n.preview-frame[data-style-preset=\"native\"] .artifact-inline em,\n.preview-frame[data-style-preset=\"native\"] .artifact-title code,\n.preview-frame[data-style-preset=\"native\"] .context-chip,\n.preview-frame[data-style-preset=\"native\"] .budget-mode-trigger,\n.preview-frame[data-style-preset=\"native\"] .permission-mode-trigger,\n.preview-frame[data-style-preset=\"native\"] .provider-model-picker,\n.preview-frame[data-style-preset=\"native\"] .model-picker,\n.preview-frame[data-style-preset=\"native\"] .ui-button.text-control[data-size]",
+      "classes": [
+        "text-control"
+      ]
+    },
+    {
+      "startLine": 8542,
+      "endLine": 8558,
+      "selector": ".preview-frame[data-style-preset=\"native\"] .composer-frame :is(\n  .composer-upload,\n  .budget-mode-trigger,\n  .permission-mode-trigger,\n  .provider-floating-trigger,\n  .provider-model-picker,\n  .model-picker,\n  .ui-button.text-control[data-size]\n),\n.preview-frame[data-style-preset=\"native\"] .composer-frame .provider-model-picker :is(\n  .provider-model-summary span,\n  .provider-model-summary em,\n  .ui-select,\n  .composer-menu-chevron\n)",
+      "classes": [
+        "text-control"
+      ]
+    },
+    {
+      "startLine": 8597,
+      "endLine": 8609,
+      "selector": ".preview-frame[data-style-preset=\"native\"] :is(\n  .composer-upload,\n  .budget-mode-trigger,\n  .permission-mode-trigger,\n  .provider-floating-trigger,\n  .provider-model-picker,\n  .ui-button.text-control[data-size],\n  .icon-button\n) svg:not(.custom-avatar-face, .orb-face, .robot-face, .active-robot-face, .composer-menu-chevron)",
+      "classes": [
+        "text-control"
+      ]
+    },
+    {
+      "startLine": 8950,
+      "endLine": 8971,
+      "selector": ".preview-frame[data-style-preset=\"illustrated\"] :is(\n  .artifact-inline .artifact-inline-status,\n  .artifact-title code,\n  .budget-mode-trigger,\n  .combined-model-budget-trigger,\n  .composer-frame .icon-button,\n  .context-chip,\n  .model-picker,\n  .output-source-switch,\n  .output-source-switch button,\n  .output-tab,\n  .permission-mode-trigger,\n  .prompt-shortcuts .ui-button[data-size],\n  .provider-floating-trigger,\n  .provider-model-picker,\n  .schema-strip code,\n  .status-pill,\n  .tool-title-file,\n  .ui-button.text-control[data-size]\n)",
+      "classes": [
+        "text-control"
+      ]
+    }
+  ],
+  "finalRuleRemovals": [
+    {
+      "startLine": 129,
+      "selector": ".app-shell",
+      "unproducedClasses": [
+        "app-shell"
+      ]
+    },
+    {
+      "startLine": 155,
+      "selector": ".schema-strip",
+      "unproducedClasses": [
+        "schema-strip"
+      ]
+    },
+    {
+      "startLine": 176,
+      "selector": ".brand-block",
+      "unproducedClasses": [
+        "brand-block"
+      ]
+    },
+    {
+      "startLine": 180,
+      "selector": ".brand-logo",
+      "unproducedClasses": [
+        "brand-logo"
+      ]
+    },
+    {
+      "startLine": 188,
+      "selector": ".brand-logo span",
+      "unproducedClasses": [
+        "brand-logo"
+      ]
+    },
+    {
+      "startLine": 199,
+      "selector": ".language-picker",
+      "unproducedClasses": [
+        "language-picker"
+      ]
+    },
+    {
+      "startLine": 204,
+      "selector": ".language-trigger",
+      "unproducedClasses": [
+        "language-trigger"
+      ]
+    },
+    {
+      "startLine": 224,
+      "selector": ".language-trigger:hover",
+      "unproducedClasses": [
+        "language-trigger"
+      ]
+    },
+    {
+      "startLine": 230,
+      "selector": ".language-trigger[aria-expanded=\"true\"] svg",
+      "unproducedClasses": [
+        "language-trigger"
+      ]
+    },
+    {
+      "startLine": 234,
+      "selector": ".language-trigger svg",
+      "unproducedClasses": [
+        "language-trigger"
+      ]
+    },
+    {
+      "startLine": 239,
+      "selector": ".language-menu",
+      "unproducedClasses": [
+        "language-menu"
+      ]
+    },
+    {
+      "startLine": 251,
+      "selector": ".language-option",
+      "unproducedClasses": [
+        "language-option"
+      ]
+    },
+    {
+      "startLine": 266,
+      "selector": ".language-option:hover,\n.language-option[data-active=\"true\"]",
+      "unproducedClasses": [
+        "language-option"
+      ]
+    },
+    {
+      "startLine": 272,
+      "selector": ".scenario-picker,\n.run-mode-picker",
+      "unproducedClasses": [
+        "scenario-picker",
+        "run-mode-picker"
+      ]
+    },
+    {
+      "startLine": 279,
+      "selector": ".scenario-picker .ui-select-wrap",
+      "unproducedClasses": [
+        "scenario-picker"
+      ]
+    },
+    {
+      "startLine": 283,
+      "selector": ".run-mode-picker .ui-select-wrap",
+      "unproducedClasses": [
+        "run-mode-picker"
+      ]
+    },
+    {
+      "startLine": 287,
+      "selector": ".view-switch",
+      "unproducedClasses": [
+        "view-switch"
+      ]
+    },
+    {
+      "startLine": 298,
+      "selector": ".view-switch button",
+      "unproducedClasses": [
+        "view-switch"
+      ]
+    },
+    {
+      "startLine": 309,
+      "selector": ".view-switch button[data-active=\"true\"]",
+      "unproducedClasses": [
+        "view-switch"
+      ]
+    },
+    {
+      "startLine": 315,
+      "selector": ".mode-toggle-button",
+      "unproducedClasses": [
+        "mode-toggle-button"
+      ]
+    },
+    {
+      "startLine": 331,
+      "selector": ".mode-toggle-button:hover",
+      "unproducedClasses": [
+        "mode-toggle-button"
+      ]
+    },
+    {
+      "startLine": 335,
+      "selector": ".mode-toggle-button:active",
+      "unproducedClasses": [
+        "mode-toggle-button"
+      ]
+    },
+    {
+      "startLine": 339,
+      "selector": ".mode-toggle-button[data-mode=\"debug\"]",
+      "unproducedClasses": [
+        "mode-toggle-button"
+      ]
+    },
+    {
+      "startLine": 343,
+      "selector": ".selected-components-menu",
+      "unproducedClasses": [
+        "selected-components-menu"
+      ]
+    },
+    {
+      "startLine": 350,
+      "selector": ".selected-components-trigger",
+      "unproducedClasses": [
+        "selected-components-trigger"
+      ]
+    },
+    {
+      "startLine": 360,
+      "selector": ".selected-components-trigger svg",
+      "unproducedClasses": [
+        "selected-components-trigger"
+      ]
+    },
+    {
+      "startLine": 366,
+      "selector": ".selected-components-trigger[aria-expanded=\"true\"] svg",
+      "unproducedClasses": [
+        "selected-components-trigger"
+      ]
+    },
+    {
+      "startLine": 370,
+      "selector": ".selected-components-popover",
+      "unproducedClasses": [
+        "selected-components-popover"
+      ]
+    },
+    {
+      "startLine": 385,
+      "selector": ".selected-components-popover-header",
+      "unproducedClasses": [
+        "selected-components-popover-header"
+      ]
+    },
+    {
+      "startLine": 395,
+      "selector": ".selected-components-list",
+      "unproducedClasses": [
+        "selected-components-list"
+      ]
+    },
+    {
+      "startLine": 405,
+      "selector": ".selected-components-list::-webkit-scrollbar",
+      "unproducedClasses": [
+        "selected-components-list"
+      ]
+    },
+    {
+      "startLine": 409,
+      "selector": ".selected-components-list::-webkit-scrollbar-track",
+      "unproducedClasses": [
+        "selected-components-list"
+      ]
+    },
+    {
+      "startLine": 413,
+      "selector": ".selected-components-list::-webkit-scrollbar-thumb",
+      "unproducedClasses": [
+        "selected-components-list"
+      ]
+    },
+    {
+      "startLine": 418,
+      "selector": ".selected-components-list::-webkit-scrollbar-thumb:hover",
+      "unproducedClasses": [
+        "selected-components-list"
+      ]
+    },
+    {
+      "startLine": 422,
+      "selector": ".selected-component-item,\n.selected-components-empty",
+      "unproducedClasses": [
+        "selected-component-item",
+        "selected-components-empty"
+      ]
+    },
+    {
+      "startLine": 430,
+      "selector": ".selected-component-item:hover",
+      "unproducedClasses": [
+        "selected-component-item"
+      ]
+    },
+    {
+      "startLine": 434,
+      "selector": ".selected-component-name",
+      "unproducedClasses": [
+        "selected-component-name"
+      ]
+    },
+    {
+      "startLine": 441,
+      "selector": ".selected-component-section,\n.selected-components-empty",
+      "unproducedClasses": [
+        "selected-component-section",
+        "selected-components-empty"
+      ]
+    },
+    {
+      "startLine": 715,
+      "selector": ".workspace-layout",
+      "unproducedClasses": [
+        "workspace-layout"
+      ]
+    },
+    {
+      "startLine": 722,
+      "selector": ".workspace-layout[data-mode=\"saved-preview\"]",
+      "unproducedClasses": [
+        "workspace-layout"
+      ]
+    },
+    {
+      "startLine": 726,
+      "selector": ".preset-skel-line",
+      "unproducedClasses": [
+        "preset-skel-line"
+      ]
+    },
+    {
+      "startLine": 732,
+      "selector": ".preset-skel-card",
+      "unproducedClasses": [
+        "preset-skel-card"
+      ]
+    },
+    {
+      "startLine": 737,
+      "selector": ".preset-skel-line,\n.preset-skel-card",
+      "unproducedClasses": [
+        "preset-skel-line",
+        "preset-skel-card"
+      ]
+    },
+    {
+      "startLine": 751,
+      "selector": ".preset-skel-line,\n  .preset-skel-card",
+      "unproducedClasses": [
+        "preset-skel-line",
+        "preset-skel-card"
+      ]
+    },
+    {
+      "startLine": 756,
+      "selector": ".preset-iconbar",
+      "unproducedClasses": [
+        "preset-iconbar"
+      ]
+    },
+    {
+      "startLine": 768,
+      "selector": ".preset-iconbar::-webkit-scrollbar",
+      "unproducedClasses": [
+        "preset-iconbar"
+      ]
+    },
+    {
+      "startLine": 770,
+      "selector": ".preset-iconbar-group",
+      "unproducedClasses": [
+        "preset-iconbar-group"
+      ]
+    },
+    {
+      "startLine": 775,
+      "selector": ".preset-iconbar-group + .preset-iconbar-group",
+      "unproducedClasses": [
+        "preset-iconbar-group"
+      ]
+    },
+    {
+      "startLine": 782,
+      "selector": ".preset-iconbar-group + .preset-iconbar-group::before",
+      "unproducedClasses": [
+        "preset-iconbar-group"
+      ]
+    },
+    {
+      "startLine": 793,
+      "selector": ".preset-icon-tile",
+      "unproducedClasses": [
+        "preset-icon-tile"
+      ]
+    },
+    {
+      "startLine": 807,
+      "selector": ".preset-icon-glyph",
+      "unproducedClasses": [
+        "preset-icon-glyph"
+      ]
+    },
+    {
+      "startLine": 817,
+      "selector": ".preset-icon-label",
+      "unproducedClasses": [
+        "preset-icon-label"
+      ]
+    },
+    {
+      "startLine": 825,
+      "selector": ".preset-icon-tile:hover .preset-icon-glyph",
+      "unproducedClasses": [
+        "preset-icon-tile",
+        "preset-icon-glyph"
+      ]
+    },
+    {
+      "startLine": 829,
+      "selector": ".preset-icon-tile[data-active=\"true\"] .preset-icon-glyph",
+      "unproducedClasses": [
+        "preset-icon-tile",
+        "preset-icon-glyph"
+      ]
+    },
+    {
+      "startLine": 833,
+      "selector": ".rail-title",
+      "unproducedClasses": [
+        "rail-title"
+      ]
+    },
+    {
+      "startLine": 839,
+      "selector": ".rail-title-icon",
+      "unproducedClasses": [
+        "rail-title-icon"
+      ]
+    },
+    {
+      "startLine": 848,
+      "selector": ".rail-title-text",
+      "unproducedClasses": [
+        "rail-title-text"
+      ]
+    },
+    {
+      "startLine": 855,
+      "selector": ".preset-accordion-item",
+      "unproducedClasses": [
+        "preset-accordion-item"
+      ]
+    },
+    {
+      "startLine": 859,
+      "selector": ".preset-accordion-body",
+      "unproducedClasses": [
+        "preset-accordion-body"
+      ]
+    },
+    {
+      "startLine": 866,
+      "selector": ".preset-accordion-desc",
+      "unproducedClasses": [
+        "preset-accordion-desc"
+      ]
+    },
+    {
+      "startLine": 879,
+      "selector": ".preset-detail-rail",
+      "unproducedClasses": [
+        "preset-detail-rail"
+      ]
+    },
+    {
+      "startLine": 901,
+      "selector": ".preset-detail-rail[data-open=\"true\"]",
+      "unproducedClasses": [
+        "preset-detail-rail"
+      ]
+    },
+    {
+      "startLine": 910,
+      "selector": ".preset-detail-rail",
+      "unproducedClasses": [
+        "preset-detail-rail"
+      ]
+    },
+    {
+      "startLine": 917,
+      "selector": ".preset-detail-header",
+      "unproducedClasses": [
+        "preset-detail-header"
+      ]
+    },
+    {
+      "startLine": 926,
+      "selector": ".preset-detail-heading",
+      "unproducedClasses": [
+        "preset-detail-heading"
+      ]
+    },
+    {
+      "startLine": 933,
+      "selector": ".preset-detail-title",
+      "unproducedClasses": [
+        "preset-detail-title"
+      ]
+    },
+    {
+      "startLine": 940,
+      "selector": ".preset-detail-name",
+      "unproducedClasses": [
+        "preset-detail-name"
+      ]
+    },
+    {
+      "startLine": 950,
+      "selector": ".preset-detail-desc",
+      "unproducedClasses": [
+        "preset-detail-desc"
+      ]
+    },
+    {
+      "startLine": 958,
+      "selector": ".style-switch-actions",
+      "unproducedClasses": [
+        "style-switch-actions"
+      ]
+    },
+    {
+      "startLine": 965,
+      "selector": ".message-action-picker",
+      "unproducedClasses": [
+        "message-action-picker"
+      ]
+    },
+    {
+      "startLine": 974,
+      "selector": ".message-action-choice",
+      "unproducedClasses": [
+        "message-action-choice"
+      ]
+    },
+    {
+      "startLine": 993,
+      "selector": ".message-action-choice[data-active=\"true\"]",
+      "unproducedClasses": [
+        "message-action-choice"
+      ]
+    },
+    {
+      "startLine": 999,
+      "selector": ".message-action-choice:focus-visible",
+      "unproducedClasses": [
+        "message-action-choice"
+      ]
+    },
+    {
+      "startLine": 1005,
+      "selector": ".writing-params",
+      "unproducedClasses": [
+        "writing-params"
+      ]
+    },
+    {
+      "startLine": 1015,
+      "selector": ".writing-param",
+      "unproducedClasses": [
+        "writing-param"
+      ]
+    },
+    {
+      "startLine": 1022,
+      "selector": ".writing-param-label",
+      "unproducedClasses": [
+        "writing-param-label"
+      ]
+    },
+    {
+      "startLine": 1028,
+      "selector": ".writing-param-value",
+      "unproducedClasses": [
+        "writing-param-value"
+      ]
+    },
+    {
+      "startLine": 1037,
+      "selector": ".provider-settings",
+      "unproducedClasses": [
+        "provider-settings"
+      ]
+    },
+    {
+      "startLine": 1047,
+      "selector": ".provider-settings[data-preview-focus=\"true\"]",
+      "unproducedClasses": [
+        "provider-settings"
+      ]
+    },
+    {
+      "startLine": 1052,
+      "selector": ".provider-settings::-webkit-scrollbar",
+      "unproducedClasses": [
+        "provider-settings"
+      ]
+    },
+    {
+      "startLine": 1058,
+      "selector": ".provider-picker-section,\n.provider-connection-list",
+      "unproducedClasses": [
+        "provider-picker-section",
+        "provider-connection-list"
+      ]
+    },
+    {
+      "startLine": 1065,
+      "selector": ".provider-picker-section h3",
+      "unproducedClasses": [
+        "provider-picker-section"
+      ]
+    },
+    {
+      "startLine": 1073,
+      "selector": ".provider-toggle-list",
+      "unproducedClasses": [
+        "provider-toggle-list"
+      ]
+    },
+    {
+      "startLine": 1079,
+      "selector": ".provider-toggle-item",
+      "unproducedClasses": [
+        "provider-toggle-item"
+      ]
+    },
+    {
+      "startLine": 1084,
+      "selector": ".provider-toggle-row",
+      "unproducedClasses": [
+        "provider-toggle-row"
+      ]
+    },
+    {
+      "startLine": 1106,
+      "selector": ".provider-toggle-row[data-active=\"true\"]",
+      "unproducedClasses": [
+        "provider-toggle-row"
+      ]
+    },
+    {
+      "startLine": 1111,
+      "selector": ".provider-toggle-row:focus-visible",
+      "unproducedClasses": [
+        "provider-toggle-row"
+      ]
+    },
+    {
+      "startLine": 1116,
+      "selector": ".provider-toggle-label",
+      "unproducedClasses": [
+        "provider-toggle-label"
+      ]
+    },
+    {
+      "startLine": 1123,
+      "selector": ".provider-launcher-row",
+      "unproducedClasses": [
+        "provider-launcher-row"
+      ]
+    },
+    {
+      "startLine": 1141,
+      "selector": ".provider-launcher-row:focus-visible,\n.provider-default-button:focus-visible",
+      "unproducedClasses": [
+        "provider-launcher-row",
+        "provider-default-button"
+      ]
+    },
+    {
+      "startLine": 1147,
+      "selector": ".provider-launcher-row[data-active=\"true\"]",
+      "unproducedClasses": [
+        "provider-launcher-row"
+      ]
+    },
+    {
+      "startLine": 1152,
+      "selector": ".provider-launcher-row span",
+      "unproducedClasses": [
+        "provider-launcher-row"
+      ]
+    },
+    {
+      "startLine": 1163,
+      "selector": ".provider-launcher-row span svg",
+      "unproducedClasses": [
+        "provider-launcher-row"
+      ]
+    },
+    {
+      "startLine": 1167,
+      "selector": ".provider-launcher-row em",
+      "unproducedClasses": [
+        "provider-launcher-row"
+      ]
+    },
+    {
+      "startLine": 1178,
+      "selector": ".provider-default-button",
+      "unproducedClasses": [
+        "provider-default-button"
+      ]
+    },
+    {
+      "startLine": 1201,
+      "selector": ".provider-default-button svg",
+      "unproducedClasses": [
+        "provider-default-button"
+      ]
+    },
+    {
+      "startLine": 1215,
+      "selector": ".provider-default-button[data-active=\"true\"]",
+      "unproducedClasses": [
+        "provider-default-button"
+      ]
+    },
+    {
+      "startLine": 1221,
+      "selector": ".provider-connection-card",
+      "unproducedClasses": [
+        "provider-connection-card"
+      ]
+    },
+    {
+      "startLine": 1235,
+      "selector": ".provider-connection-header",
+      "unproducedClasses": [
+        "provider-connection-header"
+      ]
+    },
+    {
+      "startLine": 1239,
+      "selector": ".provider-connection-header strong",
+      "unproducedClasses": [
+        "provider-connection-header"
+      ]
+    },
+    {
+      "startLine": 1249,
+      "selector": ".provider-connection-header span",
+      "unproducedClasses": [
+        "provider-connection-header"
+      ]
+    },
+    {
+      "startLine": 1253,
+      "selector": ".provider-field",
+      "unproducedClasses": [
+        "provider-field"
+      ]
+    },
+    {
+      "startLine": 1259,
+      "selector": ".provider-field span",
+      "unproducedClasses": [
+        "provider-field"
+      ]
+    },
+    {
+      "startLine": 1266,
+      "selector": ".provider-field input,\n.provider-field select,\n.provider-field .ui-select-wrap,\n.provider-field .ui-select",
+      "unproducedClasses": [
+        "provider-field"
+      ]
+    },
+    {
+      "startLine": 1280,
+      "selector": ".provider-field-note",
+      "unproducedClasses": [
+        "provider-field-note"
+      ]
+    },
+    {
+      "startLine": 1287,
+      "selector": ".provider-field input,\n.provider-field select,\n.provider-field .ui-select",
+      "unproducedClasses": [
+        "provider-field"
+      ]
+    },
+    {
+      "startLine": 1309,
+      "selector": ".provider-field input:focus-visible,\n.provider-field select:focus-visible,\n.provider-field .ui-select:focus-visible,\n.provider-field .ui-select-menu-trigger[data-state=\"open\"]",
+      "unproducedClasses": [
+        "provider-field"
+      ]
+    },
+    {
+      "startLine": 1318,
+      "selector": ".provider-field .ui-select-menu-value",
+      "unproducedClasses": [
+        "provider-field"
+      ]
+    },
+    {
+      "startLine": 1327,
+      "selector": ".provider-actions",
+      "unproducedClasses": [
+        "provider-actions"
+      ]
+    },
+    {
+      "startLine": 1333,
+      "selector": ".provider-actions button",
+      "unproducedClasses": [
+        "provider-actions"
+      ]
+    },
+    {
+      "startLine": 1347,
+      "selector": ".provider-actions .provider-save-button",
+      "unproducedClasses": [
+        "provider-actions",
+        "provider-save-button"
+      ]
+    },
+    {
+      "startLine": 1355,
+      "selector": ".provider-actions .provider-save-button:hover",
+      "unproducedClasses": [
+        "provider-actions",
+        "provider-save-button"
+      ]
+    },
+    {
+      "startLine": 1360,
+      "selector": ".provider-secret-note",
+      "unproducedClasses": [
+        "provider-secret-note"
+      ]
+    },
+    {
+      "startLine": 1373,
+      "selector": ".provider-secret-note-mark",
+      "unproducedClasses": [
+        "provider-secret-note-mark"
+      ]
+    },
+    {
+      "startLine": 2254,
+      "selector": ".provider-floating-settings",
+      "unproducedClasses": [
+        "provider-floating-settings"
+      ]
+    },
+    {
+      "startLine": 2261,
+      "selector": ".provider-floating-trigger",
+      "unproducedClasses": [
+        "provider-floating-trigger"
+      ]
+    },
+    {
+      "startLine": 2275,
+      "selector": ".provider-floating-trigger:hover,\n.provider-floating-trigger[aria-expanded=\"true\"]",
+      "unproducedClasses": [
+        "provider-floating-trigger"
+      ]
+    },
+    {
+      "startLine": 2281,
+      "selector": ".provider-floating-popover",
+      "unproducedClasses": [
+        "provider-floating-popover"
+      ]
+    },
+    {
+      "startLine": 2295,
+      "selector": ".provider-floating-popover header,\n.provider-floating-card-header",
+      "unproducedClasses": [
+        "provider-floating-popover",
+        "provider-floating-card-header"
+      ]
+    },
+    {
+      "startLine": 2303,
+      "selector": ".provider-floating-popover header div,\n.provider-floating-card-header div",
+      "unproducedClasses": [
+        "provider-floating-popover",
+        "provider-floating-card-header"
+      ]
+    },
+    {
+      "startLine": 2310,
+      "selector": ".provider-floating-popover header strong,\n.provider-floating-card-header strong",
+      "unproducedClasses": [
+        "provider-floating-popover",
+        "provider-floating-card-header"
+      ]
+    },
+    {
+      "startLine": 2316,
+      "selector": ".provider-floating-popover header span,\n.provider-floating-card-header span",
+      "unproducedClasses": [
+        "provider-floating-popover",
+        "provider-floating-card-header"
+      ]
+    },
+    {
+      "startLine": 2322,
+      "selector": ".provider-floating-popover header button,\n.provider-floating-card-header button",
+      "unproducedClasses": [
+        "provider-floating-popover",
+        "provider-floating-card-header"
+      ]
+    },
+    {
+      "startLine": 2337,
+      "selector": ".provider-floating-card-header button[data-active=\"true\"]",
+      "unproducedClasses": [
+        "provider-floating-card-header"
+      ]
+    },
+    {
+      "startLine": 2343,
+      "selector": ".provider-floating-list",
+      "unproducedClasses": [
+        "provider-floating-list"
+      ]
+    },
+    {
+      "startLine": 2348,
+      "selector": ".provider-floating-card",
+      "unproducedClasses": [
+        "provider-floating-card"
+      ]
+    },
+    {
+      "startLine": 2357,
+      "selector": ".provider-floating-card label",
+      "unproducedClasses": [
+        "provider-floating-card"
+      ]
+    },
+    {
+      "startLine": 2362,
+      "selector": ".provider-floating-card label span",
+      "unproducedClasses": [
+        "provider-floating-card"
+      ]
+    },
+    {
+      "startLine": 2369,
+      "selector": ".provider-floating-card input,\n.provider-floating-card select",
+      "unproducedClasses": [
+        "provider-floating-card"
+      ]
+    },
+    {
+      "startLine": 2382,
+      "selector": ".provider-floating-actions",
+      "unproducedClasses": [
+        "provider-floating-actions"
+      ]
+    },
+    {
+      "startLine": 2388,
+      "selector": ".provider-floating-actions button",
+      "unproducedClasses": [
+        "provider-floating-actions"
+      ]
+    },
+    {
+      "startLine": 2403,
+      "selector": ".agent-settings-section",
+      "unproducedClasses": [
+        "agent-settings-section"
+      ]
+    },
+    {
+      "startLine": 2408,
+      "selector": ".agent-settings-section + .agent-settings-section",
+      "unproducedClasses": [
+        "agent-settings-section"
+      ]
+    },
+    {
+      "startLine": 2413,
+      "selector": ".agent-settings-section-title",
+      "unproducedClasses": [
+        "agent-settings-section-title"
+      ]
+    },
+    {
+      "startLine": 2420,
+      "selector": ".agent-preset-list",
+      "unproducedClasses": [
+        "agent-preset-list"
+      ]
+    },
+    {
+      "startLine": 2425,
+      "selector": ".agent-preset-option",
+      "unproducedClasses": [
+        "agent-preset-option"
+      ]
+    },
+    {
+      "startLine": 2445,
+      "selector": ".agent-preset-option[data-checked=\"true\"]",
+      "unproducedClasses": [
+        "agent-preset-option"
+      ]
+    },
+    {
+      "startLine": 2450,
+      "selector": ".agent-preset-option:disabled",
+      "unproducedClasses": [
+        "agent-preset-option"
+      ]
+    },
+    {
+      "startLine": 2455,
+      "selector": ".agent-preset-option:focus-visible,\n.agent-settings-segmented button:focus-visible",
+      "unproducedClasses": [
+        "agent-preset-option",
+        "agent-settings-segmented"
+      ]
+    },
+    {
+      "startLine": 2461,
+      "selector": ".agent-preset-heading",
+      "unproducedClasses": [
+        "agent-preset-heading"
+      ]
+    },
+    {
+      "startLine": 2468,
+      "selector": ".agent-preset-heading strong",
+      "unproducedClasses": [
+        "agent-preset-heading"
+      ]
+    },
+    {
+      "startLine": 2474,
+      "selector": ".agent-preset-option[data-checked=\"true\"] .agent-preset-heading strong",
+      "unproducedClasses": [
+        "agent-preset-option",
+        "agent-preset-heading"
+      ]
+    },
+    {
+      "startLine": 2478,
+      "selector": ".agent-preset-harness",
+      "unproducedClasses": [
+        "agent-preset-harness"
+      ]
+    },
+    {
+      "startLine": 2485,
+      "selector": ".agent-preset-description",
+      "unproducedClasses": [
+        "agent-preset-description"
+      ]
+    },
+    {
+      "startLine": 2491,
+      "selector": ".agent-preset-status,\n.agent-settings-note",
+      "unproducedClasses": [
+        "agent-preset-status",
+        "agent-settings-note"
+      ]
+    },
+    {
+      "startLine": 2498,
+      "selector": ".agent-preset-status[data-tone=\"warning\"],\n.agent-settings-note[data-tone=\"warning\"]",
+      "unproducedClasses": [
+        "agent-preset-status",
+        "agent-settings-note"
+      ]
+    },
+    {
+      "startLine": 2503,
+      "selector": ".agent-settings-field",
+      "unproducedClasses": [
+        "agent-settings-field"
+      ]
+    },
+    {
+      "startLine": 2508,
+      "selector": ".agent-settings-field > span",
+      "unproducedClasses": [
+        "agent-settings-field"
+      ]
+    },
+    {
+      "startLine": 2514,
+      "selector": ".agent-settings-segmented",
+      "unproducedClasses": [
+        "agent-settings-segmented"
+      ]
+    },
+    {
+      "startLine": 2524,
+      "selector": ".agent-settings-segmented button",
+      "unproducedClasses": [
+        "agent-settings-segmented"
+      ]
+    },
+    {
+      "startLine": 2536,
+      "selector": ".agent-settings-segmented button[data-checked=\"true\"]",
+      "unproducedClasses": [
+        "agent-settings-segmented"
+      ]
+    },
+    {
+      "startLine": 2542,
+      "selector": ".debug-surface",
+      "unproducedClasses": [
+        "debug-surface"
+      ]
+    },
+    {
+      "startLine": 4002,
+      "selector": ".approval-copy",
+      "unproducedClasses": [
+        "approval-copy"
+      ]
+    },
+    {
+      "startLine": 4009,
+      "selector": ".approval-copy div",
+      "unproducedClasses": [
+        "approval-copy"
+      ]
+    },
+    {
+      "startLine": 4015,
+      "selector": ".approval-copy strong",
+      "unproducedClasses": [
+        "approval-copy"
+      ]
+    },
+    {
+      "startLine": 4020,
+      "selector": ".approval-copy span",
+      "unproducedClasses": [
+        "approval-copy"
+      ]
+    },
+    {
+      "startLine": 4025,
+      "selector": ".approval-actions",
+      "unproducedClasses": [
+        "approval-actions"
+      ]
+    },
+    {
+      "startLine": 4031,
+      "selector": ".approval-actions button",
+      "unproducedClasses": [
+        "approval-actions"
+      ]
+    },
+    {
+      "startLine": 4047,
+      "selector": ".approval-actions button:hover",
+      "unproducedClasses": [
+        "approval-actions"
+      ]
+    },
+    {
+      "startLine": 4052,
+      "selector": ".approval-actions button:active",
+      "unproducedClasses": [
+        "approval-actions"
+      ]
+    },
+    {
+      "startLine": 4056,
+      "selector": ".approval-actions button:focus-visible",
+      "unproducedClasses": [
+        "approval-actions"
+      ]
+    },
+    {
+      "startLine": 4061,
+      "selector": ".approval-actions button[data-approval-action=\"yes\"]",
+      "unproducedClasses": [
+        "approval-actions"
+      ]
+    },
+    {
+      "startLine": 4066,
+      "selector": ".approval-actions button[data-approval-action=\"yes\"]:hover",
+      "unproducedClasses": [
+        "approval-actions"
+      ]
+    },
+    {
+      "startLine": 4071,
+      "selector": ".approval-actions button[data-approval-action=\"no\"]",
+      "unproducedClasses": [
+        "approval-actions"
+      ]
+    },
+    {
+      "startLine": 4076,
+      "selector": ".approval-actions button[data-approval-action=\"no\"]:hover",
+      "unproducedClasses": [
+        "approval-actions"
+      ]
+    },
+    {
+      "startLine": 4081,
+      "selector": ".approval-decision",
+      "unproducedClasses": [
+        "approval-decision"
+      ]
+    },
+    {
+      "startLine": 4092,
+      "selector": ".approval-decision[data-decision=\"yes\"],\n.approval-decision[data-decision=\"always\"]",
+      "unproducedClasses": [
+        "approval-decision"
+      ]
+    },
+    {
+      "startLine": 4098,
+      "selector": ".approval-decision[data-decision=\"no\"]",
+      "unproducedClasses": [
+        "approval-decision"
+      ]
+    },
+    {
+      "startLine": 4103,
+      "selector": ".approval-undo",
+      "unproducedClasses": [
+        "approval-undo"
+      ]
+    },
+    {
+      "startLine": 4116,
+      "selector": ".approval-undo:hover",
+      "unproducedClasses": [
+        "approval-undo"
+      ]
+    },
+    {
+      "startLine": 4380,
+      "selector": ".inline-approval-stepper",
+      "unproducedClasses": [
+        "inline-approval-stepper"
+      ]
+    },
+    {
+      "startLine": 4390,
+      "selector": ".inline-approval-stepper button",
+      "unproducedClasses": [
+        "inline-approval-stepper"
+      ]
+    },
+    {
+      "startLine": 4404,
+      "selector": ".inline-approval-stepper button:hover",
+      "unproducedClasses": [
+        "inline-approval-stepper"
+      ]
+    },
+    {
+      "startLine": 5097,
+      "selector": ".combined-model-budget-separator",
+      "unproducedClasses": [
+        "combined-model-budget-separator"
+      ]
+    },
+    {
+      "startLine": 5206,
+      "selector": ".model-picker",
+      "unproducedClasses": [
+        "model-picker"
+      ]
+    },
+    {
+      "startLine": 5303,
+      "selector": ".model-picker:hover",
+      "unproducedClasses": [
+        "model-picker"
+      ]
+    },
+    {
+      "startLine": 5307,
+      "selector": ".model-picker span",
+      "unproducedClasses": [
+        "model-picker"
+      ]
+    },
+    {
+      "startLine": 5315,
+      "selector": ".model-picker select",
+      "unproducedClasses": [
+        "model-picker"
+      ]
+    },
+    {
+      "startLine": 5357,
+      "selector": ".model-picker .ui-select-wrap",
+      "unproducedClasses": [
+        "model-picker"
+      ]
+    },
+    {
+      "startLine": 5362,
+      "selector": ".model-picker .ui-select-wrap[data-size] .ui-select",
+      "unproducedClasses": [
+        "model-picker"
+      ]
+    },
+    {
+      "startLine": 5373,
+      "selector": ".model-picker .ui-select-chevron",
+      "unproducedClasses": [
+        "model-picker"
+      ]
+    },
+    {
+      "startLine": 5709,
+      "selector": ".git-status",
+      "unproducedClasses": [
+        "git-status"
+      ]
+    },
+    {
+      "startLine": 5716,
+      "selector": ".git-status span,\n.git-status small",
+      "unproducedClasses": [
+        "git-status"
+      ]
+    },
+    {
+      "startLine": 5723,
+      "selector": ".git-status strong",
+      "unproducedClasses": [
+        "git-status"
+      ]
+    },
+    {
+      "startLine": 5771,
+      "selector": ".commit-message-panel",
+      "unproducedClasses": [
+        "commit-message-panel"
+      ]
+    },
+    {
+      "startLine": 5781,
+      "selector": ".commit-message-panel span",
+      "unproducedClasses": [
+        "commit-message-panel"
+      ]
+    },
+    {
+      "startLine": 5788,
+      "selector": ".commit-message-panel strong",
+      "unproducedClasses": [
+        "commit-message-panel"
+      ]
+    },
+    {
+      "startLine": 5792,
+      "selector": ".git-actions",
+      "unproducedClasses": [
+        "git-actions"
+      ]
+    },
+    {
+      "startLine": 5834,
+      "selector": ".harness-import",
+      "unproducedClasses": [
+        "harness-import"
+      ]
+    },
+    {
+      "startLine": 5843,
+      "selector": ".harness-import[data-dragging]",
+      "unproducedClasses": [
+        "harness-import"
+      ]
+    },
+    {
+      "startLine": 5848,
+      "selector": ".harness-import-head",
+      "unproducedClasses": [
+        "harness-import-head"
+      ]
+    },
+    {
+      "startLine": 5857,
+      "selector": ".harness-import-drop",
+      "unproducedClasses": [
+        "harness-import-drop"
+      ]
+    },
+    {
+      "startLine": 5868,
+      "selector": ".harness-import-drop:hover",
+      "unproducedClasses": [
+        "harness-import-drop"
+      ]
+    },
+    {
+      "startLine": 5873,
+      "selector": ".harness-import-hint",
+      "unproducedClasses": [
+        "harness-import-hint"
+      ]
+    },
+    {
+      "startLine": 5880,
+      "selector": ".harness-import-status",
+      "unproducedClasses": [
+        "harness-import-status"
+      ]
+    },
+    {
+      "startLine": 5890,
+      "selector": ".harness-import-status[data-tone=\"error\"]",
+      "unproducedClasses": [
+        "harness-import-status"
+      ]
+    },
+    {
+      "startLine": 5990,
+      "selector": ".schema-strip",
+      "unproducedClasses": [
+        "schema-strip"
+      ]
+    },
+    {
+      "startLine": 9061,
+      "selector": ".command-backdrop",
+      "unproducedClasses": [
+        "command-backdrop"
+      ]
+    },
+    {
+      "startLine": 9071,
+      "selector": ".command-menu",
+      "unproducedClasses": [
+        "command-menu"
+      ]
+    },
+    {
+      "startLine": 9080,
+      "selector": ".command-input-row",
+      "unproducedClasses": [
+        "command-input-row"
+      ]
+    },
+    {
+      "startLine": 9088,
+      "selector": ".command-input-row input",
+      "unproducedClasses": [
+        "command-input-row"
+      ]
+    },
+    {
+      "startLine": 10056,
+      "selector": ".app-shell",
+      "unproducedClasses": [
+        "app-shell"
+      ]
+    },
+    {
+      "startLine": 10066,
+      "selector": ".workspace-layout",
+      "unproducedClasses": [
+        "workspace-layout"
+      ]
+    },
+    {
+      "startLine": 10231,
+      "selector": ".welcome-settings",
+      "unproducedClasses": [
+        "welcome-settings"
+      ]
+    },
+    {
+      "startLine": 10236,
+      "selector": ".welcome-field",
+      "unproducedClasses": [
+        "welcome-field"
+      ]
+    }
+  ],
+  "finalKeyframeRemovals": [
+    {
+      "startLine": 745,
+      "name": "preset-skel-shimmer"
+    },
+    {
+      "startLine": 873,
+      "name": "preset-accordion-in"
+    },
+    {
+      "startLine": 9265,
+      "name": "tool-progress-preview"
+    },
+    {
+      "startLine": 10002,
+      "name": "assistant-typewriter-in"
+    },
+    {
+      "startLine": 10011,
+      "name": "assistant-chunked-in"
+    }
+  ],
+  "implementation": {
+    "changed": "src/styles/app.css",
+    "ruleRemovals": 205,
+    "keyframeRemovals": [
+      "preset-skel-shimmer",
+      "preset-accordion-in",
+      "tool-progress-preview",
+      "assistant-typewriter-in",
+      "assistant-chunked-in"
+    ],
+    "emptyMediaContainersRemoved": [
+      {
+        "name": "media",
+        "params": "(prefers-reduced-motion: reduce)"
+      }
+    ],
+    "removedComments": [
+      {
+        "startLine": 712,
+        "text": "Two-level nav: L1 (.preset-rail) is the labeled group list; L2 (.preset-detail-rail) slides in and covers L1 in place — same column, same width — when a group is clicked. Both live in the single .preset-nav column."
+      },
+      {
+        "startLine": 739,
+        "text": "base #E6E9F0 with a lighter band sweeping across (光感划过)."
+      },
+      {
+        "startLine": 755,
+        "text": "Column 1 — icon rail (gray)."
+      },
+      {
+        "startLine": 781,
+        "text": "Short centered divider (~3-char width) instead of a full-width line."
+      },
+      {
+        "startLine": 854,
+        "text": "Accordion drawer: each group's content expands inline right below its row."
+      },
+      {
+        "startLine": 878,
+        "text": "Level 2 — covers L1 in place (same rect). Silky fade + slide-in."
+      },
+      {
+        "startLine": 886,
+        "text": "Flat editing panel: opaque so it covers L1, but no elevation — only the preview floats. Keeps a white fill so the preset cards keep their contrast."
+      },
+      {
+        "startLine": 932,
+        "text": "L2 title mirrors the L1 rail heading: same icon slot, size, and weight."
+      },
+      {
+        "startLine": 957,
+        "text": "Confirm dialog footer for the style switch."
+      },
+      {
+        "startLine": 1004,
+        "text": "Parameter sliders revealed under the active writing option."
+      },
+      {
+        "startLine": 5832,
+        "text": "Harness capture import. Editor chrome only — never part of a composed product, and not packed into an export. All new selectors; nothing existing is modified."
+      },
+      {
+        "startLine": 152,
+        "text": "The generated-agent preview is the product; the configurator chrome recedes. The debug footer keeps the elevated white-card look; the preview card carries its own elevation (see .preview-frame) and is the ONLY surface that floats."
+      },
+      {
+        "startLine": 1276,
+        "text": "* Explains a redirect that already happened, so it has to read as guidance rather than as an * error: nothing went wrong, the value simply belongs in the field below."
+      },
+      {
+        "startLine": 2402,
+        "text": "Settings popover: agent roles above the model service."
+      },
+      {
+        "startLine": 10230,
+        "text": "\"Welcome greeting\" section inside the Input preset group."
+      }
+    ],
+    "updatedComments": [
+      {
+        "baselineLine": 1571,
+        "before": "Long approval placement history and preset preview explanation.",
+        "after": "Keep approvals in flow above the composer so the input remains visible in chat and welcome states."
+      },
+      {
+        "baselineLine": 1649,
+        "before": "Long scrollbar implementation/history account.",
+        "after": "Hide nested scrollbars to avoid width jumps; wheel, trackpad, and keyboard scrolling remain available."
+      },
+      {
+        "baselineLine": 1684,
+        "before": "Long explanation of why sibling overlays and composer differ in width.",
+        "after": "Share the composer width with sibling approval overlays."
+      },
+      {
+        "baselineLine": 1719,
+        "before": "Long sidebar animation/export/editor history.",
+        "after": "Move the drawer with negative margin to avoid reflow; allow-discrete visibility removes collapsed items from focus order after the transition."
+      },
+      {
+        "baselineLine": 2218,
+        "before": "Long export/empty-list history for footer placement.",
+        "after": "Keep the sidebar footer at the bottom when the session list is empty or short."
+      },
+      {
+        "baselineLine": 3531,
+        "before": "Cover BOTH surfaces ... center preview AND left-rail option thumbnails.",
+        "after": "In illustrated style, the orb replaces the classic reasoning indicator."
+      },
+      {
+        "baselineLine": 518,
+        "before": "Hover / active press feedback for standalone legacy buttons (.send-button/.icon-button/.text-control ride on ui-kit components ...).",
+        "after": "Hover and active feedback for legacy standalone buttons; the send and icon controls use ui-kit states."
+      },
+      {
+        "baselineLine": 5327,
+        "before": "Layer 1 primitive density compatibility ... ComposerFrame ... send-button / text-control / model-picker ...",
+        "after": "Preserve the send control’s compact dimensions while it uses the shared Button primitive."
+      },
+      {
+        "baselineLine": 6046,
+        "before": "WorkBuddy-style reading surface: fewer boxes, warmer neutrals, steadier type. Scoped to the generated preview...",
+        "after": "Reading-surface styling is scoped to the generated preview."
+      },
+      {
+        "baselineLine": 8692,
+        "before": "Codex-clean base ... restrained accent drawn from orb ...",
+        "after": "Illustrated preview styling. The thinking indicator is rendered separately."
+      }
+    ],
+    "removedHistoricalSentence": {
+      "baselineLine": 1380,
+      "text": "Selector added only; no declaration changed."
+    },
+    "cssLinesBefore": 11330,
+    "cssLinesAfter": 9624,
+    "bytesBefore": 306415,
+    "bytesAfter": 267008,
+    "lineCountMetric": "newline count (wc -l)",
+    "totalCommentsBefore": 154,
+    "totalCommentsAfter": 132,
+    "totalCommentsRemoved": 22,
+    "commentsRemovedWithDeletedRules": 7,
+    "parentIndependentAstCheck": "Parent independently confirmed all retained selector/declaration/order/at-rule-context signatures match after the approved deletions."
+  }
+}

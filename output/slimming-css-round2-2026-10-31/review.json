@@ -1,0 +1,28 @@
+{
+  "baselineCommit": "0d8faf6",
+  "removedRules": 205,
+  "removedKeyframes": [
+    "preset-skel-shimmer",
+    "preset-accordion-in",
+    "tool-progress-preview",
+    "assistant-typewriter-in",
+    "assistant-chunked-in"
+  ],
+  "retainedSelectorsDeclarationsOrderAndAtRuleContextsIdentical": true,
+  "before": {
+    "bytes": 306415,
+    "lines": 11330,
+    "comments": {
+      "count": 154,
+      "bytes": 21855
+    }
+  },
+  "after": {
+    "bytes": 267008,
+    "lines": 9624,
+    "comments": {
+      "count": 132,
+      "bytes": 16101
+    }
+  }
+}

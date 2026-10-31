@@ -126,39 +126,6 @@ p {
   margin: 0;
 }
 
-.app-shell {
-  --app-shell-pad-x: 0px;
-  --app-shell-pad-y: 0px;
-  --workspace-top-gap: 0px;
-  --workspace-col-gap: 0px;
-  /* Left nav = icon rail (--iconbar-col) + content panel; together = --rail-col. */
-  --iconbar-col: 68px;
-  --rail-col: 304px;
-  /* Functional layer (topbar + left sidebar) shared background — design token. */
-  --fn-bg: var(--surface-canvas);
-  /* Functional-area (topbar + left) radius scale — harmonious, size-tiered.
-     Bigger element → bigger tier. Canvas has its own radii. */
-  --fn-r-xs: 6px;   /* icon chips, swatches, badges */
-  --fn-r-sm: 8px;   /* topbar buttons, style cards, option rows, tabs */
-  --fn-r-md: 10px;  /* larger cards, dropdown menus */
-  --fn-r-lg: 12px;  /* bordered containers / large cards */
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  gap: 0;
-  height: 100vh;
-  padding: 0;
-}
-
-/* The generated-agent preview is the product; the configurator chrome recedes.
-   The debug footer keeps the elevated white-card look; the preview card carries
-   its own elevation (see .preview-frame) and is the ONLY surface that floats. */
-.schema-strip {
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-panel);
-  box-shadow: var(--shadow-md);
-}
-
 .topbar-leading,
 .brand-block,
 .topbar-controls,
@@ -173,276 +140,11 @@ p {
   align-items: center;
 }
 
-.brand-block {
-  min-width: 150px;
-}
-
-.brand-logo {
-  color: var(--text-primary);
-  font-size: var(--text-xl);
-  line-height: 1.1;
-  font-weight: 800;
-  letter-spacing: 0;
-}
-
-.brand-logo span {
-  font-weight: 800;
-}
-
 .frame-header p,
 .utility-header p,
 .debug-header p {
   color: var(--text-muted);
   font-size: var(--text-sm);
-}
-
-.language-picker {
-  position: relative;
-  z-index: var(--z-dropdown);
-}
-
-.language-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: flex-end;
-  gap: 6px;
-  height: var(--control-md);
-  min-width: 0;
-  white-space: nowrap;
-  border: var(--border-width) solid transparent;
-  border-radius: var(--fn-r-sm);
-  padding: 0 4px 0 10px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--text-md);
-  font-weight: 650;
-  transition: background var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out),
-    color var(--motion-fast) var(--ease-out);
-}
-
-.language-trigger:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-hover);
-  color: var(--text-primary);
-}
-
-.language-trigger[aria-expanded="true"] svg {
-  transform: rotate(180deg);
-}
-
-.language-trigger svg {
-  color: var(--text-muted);
-  transition: transform var(--motion-fast) var(--ease-out);
-}
-
-.language-menu {
-  position: absolute;
-  top: calc(100% + 6px);
-  left: 0;
-  min-width: 104px;
-  padding: 4px;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--fn-r-md);
-  background: var(--surface-panel);
-  box-shadow: 0 8px 22px rgba(13, 18, 28, 0.08), 0 2px 6px rgba(13, 18, 28, 0.04);
-}
-
-.language-option {
-  display: flex;
-  align-items: center;
-  width: 100%;
-  height: 30px;
-  border: 0;
-  border-radius: calc(var(--radius-md) - 3px);
-  padding: 0 10px;
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--text-md);
-  font-weight: 620;
-  text-align: left;
-}
-
-.language-option:hover,
-.language-option[data-active="true"] {
-  background: var(--surface-inset);
-  color: var(--text-primary);
-}
-
-.scenario-picker,
-.run-mode-picker {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-}
-
-.scenario-picker .ui-select-wrap {
-  max-width: 180px;
-}
-
-.run-mode-picker .ui-select-wrap {
-  max-width: 145px;
-}
-
-.view-switch {
-  display: inline-flex;
-  align-items: center;
-  gap: 3px;
-  height: var(--control-md);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-inset);
-  padding: 3px;
-}
-
-.view-switch button {
-  height: calc(var(--control-md) - 8px);
-  border: 0;
-  border-radius: calc(var(--radius-md) - 3px);
-  background: transparent;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: 620;
-  padding: 0 9px;
-}
-
-.view-switch button[data-active="true"] {
-  background: var(--surface-panel);
-  color: var(--text-primary);
-  box-shadow: none;
-}
-
-.mode-toggle-button {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 40px;
-  height: 40px;
-  border: 0;
-  border-radius: var(--fn-r-sm);
-  padding: 0;
-  background: transparent;
-  color: #1a1a1a;
-  transition: background var(--motion-fast) var(--ease-out),
-    color var(--motion-fast) var(--ease-out),
-    transform var(--motion-fast) var(--ease-out);
-}
-
-.mode-toggle-button:hover {
-  background: rgba(26, 26, 27, 0.06);
-}
-
-.mode-toggle-button:active {
-  transform: scale(0.96);
-}
-
-.mode-toggle-button[data-mode="debug"] {
-  color: var(--text-secondary);
-}
-
-.selected-components-menu {
-  position: relative;
-  display: inline-flex;
-  align-self: stretch;
-  border-left: var(--border-width) solid var(--border-strong);
-}
-
-.selected-components-trigger {
-  gap: 7px;
-  width: auto;
-  min-width: 148px;
-  padding: 0 11px 0 13px;
-  white-space: nowrap;
-  font-size: var(--text-md);
-  font-weight: 650;
-}
-
-.selected-components-trigger svg {
-  flex: none;
-  color: var(--text-muted);
-  transition: transform var(--motion-fast) var(--ease-out);
-}
-
-.selected-components-trigger[aria-expanded="true"] svg {
-  transform: rotate(180deg);
-}
-
-.selected-components-popover {
-  position: absolute;
-  top: calc(100% + 8px);
-  right: 0;
-  z-index: var(--z-dropdown);
-  width: min(320px, calc(100vw - 24px));
-  max-height: min(420px, calc(100vh - 112px));
-  overflow: hidden;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-panel);
-  box-shadow: var(--shadow-lg);
-  padding: var(--space-2) 2px var(--space-2) var(--space-2);
-}
-
-.selected-components-popover-header {
-  display: flex;
-  align-items: center;
-  min-height: 30px;
-  padding: 0 10px;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 760;
-}
-
-.selected-components-list {
-  display: grid;
-  gap: 3px;
-  max-height: 350px;
-  overflow: auto;
-  padding: 2px;
-  scrollbar-color: color-mix(in srgb, var(--text-muted) 34%, transparent) transparent;
-  scrollbar-width: thin;
-}
-
-.selected-components-list::-webkit-scrollbar {
-  width: 6px;
-}
-
-.selected-components-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.selected-components-list::-webkit-scrollbar-thumb {
-  border-radius: var(--radius-full);
-  background: color-mix(in srgb, var(--text-muted) 34%, transparent);
-}
-
-.selected-components-list::-webkit-scrollbar-thumb:hover {
-  background: color-mix(in srgb, var(--text-muted) 44%, transparent);
-}
-
-.selected-component-item,
-.selected-components-empty {
-  display: grid;
-  gap: 2px;
-  border-radius: var(--fn-r-sm);
-  padding: 8px 10px;
-}
-
-.selected-component-item:hover {
-  background: var(--surface-hover);
-}
-
-.selected-component-name {
-  color: var(--text-primary);
-  font-size: var(--text-md);
-  font-weight: 640;
-  line-height: 1.35;
-}
-
-.selected-component-section,
-.selected-components-empty {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  line-height: 1.35;
 }
 
 .primary-button.topbar-deploy-button {
@@ -515,9 +217,7 @@ textarea:focus-visible {
   padding: 0;
 }
 
-/* Hover / active press feedback for the standalone legacy buttons
-   (.send-button/.icon-button/.text-control ride on the ui-kit components,
-   which already supply these states). */
+/* Hover and active feedback for legacy standalone buttons; the send and icon controls use ui-kit states. */
 .primary-button:hover:not(:disabled) {
   background: color-mix(in srgb, var(--text-primary) 86%, var(--surface-canvas));
   border-color: color-mix(in srgb, var(--text-primary) 86%, var(--surface-canvas));
@@ -709,497 +409,8 @@ textarea:focus-visible {
   to { opacity: 1; transform: scale(1); }
 }
 
-/* Two-level nav: L1 (.preset-rail) is the labeled group list; L2
-   (.preset-detail-rail) slides in and covers L1 in place — same column, same
-   width — when a group is clicked. Both live in the single .preset-nav column. */
-.workspace-layout {
-  display: grid;
-  grid-template-columns: var(--rail-col) minmax(0, 1fr);
-  gap: 0;
-  min-height: 0;
-}
-
-.workspace-layout[data-mode="saved-preview"] {
-  grid-template-columns: minmax(0, 1fr);
-}
-
-.preset-skel-line {
-  height: 12px;
-  width: 58%;
-  border-radius: var(--fn-r-sm);
-}
-
-.preset-skel-card {
-  height: 68px;
-  border-radius: var(--fn-r-md);
-}
-
-.preset-skel-line,
-.preset-skel-card {
-  /* base #E6E9F0 with a lighter band sweeping across (光感划过). */
-  background: linear-gradient(100deg, #e6e9f0 30%, #f4f6fa 50%, #e6e9f0 70%);
-  background-size: 300% 100%;
-  animation: preset-skel-shimmer 1.3s ease-in-out infinite;
-}
-
-@keyframes preset-skel-shimmer {
-  0% { background-position: 100% 0; }
-  100% { background-position: 0 0; }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .preset-skel-line,
-  .preset-skel-card { animation: none; }
-}
-
-/* Column 1 — icon rail (gray). */
-.preset-iconbar {
-  display: grid;
-  align-content: start;
-  gap: 12px;
-  min-height: 0;
-  overflow-y: auto;
-  padding: 10px 6px;
-  background: transparent;
-  border-right: var(--border-width) solid #e6e6ea;
-  scrollbar-width: none;
-}
-
-.preset-iconbar::-webkit-scrollbar { width: 0; height: 0; display: none; }
-
-.preset-iconbar-group {
-  display: grid;
-  gap: 4px;
-}
-
-.preset-iconbar-group + .preset-iconbar-group {
-  position: relative;
-  margin-top: 8px;
-  padding-top: 8px;
-}
-
-/* Short centered divider (~3-char width) instead of a full-width line. */
-.preset-iconbar-group + .preset-iconbar-group::before {
-  content: "";
-  position: absolute;
-  top: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 32px;
-  height: 1px;
-  background: color-mix(in srgb, #94a3b8 26%, transparent);
-}
-
-.preset-icon-tile {
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 7px;
-  min-height: 52px;
-  padding: 7px 2px;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
-  cursor: pointer;
-  transition: background var(--motion-fast) var(--ease-out);
-}
-
-.preset-icon-glyph {
-  display: grid;
-  place-items: center;
-  width: 32px;
-  height: 32px;
-  border-radius: var(--fn-r-xs);
-  color: #1a1a1a;
-  transition: background var(--motion-fast) var(--ease-out);
-}
-
-.preset-icon-label {
-  font-size: var(--text-sm);
-  line-height: 1.15;
-  text-align: center;
-  letter-spacing: -0.01em;
-  color: #1a1a1a;
-}
-
-.preset-icon-tile:hover .preset-icon-glyph {
-  background: #e6e9f0;
-}
-
-.preset-icon-tile[data-active="true"] .preset-icon-glyph {
-  background: #dee2eb;
-}
-
-.rail-title {
-  min-height: 24px;
-  padding: 0 10px 0 0;
-  color: var(--text-primary);
-}
-
-.rail-title-icon {
-  display: inline-grid;
-  place-items: center;
-  width: 22px;
-  height: 22px;
-  flex: none;
-  color: var(--text-muted);
-}
-
-.rail-title-text {
-  font-size: var(--text-md);
-  font-weight: var(--weight-title);
-  letter-spacing: 0;
-}
-
-/* Accordion drawer: each group's content expands inline right below its row. */
-.preset-accordion-item {
-  display: grid;
-}
-
-.preset-accordion-body {
-  display: grid;
-  gap: 12px;
-  padding: 6px 2px 12px;
-  animation: preset-accordion-in var(--motion-base) var(--ease-out);
-}
-
-.preset-accordion-desc {
-  padding: 0 2px;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: 1.5;
-}
-
-@keyframes preset-accordion-in {
-  from { opacity: 0; transform: translateY(-4px); }
-  to { opacity: 1; transform: translateY(0); }
-}
-
-/* Level 2 — covers L1 in place (same rect). Silky fade + slide-in. */
-.preset-detail-rail {
-  position: absolute;
-  inset: 0;
-  z-index: 2;
-  min-width: 0;
-  overflow: hidden;
-  padding: 14px;
-  /* Flat editing panel: opaque so it covers L1, but no elevation — only the
-     preview floats. Keeps a white fill so the preset cards keep their contrast. */
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-lg);
-  background: var(--surface-panel);
-  box-shadow: none;
-  transform: translateX(-14px);
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transition: opacity var(--motion-slow) var(--ease-out),
-    transform var(--motion-slow) var(--ease-out),
-    visibility 0s linear var(--motion-slow);
-}
-
-.preset-detail-rail[data-open="true"] {
-  transform: translateX(0);
-  opacity: 1;
-  visibility: visible;
-  pointer-events: auto;
-  transition: opacity var(--motion-slow) var(--ease-out),
-    transform var(--motion-slow) var(--ease-out);
-}
-
-.preset-detail-rail {
-  display: grid;
-  grid-template-rows: auto minmax(0, 1fr) auto;
-  align-content: start;
-  gap: 12px;
-}
-
-.preset-detail-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 8px;
-  padding-bottom: 10px;
-  border-bottom: var(--border-width) solid var(--border-subtle);
-}
-
-.preset-detail-heading {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-/* L2 title mirrors the L1 rail heading: same icon slot, size, and weight. */
-.preset-detail-title {
-  display: flex;
-  align-items: center;
-  gap: 9px;
-  min-width: 0;
-}
-
-.preset-detail-name {
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size: var(--text-md);
-  font-weight: var(--weight-title);
-  letter-spacing: 0;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.preset-detail-desc {
-  margin-left: 31px;
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: 1.4;
-}
-
-/* Confirm dialog footer for the style switch. */
-.style-switch-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 8px;
-  margin-top: 18px;
-}
-
-.message-action-picker {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 8px;
-  padding: 12px;
-  border-radius: var(--fn-r-lg);
-  background: #e6e9f0;
-}
-
-.message-action-choice {
-  display: grid;
-  place-items: center;
-  width: 100%;
-  min-width: 0;
-  aspect-ratio: 1;
-  border: var(--border-width) solid transparent;
-  border-radius: var(--fn-r-sm);
-  background: #f5f7fa;
-  color: var(--text-secondary);
-  cursor: pointer;
-  transition: background var(--motion-fast) var(--ease-out),
-    color var(--motion-fast) var(--ease-out);
-}
-
 .message-action-choice:hover:not([data-active="true"]) {
   background: #ffffff;
-}
-
-.message-action-choice[data-active="true"] {
-  border-color: #D5DCEC;
-  background: #ffffff;
-  color: var(--text-primary);
-}
-
-.message-action-choice:focus-visible {
-  outline: 0;
-  box-shadow: none;
-}
-
-/* Parameter sliders revealed under the active writing option. */
-.writing-params {
-  display: grid;
-  gap: 10px;
-  margin: 0;
-  padding: 10px 12px;
-  border: var(--border-width) solid #eef0f4;
-  border-radius: var(--fn-r-sm);
-  background: #ffffff;
-}
-
-.writing-param {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
-  align-items: center;
-  gap: 10px;
-}
-
-.writing-param-label {
-  color: var(--text-secondary);
-  font-size: var(--text-xs);
-  font-weight: var(--weight-title);
-}
-
-.writing-param-value {
-  min-width: 46px;
-  color: var(--text-muted);
-  font-family: var(--font-mono);
-  font-size: var(--text-xs);
-  text-align: right;
-  font-variant-numeric: tabular-nums;
-}
-
-.provider-settings {
-  display: grid;
-  gap: 14px;
-  width: 100%;
-  max-width: 100%;
-  align-content: start;
-  min-width: 0;
-  overflow: visible;
-}
-
-.provider-settings[data-preview-focus="true"] {
-  outline: 0;
-  box-shadow: none;
-}
-
-.provider-settings::-webkit-scrollbar {
-  width: 0;
-  height: 0;
-  display: none;
-}
-
-.provider-picker-section,
-.provider-connection-list {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-}
-
-.provider-picker-section h3 {
-  color: #8e97a8;
-  font-size: var(--text-sm);
-  font-weight: 600;
-  letter-spacing: 0;
-  text-transform: none;
-}
-
-.provider-toggle-list {
-  display: grid;
-  gap: 6px;
-  min-width: 0;
-}
-
-.provider-toggle-item {
-  display: grid;
-  min-width: 0;
-}
-
-.provider-toggle-row {
-  display: flex;
-  align-items: center;
-  justify-content: flex-start;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  min-height: 34px;
-  overflow: hidden;
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius);
-  background: var(--surface-panel);
-  color: var(--text-secondary);
-  cursor: pointer;
-  font: inherit;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  padding: 7px 8px;
-  text-align: left;
-  user-select: none;
-}
-
-.provider-toggle-row[data-active="true"] {
-  border-color: #D5DCEC;
-  background: var(--surface-panel);
-}
-
-.provider-toggle-row:focus-visible {
-  outline: 0;
-  box-shadow: none;
-}
-
-.provider-toggle-label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.provider-launcher-row {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  min-width: 0;
-  max-width: 100%;
-  min-height: 38px;
-  overflow: hidden;
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius);
-  background: var(--surface-panel);
-  color: var(--text-secondary);
-  padding: 7px 8px;
-  text-align: left;
-  user-select: none;
-}
-
-.provider-launcher-row:focus-visible,
-.provider-default-button:focus-visible {
-  outline: 0;
-  box-shadow: none;
-}
-
-.provider-launcher-row[data-active="true"] {
-  border-color: #D5DCEC;
-  background: var(--surface-panel);
-}
-
-.provider-launcher-row span {
-  display: inline-flex;
-  align-items: center;
-  min-width: 0;
-  overflow: hidden;
-  font-size: var(--text-sm);
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.provider-launcher-row span svg {
-  flex: none;
-}
-
-.provider-launcher-row em {
-  flex: none;
-  border-radius: 999px;
-  background: var(--accent-soft);
-  color: var(--accent-text);
-  font-size: var(--text-sm);
-  font-style: normal;
-  font-weight: 650;
-  padding: 3px 7px;
-}
-
-.provider-default-button {
-  display: inline-flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 0 auto;
-  max-width: 116px;
-  height: 24px;
-  min-width: 0;
-  overflow: hidden;
-  border: var(--border-width) solid transparent;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-  padding: 0 7px;
-  font-size: var(--text-sm);
-  font-weight: 620;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  transition: background var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out),
-    color var(--motion-fast) var(--ease-out);
-}
-
-.provider-default-button svg {
-  flex: none;
 }
 
 .provider-default-button:hover:not([data-active="true"]) {
@@ -1212,167 +423,10 @@ textarea:focus-visible {
   background: color-mix(in srgb, var(--surface-hover) 92%, black);
 }
 
-.provider-default-button[data-active="true"] {
-  border-color: transparent;
-  background: var(--accent-soft);
-  color: var(--accent-text);
-}
-
-.provider-connection-card {
-  display: grid;
-  gap: 9px;
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-  overflow: hidden;
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius);
-  background: var(--surface-panel);
-  padding: 10px;
-}
-
-.provider-connection-header {
-  display: block;
-}
-
-.provider-connection-header strong {
-  display: block;
-  overflow: hidden;
-  color: var(--text-primary);
-  font-size: var(--text-md);
-  font-weight: 700;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.provider-connection-header span {
-  display: none;
-}
-
-.provider-field {
-  display: grid;
-  gap: 4px;
-  min-width: 0;
-}
-
-.provider-field span {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  text-transform: none;
-}
-
-.provider-field input,
-.provider-field select,
-.provider-field .ui-select-wrap,
-.provider-field .ui-select {
-  box-sizing: border-box;
-  width: 100%;
-  min-width: 0;
-  max-width: 100%;
-}
-
-/*
- * Explains a redirect that already happened, so it has to read as guidance rather than as an
- * error: nothing went wrong, the value simply belongs in the field below.
- */
-.provider-field-note {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  line-height: 1.45;
-  text-wrap: pretty;
-}
-
-.provider-field input,
-.provider-field select,
-.provider-field .ui-select {
-  height: 34px;
-  border: var(--border-width) solid color-mix(in srgb, #828ca0 64%, transparent);
-  border-radius: var(--radius-sm);
-  background: var(--surface-inset);
-  color: var(--text-primary);
-  padding: 0 28px 0 9px;
-  font-size: var(--text-sm);
-  line-height: 1.2;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .provider-field input:hover:not(:disabled),
 .provider-field select:hover:not(:disabled),
 .provider-field .ui-select:hover:not(:disabled) {
   border-color: color-mix(in srgb, #6f7888 78%, transparent);
-}
-
-.provider-field input:focus-visible,
-.provider-field select:focus-visible,
-.provider-field .ui-select:focus-visible,
-.provider-field .ui-select-menu-trigger[data-state="open"] {
-  outline: 0;
-  border-color: color-mix(in srgb, #4f5968 86%, transparent);
-  box-shadow: none;
-}
-
-.provider-field .ui-select-menu-value {
-  display: block;
-  flex: 1 1 auto;
-  min-width: 0;
-  max-width: 100%;
-  -webkit-mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
-  mask-image: linear-gradient(to right, #000 calc(100% - 18px), transparent);
-}
-
-.provider-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.provider-actions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 28px;
-  border: var(--border-width) solid transparent;
-  border-radius: var(--radius);
-  background: var(--surface-panel);
-  color: var(--text-secondary);
-  padding: 0 8px;
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.provider-actions .provider-save-button {
-  border-color: var(--text-primary);
-  background: var(--text-primary);
-  color: var(--text-inverse);
-  padding: 0 12px;
-  font-weight: 600;
-}
-
-.provider-actions .provider-save-button:hover {
-  background: color-mix(in srgb, var(--text-primary) 86%, var(--surface-canvas));
-  border-color: color-mix(in srgb, var(--text-primary) 86%, var(--surface-canvas));
-}
-
-.provider-secret-note {
-  display: flex;
-  align-items: flex-start;
-  gap: 2px;
-  border: 0;
-  border-radius: 0;
-  background: transparent;
-  color: var(--text-muted);
-  padding: 0;
-  font-size: var(--text-sm);
-  line-height: 1.35;
-}
-
-.provider-secret-note-mark {
-  color: var(--danger);
-  font-weight: 700;
 }
 
 /* Transparent layout container — the light-gray page (body / --surface-canvas)
@@ -1380,7 +434,7 @@ textarea:focus-visible {
 /* `.exported-shell` is the exported scaffold's root. It shares this rule rather than
    carrying a copy, because `.preview-frame` (height: 100%, min-height: 0) is designed
    against exactly this sizing context — and `.preview-overlay-surface` positions
-   absolutely against it. Selector added only; no declaration changed. */
+   absolutely against it. */
 .builder-surface,
 .exported-shell {
   display: grid;
@@ -1569,17 +623,7 @@ textarea:focus-visible {
 }
 
 /*
- * The approval prompt sits directly above the composer, in the stack's flow.
- *
- * Bottom-anchoring it absolutely gave the same rule two different wrong answers: in a
- * conversation the panel was painted over the composer and hid the input field completely,
- * and in the welcome state a separate override turned it static so it landed *below* the
- * input. The prompt asks what should run next, so it belongs above the field — and the field
- * has to stay visible, because "type an answer instead" is one of the listed choices.
- *
- * All three surfaces (external, the inline demo, the inline surface a live run mounts) share
- * this placement; a preset preview that sat somewhere other than the real run would be
- * previewing the wrong thing.
+ * Keep approvals in flow above the composer so the input remains visible in chat and welcome states.
  */
 .preview-approval-overlay {
   z-index: 12;
@@ -1647,19 +691,7 @@ textarea:focus-visible {
 }
 
 /*
- * No scrollbars anywhere inside the preview canvas.
- *
- * `.preview-stack` already hid its own, but the two `<Panel>` wrappers around it are rendered
- * by react-resizable-panels with `overflow: auto` and no class of their own, so theirs stayed.
- * Where the OS draws classic (space-taking) scrollbars, switching the output tab changed the
- * content height, the bar appeared or vanished, and the whole canvas jumped by its width.
- *
- * Hidden rather than `scrollbar-gutter: stable`: a permanently reserved gutter would stop the
- * jump too, but it also puts a dead strip down the edge of a surface whose entire job is to
- * show what the composed product looks like. The rail and the preset panel already made this
- * same call.
- *
- * Scrolling itself is untouched — wheel, trackpad and keyboard all still work.
+ * Hide nested scrollbars to avoid width jumps; wheel, trackpad, and keyboard scrolling remain available.
  */
 .preview-panel,
 .preview-frame .right-panel,
@@ -1682,12 +714,7 @@ textarea:focus-visible {
   scrollbar-width: none;
 
   /*
-   * The composer's measure, published so the surfaces that belong to the composer can align
-   * with it instead of each picking a width.
-   *
-   * The approval overlays are siblings of `.composer-frame`, not children, so nothing made
-   * them agree: the overlay spanned the full stack while the welcome-state composer capped
-   * at 660px and centred. Two surfaces that read as one stack sat on different grids.
+   * Share the composer width with sibling approval overlays.
    */
   --composer-measure: 100%;
 }
@@ -1717,21 +744,7 @@ textarea:focus-visible {
 
 /* ─── Session history sidebar (scaffolded product chrome) ───────────────── */
 /*
- * Left sidebar drawer.
- *
- * Slides on `margin-left`, not `width`. Width would reflow the contents on every frame — the
- * session titles would re-wrap and the row pills re-measure as the panel narrowed. A negative
- * margin keeps the panel at its full width the whole way and lets `.preview-frame`'s existing
- * `overflow: hidden` clip it, so only the position animates.
- *
- * Driven by `data-left-collapsed` on the frame, which both shells already set, and living in
- * app.css — which travels with an export. That is why this is CSS and not a motion component:
- * the editor and the generated app get the same drawer from one source, with no animation code
- * duplicated into the scaffold template.
- *
- * `visibility` is in the transition with `allow-discrete` so the panel stays visible while it
- * slides out and only leaves the tab order and the a11y tree once it is actually gone. Without
- * it a collapsed drawer is still focusable, which reads as a keyboard trap.
+ * Move the drawer with negative margin to avoid reflow; allow-discrete visibility removes collapsed items from focus order after the transition.
  */
 .preview-frame .session-sidebar {
   transition:
@@ -2216,12 +1229,7 @@ textarea:focus-visible {
 
 .session-footer {
   /*
-   * Pinned to the bottom of the column rather than trailing the session list.
-   *
-   * The sidebar is a flex column and this is its last child, so with no sessions to fill the
-   * space it rode up under "New chat" — which is exactly what an export shows, because a
-   * shipped scaffold has no session store and passes an empty list. `margin-top: auto` puts
-   * it on the floor whether the list has five rows or none.
+   * Keep the sidebar footer at the bottom when the session list is empty or short.
    */
   margin: auto 0 0;
   color: var(--text-muted);
@@ -2251,297 +1259,8 @@ textarea:focus-visible {
   min-height: 260px;
 }
 
-.provider-floating-settings {
-  position: relative;
-  z-index: 12;
-  display: inline-flex;
-  flex-shrink: 0;
-}
-
-.provider-floating-trigger {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  min-height: 30px;
-  border: var(--border-width) solid var(--border-strong);
-  border-radius: 999px;
-  background: var(--surface-panel);
-  color: var(--text-secondary);
-  padding: 0;
-}
-
-.provider-floating-trigger:hover,
-.provider-floating-trigger[aria-expanded="true"] {
-  color: var(--accent-text);
-  border-color: color-mix(in srgb, var(--accent) 35%, var(--border-strong));
-}
-
-.provider-floating-popover {
-  z-index: 60;
-  display: grid;
-  gap: 10px;
-  width: min(440px, calc(100vw - 24px));
-  max-height: min(620px, var(--radix-popover-content-available-height, calc(100vh - 24px)));
-  overflow: auto;
-  border: var(--border-width) solid var(--border-strong);
-  border-radius: calc(var(--radius) + 2px);
-  background: var(--surface-panel);
-  box-shadow: var(--shadow);
-  padding: 12px;
-}
-
-.provider-floating-popover header,
-.provider-floating-card-header {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 10px;
-}
-
-.provider-floating-popover header div,
-.provider-floating-card-header div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.provider-floating-popover header strong,
-.provider-floating-card-header strong {
-  color: var(--text-primary);
-  font-size: var(--text-md);
-}
-
-.provider-floating-popover header span,
-.provider-floating-card-header span {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.provider-floating-popover header button,
-.provider-floating-card-header button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 28px;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: 999px;
-  background: var(--surface-raised);
-  color: var(--text-muted);
-  padding: 0 8px;
-  font-size: var(--text-sm);
-  font-weight: 620;
-}
-
-.provider-floating-card-header button[data-active="true"] {
-  border-color: color-mix(in srgb, var(--accent) 32%, var(--border-subtle));
-  background: var(--accent-soft);
-  color: var(--accent-text);
-}
-
-.provider-floating-list {
-  display: grid;
-  gap: 8px;
-}
-
-.provider-floating-card {
-  display: grid;
-  gap: 8px;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
-  padding: 10px;
-}
-
-.provider-floating-card label {
-  display: grid;
-  gap: 4px;
-}
-
-.provider-floating-card label span {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  text-transform: none;
-}
-
-.provider-floating-card input,
-.provider-floating-card select {
-  width: 100%;
-  height: 30px;
-  max-width: none;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius);
-  background: var(--surface-panel);
-  color: var(--text-secondary);
-  padding: 0 8px;
-  font-size: var(--text-sm);
-}
-
-.provider-floating-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.provider-floating-actions button {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 28px;
-  border: var(--border-width) solid var(--border-strong);
-  border-radius: var(--radius);
-  background: var(--surface-panel);
-  color: var(--text-secondary);
-  padding: 0 8px;
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-/* Settings popover: agent roles above the model service. */
-.agent-settings-section {
-  display: grid;
-  gap: 8px;
-}
-
-.agent-settings-section + .agent-settings-section {
-  border-top: var(--border-width) solid var(--border-subtle);
-  padding-top: 12px;
-}
-
-.agent-settings-section-title {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: 650;
-  letter-spacing: 0.02em;
-}
-
-.agent-preset-list {
-  display: grid;
-  gap: 6px;
-}
-
-.agent-preset-option {
-  display: grid;
-  gap: 3px;
-  width: 100%;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
-  color: var(--text-secondary);
-  padding: 9px 10px;
-  text-align: left;
-  cursor: pointer;
-  transition:
-    border-color 160ms cubic-bezier(0.2, 0.8, 0.2, 1),
-    background-color 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
 .agent-preset-option:hover:not(:disabled) {
   border-color: var(--border-strong);
-}
-
-.agent-preset-option[data-checked="true"] {
-  border-color: color-mix(in srgb, var(--accent) 45%, var(--border-subtle));
-  background: var(--accent-soft);
-}
-
-.agent-preset-option:disabled {
-  cursor: not-allowed;
-  opacity: 0.6;
-}
-
-.agent-preset-option:focus-visible,
-.agent-settings-segmented button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  outline-offset: 1px;
-}
-
-.agent-preset-heading {
-  display: flex;
-  align-items: baseline;
-  justify-content: space-between;
-  gap: 8px;
-}
-
-.agent-preset-heading strong {
-  color: var(--text-primary);
-  font-size: var(--text-md);
-  font-weight: 650;
-}
-
-.agent-preset-option[data-checked="true"] .agent-preset-heading strong {
-  color: var(--accent-text);
-}
-
-.agent-preset-harness {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-variant-numeric: tabular-nums;
-  white-space: nowrap;
-}
-
-.agent-preset-description {
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  line-height: 1.45;
-}
-
-.agent-preset-status,
-.agent-settings-note {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  line-height: 1.45;
-}
-
-.agent-preset-status[data-tone="warning"],
-.agent-settings-note[data-tone="warning"] {
-  color: var(--warning);
-}
-
-.agent-settings-field {
-  display: grid;
-  gap: 6px;
-}
-
-.agent-settings-field > span {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: 600;
-}
-
-.agent-settings-segmented {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 2px;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius);
-  background: var(--surface-raised);
-  padding: 2px;
-}
-
-.agent-settings-segmented button {
-  min-height: 28px;
-  border: 0;
-  border-radius: calc(var(--radius) - 2px);
-  background: transparent;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 600;
-  cursor: pointer;
-  transition: background-color 160ms cubic-bezier(0.2, 0.8, 0.2, 1), color 160ms cubic-bezier(0.2, 0.8, 0.2, 1);
-}
-
-.agent-settings-segmented button[data-checked="true"] {
-  background: var(--surface-panel);
-  color: var(--accent-text);
-  box-shadow: var(--shadow-sm);
-}
-
-.debug-surface {
-  height: 100%;
-  min-height: 0;
 }
 
 .chat-frame,
@@ -3528,8 +2247,7 @@ textarea:focus-visible {
   place-items: center;
 }
 
-/* Cover BOTH surfaces that render the reasoning indicator: the center preview
-   AND the left-rail option thumbnails (both carry [data-style-preset]). */
+/* In illustrated style, the orb replaces the classic reasoning indicator. */
 :is(.preview-frame, .preset-panel)[data-style-preset="illustrated"] .reasoning-classic {
   display: none;
 }
@@ -3999,125 +2717,6 @@ pre {
   width: min(var(--composer-measure, 100%), 100%);
 }
 
-.approval-copy {
-  display: flex;
-  align-items: flex-start;
-  gap: 8px;
-  min-width: 0;
-}
-
-.approval-copy div {
-  display: grid;
-  gap: 2px;
-  min-width: 0;
-}
-
-.approval-copy strong {
-  color: var(--text-primary);
-  font-size: var(--text-sm);
-}
-
-.approval-copy span {
-  color: var(--text-secondary);
-  line-height: 1.35;
-}
-
-.approval-actions {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 6px;
-}
-
-.approval-actions button {
-  min-height: 26px;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: 999px;
-  background: var(--surface-raised);
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  font-weight: 620;
-  padding: 0 9px;
-  cursor: pointer;
-  transition: background var(--motion-fast) var(--ease-out),
-    border-color var(--motion-fast) var(--ease-out),
-    color var(--motion-fast) var(--ease-out),
-    transform var(--motion-fast) var(--ease-out);
-}
-
-.approval-actions button:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-hover);
-}
-
-.approval-actions button:active {
-  transform: translateY(0.5px);
-}
-
-.approval-actions button:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--accent) 60%, transparent);
-  outline-offset: 1px;
-}
-
-.approval-actions button[data-approval-action="yes"] {
-  border-color: color-mix(in srgb, var(--success) 42%, var(--border-subtle));
-  color: var(--success);
-}
-
-.approval-actions button[data-approval-action="yes"]:hover {
-  border-color: var(--success);
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-}
-
-.approval-actions button[data-approval-action="no"] {
-  border-color: color-mix(in srgb, var(--danger) 38%, var(--border-subtle));
-  color: var(--danger);
-}
-
-.approval-actions button[data-approval-action="no"]:hover {
-  border-color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-}
-
-.approval-decision {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  min-height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  font-size: var(--text-sm);
-  font-weight: 700;
-}
-
-.approval-decision[data-decision="yes"],
-.approval-decision[data-decision="always"] {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success) 12%, transparent);
-}
-
-.approval-decision[data-decision="no"] {
-  color: var(--danger);
-  background: color-mix(in srgb, var(--danger) 12%, transparent);
-}
-
-.approval-undo {
-  min-height: 26px;
-  padding: 0 9px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: 620;
-  cursor: pointer;
-  transition: color var(--motion-fast) var(--ease-out);
-}
-
-.approval-undo:hover {
-  color: var(--text-primary);
-  text-decoration: underline;
-}
-
 .external-approval-panel {
   gap: var(--space-2);
   border-color: var(--border-subtle);
@@ -4375,35 +2974,6 @@ pre {
   font-size: var(--text-md);
   font-weight: 400;
   line-height: 1.45;
-}
-
-.inline-approval-stepper {
-  display: inline-flex;
-  align-items: center;
-  gap: 12px;
-  flex: none;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: 620;
-}
-
-.inline-approval-stepper button {
-  display: inline-grid;
-  place-items: center;
-  width: 24px;
-  height: 24px;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-muted);
-  font-size: var(--text-xl);
-  line-height: 1;
-  cursor: pointer;
-}
-
-.inline-approval-stepper button:hover {
-  background: var(--surface-hover);
-  color: var(--text-primary);
 }
 
 .inline-approval-options {
@@ -5094,10 +3664,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   text-align: center;
 }
 
-.combined-model-budget-separator {
-  margin-block: 5px;
-}
-
 .permission-mode-trigger .composer-menu-chevron,
 .budget-mode-trigger .composer-menu-chevron,
 .provider-model-picker .composer-menu-chevron {
@@ -5203,18 +3769,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   color: var(--text-secondary);
 }
 
-.model-picker {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  height: var(--control-md);
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius-md);
-  background: var(--surface-inset);
-  padding: 0 10px;
-  transition: border-color var(--motion-fast) var(--ease-out);
-}
-
 .provider-model-picker {
   position: relative;
   display: inline-flex;
@@ -5300,37 +3854,12 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   display: none;
 }
 
-.model-picker:hover {
-  border-color: var(--border-strong);
-}
-
-.model-picker span {
-  color: var(--text-muted);
-  font-size: var(--text-xs);
-  font-weight: 700;
-  letter-spacing: 0.02em;
-  text-transform: none;
-}
-
-.model-picker select {
-  height: calc(var(--control-md) - 10px);
-  max-width: 142px;
-  border: 0;
-  background: transparent;
-  padding: 0;
-}
-
 .send-button {
   flex-shrink: 0;
 }
 
 /*
- * Layer 1 primitive density compatibility.
- * ComposerFrame now renders Button / IconButton / Select primitives while
- * keeping the legacy composer class names (send-button / text-control /
- * model-picker). These scoped overrides win on specificity so the primitives
- * inherit the exact pre-refactor heights, paddings, and borderless model
- * picker look — visual density stays identical.
+ * Preserve the send control’s compact dimensions while it uses the shared Button primitive.
  */
 .ui-button.send-button[data-size] {
   border-radius: var(--radius-full);
@@ -5352,26 +3881,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .ui-button.text-control[data-size]:hover {
   border-color: transparent;
   background: var(--surface-inset);
-}
-
-.model-picker .ui-select-wrap {
-  width: 100%;
-  height: 100%;
-}
-
-.model-picker .ui-select-wrap[data-size] .ui-select {
-  height: 100%;
-  max-width: none;
-  width: 100%;
-  border: 0;
-  background: transparent;
-  border-radius: 0;
-  padding: 0;
-  color: transparent;
-}
-
-.model-picker .ui-select-chevron {
-  display: none;
 }
 
 .composer-frame .ui-textarea {
@@ -5706,29 +4215,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   font-size: var(--text-sm);
 }
 
-.git-status {
-  grid-template-columns: auto minmax(0, 1fr);
-  column-gap: 8px;
-  align-items: center;
-  border-bottom: var(--border-width) solid var(--border-subtle);
-}
-
-.git-status span,
-.git-status small {
-  grid-column: 1 / -1;
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-}
-
-.git-status strong {
-  min-width: 0;
-  overflow: hidden;
-  font-family: var(--font-mono);
-  font-size: var(--text-sm);
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
 .changed-files code {
   display: flex;
   align-items: center;
@@ -5768,33 +4254,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   color: var(--danger);
 }
 
-.commit-message-panel {
-  display: grid;
-  gap: 4px;
-  margin: 0 10px 10px;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: var(--radius);
-  background: var(--surface-inset);
-  padding: 8px;
-}
-
-.commit-message-panel span {
-  color: var(--text-muted);
-  font-size: var(--text-sm);
-  font-weight: 650;
-  text-transform: none;
-}
-
-.commit-message-panel strong {
-  font-size: var(--text-sm);
-}
-
-.git-actions {
-  justify-content: flex-end;
-  gap: 8px;
-  padding: 0 10px 10px;
-}
-
 .git-actions .secondary-button {
   min-width: 0;
   padding-inline: 9px;
@@ -5827,68 +4286,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   grid-template-rows: auto minmax(0, 1fr);
   min-height: 0;
   overflow: hidden;
-}
-
-/* Harness capture import. Editor chrome only — never part of a composed product, and not
-   packed into an export. All new selectors; nothing existing is modified. */
-.harness-import {
-  display: grid;
-  gap: 8px;
-  padding: 10px;
-  border: var(--border-width) solid var(--border-subtle);
-  border-radius: 10px;
-  background: var(--surface-panel);
-}
-
-.harness-import[data-dragging] {
-  border-color: var(--accent);
-  background: var(--accent-soft);
-}
-
-.harness-import-head {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 8px;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-}
-
-.harness-import-drop {
-  padding: 14px 10px;
-  border: var(--border-width) dashed var(--border-subtle);
-  border-radius: 8px;
-  background: transparent;
-  color: var(--text-secondary);
-  font: inherit;
-  font-size: var(--text-sm);
-  cursor: pointer;
-}
-
-.harness-import-drop:hover {
-  border-color: var(--accent);
-  color: var(--accent-text);
-}
-
-.harness-import-hint {
-  margin: 0;
-  color: var(--text-secondary);
-  font-size: var(--text-sm);
-  line-height: 1.5;
-}
-
-.harness-import-status {
-  max-height: 220px;
-  margin: 0;
-  overflow: auto;
-  font-size: var(--text-sm);
-  line-height: 1.5;
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.harness-import-status[data-tone="error"] {
-  color: var(--danger, #d4380d);
 }
 
 /* Admission report. Spans the grid so the diagnosis reads as a band rather than being
@@ -5987,14 +4384,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   padding: 6px 10px;
 }
 
-.schema-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-  min-height: 38px;
-  padding: 8px 10px;
-}
-
 .activity-dots {
   display: inline-flex;
   align-items: center;
@@ -6043,9 +4432,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   fill: var(--text-primary);
 }
 
-/* WorkBuddy-style reading surface: fewer boxes, warmer neutrals, steadier type.
-   Scoped to the generated preview so the configurator logic and chrome stay
-   untouched. */
+/* Reading-surface styling is scoped to the generated preview. */
 .preview-frame {
   --preview-header-height: 60px;
   --preview-header-x: 22px;
@@ -6096,7 +4483,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .preview-frame .output-header .utility-header-actions {
   margin-left: auto;
 }
-
 
 .preview-frame .frame-header h2,
 .preview-frame .utility-header h3 {
@@ -8689,10 +7075,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
     0 3px 14px color-mix(in srgb, var(--text-primary) 5%, transparent);
 }
 
-/* ── Particle style (id: illustrated) ──────────────────────────────────────
-   Codex-clean base (light, airy, flat, monochrome) with a restrained accent
-   drawn from the orb. Scoped + visual-only — no logic/content, no other styles
-   touched. The thinking indicator is the particle orb (wired separately). */
+/* Illustrated preview styling. The thinking indicator is rendered separately. */
 .preview-frame[data-style-preset="illustrated"] {
   --preview-copy-size: var(--text-md);
   --preview-copy-line: 1.62;
@@ -9058,41 +7441,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   border-top: 0;
 }
 
-.command-backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 20;
-  display: grid;
-  place-items: start center;
-  background: rgba(0, 0, 0, 0.5);
-  padding-top: 14vh;
-}
-
-.command-menu {
-  width: min(560px, calc(100vw - 32px));
-  overflow: hidden;
-  border: var(--border-width) solid var(--border-strong);
-  border-radius: 10px;
-  background: var(--surface-panel);
-  box-shadow: var(--shadow-lg);
-}
-
-.command-input-row {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  border-bottom: var(--border-width) solid var(--border-subtle);
-  padding: 10px 12px;
-}
-
-.command-input-row input {
-  width: 100%;
-  border: 0;
-  outline: none;
-  background: transparent;
-  color: var(--text-primary);
-}
-
 [cmdk-list] {
   max-height: 320px;
   overflow: auto;
@@ -9258,18 +7606,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   }
   45% {
     transform: scaleY(1);
-    opacity: 1;
-  }
-}
-
-@keyframes tool-progress-preview {
-  0%,
-  100% {
-    transform: translateX(-28px);
-    opacity: 0.46;
-  }
-  50% {
-    transform: translateX(22px);
     opacity: 1;
   }
 }
@@ -9999,29 +8335,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   }
 }
 
-@keyframes assistant-typewriter-in {
-  from {
-    clip-path: inset(0 100% 0 0);
-  }
-  to {
-    clip-path: inset(0 0 0 0);
-  }
-}
-
-@keyframes assistant-chunked-in {
-  0% {
-    opacity: 0.4;
-    transform: translateY(4px);
-  }
-  45% {
-    opacity: 0.72;
-  }
-  100% {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @container preview-frame (max-width: 520px) {
   .composer-tools {
     gap: 3px;
@@ -10053,18 +8366,10 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 }
 
 @media (max-width: 980px) {
-  .app-shell {
-    height: auto;
-    min-height: 100vh;
-  }
 
   .topbar,
   .debug-grid {
     grid-template-columns: 1fr;
-  }
-
-  .workspace-layout {
-    display: grid;
   }
 
   .builder-surface {
@@ -10225,17 +8530,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
     gap: var(--space-2);
     text-align: center;
   }
-}
-
-/* "Welcome greeting" section inside the Input preset group. */
-.welcome-settings {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.welcome-field {
-  display: grid;
-  gap: 6px;
 }
 
 /* ------------------------------------------------------------------ *
