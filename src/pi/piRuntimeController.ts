@@ -131,6 +131,8 @@ export type PiRuntimeController = {
   followRun(conversationId: string, after: number, onEvent: (event: AgentUXEvent) => void): { done: Promise<void>; stop(): void } | undefined;
   registerDocument(id: string, document: NonNullable<StoredConversation["documents"]>[number]): void;
   getConversation(id: string): (StoredConversation & { incomplete: boolean; activeRunId?: string }) | undefined;
+  /** Synchronous deletion guard used by the group wrapper before removing several records. */
+  preflightDeleteConversation(id: string): void;
   deleteConversation(id: string): void;
   /** Saves a hand-written title; undefined when there is no such conversation. */
   renameConversation(id: string, title: string): string | undefined;
@@ -1081,6 +1083,15 @@ export function createPiRuntimeController(options: {
       // Read-only warning: a failed disk cannot persist its own failure terminal.
       return saved && { ...saved, activeRunId: runs.get(normalized)?.runId, incomplete: !runs.has(normalized) && piCancelledTurnEvents(saved.events).length > 0 };
     },
+    preflightDeleteConversation(id) {
+      const normalized = normalizeConversationId(id);
+      if (runs.has(normalized)) {
+        throw new ConversationRequestError("A run is already active in this conversation. Stop it before deleting the conversation.", 409);
+      }
+      if (sessionOp(normalized)) {
+        throw new ConversationRequestError("A session reset or configuration is in progress in this conversation. Wait for it to finish before deleting the conversation.", 409);
+      }
+    },
     refreshTools() {
       for (const id of [...bridgePromises.keys()]) {
         if (runs.has(id)) staleBridges.add(id);
@@ -1088,10 +1099,19 @@ export function createPiRuntimeController(options: {
       }
     },
     deleteConversation(id) {
-      if (runs.has(normalizeConversationId(id))) {
-        throw new Error("A run is already active in this conversation. Stop it before deleting the conversation.");
-      }
-      store.remove(normalizeConversationId(id));
+      const normalized = normalizeConversationId(id);
+      api.preflightDeleteConversation(normalized);
+      store.remove(normalized);
+      // A deleted id may be reused immediately; do not let it inherit a live bridge or
+      // any per-conversation capability/configuration state from its previous life.
+      staleBridges.delete(normalized);
+      dropBridge(normalized);
+      cliSessions.delete(normalized);
+      announcedCapabilities.delete(normalized);
+      pendingTitles.delete(normalized);
+      approvalGates.get(normalized)?.cancelAll("The conversation was deleted.");
+      approvalGates.delete(normalized);
+      hostCredentialConversations.delete(normalized);
     },
     renameConversation(id, title) {
       const normalized = normalizeConversationId(id);

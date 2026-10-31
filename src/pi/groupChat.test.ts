@@ -6,6 +6,7 @@ import {
   addressedMembers, childConversationId, companions, GROUP_MEMBERS, isChildConversationId, isContinuation, isGreeting, memberPrompt, mentionedMembers,
   completeJson, MAX_ROUNDS, parseRoute, planFromRoute, requestedRounds, routeGroupMessage, routerThinking, silentMember, soleSpeaker, speakingOrder, untag,
 } from "./groupChat.ts";
+import { delegationConversationPrefix } from "./groupDelegation.ts";
 
 const ID: Record<string, string> = { raer: "assistant", tonny: "planner", bob: "builder" };
 const all = [...GROUP_MEMBERS];
@@ -103,13 +104,18 @@ test("deleting a group deletes its members' hidden conversations", async () => {
   const { createConversationStore } = await import("./conversationStore.ts");
   const { attachGroupChat } = await import("./groupChat.ts");
   const store = createConversationStore(mkdtempSync(join(tmpdir(), "group-")));
-  for (const id of ["group_a", "group_a.m.planner", "group_a.m.builder", "solo"]) store.begin(id, "assistant", "hi");
-  store.setExtra("group_a", { group: { members: ["planner", "builder"], lines: [] } });
-  const controller = { deleteConversation: (id: string) => store.remove(id), listConversations: () => [] } as never;
+  const departed = childConversationId("group_a", "departed");
+  const delegated = `${delegationConversationPrefix("group_a")}finished`;
+  for (const id of ["group_a", "group_a.m.planner", "group_a.m.builder", departed, delegated, "solo"]) store.begin(id, "assistant", "hi");
+  store.setExtra("group_a", { group: { members: ["planner", "builder"], participants: [
+    { id: "planner", name: "Tonny", presetId: "planner" },
+    { id: "builder", name: "Bob", presetId: "builder" },
+  ], tasks: [{ id: "assignment_finished", requestId: "run", owner: "planner", title: "done", status: "completed", kind: "delegation", conversationId: delegated, updatedAt: Date.now() }], lines: [] } });
+  const controller = { deleteConversation: (id: string) => store.remove(id), preflightDeleteConversation: () => {}, listConversations: () => [] } as never;
   const group = attachGroupChat(controller, { store, userInputGate: {} as never, credentials: () => undefined,
     providerDefinition: () => undefined, providerKey: () => undefined });
   group.deleteConversation("group_a");
-  assert.deepEqual(["group_a", "group_a.m.planner", "group_a.m.builder", "solo"].map((id) => Boolean(store.get(id))), [false, false, false, true]);
+  assert.deepEqual(["group_a", "group_a.m.planner", "group_a.m.builder", departed, delegated, "solo"].map((id) => Boolean(store.get(id))), [false, false, false, false, false, true]);
 });
 
 test("only phrases that depend on the previous answer count as a continuation; work and new questions go to the router", () => {

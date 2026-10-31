@@ -104,7 +104,7 @@ Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子�
 | POST | `/__agentcanvas/pi/input` | `{conversationId,requestId,answers}`；answers 为问题 id 到字符串数组的映射，null 明确跳过；400 校验失败，409 已失效或回答冲突 |
 | POST | `/__agentcanvas/pi/session/new` | 新会话；目标单聊/群聊有运行或群委派时返回 409 |
 | GET | `/__agentcanvas/pi/conversations?query=` | 对话列表（侧栏恢复）；可选 query 搜索标题和用户／助手正文，≤200 字符，返回逐消息 `matches`（片段、textId、角色、时间），保留首个 snippet/textId 兼容旧客户端，不返回全文；可选 limit=1..100/cursor 按消息分页并返回 nextCursor；`running` 和临时 `activeRunId` 标出正在运行的轮次；`unreadable` 单独列出无法读取的记录 id |
-| GET / DELETE | `/__agentcanvas/pi/conversations/:id` | 读取历史事件 / 删除对话；读取错误不是 404，临时 `activeRunId` 用于恢复当前运行，`incomplete` 表示当前没有运行但已保存的最后一轮缺少终态 |
+| GET / DELETE | `/__agentcanvas/pi/conversations/:id` | 读取历史事件 / 删除对话；运行、配置或重置期间删除返回 409，成功删除同步清理该会话内存缓存；读取错误不是 404，临时 `activeRunId` 用于恢复当前运行，`incomplete` 表示当前没有运行但已保存的最后一轮缺少终态 |
 | POST | `/__agentcanvas/pi/conversations/:id/branch` | `{beforeRunId}`；201 返回独立 `conversationId` 与原始 `draft`，只保留所选轮次之前的记录，不执行草稿；来源运行中或无可靠边界返回 409 |
 | POST | `/__agentcanvas/pi/provider/test` | 模型服务连通性测试 |
 | GET | `/__agentcanvas/pi/channels` | IM 频道（飞书/钉钉/企业微信/Telegram）设置与连接状态；已保存的密钥只回报是否已设置 |
@@ -176,7 +176,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 
 ### 群聊运行保障（2026-10-06）
 
-`groupChat.ts` 为父轮次保存 `runId`、成员当前子轮 id、订阅者和完成信号；事件复用 `conversationRecorder.ts`，按群历史连续编号，用户消息、审批/提问等待及终态落盘后再广播。已接收请求通过历史 `runId` 去重，完成与进程重启后仍拒绝重复执行；重启只补中断终态，不重放。`followRun` 同步补齐游标后的事件并注册后续订阅，断开订阅不停止运行；群成员信息随历史/搜索恢复。停止与审批先核对父轮身份，再转发当前子轮身份。成员失败使父轮失败，依赖步骤与汇总停止；并行成员全部退出后才发布唯一终态。元数据写入失败不得先发布成功，清理失败路径仍释放运行槽；群前台或委派运行期间拒绝重置；重置锁覆盖整个父群，先逐个重置所有所属成员和委派子会话（含已离群成员），成功后再清空父会话。群提交等待正在进行的重置，任一步失败则等待中的提交不调用成员；不承诺跨文件事务回滚。
+`groupChat.ts` 为父轮次保存 `runId`、成员当前子轮 id、订阅者和完成信号；事件复用 `conversationRecorder.ts`，按群历史连续编号，用户消息、审批/提问等待及终态落盘后再广播。已接收请求通过历史 `runId` 去重，完成与进程重启后仍拒绝重复执行；重启只补中断终态，不重放。`followRun` 同步补齐游标后的事件并注册后续订阅，断开订阅不停止运行；群成员信息随历史/搜索恢复。停止与审批先核对父轮身份，再转发当前子轮身份。成员失败使父轮失败，依赖步骤与汇总停止；并行成员全部退出后才发布唯一终态。元数据写入失败不得先发布成功，清理失败路径仍释放运行槽；群前台或委派运行期间拒绝重置；重置锁覆盖整个父群，先逐个重置所有所属成员和委派子会话（含已离群成员），成功后再清空父会话。群提交等待正在进行的重置，任一步失败则等待中的提交不调用成员；不承诺跨文件事务回滚。 删除群聊先预检父会话与全部所属成员/委派子会话，包括尚未落盘但已知的成员配置；任一运行或会话操作未完成则整体拒绝。成功删除释放每会话 bridge、审批 gate、CLI session 和能力缓存，共享授权保持；原生会话文件不做垃圾回收，保留跨分支来源依赖。
 
 群成员通过内部 `runPrompt(..., { waitForCapacity: true, signal })` 等待已有运行槽完成；醒来后同步重查身份与名额并占槽，总上限仍为 3。等待可取消、不写子轮回执；普通网页/IM 调用仍在满额时直接拒绝，不新增 HTTP 参数或持久队列，也不承诺 FIFO。群广播逐个隔离出错的订阅者；成员失败仅发带成员名的父轮错误卡。首次元数据保存失败属于未接收，收尾与标题异常不得变为 `prompt_rejected`；错误兜底须等 recorder 收尾，避免与 `history_save_failed` 重复发布终态。一层后台只读委派有独立任务与结果轮次，不占父群的前台运行标志，见下方 ADR-055 的委派说明。
 

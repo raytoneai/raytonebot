@@ -645,15 +645,35 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       return child ? controller.resolveUserInput(child.childId, child.id, answers) : false;
     },
     deleteConversation(id) {
-      if (active.has(id) || delegation.hasActive(id)) throw new Error("A run is already active in this conversation. Stop it before deleting the conversation.");
-      const group = groupOf(id);
-      const delegated = group ? controller.listConversations().filter(conversation => conversation.id.startsWith(delegationConversationPrefix(id))) : [];
-      controller.deleteConversation(id);
-      // The members' hidden conversations belong to the group and go with it.
-      if (group) for (const member of (group.group?.participants ?? DEFAULT_PARTICIPANTS).map(bot => bot.id)) {
-        if (deps.store.get(childConversationId(id, member))) controller.deleteConversation(childConversationId(id, member));
+      if (active.has(id) || delegation.hasActive(id) || resets.has(id)) {
+        throw new ConversationRequestError("A run or session operation is already active in this conversation. Stop it before deleting the conversation.", 409);
       }
-      for (const conversation of delegated) controller.deleteConversation(conversation.id);
+      const group = groupOf(id);
+      const owned = new Set<string>();
+      if (group) {
+        for (const conversation of deps.store.list()) {
+          if (conversation.id.startsWith(`${id}${CHILD}`) || conversation.id.startsWith(delegationConversationPrefix(id))) owned.add(conversation.id);
+        }
+        // A member may be configuring its first turn before runPrompt creates its record;
+        // metadata still identifies the child that belongs to this group.
+        for (const member of new Set([
+          ...(group.group?.members ?? []),
+          ...(group.group?.participants ?? []).map(participant => participant.id),
+        ])) owned.add(childConversationId(id, member));
+        for (const task of group.group?.tasks ?? []) {
+          if (task.conversationId?.startsWith(delegationConversationPrefix(id))) owned.add(task.conversationId);
+        }
+      }
+      const ids = [id, ...owned].filter((conversationId, index, all) => all.indexOf(conversationId) === index);
+      // Every check happens before the first remove, so a busy child cannot leave a
+      // half-deleted group. The core controller owns run/reset/configuration state for each id.
+      for (const conversationId of ids) {
+        if (resets.has(conversationId)) {
+          throw new ConversationRequestError("A run or session operation is already active in this conversation. Stop it before deleting the conversation.", 409);
+        }
+        controller.preflightDeleteConversation(conversationId);
+      }
+      for (const conversationId of ids) controller.deleteConversation(conversationId);
     },
     async newSession(conversationId) {
       if (conversationId && (active.has(conversationId) || delegation.hasActive(conversationId))) {
