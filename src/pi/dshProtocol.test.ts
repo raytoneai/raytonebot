@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDshProtocol, normalizeDshTool } from "./dshProtocol.ts";
-import { dshPatch, isolatedDshHome } from "./dshHarness.ts";
+import { dshPatch, isolatedDshHome, runDsh } from "./dshHarness.ts";
 import { BotConfigStore } from "./botConfig.ts";
 import { DEFAULT_NEW_BOT } from "../runtime/botAppearance.ts";
 
@@ -23,6 +23,31 @@ function fixture(overrides: Partial<Parameters<typeof createDshProtocol>[0]> = {
   return { protocol, push, update, permission, sent, events, permissions, abort };
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
+
+test("isolated DSH requires explicit deployment opt-in", async () => {
+  const previous = { sandbox: process.env.RAYTONEBOT_SANDBOX, optIn: process.env.RAYTONEBOT_DSH_ISOLATED,
+    binary: process.env.RAYTONEBOT_DSH_BIN };
+  try {
+    process.env.RAYTONEBOT_SANDBOX = "1";
+    process.env.RAYTONEBOT_DSH_BIN = "/nonexistent/raytone-dsh-test";
+    const options = { signal: new AbortController().signal } as Parameters<typeof runDsh>[0];
+    for (const value of [undefined, "0", "true"]) {
+      if (value === undefined) delete process.env.RAYTONEBOT_DSH_ISOLATED;
+      else process.env.RAYTONEBOT_DSH_ISOLATED = value;
+      await assert.rejects(runDsh(options), /RAYTONEBOT_DSH_ISOLATED=1/);
+    }
+    process.env.RAYTONEBOT_DSH_ISOLATED = "1";
+    await assert.rejects(runDsh(options), /DeepSeek Harness is not installed/);
+    delete process.env.RAYTONEBOT_SANDBOX;
+    delete process.env.RAYTONEBOT_DSH_ISOLATED;
+    await assert.rejects(runDsh(options), /DeepSeek Harness is not installed/);
+  } finally {
+    for (const [key, value] of Object.entries({ RAYTONEBOT_SANDBOX: previous.sandbox,
+      RAYTONEBOT_DSH_ISOLATED: previous.optIn, RAYTONEBOT_DSH_BIN: previous.binary })) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
 
 test("DSH accepts compaction notifications only for its active native session, including close flush", () => {
   const f = fixture();

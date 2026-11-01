@@ -292,6 +292,10 @@ def main() -> None:
         "RAYTONEBOT_BROWSER_PATH": shell,
         "RAYTONEBOT_BROWSER_HEADED": "1" if headed_browser else "0",
     }
+    # DSH isolation is opt-in; keep an explicit existing setting across redeploys.
+    dsh_isolated = os.environ.get("RAYTONEBOT_DSH_ISOLATED", previous.get("RAYTONEBOT_DSH_ISOLATED"))
+    if dsh_isolated in ("0", "1"):
+        env["RAYTONEBOT_DSH_ISOLATED"] = dsh_isolated
     # Entering from the welcome page (ADR-041): the control service keeps this bot's handoff secret
     # in the same state directory; without it the bot keeps Basic Auth only.
     handoff_secret = access.get("handoffSecret")

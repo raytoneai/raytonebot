@@ -257,7 +257,7 @@ test("artifactTools rejects a controlled read-time content mutation", async t =>
     let mutated = false;
     t.mock.method(prototype, "read", async function(this: typeof probe, ...args: Parameters<typeof originalRead>) {
       const result = await originalRead.apply(this, args);
-      if (!mutated) { mutated = true; writeFileSync(file, "after!"); }
+      if (!mutated) { mutated = true; writeFileSync(file, "after mutation"); }
       return result;
     });
     await probe.close();

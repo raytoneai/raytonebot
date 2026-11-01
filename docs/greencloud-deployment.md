@@ -4,9 +4,9 @@
 
 ## 入口与边界
 
-`https://raytonebot.flamington2k.workers.dev/` → Cloudflare Access 邮箱一次性验证码 → Worker → Workers VPC Service → Cloudflare Tunnel → VPS 的 `127.0.0.1:5188`。Access 按账户邮箱限制；Worker 核对 Access 身份后，以单独的内部密码访问原有 Basic Auth 入口，并重写受信任的代理 Host。只有通过身份验证的首页顶层 GET 导航可消除 Cloudflare 登录跳转带来的跨站导航标记；接口的 Origin / Fetch-Site 检查保留。Worker 禁用预览 URL。
+`https://BOT_HOSTNAME/` → Cloudflare Access 邮箱一次性验证码 → Worker → Workers VPC Service → Cloudflare Tunnel → VPS 的 `127.0.0.1:5188`。Access 按账户邮箱限制；Worker 核对 Access 身份后，以单独的内部密码访问原有 Basic Auth 入口，并重写受信任的代理 Host。只有通过身份验证的首页顶层 GET 导航可消除 Cloudflare 登录跳转带来的跨站导航标记；接口的 Origin / Fetch-Site 检查保留。Worker 禁用预览 URL。
 
-Worker 的 `ORIGIN_PASSWORD` 是 Cloudflare secret；相同密码保存在 VPS 的 `/home/user/.raytonebot/env`，不要写入仓库或终端记录。Tunnel 使用 `/etc/raytonebot-cloudflared/token`，root 所有、0600。Worker VPC 测试期内免费，正式价格可能改变；Cloudflare 是入口的信任与可用性依赖。
+更新 Worker 前，在 Cloudflare 配置 `PUBLIC_ORIGIN=https://BOT_HOSTNAME`、`ACCESS_AUD` 和 `ACCESS_EMAIL`；缺失或无效时 Worker 返回 403。`ORIGIN_PASSWORD` 是 Cloudflare secret；相同密码保存在 VPS 的 `/home/user/.raytonebot/env`，不要写入仓库或终端记录。Tunnel 使用 `/etc/raytonebot-cloudflared/token`，root 所有、0600。Worker VPC 测试期内免费，正式价格可能改变；Cloudflare 是入口的信任与可用性依赖。
 
 应用以 `user` 运行，执行工具和浏览器分别使用 `raytone-agent` 和 `raytone-browser`。`raytonebot-isolation.service` 启动前执行仓库中的 `setup_isolation.py`，配置文件权限、双栈 nft 和系统 DNS broker ACL；`raytonebot.service` 依赖此服务并运行 supervisor。Tunnel 由 `raytonebot-cloudflared.service` 运行。应用目录 `/home/user/raytonebot` 是 root 所有，工作区 `/home/user/workspace` 与数据目录 `/home/user/.raytonebot/data` 独立。
 
@@ -22,14 +22,16 @@ Worker 的 `ORIGIN_PASSWORD` 是 Cloudflare secret；相同密码保存在 VPS �
 
 使用已有 SSH 密钥连接后，可检查 `systemctl status raytonebot raytonebot-isolation raytonebot-cloudflared`、`ss -lnt` 和 `journalctl -u raytonebot`。**现有 VPS** 的更新脚本为 `scripts/vps/apply_release.py`；它要求现有的三个 systemd 服务、Node、Claude、Codex、fd、rg、nft、ACL 和与项目匹配的 Playwright Chromium 已就绪。它不是全新 VM 的自动安装器，也不创建 Cloudflare 资源。
 
-从仓库构建后，在本机生成并上传受限发布包及更新脚本（替换 SSH 密钥与地址；不要发送或粘贴 env 内容）：
+若要在隔离环境继续使用 DSH，部署本次开关变更前须由可信运维在 `/home/user/.raytonebot/env` 设置 `RAYTONEBOT_DSH_ISOLATED=1`；该开关不替代 UID、网络和文件隔离验证。更新脚本保留既有 env，不会自行启用 DSH。本次仅调整仓库，未改动线上配置。
+
+从仓库构建后，在本机生成并上传受限发布包及更新脚本（先在本机设置 `VPS_SSH_KEY` 和 `VPS_IP`；不要发送或粘贴 env 内容）：
 
 ```bash
 npm run build
 umask 077
 python3 -c 'import sys; sys.path.insert(0, "scripts/agentsphere"); import deploy; sys.stdout.buffer.write(deploy.package())' > /tmp/raytonebot-vps-release.tgz
-scp -i ~/.ssh/raytonebot_greencloud /tmp/raytonebot-vps-release.tgz scripts/vps/apply_release.py root@VPS_IP:/root/
-ssh -i ~/.ssh/raytonebot_greencloud root@VPS_IP 'python3 -I /root/apply_release.py /root/raytonebot-vps-release.tgz'
+scp -i "$VPS_SSH_KEY" /tmp/raytonebot-vps-release.tgz scripts/vps/apply_release.py "root@$VPS_IP:/root/"
+ssh -i "$VPS_SSH_KEY" "root@$VPS_IP" 'python3 -I /root/apply_release.py /root/raytonebot-vps-release.tgz'
 ```
 
 发布包只包含 Git 已跟踪源码及 `dist/`，并排除常见私钥和环境文件；新文件必须先 `git add` 才会进入包。跟踪中的文件和前端构建产物仍需由发布者检查是否包含硬编码密钥，过滤规则不是秘密扫描器。`npm run am:deploy` 使用相同的跟踪文件原则；`--clean` 只从 HEAD 构建。

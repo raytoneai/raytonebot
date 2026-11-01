@@ -4,7 +4,7 @@
 
 点击 Logo → 创建 Bot → 引擎选择 **DeepSeek Harness**。名字/头像由已有 Bot 配置保存；不会自动新增第四个内置 Bot。使用设置里的 DeepSeek 模型服务（或明确配置的 Anthropic 兼容服务），不读取 DSH 桌面客户端登录，不改变其他 Bot 的模型。
 
-安装 `npm install -g @deepseek-ai/dsh@0.2.1-rc.2`，用 `dsh --version` 核对；非 PATH 安装可通过 `RAYTONEBOT_DSH_BIN` 指定实际入口。 Linux 隔离部署应由可信部署层安装到 Agent 可读但不可写的路径，并将该入口加入服务 PATH 或通过主机私有环境设置变量；安装 Bot 本身不会安装引擎。新入口、审批、思考/文本、工具、产物、停止和历史沿现有界面。本机会话保存在数据目录 `dsh/<conversationId>/sessions/`，Linux 隔离会话保存在 Agent HOME 的 `.raytone-dsh/`；换进程后续接原 id，丢失则报错。
+安装 `npm install -g @deepseek-ai/dsh@0.2.1-rc.2`，用 `dsh --version` 核对；非 PATH 安装可通过 `RAYTONEBOT_DSH_BIN` 指定实际入口。Linux 隔离部署应由可信部署层安装到 Agent 可读但不可写的路径，并将该入口加入服务 PATH 或通过主机私有环境设置变量；验证隔离契约后还需显式设置 `RAYTONEBOT_DSH_ISOLATED=1`，未设置时隔离模式拒绝启动 DSH。本机模式不需要该开关；安装 Bot 本身不会安装引擎。新入口、审批、思考/文本、工具、产物、停止和历史沿现有界面。本机会话保存在数据目录 `dsh/<conversationId>/sessions/`，Linux 隔离会话保存在 Agent HOME 的 `.raytone-dsh/`；换进程后续接原 id，丢失则报错。
 
 所有 native/host 工具都先经过 RaytoneBot 的审批规则，拒绝不执行；停止先通知 DSH 取消，让长命令及子进程收尾。个人 `~/.dsh` 列为凭据私有路径。首版文本在模型提交后显示；暂不开放原生历史分支、PTC、自主子 Agent 和后台任务。Linux 隔离运行要求部署满足 [运行契约](02-architecture.md#平台与运行时的边界) 并安装固定版本，实际部署状态按各平台验收；Docker 尚未验证。细节见 ADR-050 与 [本地验收记录](../review-evidence/2026-10-19-dsh/README.md)。
 

@@ -6,7 +6,7 @@ import { createRequire } from "node:module";
 import { basename, join } from "node:path";
 import { fileURLToPath } from "node:url";
 import { runCliProcess, type CliRunBase, type ClaudePermissionRequest } from "./cliHarness.ts";
-import { dshInstallation } from "./cliHarnessConfig.ts";
+import { dshInstallation, requireDshIsolationOptIn } from "./cliHarnessConfig.ts";
 export { dshInstallation, DSH_VERSION } from "./cliHarnessConfig.ts";
 import { createDshProtocol } from "./dshProtocol.ts";
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
@@ -59,6 +59,7 @@ export function dshPatch(options: Pick<DshRunOptions, "cwd" | "home" | "provider
 export async function runDsh(options: DshRunOptions): Promise<void> {
   if (options.signal.aborted) return;
   const isolated = agentIsolationEnabled();
+  requireDshIsolationOptIn();
   const anchor = dshInstallation();
   const questions = options.onUserInput ? userInputTool(options.onUserInput) : undefined;
   const specs: HostToolSpec[] = [...options.webTools ? WEB_TOOL_SPECS : [], ...options.mcpTools?.specs ?? [], ...options.hostTools?.specs ?? [],

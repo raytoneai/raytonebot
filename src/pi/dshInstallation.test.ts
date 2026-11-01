@@ -12,7 +12,7 @@ test("DSH status and launcher require the same pinned installation", () => {
   const binary = join(dir, "lib", "bin.js");
   mkdirSync(join(dir, "lib"));
   writeFileSync(binary, "#!/bin/sh\necho 0.2.1-rc.5\n", { mode: 0o755 });
-  const env = { ...process.env, RAYTONEBOT_DSH_BIN: binary };
+  const env = { ...process.env, RAYTONEBOT_DSH_BIN: binary, RAYTONEBOT_SANDBOX: "0", RAYTONEBOT_DSH_ISOLATED: "0" };
   const status = () => JSON.parse(execFileSync(process.execPath, ["--input-type=module", "-e",
     'import {detectCliHarnesses} from "./src/pi/cliHarness.ts"; console.log(JSON.stringify((await detectCliHarnesses()).find(x => x.id === "dsh")))'], { env, encoding: "utf8" }));
   try {
@@ -21,6 +21,11 @@ test("DSH status and launcher require the same pinned installation", () => {
     assert.equal(status().available, false);
     writeFileSync(pkg, JSON.stringify({ name: "@deepseek-ai/dsh", version: DSH_VERSION }));
     assert.equal(dshInstallation(env), realpathSync(pkg));
+    assert.equal(status().available, true);
+    env.RAYTONEBOT_SANDBOX = "1";
+    assert.equal(status().available, false);
+    assert.match(status().error, /RAYTONEBOT_DSH_ISOLATED=1/);
+    env.RAYTONEBOT_DSH_ISOLATED = "1";
     assert.equal(status().available, true);
   } finally { rmSync(dir, { recursive: true, force: true }); }
 });

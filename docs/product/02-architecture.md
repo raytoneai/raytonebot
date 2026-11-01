@@ -43,7 +43,7 @@
 ### 平台与运行时的边界
 
 - 产品与引擎层只使用统一的 Bot、事件、审批、模型租约及原生会话接口，不按云厂商分叉。
-- Linux 隔离运行层复用 `runtime/agentProcess.ts`：以 `raytone-agent`、`no-new-privs` 启动，模型经主机网关租约，配置和工具桥由宿主管理；启动前验证部署标记及隔离条件。DSH 依赖固定版本 CLI 对宿主和 Agent 可读取，安装状态和启动使用同一版本检查。
+- Linux 隔离运行层复用 `runtime/agentProcess.ts`：以 `raytone-agent`、`no-new-privs` 启动，模型经主机网关租约，配置和工具桥由宿主管理；启动前验证部署标记及隔离条件。DSH 还要求可信部署层显式设置 `RAYTONEBOT_DSH_ISOLATED=1`，固定版本 CLI 对宿主和 Agent 可读取，安装状态和启动使用同一版本检查。
 - 部署层分别负责安装可执行程序、准备工作区与持久化目录、用户/组、文件权限、IPv4/IPv6 出站约束、隔离标记和备份恢复。AgentSphere microVM 与普通 Linux VM 可以实现同一运行契约，具体发布及验收各自独立；AgentMatrix 不自动继承隔离保证。
 - Docker 尚未实现或验证；未来接入必须先提供等价的身份、文件、网络、密钥、会话持久化与停止能力，并验证其自身隔离边界，不能仅设置环境变量冒充已配置隔离。
 

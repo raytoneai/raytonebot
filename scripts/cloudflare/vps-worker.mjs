@@ -1,8 +1,19 @@
 // Cloudflare Access authenticates the user; the private origin still requires its own password.
 export default {
   async fetch(request, env, ctx) {
-    const origin = 'https://raytonebot.flamington2k.workers.dev';
-    if (new URL(request.url).origin !== origin || !ctx.access || ctx.access.aud !== env.ACCESS_AUD) {
+    let origin;
+    try {
+      const configured = env.PUBLIC_ORIGIN;
+      if (typeof configured !== 'string' || !/^https:\/\/[^/?#\\\s]+\/?$/.test(configured)) throw new Error('Invalid origin');
+      const parsed = new URL(configured);
+      if (parsed.protocol !== 'https:' || parsed.username || parsed.password || parsed.pathname !== '/' || parsed.search || parsed.hash) throw new Error('Invalid origin');
+      origin = parsed.origin;
+    } catch {
+      return new Response('Forbidden', { status: 403 });
+    }
+    if (typeof env.ACCESS_AUD !== 'string' || !env.ACCESS_AUD.trim() ||
+        typeof env.ACCESS_EMAIL !== 'string' || !env.ACCESS_EMAIL.trim() ||
+        new URL(request.url).origin !== origin || !ctx.access || ctx.access.aud !== env.ACCESS_AUD) {
       return new Response('Forbidden', { status: 403 });
     }
     const identity = await ctx.access.getIdentity();

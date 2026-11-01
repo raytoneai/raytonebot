@@ -165,6 +165,12 @@ export function buildCodexArgs(options: Pick<CodexRunOptions, "cwd" | "resumeId"
 
 export const DSH_VERSION = "0.2.1-rc.2";
 
+export function requireDshIsolationOptIn(env: NodeJS.ProcessEnv = process.env): void {
+  if (env.RAYTONEBOT_SANDBOX === "1" && env.RAYTONEBOT_DSH_ISOLATED !== "1") {
+    throw new Error("Isolated DeepSeek Harness requires an explicitly validated deployment; set RAYTONEBOT_DSH_ISOLATED=1 to enable it.");
+  }
+}
+
 /** Resolve the pinned installation used by the launcher and the status probe. */
 export function dshInstallation(env: NodeJS.ProcessEnv = process.env): string {
   const command = cliCommand("dsh", env);

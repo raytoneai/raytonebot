@@ -145,7 +145,7 @@ class BrowserModeTest(unittest.TestCase):
                     commands.append(command)
                     stdout = ""
                     if command.startswith("if [ -e"):
-                        stdout = "RAYTONEBOT_BROWSER_HEADED=1\nDEEPSEEK_API_KEY=model-secret\n"
+                        stdout = "RAYTONEBOT_BROWSER_HEADED=1\nRAYTONEBOT_DSH_ISOLATED=1\nDEEPSEEK_API_KEY=model-secret\n"
                     elif command == "fd --help":
                         stdout = "--no-require-git"
                     elif command.startswith("node -p"):
@@ -178,6 +178,7 @@ class BrowserModeTest(unittest.TestCase):
                 self.assertTrue(any("backup_data.py stop" in command for command in commands))
                 env = writes[f"{deploy.CONFIG_DIR}/env"]
                 self.assertIn(f"RAYTONEBOT_BROWSER_HEADED={'1' if expected == 'headed' else '0'}\n", env)
+                self.assertIn("RAYTONEBOT_DSH_ISOLATED=1\n", env)
                 self.assertIn("DEEPSEEK_API_KEY=model-secret", env)
                 self.assertNotIn("team-secret", env)
                 self.assertNotIn("model-secret", output.getvalue())
