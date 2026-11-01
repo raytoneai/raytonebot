@@ -140,6 +140,9 @@ const scheduledOccurrenceId = (at: number) => `at-${new Date(at).toISOString().s
 const CLOCK_INTERVAL = 30_000;
 /** Minutes a late step still covers; anything older counts as slept through. */
 const CLOCK_LOOKBACK = 3;
+const SYNTHETIC_RESTART_TERMINAL = "pi_cancel_run_finished";
+
+type PendingStart = { accepted: boolean; cancelled: boolean; abort: AbortController };
 
 export function createRoutineService(options: {
   dataDir?: string;
@@ -151,8 +154,8 @@ export function createRoutineService(options: {
 }) {
   const store = new RoutineStore(options.dataDir ? join(options.dataDir, "routines.json") : undefined);
   const now = options.now ?? (() => new Date());
-  /** Includes accepted runs, even if recording their current state fails. */
-  const starting = new Set<string>();
+  /** Includes accepted runs, even if recording their current state fails. Pending starts are revocable. */
+  const starting = new Map<string, PendingStart>();
   const nextRuns = new Map<string, { schedule: string; timezone: string; checkedAt: number; at?: number }>();
   const viewOf = (routine: Routine): RoutineView => {
     const view = routineView(routine);
@@ -188,15 +191,57 @@ export function createRoutineService(options: {
     }
   };
 
-  const finish = (id: string, occurrenceId: string, status: RoutineRunStatus, error?: string) => {
+  const cancelPendingStart = (id: string) => {
+    const pending = starting.get(id);
+    if (!pending || pending.accepted) return false;
+    pending.cancelled = true;
+    starting.delete(id);
+    pending.abort.abort(new Error("Routine run was cancelled before it started."));
+    return true;
+  };
+
+  const finish = (id: string, occurrenceId: string, status: RoutineRunStatus, error?: string, finishedAt = now().getTime()) => {
     const routine = store.get(id);
     if (!routine || routine.lastRun?.occurrenceId !== occurrenceId) return; // Deleted, or a newer run.
     const failures = status === "error" ? routine.failures + 1 : status === "success" ? 0 : routine.failures;
     // "Auth fails twice means pause that clock and tell me": repeated failures switch it off.
     const stop = status === "error" && failures >= ROUTINE_FAILURE_LIMIT && routine.enabled;
-    if (!record({ ...withRun(routine, { ...routine.lastRun, status, finishedAt: now().getTime(), ...(error ? { error } : {}) }), failures,
+    if (!record({ ...withRun(routine, { ...routine.lastRun, status, finishedAt, ...(error ? { error } : {}) }), failures,
       ...(stop ? { enabled: false, disabledReason: error ?? "Failed twice in a row." } : {}) })) return;
     options.log?.("routine.finished", { routineId: id, status, ...(stop ? { disabled: true } : {}) });
+  };
+
+  /** Recover only the latest unresolved routine run from an exact, durable conversation terminal. */
+  const recoverPending = () => {
+    if (store.error) return;
+    for (const routine of store.list()) {
+      const lastRun = routine.lastRun;
+      if (!lastRun || (lastRun.status !== "running" && lastRun.status !== "interrupted") || !lastRun.runId) continue;
+      const pending = starting.get(routine.id);
+      if (pending?.accepted) continue;
+      let conversation: ReturnType<PiRuntimeController["getConversation"]>;
+      try { conversation = options.runtime.getConversation(routine.conversationId); }
+      catch { continue; }
+      if (!conversation || conversation.activeRunId) continue;
+      let terminal: AgentUXEvent | undefined;
+      for (let index = conversation.events.length - 1; index >= 0; index -= 1) {
+        const event = conversation.events[index];
+        if (event.runId !== lastRun.runId || (event.type !== "run.finished" && event.type !== "run.error")) continue;
+        if (event.id === SYNTHETIC_RESTART_TERMINAL) continue;
+        terminal = event;
+        break;
+      }
+      if (!terminal) continue;
+      const terminalStatus = terminal.type === "run.error"
+        ? "error"
+        : (terminal.payload as { status?: unknown }).status;
+      if (terminalStatus !== "success" && terminalStatus !== "cancelled" && terminalStatus !== "error") continue;
+      const terminalError = terminal.type === "run.error"
+        ? String((terminal.payload as { message?: unknown }).message ?? "").trim() || undefined
+        : undefined;
+      const terminalAt = typeof terminal.ts === "number" && Number.isFinite(terminal.ts) ? terminal.ts : undefined;
+      finish(routine.id, lastRun.occurrenceId, terminalStatus, terminalError, terminalAt);
+    }
   };
 
   /** A run that failed before it started (configuration, storage) still counts as a failure. */
@@ -207,7 +252,7 @@ export function createRoutineService(options: {
   };
 
   const service = {
-    list: () => store.list().map(viewOf),
+    list: () => { recoverPending(); return store.list().map(viewOf); },
 
     create(input: RoutineCreateInput): RoutineView {
       const { title, instructions, schedule, timezone } = definition(input);
@@ -227,6 +272,7 @@ export function createRoutineService(options: {
     },
 
     update(id: string, patch: { enabled?: unknown; revision?: unknown; title?: unknown; instructions?: unknown; schedule?: unknown; timezone?: unknown }): RoutineView {
+      recoverPending();
       const routine = required(id);
       if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new RoutineError("A routine update is required.", 400);
       const editing = ["title", "instructions", "schedule", "timezone"].some(key => key in patch);
@@ -237,14 +283,16 @@ export function createRoutineService(options: {
         ? { ...routine, enabled: true, failures: 0, disabledReason: undefined }
         : patch.enabled === false ? { ...routine, enabled: false } : routine;
       if (editing) next = { ...next, ...definition(patch), revision: (routine.revision ?? 0) + 1 };
-      if (editing || next.enabled !== routine.enabled) next.nextScheduledAt = next.enabled
-        ? nextCronOccurrence(next.schedule, next.timezone, Math.floor(now().getTime() / MINUTE) * MINUTE - 1) : undefined;
+      if (next.schedule !== routine.schedule || next.timezone !== routine.timezone || next.enabled !== routine.enabled) next.nextScheduledAt = next.enabled
+        ? nextCronOccurrence(next.schedule, next.timezone, now().getTime()) : undefined;
       store.put(next);
+      if (patch.enabled === false) cancelPendingStart(id);
       return viewOf(next);
     },
 
     remove(id: string) {
       if (!store.remove(id)) throw new RoutineError("Routine not found.", 404);
+      cancelPendingStart(id);
       nextRuns.delete(id);
     },
 
@@ -255,6 +303,7 @@ export function createRoutineService(options: {
      * saved turns. Busy or full is a refusal, never a queue, and never counts as a failure.
      */
     async run(id: string, occurrenceId: unknown): Promise<{ runId: string; conversationId: string }> {
+      recoverPending();
       if (typeof occurrenceId !== "string" || !OCCURRENCE.test(occurrenceId)) {
         throw new RoutineError("occurrenceId must be 1-80 letters, digits, dots, dashes or underscores.", 400);
       }
@@ -268,17 +317,26 @@ export function createRoutineService(options: {
         throw new RoutineError("This occurrence has already run.", 409);
       }
       if (starting.has(id)) throw new RoutineError("This routine is already running.", 409);
-      starting.add(id);
+      const pendingStart: PendingStart = { accepted: false, cancelled: false, abort: new AbortController() };
+      starting.set(id, pendingStart);
       let accepted = false;
+      const currentStart = () => starting.get(id) === pendingStart && !pendingStart.cancelled;
+      const clearStart = () => { if (starting.get(id) === pendingStart) starting.delete(id); };
       try {
         const botId = routine.botId ?? "assistant";
         const bot = options.bots?.require(botId);
         await options.runtime.configure({ conversationId: routine.conversationId, credentialSource: "host", providerDefinition: model.definition,
           provider: model.definition.id, model: model.model });
+        if (!currentStart() || !store.get(id)?.enabled) {
+          pendingStart.cancelled = true;
+          throw new Error("Routine run was cancelled before it started.");
+        }
         let status: RoutineRunStatus = "error", error: string | undefined;
         await new Promise<void>((resolve, reject) => {
           const onEvent = (event: AgentUXEvent) => {
             if (!accepted) {
+              if (!currentStart()) return;
+              pendingStart.accepted = true;
               accepted = true;
               const current = store.get(id);
               // On a failed disk the conversation's saved turn still guards this occurrence; the run goes on.
@@ -301,10 +359,10 @@ export function createRoutineService(options: {
           options.runtime.runPrompt({ conversationId: routine.conversationId, requestId: runId, botId, agentPreset: bot?.presetId ?? "assistant",
             prompt: routinePrompt(routine, occurrenceId, now()), permissionMode: options.permissionMode,
             provider: model.definition.id, model: model.model,
-            ...(routine.locale ? { locale: routine.locale } : {}) }, onEvent, { title: routine.title }).then(
-            () => { starting.delete(id); if (accepted) finish(id, occurrenceId, status, error); else reject(new Error("The run ended before it started.")); },
+            ...(routine.locale ? { locale: routine.locale } : {}) }, onEvent, { title: routine.title, signal: pendingStart.abort.signal }).then(
+            () => { clearStart(); if (accepted) finish(id, occurrenceId, status, error); else reject(new Error("The run ended before it started.")); },
             (failure: unknown) => {
-              starting.delete(id);
+              clearStart();
               if (accepted) finish(id, occurrenceId, "error", failure instanceof Error ? failure.message : String(failure));
               else reject(failure);
             });
@@ -313,11 +371,15 @@ export function createRoutineService(options: {
         return { runId, conversationId: routine.conversationId };
       } catch (failure) {
         const message = failure instanceof Error ? failure.message : String(failure);
+        if (pendingStart.cancelled) {
+          clearStart();
+          throw new RoutineError("Routine run was cancelled before it started.", 409);
+        }
         if (BUSY.test(message)) throw new RoutineError(message, 409);
         failedToStart(id, occurrenceId, message);
         throw new RoutineError(message, 500);
       } finally {
-        if (!accepted) starting.delete(id);
+        if (!accepted) clearStart();
       }
     },
   };
@@ -333,12 +395,18 @@ export function createRoutineService(options: {
    */
   const tick = async () => {
     if (store.error) return; // Settings reports the error; a broken clock must not stop ordinary chat.
+    recoverPending();
     const current = Math.floor(now().getTime() / MINUTE);
+    // A corrected wall clock must not freeze newly enabled schedules at the old high-water mark.
+    if (current < checked) checked = current - 1;
     const from = Math.max(checked + 1, current - CLOCK_LOOKBACK + 1);
-    checked = Math.max(checked, current);
+    checked = current;
+    // Capture the prior due time before advancing it: disabled time and a new schedule are not backlog.
+    const eligibleFrom = new Map<string, number>();
     for (const routine of store.list()) {
       if (!routine.enabled) continue;
       const due = routine.nextScheduledAt;
+      if (due !== undefined) eligibleFrom.set(routine.id, due);
       if (due === undefined || due <= current * MINUTE) {
         let missed = due;
         // External schedulers share occurrence identities with this clock. Accepted work is
@@ -365,7 +433,8 @@ export function createRoutineService(options: {
     for (let minute = from; minute <= current; minute += 1) {
       const at = new Date(minute * MINUTE);
       for (const routine of store.list()) {
-        if (!routine.enabled || !cronMatches(routine.schedule, routine.timezone, at)) continue;
+        const eligible = eligibleFrom.get(routine.id);
+        if (!routine.enabled || eligible === undefined || at.getTime() < eligible || !cronMatches(routine.schedule, routine.timezone, at)) continue;
         const occurrenceId = scheduledOccurrenceId(at.getTime());
         runs.push(service.run(routine.id, occurrenceId).catch((failure: unknown) => {
           const message = failure instanceof Error ? failure.message : String(failure);
@@ -381,6 +450,7 @@ export function createRoutineService(options: {
     await Promise.all(runs);
   };
 
+  recoverPending();
   return {
     ...service,
     tick,

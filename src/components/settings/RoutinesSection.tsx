@@ -75,6 +75,9 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
   const date = (at: number) => new Date(at).toLocaleString(locale, { timeZone: routine.timezone, month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" });
   const running = last?.status === "running";
   const history = routine.history ?? (last ? [last] : []);
+  // A pre-start failure is recorded in routine history without creating a conversation. Keep the
+  // existing conversation action usable when any earlier accepted run has a real message anchor.
+  const hasConversation = history.some(run => Boolean(run.runId || run.textId));
   const fields = (draft?.schedule ?? routine.schedule).trim().split(/\s+/);
   const simple = /^\d+$/.test(fields[0]) && /^\d+$/.test(fields[1]) && fields[2] === "*" && fields[3] === "*";
   const frequency = customSchedule || !simple ? "custom" : fields[4] === "*" ? "daily" : fields[4] === "1-5" ? "weekdays" : /^[0-7]$/.test(fields[4]) ? "weekly" : "custom";
@@ -149,7 +152,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
             <Button size="sm" disabled={busy || Boolean(draft) || !routine.enabled || running} title={routine.enabled ? undefined : c.turnOnFirst}
               onClick={() => void state.runNow(routine.id)}>{c.runNow}</Button>
             {onOpenConversation ? (
-              <Button size="sm" variant="ghost" disabled={!last} onClick={() => onOpenConversation(routine.conversationId)}>{c.openConversation}</Button>
+              <Button size="sm" variant="ghost" disabled={!hasConversation} onClick={() => onOpenConversation(routine.conversationId)}>{c.openConversation}</Button>
             ) : null}
             <Button size="sm" variant="ghost" disabled={busy || Boolean(draft)} onBlur={() => setConfirming(false)}
               onClick={() => { if (confirming) void state.remove(routine.id); else setConfirming(true); }}>

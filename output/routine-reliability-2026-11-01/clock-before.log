@@ -1,0 +1,116 @@
+✖ an enabled legacy routine without nextScheduledAt establishes a baseline instead of replaying startup history (12.681875ms)
+✖ enabling after the clock already checked the minute does not manufacture an offline skip (1.32375ms)
+✖ editing after the clock checked a minute does not manufacture an offline skip (1.540292ms)
+✖ re-enabling does not backfill minutes that were entirely disabled (3.491084ms)
+✖ after a wall-clock rollback a new future occurrence runs, while an accepted occurrence is still deduplicated (2.227167ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 106.538334
+
+✖ failing tests:
+
+test at src/pi/routineClockBoundary.test.ts:54:1
+✖ an enabled legacy routine without nextScheduledAt establishes a baseline instead of replaying startup history (12.681875ms)
+  AssertionError [ERR_ASSERTION]: the first clock check must not infer a pre-start 10:00 occurrence
+  + actual - expected
+
+  + [
+  +   'routine_1fba2d0d_at-20261009T1000Z'
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/.codex/worktrees/research-optimizations/RaytoneBot/src/pi/routineClockBoundary.test.ts:72:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: [ 'routine_1fba2d0d_at-20261009T1000Z' ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/routineClockBoundary.test.ts:76:1
+✖ enabling after the clock already checked the minute does not manufacture an offline skip (1.32375ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + {
+  +   at: 1791536400000,
+  +   detectedAt: 1791536460000,
+  +   reason: 'offline'
+  + }
+  - undefined
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/.codex/worktrees/research-optimizations/RaytoneBot/src/pi/routineClockBoundary.test.ts:90:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { at: 1791536400000, detectedAt: 1791536460000, reason: 'offline' },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/routineClockBoundary.test.ts:95:1
+✖ editing after the clock checked a minute does not manufacture an offline skip (1.540292ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + {
+  +   at: 1791536400000,
+  +   detectedAt: 1791536460000,
+  +   reason: 'offline'
+  + }
+  - undefined
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/.codex/worktrees/research-optimizations/RaytoneBot/src/pi/routineClockBoundary.test.ts:110:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: { at: 1791536400000, detectedAt: 1791536460000, reason: 'offline' },
+    expected: undefined,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/routineClockBoundary.test.ts:115:1
+✖ re-enabling does not backfill minutes that were entirely disabled (3.491084ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  true !== false
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/.codex/worktrees/research-optimizations/RaytoneBot/src/pi/routineClockBoundary.test.ts:133:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/routineClockBoundary.test.ts:138:1
+✖ after a wall-clock rollback a new future occurrence runs, while an accepted occurrence is still deduplicated (2.227167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/.codex/worktrees/research-optimizations/RaytoneBot/src/pi/routineClockBoundary.test.ts:159:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

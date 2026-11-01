@@ -214,18 +214,15 @@ test("the host's clock runs an enabled routine once per matching minute and neve
   try {
     const routine = await createFromChat(api, bridge); // 0 9 * * 1-5, Asia/Shanghai
     let now = new Date("2026-10-09T00:58:30Z");
-    const logs: Record<string, unknown>[] = [];
     // A second service over the same store, with a clock the test moves.
-    const clock = () => createRoutineService({ dataDir, runtime: api.host.controller, permissionMode: "request", now: () => now,
-      log: (event, fields) => logs.push({ event, ...fields }) });
+    const clock = () => createRoutineService({ dataDir, runtime: api.host.controller, permissionMode: "request", now: () => now });
     let routines = clock();
     now = new Date("2026-10-09T01:00:10Z");
     await routines.tick();
     assert.equal(bridge.calls.length, 1, "switched off: the clock leaves it alone");
 
-    await api.call(`/routines/${routine.id}`, "POST", { enabled: true });
-    routines = clock();
     now = new Date("2026-10-09T00:59:40Z");
+    routines.update(routine.id, { enabled: true }); // Use the same controlled clock for activation.
     await routines.tick();
     assert.equal(bridge.calls.length, 1, "not yet 9:00");
     now = new Date("2026-10-09T01:01:20Z"); // A late step still covers 9:00.
@@ -240,7 +237,7 @@ test("the host's clock runs an enabled routine once per matching minute and neve
     routines = clock();
     await routines.tick();
     assert.equal(bridge.calls.length, 2);
-    assert.ok(logs.some((entry) => entry.event === "routine.clock_skipped" && /already/.test(String(entry.error))));
+    assert.equal(routines.list()[0].lastSkipped, undefined, "a completed occurrence is not a missed one");
 
     // Asleep over Monday 9:00, awake at 9:10: the missed run is skipped, not caught up.
     now = new Date("2026-10-12T01:10:00Z");
@@ -500,14 +497,88 @@ test("a failed disk while recording a finished run is logged and leaves the host
     await new Promise((resolve) => setTimeout(resolve, 50));
     assert.deepEqual(unhandled, []);
     assert.match(readFileSync(join(root, "logs", "runtime.jsonl"), "utf8"), /routine\.save_failed/);
+    assert.equal((await api.list())[0].lastRun?.status, "running", "failed recovery must not claim that the finish was saved");
     rmSync(join(dataDir, "routines.json.tmp"), { recursive: true });
     const [saved] = await api.list();
-    assert.equal(saved.lastRun?.status, "running", "the unsaved finish is not reported as saved");
+    assert.equal(saved.lastRun?.status, "success", "repair the receipt from the durable conversation once the disk recovers");
     assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: "disk" })).status, 409, "the accepted occurrence stays done");
   } finally {
     process.off("unhandledRejection", onUnhandled);
     await api.close();
     rmSync(root, { recursive: true, force: true });
+  }
+});
+
+test("routine restart recovers a saved terminal without replaying work or treating cancellation as failure", async () => {
+  for (const mode of ["finish", "cancel"] as const) {
+    const root = mkdtempSync(join(tmpdir(), "rtb-routine-recovery-"));
+    const dataDir = join(root, "data"), bridge = engine();
+    let api = await hostFor(dataDir, bridge);
+    try {
+      const routine = await createFromChat(api, bridge);
+      await api.call(`/routines/${routine.id}`, "POST", { enabled: true });
+      bridge.setMode("hold");
+      const occurrenceId = `recover-${mode}`;
+      assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId })).status, 202);
+      await until(() => bridge.calls.length === 2);
+      mkdirSync(join(dataDir, "routines.json.tmp"));
+      if (mode === "cancel") {
+        // Use the real cancellation path, distinct from a restart's synthetic interruption.
+        await api.host.controller.abort(routine.conversationId, `routine_${routine.id}_${occurrenceId}`);
+      } else bridge.release();
+      await until(() => !api.host.controller.listConversations().find(entry => entry.id === routine.conversationId)?.running);
+      assert.equal((await api.list())[0].lastRun?.status, "running");
+      await api.close();
+      rmSync(join(dataDir, "routines.json.tmp"), { recursive: true });
+      api = await hostFor(dataDir, bridge);
+      const expected = mode === "cancel" ? "cancelled" : "success";
+      const [restored] = await api.list();
+      assert.equal(restored.lastRun?.status, expected);
+      assert.equal(restored.history?.[0].status, expected);
+      assert.equal(restored.failures, 0);
+      assert.equal((await api.list())[0].failures, 0);
+      assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId })).status, 409);
+      assert.equal(bridge.calls.length, 2, "recovery must never call the engine again");
+      const disk = JSON.parse(readFileSync(join(dataDir, "routines.json"), "utf8")).routines[0];
+      assert.equal(disk.lastRun.status, expected);
+    } finally { await api.close(); rmSync(root, { recursive: true, force: true }); }
+  }
+});
+
+test("HTTP disable and deletion revoke a routine still preparing its model", async () => {
+  for (const action of ["disable", "delete", "disable-enable"] as const) {
+    const root = mkdtempSync(join(tmpdir(), "rtb-routine-start-revoke-"));
+    const dataDir = join(root, "data"), bridge = engine();
+    const api = await hostFor(dataDir, bridge);
+    let release!: () => void;
+    try {
+      const routine = await createFromChat(api, bridge);
+      await api.call(`/routines/${routine.id}`, "POST", { enabled: true });
+      const configure = api.host.controller.configure;
+      let entered!: () => void;
+      const preparing = new Promise<void>(resolve => { entered = resolve; });
+      const hold = new Promise<void>(resolve => { release = resolve; });
+      api.host.controller.configure = async input => {
+        if (input.conversationId === routine.conversationId) { entered(); await hold; }
+        return configure(input);
+      };
+      const start = api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: "revoked" });
+      await preparing;
+      const changed = await api.call(`/routines/${routine.id}`, action === "delete" ? "DELETE" : "POST",
+        action === "delete" ? undefined : { enabled: false });
+      assert.equal(changed.status, 200);
+      if (action === "disable-enable") assert.equal((await api.call(`/routines/${routine.id}`, "POST", { enabled: true })).status, 200);
+      release();
+      assert.equal((await start).status, 409);
+      assert.equal(bridge.calls.length, 1, "only the original chat ran; revoked work was never sent to the engine");
+      const routines = await api.list();
+      if (action === "delete") assert.equal(routines.length, 0);
+      else {
+        assert.equal(routines[0].lastRun, undefined);
+        assert.equal(routines[0].failures, 0);
+        assert.equal(routines[0].enabled, action === "disable-enable");
+      }
+    } finally { release?.(); await api.close(); rmSync(root, { recursive: true, force: true }); }
   }
 });
 

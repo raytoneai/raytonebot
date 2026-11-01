@@ -1,0 +1,52 @@
+✖ a failed disk while recording a finished run is logged and leaves the host running (174.836208ms)
+✖ routine restart recovers a saved terminal without replaying work or treating cancellation as failure (33.231167ms)
+ℹ tests 2
+ℹ suites 0
+ℹ pass 0
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3660.734333
+
+✖ failing tests:
+
+test at src/pi/routines.test.ts:468:1
+✖ a failed disk while recording a finished run is logged and leaves the host running (174.836208ms)
+  AssertionError [ERR_ASSERTION]: repair the receipt from the durable conversation once the disk recovers
+  + actual - expected
+
+  + 'running'
+  - 'success'
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/.codex/worktrees/research-optimizations/RaytoneBot/src/pi/routines.test.ts:493:12)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 'running',
+    expected: 'success',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/routines.test.ts:502:1
+✖ routine restart recovers a saved terminal without replaying work or treating cancellation as failure (33.231167ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + 'interrupted'
+  - 'success'
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/.codex/worktrees/research-optimizations/RaytoneBot/src/pi/routines.test.ts:526:14)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 'interrupted',
+    expected: 'success',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
