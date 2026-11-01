@@ -1,4 +1,6 @@
 import { homedir } from "node:os";
+import { existsSync, readFileSync, realpathSync } from "node:fs";
+import { delimiter, dirname, isAbsolute, join } from "node:path";
 
 import type { AgentHarnessId } from "./harnessCatalog.ts";
 import type { ClaudeRunOptions, CodexRunOptions } from "./cliHarness.ts";
@@ -159,4 +161,17 @@ export function buildCodexArgs(options: Pick<CodexRunOptions, "cwd" | "resumeId"
     );
   }
   return args;
+}
+
+export const DSH_VERSION = "0.2.1-rc.2";
+
+/** Resolve the pinned installation used by the launcher and the status probe. */
+export function dshInstallation(env: NodeJS.ProcessEnv = process.env): string {
+  const command = cliCommand("dsh", env);
+  const binary = isAbsolute(command) ? command : (env.PATH ?? "").split(delimiter).map(path => join(path, command)).find(path => existsSync(path));
+  if (!binary || !existsSync(binary)) throw new Error(`DeepSeek Harness is not installed. Install @deepseek-ai/dsh@${DSH_VERSION}.`);
+  const anchor = join(dirname(dirname(realpathSync(binary))), "package.json");
+  const pkg = JSON.parse(readFileSync(anchor, "utf8"));
+  if (pkg.name !== "@deepseek-ai/dsh" || pkg.version !== DSH_VERSION) throw new Error(`This adapter requires @deepseek-ai/dsh@${DSH_VERSION}; found ${String(pkg.version)}.`);
+  return anchor;
 }

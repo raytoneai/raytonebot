@@ -1,15 +1,20 @@
 // Runs the installed, pinned DSH against a deterministic local Messages endpoint.
 // No provider key or real model is used; files and DSH state stay in a temporary directory.
 import assert from "node:assert/strict";
-import { mkdtempSync, readFileSync, existsSync, rmSync } from "node:fs";
+import { mkdtempSync, readFileSync, existsSync, rmSync, chmodSync } from "node:fs";
+import { execFileSync } from "node:child_process";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { runDsh, dshInstallation } from "../src/pi/dshHarness.ts";
+import { runDsh, dshInstallation, isolatedDshHome } from "../src/pi/dshHarness.ts";
+import { createModelGateway } from "../src/pi/runtime/modelGateway.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "rtb-dsh-check-"));
+const isolated = process.env.RAYTONEBOT_SANDBOX === "1";
+if (isolated) chmodSync(dir, 0o2770);
+const home = join(dir, dir.split("/").at(-1));
 const events = [], requests = [];
-let step = 0, sessionId;
+let step = 0, sessionId, gateway, lease, afterCall;
 let nextCall = { type: 'tool_use', id: 'write-test', name: 'write', input: { file_path: join(dir, 'approved.txt'), content: 'approved exactly once' } };
 const server = createServer(async (req, res) => {
   const chunks = []; for await (const chunk of req) chunks.push(chunk);
@@ -17,7 +22,7 @@ const server = createServer(async (req, res) => {
   assert.equal(req.headers['x-api-key'], 'test-lease');
   assert.equal(body.model, 'deepseek-flash');
   assert.equal(body.dsh_session_log, undefined);
-  const call = nextCall; nextCall = undefined; step++;
+  const call = nextCall; nextCall = afterCall; afterCall = undefined; step++;
   res.writeHead(200, { 'content-type': 'text/event-stream' });
   const send = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({type,...data})}\n\n`);
   send('message_start', { message: { id: `msg-${step}`, type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, usage: {input_tokens:10,output_tokens:0} } });
@@ -30,8 +35,14 @@ const server = createServer(async (req, res) => {
 try {
   console.log(`DSH installation: ${dshInstallation()}`);
   await new Promise(resolve => server.listen(0,'127.0.0.1',resolve));
-  const options = {cwd:dir,home:join(dir,'native'),prompt:'Write the approved file, then reply.',systemPrompt:'Use tools when requested.',permissionMode:'request',signal:AbortSignal.timeout(90_000),
-    provider:{baseUrl:`http://127.0.0.1:${server.address().port}`,apiKey:'test-lease',model:'deepseek-flash'},
+  if (isolated) {
+    gateway = await createModelGateway({ port: Number(process.env.RAYTONEBOT_GATEWAY_PORT ?? 5190),
+      fetcher: (_url, init) => fetch(`http://127.0.0.1:${server.address().port}/v1/messages`, init) });
+    lease = gateway.issue({ baseUrl: "https://example.com", apiKey: "test-lease", model: "deepseek-flash", protocol: "anthropic" });
+    assert.notEqual(lease.apiKey, "test-lease");
+  }
+  const options = {cwd:dir,home,prompt:'Write the approved file, then reply.',systemPrompt:'Use tools when requested.',permissionMode:'request',signal:AbortSignal.timeout(90_000),
+    provider:{baseUrl:lease?.baseUrl ?? `http://127.0.0.1:${server.address().port}`,apiKey:lease?.apiKey ?? 'test-lease',model:'deepseek-flash'},
     emit:event=>events.push(event),onSessionId:id=>{sessionId=id;},
     onPermission:async request=>{request.startExecution();return true;}};
   await runDsh(options);
@@ -40,6 +51,14 @@ try {
   assert.ok(events.some(event=>event.type==='tool_execution_end'&&!event.isError));
   await runDsh({...options,resumeId:sessionId,prompt:'Continue the same conversation.',signal:AbortSignal.timeout(90_000)});
   assert.ok(requests.at(-1).messages.some(message=>JSON.stringify(message).includes('approved exactly once')),'native context survives process restart');
+  nextCall = {type:'tool_use',id:'read-before-rewrite',name:'read',input:{file_path:join(dir,'approved.txt')}};
+  afterCall = {type:'tool_use',id:'rewrite-test',name:'write',input:{file_path:join(dir,'approved.txt'),content:'updated file'}};
+  await runDsh({...options,resumeId:sessionId,signal:AbortSignal.timeout(90_000)});
+  assert.equal(readFileSync(join(dir,'approved.txt'),'utf8'),'updated file', 'rewritten file remains accessible to host');
+  nextCall = {type:'tool_use',id:'read-before-edit',name:'read',input:{file_path:join(dir,'approved.txt')}};
+  afterCall = {type:'tool_use',id:'edit-test',name:'edit',input:{file_path:join(dir,'approved.txt'),old_string:'updated',new_string:'edited'}};
+  await runDsh({...options,resumeId:sessionId,signal:AbortSignal.timeout(90_000)});
+  assert.equal(readFileSync(join(dir,'approved.txt'),'utf8'),'edited file', 'edited file remains accessible to host');
   nextCall = {type:'tool_use',id:'denied-write',name:'write',input:{file_path:join(dir,'denied.txt'),content:'must not exist'}};
   await runDsh({...options,resumeId:sessionId,onPermission:async request=>{request.startExecution();return 'Denied for test';},signal:AbortSignal.timeout(90_000)});
   assert.equal(existsSync(join(dir,'denied.txt')),false,'denied native write has no side effect');
@@ -65,7 +84,10 @@ try {
   assert.throws(()=>process.kill(childPid,0),{code:'ESRCH'},'stop reaps the native shell descendant');
   console.log(`PASS: real DSH approval/rejection, host tool, missing context, stop/descendant cleanup, and restart/resume (${requests.length} model requests).`);
 } finally {
+  lease?.revoke();
+  await gateway?.close();
   server.closeAllConnections(); await new Promise(resolve=>server.close(resolve));
+  if (isolated) execFileSync("/usr/bin/sudo", ["-n", "-u", "raytone-agent", "--", "/usr/bin/rm", "-rf", "--", isolatedDshHome(home, process.env.RAYTONEBOT_AGENT_HOME)]);
   if (process.env.RAYTONE_KEEP_DSH_CHECK) console.log(`Check directory: ${dir}`);
   else rmSync(dir,{recursive:true,force:true});
 }

@@ -3,7 +3,7 @@
 RaytoneBot: a single-user AI work assistant that runs locally or in a cloud environment. Vite +
 React + TypeScript UI (forked from an AgentCanvas export, no longer synced upstream) with the
 AgentUX SDK vendored under `vendor/`, and a Node runtime in `src/pi/` that drives Pi, Claude
-Code and Codex, plus an optional local-only DeepSeek Harness (DSH). AgentSphere and AgentMatrix
+Code and Codex, plus an optional DeepSeek Harness (DSH), including validated Linux isolation where provisioned. AgentSphere and AgentMatrix
 have separate deployment paths and verification limits; see their runbooks below.
 
 **Read [docs/product/README.md](docs/product/README.md) first.** Roadmap and progress:

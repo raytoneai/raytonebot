@@ -19,6 +19,7 @@ import base64
 import hashlib
 import io
 import json
+import fnmatch
 import os
 import shlex
 import subprocess
@@ -109,12 +110,25 @@ def remember_browser_mode(deployment: dict, sandbox_id: str, mode: str) -> dict:
 
 
 def package() -> bytes:
+    # A filename denylist cannot identify every private file. Only Git-tracked sources and
+    # generated dist are deployable; untracked work must be added to Git before deployment.
+    tracked = subprocess.check_output(["git", "ls-files", "-z", "--cached"], cwd=ROOT).split(b"\0")
+    allowed = set(UPLOAD)
+    private = (".env", ".env.*", ".ssh", ".aws", ".kube", ".npmrc", "*.pem", "*.key",
+               "*.p12", "*.pfx", "id_rsa", "id_ed25519", "node_modules")
+    def safe(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
+        return None if any(fnmatch.fnmatchcase(part, pattern) for part in Path(info.name).parts for pattern in private) else info
     buffer = io.BytesIO()
     with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
-        for entry in UPLOAD:
+        for raw in tracked:
+            if not raw:
+                continue
+            entry = os.fsdecode(raw)
             path = ROOT / entry
-            if path.exists():
-                tar.add(path, arcname=entry, filter=lambda info: None if "node_modules" in info.name else info)
+            if Path(entry).parts[0] in allowed and (path.exists() or path.is_symlink()):
+                tar.add(path, arcname=entry, recursive=False, filter=safe)
+        if (ROOT / "dist").is_dir():
+            tar.add(ROOT / "dist", arcname="dist", filter=safe)
     return buffer.getvalue()
 
 

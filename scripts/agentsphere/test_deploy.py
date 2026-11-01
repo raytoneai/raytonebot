@@ -3,6 +3,7 @@ import io
 import json
 import sys
 import tempfile
+import tarfile
 import unittest
 import urllib.error
 from contextlib import redirect_stderr, redirect_stdout
@@ -11,6 +12,51 @@ from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 import deploy
+import setup_isolation
+
+
+class FirewallCheckTest(unittest.TestCase):
+    def test_rejects_missing_or_modified_rules(self):
+        owner = {"match": {"op": "==", "left": {"meta": {"key": "skuid"}}, "right": 1234}}
+        address = {"match": {"op": "==", "left": {"payload": {"protocol": "ip", "field": "daddr"}}, "right": "127.0.0.1"}}
+        port = {"match": {"op": "==", "left": {"payload": {"protocol": "tcp", "field": "dport"}}, "right": 5190}}
+        chain = {"family": "ip", "table": "raytone_agent", "name": "output", "type": "filter", "hook": "output", "prio": -10, "policy": "accept"}
+        def rule(expr):
+            return {"rule": {"family": "ip", "table": "raytone_agent", "chain": "output", "expr": expr}}
+        valid = {"nftables": [{"chain": chain}, rule([owner, address, port, {"accept": None}]), rule([owner, {"drop": None}])]}
+        check = lambda data: setup_isolation.verify_table(data, "ip", "raytone_agent", 1234, [("daddr", "dport", 5190)])
+        check(valid)
+        for modified in (
+            {"nftables": valid["nftables"][:-1]},
+            {"nftables": valid["nftables"] + [rule([{"accept": None}])]},
+            {"nftables": [{"chain": {**chain, "prio": 10}}, *valid["nftables"][1:]]},
+            {"nftables": [{"chain": chain}, rule([owner, address, {**port, "match": {**port["match"], "op": "!="}}, {"accept": None}]), valid["nftables"][-1]]},
+        ):
+            with self.assertRaises(RuntimeError):
+                check(modified)
+
+    def test_workspace_initialization_uses_unprivileged_account(self):
+        with patch.object(setup_isolation, "run") as run:
+            setup_isolation.initialize_workspace(Path("/srv/app"), Path("/srv/work"), "/usr/bin/node")
+        args = run.call_args.args
+        self.assertEqual(args[:6], ("sudo", "-n", "-u", "user", "--", "/usr/bin/node"))
+        self.assertEqual(args[-2:], ("/srv/app", "/srv/work"))
+
+
+class PackageTest(unittest.TestCase):
+    def test_package_excludes_untracked_and_nested_private_files(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            for name in ("scripts/app.py", "scripts/.env.local", "scripts/id_ed25519", "scripts/private.txt", "dist/index.html", "dist/.env.production"):
+                path = root / name
+                path.parent.mkdir(parents=True, exist_ok=True)
+                path.write_text("fixture")
+            with patch.object(deploy, "ROOT", root), patch.object(deploy.subprocess, "check_output", return_value=b"scripts/app.py\0scripts/.env.local\0scripts/id_ed25519\0"):
+                with tarfile.open(fileobj=io.BytesIO(deploy.package()), mode="r:gz") as archive:
+                    names = archive.getnames()
+            self.assertIn("scripts/app.py", names)
+            self.assertIn("dist/index.html", names)
+            self.assertFalse(any(".env" in name or "id_ed25519" in name or "private.txt" in name for name in names))
 
 
 class BrowserModeTest(unittest.TestCase):

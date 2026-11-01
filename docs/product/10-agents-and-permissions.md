@@ -1,12 +1,12 @@
 # 10 Agent 角色、引擎与权限
 
-## 可选 DeepSeek Harness（2026-10-19，本机）
+## 可选 DeepSeek Harness
 
 点击 Logo → 创建 Bot → 引擎选择 **DeepSeek Harness**。名字/头像由已有 Bot 配置保存；不会自动新增第四个内置 Bot。使用设置里的 DeepSeek 模型服务（或明确配置的 Anthropic 兼容服务），不读取 DSH 桌面客户端登录，不改变其他 Bot 的模型。
 
-安装 `npm install -g @deepseek-ai/dsh@0.2.1-rc.2`，用 `dsh --version` 核对；非 PATH 安装可通过 `RAYTONEBOT_DSH_BIN` 指定实际入口。新入口、审批、思考/文本、工具、产物、停止和历史沿现有界面。原生会话保存在 RaytoneBot 数据目录 `dsh/<conversationId>/sessions/`，换进程后续接原 id，丢失则报错。
+安装 `npm install -g @deepseek-ai/dsh@0.2.1-rc.2`，用 `dsh --version` 核对；非 PATH 安装可通过 `RAYTONEBOT_DSH_BIN` 指定实际入口。 Linux 隔离部署应由可信部署层安装到 Agent 可读但不可写的路径，并将该入口加入服务 PATH 或通过主机私有环境设置变量；安装 Bot 本身不会安装引擎。新入口、审批、思考/文本、工具、产物、停止和历史沿现有界面。本机会话保存在数据目录 `dsh/<conversationId>/sessions/`，Linux 隔离会话保存在 Agent HOME 的 `.raytone-dsh/`；换进程后续接原 id，丢失则报错。
 
-所有 native/host 工具都先经过 RaytoneBot 的审批规则，拒绝不执行；停止先通知 DSH 取消，让长命令及子进程收尾。个人 `~/.dsh` 列为凭据私有路径。首版文本在模型提交后显示；暂不开放原生历史分支、PTC、自主子 Agent 和后台任务。仅供本地运行，云沙箱明确拒绝，未部署。细节见 ADR-050 与 [本地验收记录](../review-evidence/2026-10-19-dsh/README.md)。
+所有 native/host 工具都先经过 RaytoneBot 的审批规则，拒绝不执行；停止先通知 DSH 取消，让长命令及子进程收尾。个人 `~/.dsh` 列为凭据私有路径。首版文本在模型提交后显示；暂不开放原生历史分支、PTC、自主子 Agent 和后台任务。Linux 隔离运行要求部署满足 [运行契约](02-architecture.md#平台与运行时的边界) 并安装固定版本，实际部署状态按各平台验收；Docker 尚未验证。细节见 ADR-050 与 [本地验收记录](../review-evidence/2026-10-19-dsh/README.md)。
 
 下文描述仓库行为；末尾保留带日期的历史验证记录。各环境的实际部署与验收范围见 [08](08-acceptance.md)、[AgentSphere 运维](06-deployment-runbook.md) 和 [AgentMatrix 部署记录](../agentmatrix-deployment.md)。
 
@@ -87,7 +87,7 @@ Pi、Claude Code、Codex 和可选 DSH 走同一条事件渲染链路。Claude/C
 
 ## 权限模型
 
-权限分类在 `src/pi/permissionPolicy.ts`，闸门在 `src/pi/approvalGate.ts`，各引擎共用。下列 Linux 硬隔离说明适用于配置完成的 AgentSphere 环境；首期 AgentMatrix 部署没有独立 UID/网络隔离，DSH 则主动拒绝沙箱模式。不要从“云端运行”推断具备 microVM 隔离。
+权限分类在 `src/pi/permissionPolicy.ts`，闸门在 `src/pi/approvalGate.ts`，各引擎共用。下列 Linux 硬隔离说明适用于配置完成的 AgentSphere 环境；首期 AgentMatrix 部署没有独立 UID/网络隔离，不能直接继承隔离运行的保证。不要从“云端运行”推断具备 microVM 隔离。
 
 | 工具调用类别 | 例子 | 请求权限 | 替我批准 | 全部允许 |
 | --- | --- | --- | --- | --- |

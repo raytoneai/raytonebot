@@ -1,4 +1,6 @@
 import { connect } from "node:net";
+import { constants, closeSync, fchmodSync, fchownSync, fstatSync, openSync, realpathSync, statSync } from "node:fs";
+import { isAbsolute, relative, resolve, sep } from "node:path";
 import { pathToFileURL } from "node:url";
 
 export const name = "raytone-bridge";
@@ -51,6 +53,34 @@ export async function apply(ctx, config) {
     await Promise.all(notifications);
     if (notificationError) throw notificationError;
   });
+  if (config.sharedWorkspace && Number.isInteger(config.sharedGid)) {
+    ctx.on("tools/execute", async (exec, next) => {
+      const isFileWrite = exec.name === "write" || exec.name === "edit";
+      let previous;
+      if (isFileWrite && typeof exec.arguments?.file_path === "string") {
+        try {
+          const path = realpathSync(resolve(config.sharedWorkspace, exec.arguments.file_path));
+          previous = { path, gid: statSync(path).gid };
+        } catch (error) { if (error.code !== "ENOENT") throw error; }
+      }
+      const result = await next();
+      if (!isFileWrite || result.isError) return result;
+      const created = exec.name === "write" && result.value?.operation === "create";
+      const root = realpathSync(config.sharedWorkspace);
+      const target = realpathSync(result.value.path);
+      const within = relative(root, target);
+      if (!within || within === ".." || within.startsWith(`..${sep}`) || isAbsolute(within)) return result;
+      if (!created && (previous?.path !== target || previous.gid !== config.sharedGid)) return result;
+      const fd = openSync(target, constants.O_RDONLY | constants.O_NOFOLLOW);
+      try {
+        const file = fstatSync(fd);
+        if (!file.isFile() || file.uid !== process.getuid()) throw new Error("Workspace file has an unexpected owner or type.");
+        fchownSync(fd, file.uid, config.sharedGid);
+        if (created) fchmodSync(fd, (file.mode & 0o777) | 0o060);
+      } finally { closeSync(fd); }
+      return result;
+    });
+  }
   const allowed = new Set();
   ctx.on("tools/pre-execute", async (exec, next) => {
     if (!exec.agent) return { kind: "deny", reason: "Missing RaytoneBot session." };

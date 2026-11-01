@@ -10,6 +10,7 @@ import pwd
 import shutil
 import subprocess
 import sys
+import tempfile
 
 AGENT = "raytone-agent"
 AGENT_HOME = Path("/home/raytone-agent")
@@ -19,6 +20,8 @@ BROWSER_HOME = Path("/home/raytone-browser")
 BROWSER_PROXY_PORT = 5191
 BROWSER_CDP_PORT = 5192
 MARKER = Path("/etc/raytonebot-isolation.json")
+CHECKER = Path("/usr/local/sbin/raytonebot-check-isolation")
+SUDOERS = Path("/etc/sudoers.d/raytonebot-check-isolation")
 
 
 def run(*args: str) -> str:
@@ -26,6 +29,76 @@ def run(*args: str) -> str:
     if result.returncode:
         raise RuntimeError(f"{Path(args[0]).name} exited {result.returncode}")
     return result.stdout.strip()
+
+
+def initialize_workspace(app: Path, workspace: Path, node: str) -> None:
+    # Create the real role layout before the permission pass, including under umask 077.
+    # Run as the bot, never root: persona migration touches user-editable workspace files.
+    executable = shutil.which(node) if not os.path.isabs(node) else node
+    if not executable:
+        raise RuntimeError("Node runtime unavailable for workspace initialization")
+    script = ("import {pathToFileURL} from 'node:url'; "
+              "const m = await import(pathToFileURL(process.argv[1] + '/src/pi/workspaceLayout.ts')); "
+              "m.ensureWorkspaceLayout(m.resolveWorkspaceLayout({fallbackCwd: process.argv[1], root: process.argv[2]}));")
+    run("sudo", "-n", "-u", "user", "--", executable, "--input-type=module", "-e", script, str(app), str(workspace))
+
+
+def verify_table(data: dict, family: str, table: str, uid: int, ports: list[tuple[str, str, int]]) -> None:
+    entries = data["nftables"]
+    chains = [entry["chain"] for entry in entries if "chain" in entry]
+    if len(chains) != 1 or any(chains[0].get(k) != v for k, v in {
+        "family": family, "table": table, "name": "output", "type": "filter",
+        "hook": "output", "prio": -10, "policy": "accept",
+    }.items()):
+        raise RuntimeError("Firewall chain verification failed")
+    def match(left, right):
+        return {"match": {"op": "==", "left": left, "right": right}}
+    owner = match({"meta": {"key": "skuid"}}, uid)
+    expected = []
+    if family == "ip":
+        for address_field, port_field, port in ports:
+            expected.append([owner, match({"payload": {"protocol": "ip", "field": address_field}}, "127.0.0.1"),
+                             match({"payload": {"protocol": "tcp", "field": port_field}}, port), {"accept": None}])
+    expected.append([owner, {"drop": None}])
+    rules = [entry["rule"] for entry in entries if "rule" in entry]
+    if any(rule.get("family") != family or rule.get("table") != table or rule.get("chain") != "output" for rule in rules) or [rule.get("expr") for rule in rules] != expected:
+        raise RuntimeError("Firewall rules verification failed")
+
+
+def verify_firewall() -> None:
+    if os.geteuid() != 0:
+        raise RuntimeError("Firewall check requires root")
+    marker = json.loads(MARKER.read_text())
+    agent_uid = pwd.getpwnam(AGENT).pw_uid
+    browser_uid = pwd.getpwnam(BROWSER).pw_uid
+    port = marker.get("port")
+    if (marker.get("user"), marker.get("uid"), marker.get("browserUser"), marker.get("browserUid"), marker.get("network"), marker.get("browserPorts")) != (AGENT, agent_uid, BROWSER, browser_uid, "nft-dual-stack", [BROWSER_PROXY_PORT, BROWSER_CDP_PORT]) or not isinstance(port, int) or not 1024 <= port <= 65535:
+        raise RuntimeError("Firewall marker verification failed")
+    for family in ("ip", "ip6"):
+        for table, uid, ports in (("raytone_agent", agent_uid, [("daddr", "dport", port)]),
+                                  ("raytone_browser", browser_uid, [("daddr", "dport", BROWSER_PROXY_PORT), ("saddr", "sport", BROWSER_CDP_PORT)])):
+            data = json.loads(run("/usr/sbin/nft", "-j", "-n", "list", "table", family, table))
+            verify_table(data, family, table, uid, ports)
+
+
+def install_checker() -> None:
+    # Only this fixed, root-owned check may run as root from the bot account.
+    CHECKER.parent.mkdir(parents=True, exist_ok=True)
+    source = Path(__file__).read_text().split("\n", 1)[1]
+    for target, content, mode in ((CHECKER, "#!/usr/bin/python3 -I\n" + source, 0o755),
+                                  (SUDOERS, f"user ALL=(root) NOPASSWD: {CHECKER} --check\n", 0o440)):
+        # sudo ignores dotfiles in sudoers.d, so it never reads a partially written rule.
+        with tempfile.NamedTemporaryFile(mode="w", dir=target.parent, prefix=".raytonebot-", delete=False) as output:
+            temp = Path(output.name)
+            try:
+                output.write(content)
+                output.flush()
+                os.fchmod(output.fileno(), mode)
+                if target == SUDOERS:
+                    run("/usr/sbin/visudo", "-cf", str(temp))
+                os.replace(temp, target)
+            finally:
+                temp.unlink(missing_ok=True)
 
 
 def main() -> None:
@@ -82,6 +155,9 @@ def main() -> None:
     vite_temp.mkdir(parents=True, exist_ok=True)
     run("chown", "user:user", str(vite_temp))
     run("chmod", "700", str(vite_temp))
+    run("chown", "user:user", str(workspace))
+    run("chmod", "u+rwx", str(workspace))
+    initialize_workspace(app, workspace, args.node_bin)
     run("chown", "-R", f"{AGENT}:user", str(workspace), str(AGENT_HOME))
     for root in (workspace, AGENT_HOME):
         run("chmod", "-R", "g+rwX,o-rwx", str(root))
@@ -176,6 +252,8 @@ def main() -> None:
                                   "browserUser": BROWSER, "browserUid": browser_uid,
                                   "browserPorts": [BROWSER_PROXY_PORT, BROWSER_CDP_PORT]}) + "\n")
     MARKER.chmod(0o644)
+    verify_firewall()
+    install_checker()
     print("Agent UID, filesystem permissions, no-new-privileges launcher and IPv4/IPv6 egress rules installed.")
 
 
@@ -228,8 +306,11 @@ def setup_browser(bot_home: Path, config: Path) -> int:
 
 if __name__ == "__main__":
     try:
-        main()
-    except (RuntimeError, subprocess.CalledProcessError) as error:
+        if sys.argv[1:] == ["--check"]:
+            verify_firewall()
+        else:
+            main()
+    except (RuntimeError, subprocess.CalledProcessError, OSError, ValueError, KeyError) as error:
         # Never echo arbitrary command output: future commands may contain private paths/config.
         print(f"Isolation setup failed: {error if isinstance(error, RuntimeError) else type(error).__name__}", file=sys.stderr)
         sys.exit(1)

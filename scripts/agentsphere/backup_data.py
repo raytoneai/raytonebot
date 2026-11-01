@@ -20,6 +20,7 @@ BROWSER_PROFILE = "/home/raytone-browser/profile"
 ARTIFACT_VERSIONS = "/home/user/.raytonebot/data.artifact-versions"
 DATA_PATHS = [*REQUIRED_PATHS, "/home/user/.claude/projects", "/home/user/.claude/tasks", "/home/user/.codex/sessions",
               "/home/raytone-agent/.claude/projects", "/home/raytone-agent/.claude/tasks", "/home/raytone-agent/.codex/sessions",
+              "/home/raytone-agent/.raytone-dsh",
               ARTIFACT_VERSIONS,
               BROWSER_PROFILE]
 BROWSER_CACHE_EXCLUDES = [f"--exclude={BROWSER_PROFILE.lstrip('/')}/*{name}*" for name in ("Cache", "cache_data", "Crashpad")]

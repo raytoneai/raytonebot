@@ -45,9 +45,9 @@ npm run am:stop                     # 停应用、归档 Session、删除 Enviro
 
 ## 部署做了什么
 
-1. **固定发布包**：`git` commit（脏树会带 `-dirty`）+ `npm run build` 的 `dist/` + 全部源码与
+1. **固定发布包**：`git` commit（脏树会带 `-dirty`）+ `npm run build` 的 `dist/` + Git 已跟踪的源码与
    `vendor/`，打包成 `raytonebot-<sha8>.tar.gz`，记录 SHA-256 和 SDK/合同版本。压缩后约 8.7 MB，
-   低于 20 MiB 附件上限（8.7 MB 为首次部署值，当前以实际包为准）。`--clean` 在临时 worktree 里从 HEAD 独立执行 `npm ci --include=dev`、构建并打包；使用该 checkout 的依赖和 Git 纳管的 vendor，不复用当前工作树的 `node_modules` 或未提交文件。
+   低于 20 MiB 附件上限（8.7 MB 为首次部署值，当前以实际包为准）。普通构建包含跟踪文件的工作树修改，但不包含未跟踪文件；新源码须先 `git add`。常见环境文件和私钥文件名被排除，但不会扫描跟踪源码或构建产物中的硬编码密钥。`--clean` 在临时 worktree 里从 HEAD 独立执行 `npm ci --include=dev`、构建并打包；使用该 checkout 的依赖和 Git 纳管的 vendor，不复用当前工作树的 `node_modules` 或未提交文件。
 2. **Workspace**：按名称复用或创建 `raytonebot` Workspace（一个逻辑部署一个卷）。
 3. **EnvironmentSpec**：复用或创建 `raytonebot-e2b`，入站只开放 5188 端口给 PreviewProxy；出站优先
    `deny` + 只放行 `api.deepseek.com`、`registry.npmjs.org`。若所选 provider 的

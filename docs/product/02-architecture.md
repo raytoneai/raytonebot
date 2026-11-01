@@ -30,19 +30,26 @@
 
 网页回显的秘密子串由 `browserRedaction.ts` 在主机输出边界过滤，凭据集合跨浏览器 worker 重启保留；错误文本可重复脱敏而不改坏替换标记。主机内部 URL 与元素事实保持原值供页面绑定、权限分类使用；模型结果只过滤网页名称、值、URL、标题等内容，保留生成的 snapshot/page ID、ref、角色/状态与分页协议。
 
-## DSH 本地接入补充（2026-10-19）
+## DSH 接入与隔离运行
 
 创建 Bot 的现有表单可选择 `dsh`（DeepSeek Harness），原三个内置 Bot 与默认模型不变。`piRuntimeController.ts` 的 `runCliPrompt` → `dshHarness.ts` 启动已安装的固定版本 `@deepseek-ai/dsh@0.2.1-rc.2`；`dshProtocol.ts` 将 ACP 的文本、思考、工具、审批转换成 Pi wire events，继续使用 `piAdapter` 和现有界面。ACP 此版本只推送已提交文本。
 
 每轮创建临时 HOME / DSH_HOME / DSH_AGENTS_HOME 与受控 profile，launcher 直接调用已安装包导出的 `runProfile`，避免 CLI 自动加载个人 `.env`。真实模型 key 留在主机，子进程仅持本轮 Anthropic 兼容网关租约。关闭账号凭据、会话日志上传、PTC、子 Agent、自主后台任务与个人配置发现；所有工具经过插件的异步授权和同步 guard。
 
-宿主 web/MCP/记忆/浏览器/计划/提问等工具通过本轮 0600 Unix socket 回到现有执行函数。主机核对原生 session、tool call id、名称和原参数，授权只消费一次。native read/write/edit/bash 由 DSH 执行，参数先归一化供既有权限规则检查。停止先发 `session/cancel`，给 DSH 清理独立进程组的命令，再由通用进程管理兜底终止。
+宿主 web/MCP/记忆/浏览器/计划/提问等工具通过本轮私有 Unix socket（本机 0600、隔离模式 0660 且父目录由主机持有） 回到现有执行函数。主机核对原生 session、tool call id、名称和原参数，授权只消费一次。native read/write/edit/bash 由 DSH 执行，参数先归一化供既有权限规则检查。停止先发 `session/cancel`，给 DSH 清理独立进程组的命令，再由通用进程管理兜底终止。
 
-原生会话持久化在 `<dataDir>/dsh/<conversationId>/sessions`，既有会话 JSON 的 `cliSession` 保存引擎及 id。续接失败直接报错，不换新会话；没有原生 fork checkpoint，历史分支明确拒绝。`dsh` 加入工作区、附件、文档和 Bot 配置校验；本机默认仍共用项目工作区。沙箱模式主动拒绝运行，需完成独立 Linux 隔离验收后再开放。
+本机原生会话位于 `<dataDir>/dsh/<conversationId>/sessions`；隔离模式位于 `/home/raytone-agent/.raytone-dsh/<会话标识哈希>/sessions`，由 Agent UID 持有，普通 AgentSphere 备份包括该目录。既有会话 JSON 的 `cliSession` 保存引擎及 id。续接失败直接报错，不换新会话；没有原生 fork checkpoint，历史分支明确拒绝。隔离模式下，DSH 新建的角色工作区文件补充宿主共享组权限，已有文件的权限保持原样。
+
+### 平台与运行时的边界
+
+- 产品与引擎层只使用统一的 Bot、事件、审批、模型租约及原生会话接口，不按云厂商分叉。
+- Linux 隔离运行层复用 `runtime/agentProcess.ts`：以 `raytone-agent`、`no-new-privs` 启动，模型经主机网关租约，配置和工具桥由宿主管理；启动前验证部署标记及隔离条件。DSH 依赖固定版本 CLI 对宿主和 Agent 可读取，安装状态和启动使用同一版本检查。
+- 部署层分别负责安装可执行程序、准备工作区与持久化目录、用户/组、文件权限、IPv4/IPv6 出站约束、隔离标记和备份恢复。AgentSphere microVM 与普通 Linux VM 可以实现同一运行契约，具体发布及验收各自独立；AgentMatrix 不自动继承隔离保证。
+- Docker 尚未实现或验证；未来接入必须先提供等价的身份、文件、网络、密钥、会话持久化与停止能力，并验证其自身隔离边界，不能仅设置环境变量冒充已配置隔离。
 
 ## 运行架构
 
-以下描述仓库实现；部署版本和环境限制分别见 [AgentSphere 运维](06-deployment-runbook.md) 与 [AgentMatrix 部署记录](../agentmatrix-deployment.md)。带日期的补充保留其原始验证范围。
+以下描述仓库实现；部署版本和环境限制分别见 [AgentSphere 运维](06-deployment-runbook.md)、[AgentMatrix 部署记录](../agentmatrix-deployment.md) 与 [Greencloud VPS 试用记录](../greencloud-deployment.md)。带日期的补充保留其原始验证范围。
 
 2026-10-18 sandbox 内可靠性补充（本机工作树）：`settingsFile.ts` 统一区分 ENOENT 与不可读/结构错误。记忆、MCP、例行任务和 IM 的坏文件保留并拒绝保存，设置接口返回错误；不可用的工具/时钟/连接器停用，普通聊天主机仍可启动。用户修复后重启重新读取，不自动替换为默认配置。授权和 IM 配置、映射、Telegram 游标在文件成功替换后才更新内存。
 
@@ -60,7 +67,7 @@ Node 主机（本机、AgentSphere 或 AgentMatrix）
    scripts/cloud-preview.mjs   云端入口：鉴权、Host/Origin 校验，然后交给 Vite preview
    vite dev/preview + piRuntimePlugin   前端 + /__agentcanvas/pi/* 接口
    src/pi/piHttpHost.ts        HTTP 路由与主机服务组合
-   src/pi/piRuntimeController.ts  Bot 身份/引擎角色 → Pi 或 CLI（DSH 仅本机）
+   src/pi/piRuntimeController.ts  Bot 身份/引擎角色 → Pi 或 CLI（DSH 隔离运行需满足平台契约）
    src/pi/piSdkBridge.ts       Pi SDK 会话、模型租约与按能力组装的工具
    @earendil-works/pi-coding-agent  模型循环 + 已配置工具（基础 I/O、计划、提问及可选主机能力）
    cwd = RAYTONEBOT_WORKSPACE_ROOT 下的角色目录；未设置时用 RAYTONEBOT_WORKSPACE 或应用目录
@@ -320,6 +327,7 @@ AgentSphere 部署脚本安装独立的 `raytone-agent` UID，应用 root 所有
 Pi 的七个文件/命令工具在该 UID 的短命 worker 中执行；模型循环与计划、提问、联网等主机工具留在 bot，实际工具清单按运行上下文和 Bot 能力组装。CLI 也用同一受限启动器。
 模型代理位于 bot 进程内，不新增独立服务或数据库；每轮凭证限制上游、模型、次数和有效期，结束即撤销。
 nftables ip/ip6 + meta skuid 按 UID 禁止直连，只开放 loopback gateway；包仓库 CONNECT 校验域名、TLS SNI 与公网 IP。
+隔离初始化先以 bot UID 生成角色工作区，再修正共享组权限；root 所有的固定检查器经受限 sudo 在操作前核验 Agent 和浏览器的实际双栈 nft 规则。检查发生在操作开始时，不持续监控已启动进程。
 网页搜索与读取由 bot 进程代为执行（`src/pi/webAccess.ts`，ADR-034）：Pi 原生工具、Claude Code 进程内 MCP、Codex dynamicTools，Agent 只拿到文本。
 Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发不声称具有这些系统隔离保证。
 详细适用范围与剩余风险见 [10](10-agents-and-permissions.md)。

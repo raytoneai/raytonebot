@@ -85,7 +85,7 @@ raytone_sandbox status --logs 30
 | `raytone_sandbox backup --scheduled` | 外部定时入口；暂停、忙碌或重复触发时跳过，不自动唤醒 |
 | `raytone_sandbox restore FILE` | 用实际备份路径替换 FILE；恢复后以同一 `--state-dir` 运行 `deploy.py --skip-build` |
 
-备份应在任务空闲时执行：严格读取、tar 失败及 gzip 校验会阻止损坏包被当作成功，但这不是跨文件事务快照。`data` 与 `workspace` 必须存在；CLI 原生目录可缺省，覆盖旧 `/home/user` 及隔离后的 `/home/raytone-agent` 下 `.claude/projects`、`.claude/tasks`、`.codex/sessions`。Claude task id 对应的任务文件必须与 session 一起迁移；只恢复产品计划快照不能恢复原生任务状态。包不包含 env、CLI 登录凭据或整个 home。自定义 `CODEX_HOME` / `CLAUDE_CONFIG_DIR` 需另行迁移。
+备份应在任务空闲时执行：严格读取、tar 失败及 gzip 校验会阻止损坏包被当作成功，但这不是跨文件事务快照。`data` 与 `workspace` 必须存在；CLI 原生目录可缺省，覆盖旧 `/home/user` 及隔离后的 `/home/raytone-agent` 下 `.claude/projects`、`.claude/tasks`、`.codex/sessions` 以及隔离 Agent HOME 下的 `.raytone-dsh`。Claude task id 对应的任务文件必须与 session 一起迁移；只恢复产品计划快照不能恢复原生任务状态。包不包含 env、CLI 登录凭据或整个 home。自定义 `CODEX_HOME` / `CLAUDE_CONFIG_DIR` 需另行迁移。
 
 恢复后被替换的数据保留在 `/home/user/.rtb-restore-previous`（root 所有、0700，Agent 不可读；取回需 `sudo`），下一次恢复时覆盖。恢复先验证路径、链接与归档完整性并暂存，再停止 supervisor、cloud-preview 及其子进程，替换包内目录；替换失败回滚。独立 Claude/Codex 进程存在时拒绝恢复，需先停止。备份 worker 使用远端 `sudo -n` 读取不同 UID 的会话并停止写入进程，恢复按目录重设 bot/Agent 的 owner 和工作区共享 group。新实例恢复隔离后的包前，先部署以建立 Agent 系统用户。旧包不含 CLI 目录时保留目标中的这些目录；新旧原生会话目录都有非空内容时迁移拒绝覆盖，需人工决定保留哪份。需要远端 Python 支持 `tarfile.data_filter`（模板已实测支持）。新实例仍须单独配置模型 key/访问密码。2026-10-04 已把独立 UID 版 source 备份恢复到另一个测试实例，验证原生 session IDs、输出文件、bot/Agent 目录 owner 一致，三个引擎在新进程无工具续接旧口令全部通过；操作前两个实例的原始备份均已保留，生产实例未覆盖。
 
@@ -143,7 +143,7 @@ sb.set_timeout(3600)          # 从现在起约 1 小时
 
 | 命令 | 状态 | 行为 |
 | --- | --- | --- |
-| `deploy.py [--sandbox ID] [--state-dir 目录] [--timeout 秒] [--skip-build]` | 已实现 | 见上文“部署” |
+| `deploy.py [--sandbox ID] [--state-dir 目录] [--timeout 秒] [--skip-build]` | 已实现 | 见上文“部署”；发布包含已跟踪源码和构建产物，新文件需先 `git add`，仍须检查源码与 bundle 内是否硬编码密钥 |
 | `sandbox.py create` | 已实现 | 新建自动暂停沙箱（默认 50 h） |
 | `sandbox.py status [--logs 1..200]` | 已实现 | 平台状态、到期时间、认证后的 `/health`；可读最近 supervisor/runtime 元数据日志，暂停实例不连接也不唤醒 |
 | `sandbox.py wake` / `pause` / `renew [秒]` | 已实现 | 恢复 / 暂停 / `set_timeout` |
