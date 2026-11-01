@@ -359,7 +359,7 @@ export function createRoutineService(options: {
           options.runtime.runPrompt({ conversationId: routine.conversationId, requestId: runId, botId, agentPreset: bot?.presetId ?? "assistant",
             prompt: routinePrompt(routine, occurrenceId, now()), permissionMode: options.permissionMode,
             provider: model.definition.id, model: model.model,
-            ...(routine.locale ? { locale: routine.locale } : {}) }, onEvent, { title: routine.title, signal: pendingStart.abort.signal }).then(
+            ...(routine.locale ? { locale: routine.locale } : {}) }, onEvent, { title: routine.title, signal: pendingStart.abort.signal, origin: { kind: "routine", routineId: id, occurrenceId } }).then(
             () => { clearStart(); if (accepted) finish(id, occurrenceId, status, error); else reject(new Error("The run ended before it started.")); },
             (failure: unknown) => {
               clearStart();

@@ -607,7 +607,7 @@ export function createPiHttpHost(options: {
               claudeCodeModelSource: body.claudeCodeModelSource === "local-login" ? "local-login" : "provider",
               codexModelSource: body.codexModelSource === "local-login" ? "local-login" : "provider",
               locale: isAppLocale(body.locale) ? body.locale : undefined,
-            }, (event) => { if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`); });
+            }, (event) => { if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`); }, { origin: { kind: "web" } });
           } catch (error) {
             for (const event of piErrorTurnEvents({ prompt, message: errorMessage(error), runId: requestId, code: PROMPT_REJECTED })) {
               if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
@@ -658,7 +658,7 @@ export function createPiHttpHost(options: {
               locale: isAppLocale(body.locale) ? body.locale : undefined,
             }, (event) => {
               if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
-            });
+            }, { origin: { kind: "web" } });
           } catch (error) {
             // The 200 headers are already sent. Rejections need a terminal in this stream,
             // but must not be appended to (or stop) the conversation's existing active run.

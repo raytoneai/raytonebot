@@ -23,7 +23,11 @@
 
 ## 第二批
 
-待第一批提交后实施。
+- 主机入口写入可选 `StoredTurn.provenance`，旧记录保持无来源；HTTP 不接受客户端伪造来源，IM 保存已授权 sender，例行保存 routine/occurrence。群父轮保留接受请求时的权限，PM 确认后的子轮记录实际权限及原请求权限，委派关联公共群/父 run/task。
+- 复用 `runtime.jsonl` 的 `tool.decision`：会话/run/native tool ID、固定工具名/分类/决定/原因枚举；不保存参数、路径、命令、自由文本或参数摘要。纯查询和自动放行不产生审批记录；日志仍为既有尽力写入、两文件轮转，不承诺防篡改或覆盖原生协议在回调之前的全部拒绝。
+- 90 项定向测试通过；实际 HTTP、ChannelBridge、RoutineService、群/委派、存储重载和 controller 日志验证来源及关联。受控 Claude/Codex 可执行协议经过真实 controller 回调，确认秘密/只读拒绝各记录一次；没有调用真实模型或新验 DSH 进程。
+- `npm run build` 通过，[日志](batch2-build.log)。完整测试 861 项，860 通过、1 项指定 DSH 环境缺失跳过、0 失败，[最终日志](batch2-tests.log)。[首轮失败](batch2-tests-first.log)为上一批浏览器测试的冷启动导航超过 5 秒；主代理把导航预算独立设为 30 秒，行为断言仍为 5 秒，完整复跑通过。
+- 隔离本机与云入口检查通过：[本机](batch2-local.log)、[入口](batch2-cloud.log)。本批未改变产品界面或事件投影，未重复开发场景扫图；完整测试包含既有浏览器回归。未推送或部署。
 
 ## 第三批
 

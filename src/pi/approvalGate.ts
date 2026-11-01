@@ -1,11 +1,20 @@
 import type { PiApprovalDecision } from "../harness/adapters/piAdapter.ts";
 import type { PiPromptInput } from "./piClient.ts";
 import { ApprovalMemory } from "./approvalMemory.ts";
-import { classifyToolCall, type PermissionPolicy } from "./permissionPolicy.ts";
+import { classifyToolCall, type PermissionPolicy, type ToolCallClass } from "./permissionPolicy.ts";
 
 export type PiPermissionMode = NonNullable<PiPromptInput["permissionMode"]>;
 
+export type ToolDecisionAudit = {
+  toolCallId: string;
+  tool: string;
+  class: ToolCallClass;
+  decision: "requested" | "approved" | "always" | "denied" | "refused" | "cancelled";
+  reason?: "secret" | "read_only" | "planner_scope";
+};
+
 type PendingApproval = {
+  auditDecision: (decision: ToolDecisionAudit["decision"]) => void;
   toolName: string;
   resolve: (decision: PiApprovalDecision) => void;
   reject: (error: Error) => void;
@@ -20,6 +29,35 @@ export const SECRET_REFUSAL =
 export class PiApprovalGate {
   private readOnly = false;
   setReadOnly(value: boolean) { this.readOnly = value; }
+
+  private audit?: (event: ToolDecisionAudit) => void;
+  setAudit(observer?: (event: ToolDecisionAudit) => void) { this.audit = observer; }
+
+  private auditCall(toolCallId: string, toolName: string, args: unknown) {
+    const observer = this.audit;
+    if (!observer) return () => {};
+    try {
+      const tool = toolName.toLowerCase();
+      const fields = { toolCallId, tool: /^[a-z][a-z0-9_.:-]{0,127}$/.test(tool) ? tool : "unknown",
+        class: classifyToolCall(toolName, args, this.policy) };
+      return (decision: ToolDecisionAudit["decision"], reason?: ToolDecisionAudit["reason"]) => {
+        // Diagnostics must never change whether the tool runs or asks for approval.
+        try { observer({ ...fields, decision, ...(reason ? { reason } : {}) }); } catch {}
+      };
+    } catch {
+      return () => {};
+    }
+  }
+
+  checkRefusal(toolCallId: string, toolName: string, args: unknown): string | undefined {
+    const refusal = this.refusalReason(toolName, args);
+    if (refusal) this.auditCall(toolCallId, toolName, args)("refused", refusal === SECRET_REFUSAL ? "secret" : "read_only");
+    return refusal;
+  }
+
+  recordRefusal(toolCallId: string, toolName: string, args: unknown, reason: "planner_scope"): void {
+    this.auditCall(toolCallId, toolName, args)("refused", reason);
+  }
 
   private mode: PiPermissionMode = "request";
   /** The agent whose "always allow" grants apply. The host keeps one gate per conversation and
@@ -80,21 +118,31 @@ export class PiApprovalGate {
   }
 
   async wait(toolCallId: string, toolName: string, args: unknown, signal?: AbortSignal): Promise<void> {
-    const refusal = this.refusalReason(toolName, args);
+    const refusal = this.checkRefusal(toolCallId, toolName, args);
     if (refusal) throw new Error(refusal);
     if (!this.requiresApproval(toolName, args)) return;
+    const audit = this.auditCall(toolCallId, toolName, args);
+    let settled = false;
+    const auditDecision = (decision: ToolDecisionAudit["decision"]) => {
+      if (settled) return;
+      settled = true;
+      audit(decision);
+    };
+    const agent = this.agent, memoryKey = this.memoryKey(toolName, args);
     // The abort listener below never fires for a signal that is already aborted.
-    if (signal?.aborted) throw new Error("Tool approval was cancelled.");
+    if (signal?.aborted) { auditDecision("cancelled"); throw new Error("Tool approval was cancelled."); }
     let held: PendingApproval;
     const decision = await new Promise<PiApprovalDecision>((resolve, reject) => {
       const onAbort = () => {
         if (this.pending.get(toolCallId) === held) this.pending.delete(toolCallId);
+        auditDecision("cancelled");
         this.onWaitingChange(); reject(new Error("Tool approval was cancelled."));
       };
       const cleanup = () => signal?.removeEventListener("abort", onAbort);
       signal?.addEventListener("abort", onAbort, { once: true });
-      held = { toolName, resolve, reject, cleanup };
+      held = { toolName, resolve, reject, cleanup, auditDecision };
       this.pending.set(toolCallId, held);
+      audit("requested");
       this.onWaitingChange();
     }).finally(() => {
       held.cleanup();
@@ -102,7 +150,7 @@ export class PiApprovalGate {
       this.onWaitingChange();
     });
     if (decision === "no") throw new Error("Tool execution was denied by the user.");
-    if (decision === "always") this.memory.add(this.agent, this.memoryKey(toolName, args));
+    if (decision === "always") this.memory.add(agent, memoryKey);
   }
 
   /** What "always allow" remembers: the tool, or e.g. a browser action on one site. */
@@ -123,13 +171,14 @@ export class PiApprovalGate {
     // Consume synchronously: duplicate delivery must never change the first decision.
     this.pending.delete(toolCallId);
     pending.cleanup();
+    pending.auditDecision(decision === "no" ? "denied" : decision === "always" ? "always" : "approved");
     this.onWaitingChange();
     pending.resolve(decision);
     return true;
   }
 
   cancelAll(message = "Pi run ended before approval was decided.") {
-    for (const pending of this.pending.values()) { pending.cleanup(); pending.reject(new Error(message)); }
+    for (const pending of this.pending.values()) { pending.cleanup(); pending.auditDecision("cancelled"); pending.reject(new Error(message)); }
     this.pending.clear();
     this.onWaitingChange();
   }

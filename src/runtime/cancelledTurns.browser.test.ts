@@ -61,6 +61,8 @@ test("ChatFrame retains stopped and interrupted history after reload in every lo
     ]) await t.test(`${locale}, ${width}px`, async () => {
       const page = await browser!.newPage({ viewport: { width: Number(width), height: 844 }, reducedMotion: "reduce" });
       page.setDefaultTimeout(5_000);
+      // A cold Vite module graph competes with the full suite; UI assertions stay bounded separately.
+      page.setDefaultNavigationTimeout(30_000);
       const errors: string[] = [];
       page.on("pageerror", error => { errors.push(error.message); t.diagnostic(error.message); });
       for (const [state, label] of [["stopped", stopped], ["restarted", interrupted]]) {

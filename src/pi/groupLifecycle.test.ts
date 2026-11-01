@@ -1313,18 +1313,37 @@ test("discussion members and summary enforce read-only despite allow-all; confir
           assert.match(JSON.stringify(event.payload.questions), /Workspace reads, writes and commands are authorized for this turn/);
           controller.resolveUserInput(groupId, event.payload.requestId, { plan: ["Start"] });
         }
-      });
+      }, { origin: { kind: "im", platform: "telegram", requesterId: "owner" } });
       assert.equal(events.at(-1)?.payload.status, "success", JSON.stringify(events.at(-1)));
       return confirmations;
     };
     assert.equal(await run("discussion", "大家讨论一轮", "allow-all"), 0);
     assert.deepEqual(probes, ["member", "member", "member", "summary"]);
+    const discussion = controller.getConversation(groupId)!;
+    assert.deepEqual(discussion.turns?.at(-1)?.provenance, { origin: { kind: "im", platform: "telegram", requesterId: "owner" }, permissionMode: "allow-all", readOnly: true });
+    for (const member of discussion.group!.members) {
+      const child = controller.getConversation(`${groupId}.m.${member}`)!;
+      assert.ok(child.turns?.every(turn => turn.provenance?.readOnly === true && turn.provenance.parent?.runId === "discussion"));
+      assert.ok(child.turns?.every(turn => turn.provenance?.origin.kind === "im"));
+    }
     probes.length = 0; phase = "direct";
     assert.equal(await run("direct", "@Raer write notes", "allow-all"), 0);
     assert.deepEqual(probes, ["execution"]);
     probes.length = 0; route = "plan_then_build"; phase = "sequence";
     assert.equal(await run("sequence", "先规划再实现", "request"), 1);
     assert.deepEqual(probes, ["execution", "execution", "execution"]);
+    const sequence = controller.getConversation(groupId)!;
+    assert.deepEqual(sequence.turns?.at(-1)?.provenance, { origin: { kind: "im", platform: "telegram", requesterId: "owner" }, permissionMode: "request" }, "root preserves the originally accepted permission mode");
+    const children = sequence.group!.members.flatMap(member => controller.getConversation(`${groupId}.m.${member}`)?.turns ?? [])
+      .filter(turn => turn.provenance?.parent?.runId === "sequence");
+    assert.equal(children.filter(turn => turn.provenance?.permissionMode === "request").length, 1, "PM announcement precedes authorization");
+    assert.equal(children.filter(turn => turn.provenance?.permissionMode === "auto" && turn.provenance?.requestedPermissionMode === "request").length, 3);
+    assert.ok(children.every(turn => turn.provenance?.parent?.conversationId === groupId && turn.provenance?.origin.kind === "im"));
+    const aborted = new AbortController(); aborted.abort();
+    const before = bridge.calls.length;
+    await assert.rejects(controller.runPrompt({ conversationId: groupId, requestId: "pre-aborted", prompt: "@Raer do not run" }, () => {}, { signal: aborted.signal, origin: { kind: "web" } }), /abort/i);
+    assert.equal(bridge.calls.length, before);
+    assert.equal(controller.getConversation(groupId)?.turns?.some(turn => turn.runId === "pre-aborted"), false);
   } finally {
     controller.dispose(); await close(router);
     AGENT_PRESETS.forEach((p, i) => p.harness = harnesses[i]);

@@ -1,3 +1,4 @@
+import type { RunSourceOptions } from "./runProvenance.ts";
 import { createHash, randomUUID } from "node:crypto";
 import type { ConversationStore } from "./conversationStore.ts";
 import type { GroupMeta } from "./groupChat.ts";
@@ -21,7 +22,7 @@ export const GROUP_DELEGATION_TOOL_SPECS: HostToolSpec[] = [
     } } },
 ];
 
-type Origin = { groupId: string; requestId: string; hostId: string; parentId?: string; input: PiPromptInput;
+type Origin = { groupId: string; requestId: string; hostId: string; parentId?: string; input: PiPromptInput; source?: Pick<RunSourceOptions, "origin" | "requestedPermissionMode">;
   signal: AbortSignal; isCurrent(): boolean };
 type Running = { groupId: string; task: GroupTask; abort: AbortController; detach(): void; done: Promise<void> };
 export const delegationConversationPrefix = (groupId: string) => `delegate_${createHash("sha256").update(groupId).digest("hex").slice(0, 24)}.m.`;
@@ -90,7 +91,7 @@ export function createGroupDelegation(deps: {
         const key = JSON.stringify([event.runId, event.payload.textId]);
         if (event.type === "text.started" && event.payload.role === "assistant") assistantText.add(key);
         if (event.type === "text.delta" && assistantText.has(key) && typeof event.payload.delta === "string" && text.length < 2001) text += event.payload.delta.slice(0, 2001 - text.length);
-      }, { signal: abort.signal, waitForCapacity: true, readOnly: true, groupConversation: true, groupId, delegated: true });
+      }, { ...origin.source, parent: { conversationId: groupId, runId: origin.requestId, taskId: task.id }, signal: abort.signal, waitForCapacity: true, readOnly: true, groupConversation: true, groupId, delegated: true });
       if (abort.signal.aborted) return;
       if (terminal !== "success") throw new Error(failure || (terminal === "cancelled" ? "Delegated task was cancelled by its engine." : "Delegated task ended without a confirmed successful result."));
       update(groupId, task.id, current => current.status === "running" && current.runId === task.runId

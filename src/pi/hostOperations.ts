@@ -24,6 +24,7 @@ const eventFields: Record<string, ReadonlySet<string>> = {
   "run.limit": new Set(["conversationId", "harness", "limit"]),
   "run.checkpoint_failed": new Set(["conversationId", "harness"]),
   "run.subscriber_failed": new Set(["conversationId", "status"]),
+  "tool.decision": new Set(["conversationId", "runId", "toolCallId", "tool", "class", "decision", "reason"]),
   "approval.resolved": new Set(["conversationId", "decision"]),
   "channel.connected": new Set(["platform"]), "channel.connect_failed": new Set(["platform"]),
   "channel.run_failed": new Set(["platform"]), "channel.message_failed": new Set(["platform"]),
@@ -44,24 +45,28 @@ const eventFields: Record<string, ReadonlySet<string>> = {
   "browser.state_save_failed": new Set(), "browser.egress_denied": new Set(),
 };
 
-function safeRuntimeValue(key: string, value: unknown): boolean {
+function safeRuntimeValue(event: string, key: string, value: unknown): boolean {
   const numericFields = ["durationMs", "outputBytes", "count", "bytes", "code", "rounds", "ms", "tools"];
   if (key === "code" && value === null) return true;
   if (numericFields.includes(key)) return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;
   if (["owned", "disabled", "sandboxed"].includes(key)) return typeof value === "boolean";
   if (typeof value !== "string") return false;
-  const maxLength = key === "conversationId" ? 160 : 128;
+  const maxLength = event === "tool.decision" && ["runId", "toolCallId"].includes(key) ? 512 : key === "conversationId" ? 160 : 128;
   if (value.length > maxLength) return false;
   const enums: Record<string, readonly string[]> = {
     harness: ["pi", "claude-code", "codex", "dsh"],
     status: ["success", "error", "cancelled", "interrupted", "running", "storage", "empty", "request", "bridge", "run-stop", "gateway", "failed", "skipped"],
-    limit: ["duration", "output", "modelRequests"], decision: ["yes", "always", "no"],
+    limit: ["duration", "output", "modelRequests"], decision: event === "tool.decision" ? ["requested", "approved", "always", "denied", "refused", "cancelled"] : ["yes", "always", "no"],
+    class: ["secret", "protected", "outward", "connector", "mutating", "read"],
+    reason: ["secret", "read_only", "planner_scope"],
     platform: ["telegram", "feishu", "wecom", "dingtalk"],
     mode: ["single", "parallel", "sequential", "mention", "round_robin", "discussion", "intro"],
     source: ["mention", "router", "fallback", "rule"],
     route: ["raer", "tonny", "bob", "parallel", "round_robin", "discussion", "plan_build_review", "plan_then_build", "build_then_review", "unclear"],
     agent: ["assistant", "planner", "builder", "dsh"],
   };
+  if (key === "tool") return /^[a-z][a-z0-9_.:-]{0,127}$/.test(value);
+  if (key === "toolCallId") return value.length > 0 && /^[a-zA-Z0-9_.:~-]+$/.test(value);
   if (key === "scope") return value === "global" || /^(bot|group):[a-zA-Z0-9_.:-]+$/.test(value);
   if (enums[key]) return enums[key].includes(value);
   if (["conversationId", "runId", "routineId", "occurrenceId", "memoryId", "botId", "serverId"].includes(key)) return value.length > 0 && /^[a-zA-Z0-9_.:-]+$/.test(value);
@@ -75,7 +80,7 @@ export function runtimeLogger(dataDir: string) {
     if (!Object.hasOwn(eventFields, event)) return;
     try {
       const allowed = eventFields[event];
-      const safeFields = Object.fromEntries(Object.entries(fields).filter(([key, value]) => allowed.has(key) && safeRuntimeValue(key, value)));
+      const safeFields = Object.fromEntries(Object.entries(fields).filter(([key, value]) => allowed.has(key) && safeRuntimeValue(event, key, value)));
       mkdirSync(dirname(file), { recursive: true, mode: 0o700 });
       // ponytail: two bounded files suit one user; use the host log collector if longer audit retention is needed.
       if ((statSync(file, { throwIfNoEntry: false })?.size ?? 0) >= 10 * 1024 * 1024) renameSync(file, `${file}.1`);

@@ -1,3 +1,4 @@
+import { validRunProvenance, type RunProvenance } from "./runProvenance.ts";
 import { validArtifactSubmission, type ArtifactSubmission } from "../runtime/artifactForm.ts";
 import type { AgentHarnessId } from "./harnessCatalog.ts";
 import type { PiPromptAttachment } from "./piClient.ts";
@@ -13,6 +14,7 @@ export type StoredTurn = {
   artifactSubmission?: ArtifactSubmission;
   referencedConversationIds?: string[];
   native?: NativeTurnCheckpoint;
+  provenance?: RunProvenance;
 };
 export type NativeBranch =
   | { harness: "pi"; sessionId: string; sourceId: string; entryId: string }
@@ -37,6 +39,7 @@ export function validBranchMetadata(turns: unknown, branch: unknown): boolean {
       || (turn.artifactSubmission !== undefined && (!validArtifactSubmission(turn.artifactSubmission) || turn.artifactSubmission.submissionId !== turn.runId))
       || (turn.referencedConversationIds !== undefined && !validConversationReferences(turn.referencedConversationIds))
       || !["pi", "claude-code", "codex", "dsh"].includes(String(turn.harness))
+      || (turn.provenance !== undefined && !validRunProvenance(turn.provenance))
       || (turn.native !== undefined && (!validNative(turn.native) || record(turn.native).harness !== turn.harness))
       || (turn.attachments !== undefined && (!Array.isArray(turn.attachments) || turn.attachments.some(value => {
         const file = record(value);

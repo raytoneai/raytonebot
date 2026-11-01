@@ -243,3 +243,86 @@ test("global CLI options do not bypass application write approval", () => {
     "npm --prefix /home/user/raytonebot/x test",
   ]) assert.equal(classifyToolCall("bash", { command }, policy), "mutating", command);
 });
+
+test("tool decision audit records actual refusals and approvals without logging pure policy queries or automatic reads", async () => {
+  const gate = new PiApprovalGate(policy);
+  const events: import("./approvalGate.ts").ToolDecisionAudit[] = [];
+  gate.setAudit(event => events.push(event));
+  gate.refusalReason("read", { path: "~/.ssh/key" });
+  gate.isRefused("read", { path: "~/.ssh/key" });
+  gate.requiresApproval("write", { path: "notes.md" });
+  await gate.wait("read", "read", { path: "notes.md" });
+  assert.equal(events.length, 0);
+  await assert.rejects(gate.wait("secret", "read", { path: "~/.ssh/key" }), /credentials/);
+  gate.setReadOnly(true);
+  await assert.rejects(gate.wait("readonly", "write", { path: "PRIVATE-PATH", content: "PRIVATE-CONTENT" }), /read-only/);
+  gate.setReadOnly(false);
+  gate.recordRefusal("planner", "write", { path: "PRIVATE-PATH" }, "planner_scope");
+  for (const [id, decision] of [["approved", "yes"], ["denied", "no"], ["always", "always"]] as const) {
+    const pending = gate.wait(id, "write", { path: "notes.md", content: "PRIVATE-CONTENT" });
+    const outcome = decision === "no" ? assert.rejects(pending, /denied/) : pending;
+    assert.equal(gate.resolve(id, decision), true);
+    assert.equal(gate.resolve(id, "no"), false);
+    await outcome;
+  }
+  assert.deepEqual(events.map(event => [event.toolCallId, event.decision, event.reason]), [
+    ["secret", "refused", "secret"], ["readonly", "refused", "read_only"], ["planner", "refused", "planner_scope"],
+    ["approved", "requested", undefined], ["approved", "approved", undefined],
+    ["denied", "requested", undefined], ["denied", "denied", undefined],
+    ["always", "requested", undefined], ["always", "always", undefined],
+  ]);
+  assert.deepEqual(events[0], { toolCallId: "secret", tool: "read", class: "secret", decision: "refused", reason: "secret" });
+  assert.doesNotMatch(JSON.stringify(events), /PRIVATE-/);
+  await gate.wait("remembered", "write", { path: "notes.md" });
+  assert.equal(events.length, 9, "remembered automatic grants do not create audit traffic");
+});
+
+test("tool decision audit cancellation is exactly once and retains the observer of its original call", async () => {
+  const gate = new PiApprovalGate(policy);
+  const old: string[] = [], current: string[] = [];
+  gate.setAudit(event => old.push(`${event.toolCallId}:${event.decision}`));
+  const abort = new AbortController();
+  const pending = gate.wait("cancel", "write", { path: "notes.md" }, abort.signal);
+  const cancelled = assert.rejects(pending, /cancelled/);
+  gate.setAudit(event => current.push(`${event.toolCallId}:${event.decision}`));
+  abort.abort(); gate.cancelAll();
+  assert.equal(gate.resolve("cancel", "yes"), false);
+  await cancelled;
+  assert.deepEqual(old, ["cancel:requested", "cancel:cancelled"]);
+  assert.equal(current.length, 0);
+  gate.setAudit(event => old.push(`${event.toolCallId}:${event.decision}`));
+  const late = gate.wait("late", "write", { path: "notes.md" });
+  gate.setAudit(event => current.push(`${event.toolCallId}:${event.decision}`));
+  gate.resolve("late", "yes"); await late;
+  assert.deepEqual(old.slice(-2), ["late:requested", "late:approved"]);
+  assert.equal(current.length, 0);
+  const held = gate.wait("end", "write", { path: "notes.md" });
+  const ended = assert.rejects(held, /ended/);
+  gate.cancelAll(); gate.cancelAll(); await ended;
+  assert.deepEqual(current, ["end:requested", "end:cancelled"]);
+  await assert.rejects(gate.wait("preabort", "write", { path: "notes.md" }, AbortSignal.abort()), /cancelled/);
+  assert.equal(current.at(-1), "preabort:cancelled");
+  gate.setAudit(() => { throw new Error("observer failed"); });
+  const allowed = gate.wait("observer", "write", { path: "notes.md" });
+  gate.resolve("observer", "yes"); await allowed;
+  gate.setReadOnly(true);
+  await assert.rejects(gate.wait("observer-refusal", "write", { path: "notes.md" }), /read-only/);
+});
+
+test("audit metadata work is skipped without an observer and cannot change actual policy outcomes", async () => {
+  let classifications = 0;
+  const gate = new PiApprovalGate({ ...policy, hostCall: () => {
+    classifications++;
+    if (classifications === 4) throw new Error("diagnostic classification failed");
+    return undefined;
+  } });
+  gate.recordRefusal("unobserved", "write", {}, "planner_scope");
+  assert.equal(classifications, 0);
+  gate.setAudit(() => {});
+  const pending = gate.wait("observed", "write", { path: "notes.md" });
+  assert.equal(gate.resolve("observed", "yes"), true);
+  await pending;
+  const brokenPolicy = new PiApprovalGate({ ...policy, hostCall: () => { throw new Error("real policy failure"); } });
+  brokenPolicy.setAudit(() => {});
+  await assert.rejects(brokenPolicy.wait("broken", "write", {}), /real policy failure/);
+});

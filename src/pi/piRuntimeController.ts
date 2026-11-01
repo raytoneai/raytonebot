@@ -1,3 +1,4 @@
+import { runProvenance, type RunSourceOptions } from "./runProvenance.ts";
 import { asRecord, errorMessage, normalizeConversationId } from "./piHostUtils.ts";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { randomUUID } from "node:crypto";
@@ -114,7 +115,7 @@ export type PiRuntimeController = {
    *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards.
    *  Internal group children may `waitForCapacity`; cancelling that wait leaves no receipt.
    *  `title` names a new conversation instead of its first prompt (a routine's own name). */
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean; groupId?: string; publicRunId?: string; delegated?: boolean; extraHostTools?: import("./memories.ts").HostTools; readOnly?: boolean }): Promise<void>;
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: RunSourceOptions & { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean; groupId?: string; publicRunId?: string; delegated?: boolean; extraHostTools?: import("./memories.ts").HostTools; readOnly?: boolean }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   steer(conversationId: string, runId: string, requestId: string, text: string): Promise<boolean>;
@@ -778,7 +779,7 @@ export function createPiRuntimeController(options: {
           onAccepted: () => slot.memoryDelivered?.(),
           provider, webTools, mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role), hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
-            const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
+            const refusal = approvalGate.checkRefusal(request.toolCallId, request.tool.name, request.tool.args);
             if (refusal) return refusal;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) { request.startExecution(); return true; }
             try { await hold(request.toolCallId, request.tool.name, request.tool.args, request.startExecution); return true; }
@@ -812,11 +813,12 @@ export function createPiRuntimeController(options: {
           async onPermission(request) {
             // The planner writes only into the shared directory: plans and handoffs for others.
             if (request.tool.name === "write" && !plannerMayWrite(request.tool.args)) {
+              approvalGate.recordRefusal(request.toolCallId, request.tool.name, request.tool.args, "planner_scope");
               return layout.shared
                 ? `The planner may only write inside ${layout.shared}.`
                 : "The planner does not write files.";
             }
-            const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
+            const refusal = approvalGate.checkRefusal(request.toolCallId, request.tool.name, request.tool.args);
             if (refusal) return refusal;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
               request.startExecution();
@@ -853,7 +855,7 @@ export function createPiRuntimeController(options: {
           mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role),
           hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
-            const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
+            const refusal = approvalGate.checkRefusal(request.toolCallId, request.tool.name, request.tool.args);
             if (refusal) return refusal;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
               request.startExecution();
@@ -935,6 +937,7 @@ export function createPiRuntimeController(options: {
     },
     async runPrompt(input, onEvent, options) {
       if (input.artifactSubmission !== undefined && (!validArtifactSubmission(input.artifactSubmission) || input.artifactSubmission.submissionId !== input.requestId)) throw new Error("Invalid artifact submission identity.");
+      const provenance = runProvenance(options, input.permissionMode ?? "request", options?.readOnly);
       const prompt = input.prompt?.trim() ? redactCredentials(input.prompt.trim()) : undefined;
       if (!prompt) throw new Error("Pi prompt is empty.");
       const conversationId = normalizeConversationId(input.conversationId);
@@ -978,7 +981,11 @@ export function createPiRuntimeController(options: {
       const stopOnSignal = () => void abortRuns(conversationId, slot.runId).catch(() => undefined);
       if (options?.signal?.aborted) stopOnSignal();
       options?.signal?.addEventListener("abort", stopOnSignal, { once: true });
-      gateFor(conversationId).setReadOnly(options?.readOnly ?? false);
+      const approvalGate = gateFor(conversationId);
+      approvalGate.setReadOnly(options?.readOnly ?? false);
+      approvalGate.setAudit(event => {
+        if (runs.get(conversationId) === slot) log("tool.decision", { conversationId, runId: slot.runId, ...event });
+      });
       const role = isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant";
       const harness = agentPreset(role).harness;
       const runStartedAt = Date.now();
@@ -1065,7 +1072,7 @@ export function createPiRuntimeController(options: {
         const browserNote = slot.delegated ? undefined : browser?.contextNote();
         const referenceNote = conversationReferenceNote(store, references);
         const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(workspacePrompt, options?.groupConversation), unseenPrompts(conversationId, harness))}\n\n[Current Bot identity from host configuration: ${JSON.stringify(identity.bot)}. Use this identity even if earlier messages use an old name.]${memoryNote?.text ? `\n\n${memoryNote.text}` : ""}${browserNote ? `\n\n${browserNote}` : ""}${skillNote ? `\n\n${skillNote}` : ""}`, input.locale);
-        store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt, ...(input.referencedConversationIds?.length ? { referencedConversationIds: input.referencedConversationIds } : {}), ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}),
+        store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt, ...(provenance ? { provenance } : {}), ...(input.referencedConversationIds?.length ? { referencedConversationIds: input.referencedConversationIds } : {}), ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}),
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
         const learningNote = slot.groupId || slot.delegated ? undefined : learning.noteFor(identity.botId, harness, prompt);
         const referencedPrompt = referenceNote ? `${modelPrompt}\n\n${referenceNote}` : modelPrompt;
@@ -1088,6 +1095,7 @@ export function createPiRuntimeController(options: {
         try {
           if (opened && !recorder.finish()) terminalStatus = "error";
         } finally {
+          approvalGate.setAudit(undefined);
           runs.delete(conversationId);
           if (staleBridges.delete(conversationId)) dropBridge(conversationId);
           settle();
