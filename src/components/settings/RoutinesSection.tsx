@@ -3,6 +3,7 @@ import { useState } from "react";
 import { featureText } from "../../i18n/copy/features.ts";
 
 import { type SettingsCopy } from "../../i18n/copy/settings";
+import type { AppLocale } from "../../i18n/locales.ts";
 import { useLocale } from "../../i18n/LocaleContext";
 import type { RoutineDefinitionPatch, RoutineRun, RoutineView } from "../../pi/routineTypes";
 import { cronProblem, routineScheduleLabel, timezoneProblem } from "../../runtime/routineSchedule";
@@ -10,6 +11,22 @@ import type { RoutinesState } from "../../runtime/useRoutines";
 import { useBotNames } from "../shell/ShellExtras";
 import { Button, Input, SelectMenu, Switch } from "../ui";
 import { Dot, ProviderMark } from "./SettingsShared";
+
+const isWaiting = (run: RoutineRun) => run.status === "running" && Boolean(run.waiting);
+
+function waitingSummary(run: RoutineRun, locale: AppLocale, now: number): string {
+  const details = run.waitingDetails;
+  const reasons = { approval: "Approval", question: "Answer", vault: "Secure input", channel_setup: "Channel setup" } as const;
+  const minutes = details?.since === undefined ? undefined : Math.max(0, Math.floor((now - details.since) / 60_000));
+  return [details?.reasons.length ? details.reasons.map(reason => featureText(locale, reasons[reason])).join(" / ") : featureText(locale, "Waiting for your input"),
+    details ? featureText(locale, "Pending: {count}", { count: details.count }) : featureText(locale, "Pending count unknown"),
+    minutes === undefined ? featureText(locale, "Wait time unknown") : minutes < 1 ? featureText(locale, "Waiting less than a minute") : featureText(locale, "Waiting {minutes} min", { minutes })].join(" · ");
+}
+
+function reportLabel(run: RoutineRun, locale: AppLocale): string {
+  const statuses = { changes: "Changes", no_changes: "No changes", blocked: "Blocked" } as const;
+  return run.report ? `${featureText(locale, "Model reported")}: ${featureText(locale, statuses[run.report.status])}` : featureText(locale, "No model report");
+}
 
 export function RoutinesSection({ t, state, initialBotId, onOpenConversation, drafts, onDraft }: {
   t: SettingsCopy; state: RoutinesState; initialBotId?: string; onOpenConversation?: ((conversationId: string, target?: Pick<RoutineRun, "runId" | "textId">) => void);
@@ -69,6 +86,10 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
     ? (draft && draft.revision !== (routine.revision ?? 0)
       ? (featureText(locale, "This routine changed elsewhere. Your draft is kept. Discard changes and edit again to load the latest version.")) : undefined) : failure;
   const last = routine.lastRun;
+  // The existing settings poll re-renders this snapshot; no elapsed-time timer is needed.
+  const now = Date.now();
+  const waiting = last && isWaiting(last);
+  const longWait = (run: RoutineRun) => isWaiting(run) && run.waitingDetails?.since !== undefined && now - run.waitingDetails.since >= 30 * 60_000;
   const skipped = routine.lastSkipped && routine.lastSkipped.at > (last?.at ?? 0) ? routine.lastSkipped : undefined;
   const tone = !last ? "muted" : { running: "warn", success: "ok", error: "error", cancelled: "muted", interrupted: "warn" }[last.status];
   const when = last ? new Date(last.at).toLocaleString(locale, { month: "short", day: "numeric", hour: "2-digit", minute: "2-digit" }) : undefined;
@@ -106,7 +127,7 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
             <span title={routine.schedule}>{routineScheduleLabel(routine.schedule, locale)}</span><span>{routine.timezone}</span>
           </span>
         </button>
-        <span className="settings-key-pill" data-tone={last?.waiting || skipped ? "warn" : tone}><Dot />{last?.waiting ? c.waiting : skipped ? (featureText(locale, "Not run")) : last ? c.status[last.status] : c.neverRun}</span>
+        <span className="settings-key-pill" data-tone={waiting || skipped ? "warn" : tone}><Dot />{waiting ? c.waiting : skipped ? (featureText(locale, "Not run")) : last ? c.status[last.status] : c.neverRun}</span>
         <Switch
           size="sm"
           aria-label={`${routine.title} ${c.enable}`}
@@ -118,6 +139,10 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
           <ChevronDown size={16} aria-hidden="true" />
         </button>
       </div>
+      {last ? <p className="settings-note routine-run-summary" data-waiting={waiting || undefined}>
+        {waiting ? `${waitingSummary(last, locale, now)}${longWait(last) ? ` · ${c.openConversation}` : ""}` : reportLabel(last, locale)}
+        {!waiting && last.report ? ` · ${last.report.summary.slice(0, 180)}${last.report.summary.length > 180 ? "…" : ""}` : null}
+      </p> : null}
       {open ? (
         <div className="settings-provider-editor">
           {draft ? <form className="routine-edit-form" onSubmit={async event => { event.preventDefault(); if (!problem && !busy && !running && await state.update(routine.id, draft)) onDraft(); }}>
@@ -146,7 +171,17 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
             : (featureText(locale, "The host missed this scheduled time. This occurrence was not replayed."))}</p> : null}
           {routine.disabledReason && !routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{c.switchedOff(routine.disabledReason)}</span> : null}
           {last?.status === "error" && last.error && routine.enabled ? <span className="settings-status" data-tone="error"><Dot />{last.error}</span> : null}
-          {last?.waiting ? <span className="settings-status" data-tone="warn" role="status"><Dot />{c.waitingNote}</span> : null}
+          {waiting ? <div className="routine-waiting-details" role="status">
+            <p className="settings-status" data-tone="warn"><Dot /><span>{waitingSummary(last!, locale, now)}</span></p>
+            <p className="settings-note">{longWait(last!) ? featureText(locale, "Waiting 30 minutes or more. Open the conversation to continue.") : featureText(locale, "Open the conversation to continue.")}</p>
+          </div> : null}
+          {last ? last.report ? <div className="routine-run-report">
+            <p className="settings-note"><strong>{reportLabel(last, locale)}</strong></p>
+            <p className="settings-note">{featureText(locale, "Model self-report; listed evidence is not verified by the host.")}</p>
+            <p className="settings-note">{last.report.summary}</p>
+            {last.report.evidence?.length ? <ul>{last.report.evidence.map((item, index) => <li key={index}>{item.label} · {item.reference}</li>)}</ul> : null}
+            <p className="settings-note">{featureText(locale, "Reported at {time}", { time: date(last.report.reportedAt) })}</p>
+          </div> : <p className="settings-note">{featureText(locale, "No model report")}</p> : null}
           <div className="settings-provider-actions">
             {!draft ? <Button size="sm" variant="ghost" disabled={busy || running} onClick={() => { setCustomSchedule(false); onDraft({ title: routine.title, instructions: routine.instructions, schedule: routine.schedule, timezone: routine.timezone, revision: routine.revision ?? 0 }); }}>{featureText(locale, "Edit")}</Button> : null}
             <Button size="sm" disabled={busy || Boolean(draft) || !routine.enabled || running} title={routine.enabled ? undefined : c.turnOnFirst}
@@ -163,8 +198,11 @@ function RoutineRow({ t, routine, state, open, onToggleOpen, onOpenConversation,
           {history.length ? <div className="routine-history">
             <h4>{featureText(locale, "Run history")}</h4>
             <ol>{history.slice(0, allRuns ? history.length : 5).map(run => <li key={run.occurrenceId}>
-              <div><time dateTime={new Date(run.at).toISOString()}>{date(run.at)}</time><span className="settings-key-pill" data-tone={run.status === "error" ? "error" : run.status === "success" ? "ok" : "muted"}>{run.waiting ? c.waiting : c.status[run.status]}</span>
+              <div><time dateTime={new Date(run.at).toISOString()}>{date(run.at)}</time><span className="settings-key-pill" data-tone={run.status === "error" ? "error" : run.status === "success" ? "ok" : "muted"}>{isWaiting(run) ? c.waiting : c.status[run.status]}</span>
                 {onOpenConversation && (run.textId || run.runId) ? <Button size="sm" variant="ghost" onClick={() => onOpenConversation(routine.conversationId, run)}>{featureText(locale, "View result")}</Button> : null}</div>
+              {isWaiting(run) ? <p className="settings-note" data-tone="warn">{waitingSummary(run, locale, now)}{longWait(run) ? ` · ${featureText(locale, "Waiting 30 minutes or more. Open the conversation to continue.")}` : ""}</p> : null}
+              <p className="settings-note routine-history-report"><strong>{reportLabel(run, locale)}</strong>{run.report ? ` · ${run.report.summary}` : ""}</p>
+              {run.report?.evidence?.length ? <ul className="routine-evidence">{run.report.evidence.map((item, index) => <li key={index}>{item.label} · {item.reference}</li>)}</ul> : null}
               {run.error ? <p className="settings-note" data-tone="error">{run.error}</p> : null}
             </li>)}</ol>
             {history.length > 5 ? <Button size="sm" variant="ghost" onClick={() => setAllRuns(value => !value)}>{allRuns ? (featureText(locale, "Show less")) : (featureText(locale, "Show all {count} runs", { count: history.length }))}</Button> : null}

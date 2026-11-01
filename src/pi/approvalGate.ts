@@ -92,7 +92,8 @@ export class PiApprovalGate {
     if (classifyToolCall(toolName, args, this.policy) === "secret") return SECRET_REFUSAL;
     const name = toolName.toLowerCase().replace(/^mcp__raytone__/, "");
     const cancelsTask = name === "group_tasks" && Boolean(args && typeof args === "object" && (args as Record<string, unknown>).cancel);
-    if (this.readOnly && (cancelsTask || !["read", "read_file", "grep", "glob", "find", "ls", "list_dir", "web_search", "web_fetch", "browser_accounts", "update_plan", "recall_memories", "search_chat_history", "read_chat_history", "read_skill", "group_tasks"].includes(name))) {
+    // A routine report is scoped host bookkeeping, like a plan; it cannot perform task actions.
+    if (this.readOnly && (cancelsTask || !["read", "read_file", "grep", "glob", "find", "ls", "list_dir", "web_search", "web_fetch", "browser_accounts", "update_plan", "routine_report", "recall_memories", "search_chat_history", "read_chat_history", "read_skill", "group_tasks"].includes(name))) {
       return "This assignment is read-only. Ask for a sequential task to change files, use the shared browser or run commands.";
     }
   }

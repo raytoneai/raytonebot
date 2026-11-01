@@ -36,6 +36,7 @@ import { validArtifactSubmission } from "../runtime/artifactForm.ts";
 import { createGroupWriteQueue, originalGroupTaskRequest, newGroupTask, retainedGroupTasks, recoverGroupTasks, settleGroupTask, groupTaskEvents, groupTaskContext, mergeForegroundGroupTasks, type GroupTask } from "./groupTasks.ts";
 import { createGroupDelegation, delegationConversationPrefix } from "./groupDelegation.ts";
 import { redactCredentials } from "./imChannels/redactCredentials.ts";
+import { mergeHostTools, type HostTools } from "./memories.ts";
 
 const CHILD = ".m.";
 export const childConversationId = (groupId: string, member: string) => `${groupId}${CHILD}${member}`;
@@ -74,7 +75,7 @@ type Deps = {
 
 export type GroupController = PiRuntimeController & {
   setGroupMembers(id: string, members: string[], bots?: GroupParticipant[], hostId?: string): StoredConversation;
-  runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: RunSourceOptions & { signal?: AbortSignal; fromChannel?: boolean; readOnly?: boolean }): Promise<void>;
+  runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: RunSourceOptions & { signal?: AbortSignal; fromChannel?: boolean; readOnly?: boolean; extraHostTools?: HostTools }): Promise<void>;
   withIdleWrite<T>(callback: () => Promise<T>): Promise<T>;
 };
 
@@ -169,7 +170,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     publishDelegations(id);
   };
 
-  async function runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: RunSourceOptions & { signal?: AbortSignal; fromChannel?: boolean; readOnly?: boolean }, invitation: string[] = []) {
+  async function runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: RunSourceOptions & { signal?: AbortSignal; fromChannel?: boolean; readOnly?: boolean; extraHostTools?: HostTools }, invitation: string[] = []) {
     options?.signal?.throwIfAborted();
     runProvenance(options, input.permissionMode ?? "request", options?.readOnly);
     if (input.artifactSubmission !== undefined && (!validArtifactSubmission(input.artifactSubmission) || input.artifactSubmission.submissionId !== input.requestId)) throw new Error("Invalid artifact submission identity.");
@@ -333,9 +334,9 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
           requestedPermissionMode: options?.requestedPermissionMode ?? input.permissionMode ?? "request",
           parent: { conversationId: groupId, runId: groupRunId, ...(assignment ? { taskId: assignment.id } : {}) },
           signal: abort.signal, waitForCapacity: true, groupConversation: true, groupId, publicRunId: groupRunId, readOnly,
-          ...(member === hostId && record ? { extraHostTools: delegation.toolsFor({ groupId, requestId: groupRunId, hostId,
+          ...(member === hostId && record ? { extraHostTools: mergeHostTools(options?.extraHostTools, delegation.toolsFor({ groupId, requestId: groupRunId, hostId,
             parentId: root?.id, input: { ...input, permissionMode }, source: { origin: options?.origin,
-              requestedPermissionMode: options?.requestedPermissionMode ?? input.permissionMode ?? "request" }, signal: abort.signal, isCurrent: () => active.get(groupId) === slot }) } : {}) });
+              requestedPermissionMode: options?.requestedPermissionMode ?? input.permissionMode ?? "request" }, signal: abort.signal, isCurrent: () => active.get(groupId) === slot })) } : {}) });
         if (failure !== undefined) throw new Error(failure);
         if (cancelled) abort.abort();
         abort.signal.throwIfAborted();

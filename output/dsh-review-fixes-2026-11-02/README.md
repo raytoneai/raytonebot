@@ -31,4 +31,9 @@
 
 ## 第三批
 
-待第二批提交后实施。
+- 原例行任务行、详情与历史显示原因、待处理数量、等待时长及 30 分钟打开会话提示。主代理发现适配器 `event.ts` 是合成时间，改在原 recorder 落盘/广播前强制写主机 `waitObservedAt`；旧记录未知，不从运行开始猜测。按精确活动 run 派生，多项等待各自解除，终态/其他 run/旧字段不会延续等待。
+- `routine_report` 复用原 HostTools 与 `routines.json`，接受有界模型自报与纯文本证据；主机绑定身份/时间，原子保存成功后回执，首份固定，相同活跃重试幂等，拒绝冲突与过期回调。报告与主机状态/失败计数独立，缺失就明确未报告。主持成员正式群轮次保留该工具和既有委派工具，其余成员/后台委派不获得父场次工具。
+- 报告回归覆盖写/rename 故障、不成功回执、重试、取消/删除/替代、重启保留及 host error + no_changes 仍累计失败并暂停。78 项等待/群/例行定向回归通过：[日志](batch3-waiting-tests.log)。等待视图另覆盖 gate 无事件、legacy 未知时间、其他 active run、释放与终态。首轮定向测试发现旧受控 bridge 直接等待 gate 却没有工具开始事件；补齐与真实引擎一致的事件后通过，并保留未知详情兼容路径。
+- `npm run build` 通过：[日志](batch3-build.log)。完整 876 项测试，875 通过、1 项指定 DSH 环境缺失跳过、0 失败：[日志](batch3-tests.log)。隔离本机和云入口检查通过：[本机](batch3-local.log)、[入口](batch3-cloud.log)。
+- 实际 Chromium 三语、桌面/390px 检查等待四原因/计数/时长/未知，真实 hook 三秒轮询解除，模型 no_changes 与 host error/cancelled/interrupted 同时展示，changes/blocked、无报告、长文本及结果定位；[浏览器日志](batch3-ui-browser-tests.log)、[41 张截图](batch3-visual/)。主代理目视[中文窄屏失败](batch3-visual/zh-390-reported-failure.png)和[英文桌面等待](batch3-visual/en-1200-waiting.png)，无横向溢出。
+- 全部 20 个内置场景在桌面与 390px 各走一遍，40/40 通过、无页面错误/溢出：[回执](batch3-fixtures/fixture-results.json)。主代理和独立只读复查无阻塞问题；未调用真实模型、真实外部服务或部署。页面关闭后的通知、observe、聚合和消息预算未包含在本批。

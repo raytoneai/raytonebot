@@ -2,8 +2,17 @@
 
 export type RoutineRunStatus = "running" | "success" | "error" | "cancelled" | "interrupted";
 
+/** Model self-report; its evidence is supplied text, not host verification. */
+export type RoutineReportInput = { status: "changes" | "no_changes" | "blocked"; summary: string;
+  evidence?: { label: string; reference: string }[] };
+export type RoutineReport = RoutineReportInput & { reportedAt: number };
+export type RoutineWaiting = { reasons: ("approval" | "question" | "vault" | "channel_setup")[]; count: number; since?: number };
+
 export type RoutineRun = { occurrenceId: string; at: number; status: RoutineRunStatus; error?: string;
   runId?: string; textId?: string; finishedAt?: number;
+  /** Optional self-report, independent of the host terminal status. */
+  report?: RoutineReport;
+  waitingDetails?: RoutineWaiting;
   /** Running, and held for approval or a question in its conversation. */
   waiting?: boolean };
 

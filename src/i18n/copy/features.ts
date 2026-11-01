@@ -298,6 +298,82 @@ export const featureCopy = {
     "zh": "请检查模型参数，输出上限不能超过上下文窗口。",
     "ja": "モデルのパラメーターを確認してください。出力上限はコンテキストウィンドウ以下にしてください。"
   },
+  "Model self-report; listed evidence is not verified by the host.": {
+    "zh": "模型自报，所列证据未经主机核实。",
+    "ja": "モデルの自己報告です。記載された証拠はホストが検証していません。"
+  },
+  "Open the conversation to continue.": {
+    "zh": "请打开会话处理后继续。",
+    "ja": "会話を開いて対応し、続行してください。"
+  },
+  "Model reported": {
+    "zh": "模型报告",
+    "ja": "モデルの報告"
+  },
+  "Changes": {
+    "zh": "有变化",
+    "ja": "変更あり"
+  },
+  "No changes": {
+    "zh": "无变化",
+    "ja": "変更なし"
+  },
+  "Blocked": {
+    "zh": "受阻",
+    "ja": "ブロック中"
+  },
+  "No model report": {
+    "zh": "模型未报告",
+    "ja": "モデルの報告なし"
+  },
+  "Reported at {time}": {
+    "zh": "报告时间：{time}",
+    "ja": "報告日時：{time}"
+  },
+  "Approval": {
+    "zh": "审批",
+    "ja": "承認"
+  },
+  "Answer": {
+    "zh": "回答",
+    "ja": "回答"
+  },
+  "Secure input": {
+    "zh": "安全输入",
+    "ja": "安全な入力"
+  },
+  "Channel setup": {
+    "zh": "频道设置",
+    "ja": "チャネル設定"
+  },
+  "Waiting for your input": {
+    "zh": "等待你处理",
+    "ja": "入力を待っています"
+  },
+  "Pending: {count}": {
+    "zh": "待处理：{count} 项",
+    "ja": "保留中：{count} 件"
+  },
+  "Pending count unknown": {
+    "zh": "待处理项数未知",
+    "ja": "保留件数不明"
+  },
+  "Waiting less than a minute": {
+    "zh": "等待不足 1 分钟",
+    "ja": "待機時間：1 分未満"
+  },
+  "Waiting {minutes} min": {
+    "zh": "已等待 {minutes} 分钟",
+    "ja": "待機時間：{minutes} 分"
+  },
+  "Wait time unknown": {
+    "zh": "等待时间未知",
+    "ja": "待機時間不明"
+  },
+  "Waiting 30 minutes or more. Open the conversation to continue.": {
+    "zh": "已等待至少 30 分钟，请打开会话处理。",
+    "ja": "30 分以上待機しています。会話を開いて対応してください。"
+  },
   "Filter routines by Bot": {
     "zh": "按 Bot 筛选例行任务",
     "ja": "Bot で定期タスクを絞り込む"

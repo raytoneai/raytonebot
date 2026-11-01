@@ -1263,6 +1263,53 @@ test("custom sequential members use current names in confirmation and stable IDs
   } finally { controller.dispose(); await close(router); rmSync(dataDir, { recursive: true, force: true }); }
 });
 
+test("group host retains occurrence tools alongside delegation without sharing them with other members", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-group-occurrence-tools-"));
+  const router = createServer((_req, res) => res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ route: "discussion" }) } }] })));
+  const url = await listen(router);
+  const harnesses = AGENT_PRESETS.map(p => p.harness); for (const p of AGENT_PRESETS) p.harness = "pi";
+  const bridge = controlledBridges();
+  const reports: string[] = [];
+  const members: string[] = [];
+  let occurrence = "first";
+  const factory: PiBridgeFactory = async options => {
+    const engine = await bridge.factory(options);
+    const id = decodeURIComponent(options.sessionDir!.split("/").pop()!);
+    return { ...engine, async prompt(prompt) {
+      members.push(id);
+      const names = options.hostTools?.specs.map(tool => tool.name) ?? [];
+      assert.equal(names.includes("routine_report"), id.endsWith(".m.assistant"));
+      if (names.includes("routine_report")) {
+        assert.ok(names.includes("delegate_task"), "merging must preserve existing host delegation tools");
+        await options.approvalGate.wait("report", "mcp__raytone__routine_report", {});
+        const result = await options.hostTools!.run("routine_report", {});
+        assert.equal(result.text, occurrence, "bridge must not reuse an earlier occurrence closure");
+      }
+      return engine.prompt(prompt);
+    } };
+  };
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  try {
+    await controller.configure({ provider: "router", model: "fixture", providerDefinition: {
+      id: "router", name: "Router", protocol: "openai-compatible", baseUrl: url, models: ["fixture"], authMode: "none",
+    } });
+    for (const current of ["first", "second"]) {
+      occurrence = current;
+      const events: AgentUXEvent[] = [];
+      await controller.runGroupPrompt({ conversationId: groupId, requestId: current, prompt: "大家讨论一轮", provider: "router", model: "fixture", permissionMode: "request" },
+        event => events.push(event), { extraHostTools: { specs: [{ name: "routine_report", description: "Controlled report", inputSchema: { type: "object", properties: {} } }],
+          async run() { reports.push(current); return { text: current, isError: false }; } } });
+      assert.equal(events.at(-1)?.payload.status, "success", JSON.stringify(events.at(-1)));
+    }
+    assert.deepEqual(reports, ["first", "first", "second", "second"]);
+    assert.ok(members.some(id => !id.endsWith(".m.assistant")));
+  } finally {
+    await controller.dispose(); await close(router);
+    AGENT_PRESETS.forEach((p, i) => p.harness = harnesses[i]);
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});
+
 test("discussion members and summary enforce read-only despite allow-all; confirmed execution retains workspace authorization", async () => {
   const dataDir = mkdtempSync(join(tmpdir(), "rtb-discussion-readonly-"));
   let route = "discussion";

@@ -42,7 +42,11 @@ function engine() {
         if (mode === "fail") throw new Error("auth failed");
         if (mode === "hold") await new Promise<void>((resolve) => { release = resolve; });
         // An unattended run that needs a write approved, under the host's default "request" mode.
-        if (mode === "ask") await approvalGate.wait("call_ask", "write", { path: "status.txt" }, new AbortController().signal);
+        if (mode === "ask") {
+          emit({ type: "tool_execution_start", toolCallId: "call_ask", toolName: "write", args: { path: "status.txt" } });
+          await approvalGate.wait("call_ask", "write", { path: "status.txt" }, new AbortController().signal);
+          emit({ type: "tool_execution_end", toolCallId: "call_ask", toolName: "write", result: { content: [{ type: "text", text: "Saved." }] } });
+        }
         if (mode === "create") {
           try { created.push(await onCreateRoutine!(createFrom as typeof request)); }
           catch (error) { created.push(error as Error); }
@@ -308,16 +312,22 @@ test("a run held for an approval shows as waiting on the user until it is answer
     const routine = await createFromChat(api, bridge);
     await api.call(`/routines/${routine.id}`, "POST", { enabled: true });
     bridge.setMode("ask");
+    const beforeWaiting = Date.now();
     assert.equal((await api.call(`/routines/${routine.id}/run`, "POST", { occurrenceId: "wait" })).status, 202);
     const waiting = await routineWhere(api, (item) => item.lastRun?.waiting === true);
     assert.equal(waiting.lastRun?.status, "running");
     assert.equal(waiting.history?.[0].waiting, true);
+    assert.deepEqual(waiting.lastRun?.waitingDetails?.reasons, ["approval"]);
+    assert.equal(waiting.lastRun?.waitingDetails?.count, 1);
+    assert.ok(waiting.lastRun!.waitingDetails!.since! >= beforeWaiting && waiting.lastRun!.waitingDetails!.since! <= Date.now());
+    assert.deepEqual(waiting.history?.[0].waitingDetails, waiting.lastRun?.waitingDetails);
     assert.equal(api.host.controller.listConversations().find((entry) => entry.id === routine.conversationId)?.awaitingUser, true);
     assert.equal(api.host.controller.listConversations().find((entry) => entry.id === "chat")?.awaitingUser, undefined);
     assert.equal(api.host.controller.resolveApproval("call_ask", "yes", routine.conversationId), true);
     const done = await routineWhere(api, (item) => item.lastRun?.status === "success");
     assert.equal(done.lastRun?.waiting, undefined);
     assert.equal(done.history?.[0].waiting, undefined);
+    assert.equal(done.lastRun?.waitingDetails, undefined);
     assert.equal(api.host.controller.awaitingUser(routine.conversationId), false);
   } finally { await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
 });
