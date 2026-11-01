@@ -1262,3 +1262,72 @@ test("custom sequential members use current names in confirmation and stable IDs
     assert.equal(controller.getConversation(groupId)?.group?.hostId, first.id);
   } finally { controller.dispose(); await close(router); rmSync(dataDir, { recursive: true, force: true }); }
 });
+
+test("discussion members and summary enforce read-only despite allow-all; confirmed execution retains workspace authorization", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-discussion-readonly-"));
+  let route = "discussion";
+  let phase = "discussion";
+  let sequenceCalls = 0;
+  const router = createServer((_req, res) => res.end(JSON.stringify({ choices: [{ message: { content: JSON.stringify({ route }) } }] })));
+  const url = await listen(router);
+  const harnesses = AGENT_PRESETS.map(p => p.harness); for (const p of AGENT_PRESETS) p.harness = "pi";
+  const bridge = controlledBridges();
+  const probes: string[] = [];
+  const factory: PiBridgeFactory = async options => {
+    const engine = await bridge.factory(options);
+    return { ...engine, async prompt(prompt) {
+      const gate = options.approvalGate;
+      if (phase === "discussion") {
+        assert.match(prompt, /This turn is read-only/);
+        for (const [name, args] of [
+          ["write", { path: "notes.md", content: "malicious" }],
+          ["bash", { command: "touch notes.md" }],
+          ["mcp__raytone__remember", { text: "malicious" }],
+          ["mcp__raytone__create_routine", {}],
+          ["mcp__raytone__delegate_task", {}],
+          ["mcp__raytone__group_tasks", { taskId: "task", cancel: true }],
+        ] as const) await assert.rejects(gate.wait("attempt", name, args), /read-only/);
+        await gate.wait("read", "read", { path: "brief.md" });
+        await gate.wait("tasks", "mcp__raytone__group_tasks", {});
+        probes.push(prompt.includes("Group discussion summary") ? "summary" : "member");
+      } else if (phase !== "sequence" || sequenceCalls++ > 0) {
+        // The same child gate must reset for a direct task and the explicitly approved sequence.
+        await gate.wait("write", "write", { path: "notes.md" });
+        probes.push("execution");
+      }
+      return engine.prompt(prompt);
+    } };
+  };
+  const controller = createPiRuntimeController({ cwd: dataDir, dataDir, bridgeFactory: factory });
+  try {
+    await controller.configure({ provider: "router", model: "fixture", providerDefinition: {
+      id: "router", name: "Router", protocol: "openai-compatible", baseUrl: url, models: ["fixture"], authMode: "none",
+    } });
+    const run = async (requestId: string, prompt: string, permissionMode: "request" | "allow-all") => {
+      let confirmations = 0;
+      const events: AgentUXEvent[] = [];
+      await controller.runGroupPrompt({ conversationId: groupId, requestId, prompt, provider: "router", model: "fixture", permissionMode, locale: "en" }, event => {
+        events.push(event);
+        if (event.type === "run.awaiting_input") {
+          confirmations++;
+          assert.match(JSON.stringify(event.payload.questions), /Workspace reads, writes and commands are authorized for this turn/);
+          controller.resolveUserInput(groupId, event.payload.requestId, { plan: ["Start"] });
+        }
+      });
+      assert.equal(events.at(-1)?.payload.status, "success", JSON.stringify(events.at(-1)));
+      return confirmations;
+    };
+    assert.equal(await run("discussion", "大家讨论一轮", "allow-all"), 0);
+    assert.deepEqual(probes, ["member", "member", "member", "summary"]);
+    probes.length = 0; phase = "direct";
+    assert.equal(await run("direct", "@Raer write notes", "allow-all"), 0);
+    assert.deepEqual(probes, ["execution"]);
+    probes.length = 0; route = "plan_then_build"; phase = "sequence";
+    assert.equal(await run("sequence", "先规划再实现", "request"), 1);
+    assert.deepEqual(probes, ["execution", "execution", "execution"]);
+  } finally {
+    controller.dispose(); await close(router);
+    AGENT_PRESETS.forEach((p, i) => p.harness = harnesses[i]);
+    rmSync(dataDir, { recursive: true, force: true });
+  }
+});

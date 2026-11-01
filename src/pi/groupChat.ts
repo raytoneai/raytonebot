@@ -414,7 +414,8 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt: userPrompt,
         ...(input.referencedConversationIds ? { referencedConversationIds: input.referencedConversationIds } : {}),
         ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}), attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
-      readOnly = plan.mode === "parallel" || invitedIds.length > 0;
+      // Discussion members and their summary share the same host-enforced read-only scope.
+      readOnly = plan.mode === "parallel" || plan.mode === "discussion" || invitedIds.length > 0;
       meta.tasks = retainedGroupTasks(meta.tasks);
       if (meta.tasks.length > 800) throw new Error("Too many unresolved assignments; review them before starting more work.");
       root = { ...newGroupTask(groupRunId, hostId, prompt), ...(reviewed ? { retryOf: reviewed.id } : {}) };

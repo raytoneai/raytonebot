@@ -181,3 +181,60 @@ test("installed Pi SDK receives steering before the next model call and keeps on
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("installed Pi SDK read-only gate blocks file, command, channel and routine side effects even under allow-all", { timeout: 15000 }, async () => {
+  const { createDefaultPiBridge } = await import("./piSdkBridge.ts");
+  const { PiApprovalGate } = await import("./approvalGate.ts");
+  const root = mkdtempSync(join(tmpdir(), "rtb-sdk-readonly-"));
+  const gate = new PiApprovalGate({ cwd: root, protectedPaths: [], secretPaths: [] });
+  gate.setMode("allow-all"); gate.setReadOnly(true);
+  let callbacks = 0, request = 0;
+  let operations: [string, Record<string, unknown>][] = [
+    ["write", { path: "blocked.txt", content: "bad" }],
+    ["bash", { command: "touch shell-blocked.txt" }],
+    ["connect_channel", { platform: "telegram" }],
+    ["create_routine", { title: "Bad", schedule: "0 9 * * *", timezone: "Asia/Shanghai", instructions: "bad" }],
+    ["ls", { path: "." }],
+  ];
+  const results: string[] = [];
+  const server = createServer(async (req, res) => {
+    const chunks = []; for await (const chunk of req) chunks.push(chunk);
+    const body = JSON.parse(Buffer.concat(chunks).toString());
+    const last = body.messages.at(-1); if (last?.role === "tool") results.push(JSON.stringify(last));
+    const op = operations[request++];
+    res.writeHead(200, { "content-type": "text/event-stream" });
+    const send = (delta: unknown, finish_reason: string | null) => res.write(`data: ${JSON.stringify({
+      id: `readonly-${request}`, object: "chat.completion.chunk", created: 1, model: body.model,
+      choices: [{ index: 0, delta, finish_reason }],
+    })}\n\n`);
+    send(op ? { role: "assistant", tool_calls: [{ index: 0, id: `readonly-call-${request}`, type: "function",
+      function: { name: op[0], arguments: JSON.stringify(op[1]) } }] } : { role: "assistant", content: "Done." }, null);
+    send({}, op ? "tool_calls" : "stop"); res.end("data: [DONE]\n\n");
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const bridge = await createDefaultPiBridge({ cwd: root, sandboxed: false, approvalGate: gate, hasHistory: false,
+    onSessionId() {}, onUserInput: async () => ({}),
+    onChannelSetup: async () => { callbacks++; throw new Error("normal channel callback reached"); },
+    onCreateRoutine: async () => { callbacks++; throw new Error("normal routine callback reached"); },
+    modelLease: async () => { throw new Error("HTTP fixture does not need a model lease"); },
+  });
+  try {
+    await bridge.configure({ provider: "read-only-test", model: "deepseek-flash", apiKey: "fixture",
+      providerDefinition: { id: "read-only-test", name: "Local fixture", protocol: "openai-compatible",
+        baseUrl: `http://127.0.0.1:${(server.address() as { port: number }).port}/v1`, models: ["deepseek-flash"], authMode: "required" } });
+    await bridge.prompt("Attempt each operation.");
+    assert.equal(callbacks, 0);
+    assert.equal(existsSync(join(root, "blocked.txt")), false);
+    assert.equal(existsSync(join(root, "shell-blocked.txt")), false);
+    assert.equal(results.filter(result => result.includes("This assignment is read-only")).length, 4);
+    assert.equal(results.length, 5, "the allowed directory read executes too");
+    assert.doesNotMatch(results.at(-1)!, /read-only|error/i);
+    gate.setReadOnly(false); request = 0; operations = operations.slice(2, 4);
+    await bridge.prompt("Normal turn may reach channel and routine setup.");
+    assert.equal(callbacks, 2);
+  } finally {
+    bridge.dispose(); server.closeAllConnections();
+    await new Promise<void>(resolve => server.close(() => resolve()));
+    rmSync(root, { recursive: true, force: true });
+  }
+});

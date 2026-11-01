@@ -1,5 +1,11 @@
 # 02 架构
 
+## 停止历史与讨论只读（2026-11-02）
+
+取消仍保存为 `run.finished(cancelled)`。`runtime/cancelledTurns.ts` 仅在显示回放中为该轮添加现有步骤行，保留部分回复并显示本轮已停止；不改原始事件、续接游标或 vendor。主机启动恢复未结束轮次时附加 `interruptionReason: host_restart`，显示明确的重启中断说明；旧取消记录不推断原因。不会自动重放。
+
+普通讨论的成员及汇总沿现有 `PiApprovalGate.setReadOnly` 限制副作用；允许安全读取和原计划记录，拒绝写文件、受闸门控制的命令、主机配置修改和 `group_tasks` 取消。Pi SDK 的频道连接/例行任务创建也经过同一闸门。顺序任务原 PM 确认及本轮工作区授权不变；原生引擎既有安全读取与隔离边界不变。
+
 ## 显式交付版本（2026-11-01）
 
 `publish_artifact({path, preserveVersion: true})` 在现有主机中保存单文件 `.md`、`.txt`、`.pdf` 的交付字节；省略参数仍只登记当前工作文件。`artifactTool.ts` 从 `openWorkspaceFile` 已验证的句柄有界读取，并核对读取前后的文件状态。`artifactVersions.ts` 在 `<dataDir>.artifact-versions/` 保存主机生成身份、会话/轮次/产物关联、时间、大小、SHA-256 与独立字节文件，成功保存后才发原 artifact 事件。上限为单文件 20 MiB、文件字节合计 500 MiB；达到配额拒绝新保存，不淘汰旧版本。存储目录/文件为 0700/0600，加入文件接口与 Agent 工具的私有路径；同 UID 本机进程不是强隔离边界。

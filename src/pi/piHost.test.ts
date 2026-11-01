@@ -821,6 +821,7 @@ test("a turn left open by the last process is closed as interrupted, not replaye
     const events = second.getConversation("a")!.events;
     assert.equal(events.at(-1)?.type, "run.finished");
     assert.equal((events.at(-1)?.payload as { status?: string }).status, "cancelled");
+    assert.equal(events.at(-1)?.payload.interruptionReason, "host_restart");
     assert.equal(second.listConversations().find((entry) => entry.id === "a")?.running, false);
     first.dispose();
     second.dispose();
@@ -839,10 +840,18 @@ test("restart closes a run waiting for its first response even with no open bloc
     const adapter = createPiEventAdapter({ runId: "waiting-run" });
     for (const event of adapter.startUserMessage("hi")) store.append("waiting", event);
     store.setCliSession("waiting", { harness: "codex", id: "test-session" });
+    const completed = createPiEventAdapter({ runId: "completed-run" });
+    completed.startUserMessage("Already done"); completed.finish("success");
+    store.begin("completed", "builder", "Already done");
+    for (const event of completed.events) store.append("completed", event);
+    store.flush("completed");
+    const completedEvents = store.get("completed")!.events;
     const host = createPiRuntimeController({ cwd: dataDir, dataDir });
     const events = host.getConversation("waiting")!.events;
+    assert.deepEqual(host.getConversation("completed")!.events, completedEvents, "restart leaves completed history untouched");
     assert.equal(events.at(-1)?.type, "run.finished");
     assert.equal((events.at(-1)?.payload as { status?: string }).status, "cancelled");
+    assert.equal(events.at(-1)?.payload.interruptionReason, "host_restart");
     host.dispose();
     const restarted = createPiRuntimeController({ cwd: dataDir, dataDir });
     assert.equal(restarted.getConversation("waiting")!.events.length, events.length, "restart is idempotent");

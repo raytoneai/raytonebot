@@ -11,10 +11,11 @@ import { agentUXEventBuilders, type AgentUXEvent } from "@agent-ux/protocol";
  * stuck on "running" or "awaiting approval", no run terminal.
  *
  * Scans the latest run in the accumulated transcript and closes whatever is
- * still open, mirroring the adapter's settleRun semantics. Returns [] when
- * there is nothing to close (no run in progress, or the run already ended).
+ * still open, mirroring the adapter's settleRun semantics. Only startup recovery
+ * supplies a known interruption reason; local stop must not claim a host restart.
+ * Returns [] when there is nothing to close (no run in progress, or the run already ended).
  */
-export function piCancelledTurnEvents(events: readonly AgentUXEvent[]): AgentUXEvent[] {
+export function piCancelledTurnEvents(events: readonly AgentUXEvent[], interruptionReason?: "host_restart"): AgentUXEvent[] {
   let lastRunStart = -1;
   for (let index = 0; index < events.length; index += 1) {
     if (events[index].type === "run.started") lastRunStart = index;
@@ -92,7 +93,7 @@ export function piCancelledTurnEvents(events: readonly AgentUXEvent[]): AgentUXE
       status: "cancelled",
     }));
   }
-  next.push(agentUXEventBuilders.runFinished(meta("run_finished"), { status: "cancelled" }));
+  next.push(agentUXEventBuilders.runFinished(meta("run_finished"), { status: "cancelled", ...(interruptionReason ? { interruptionReason } : {}) }));
   return next;
 }
 

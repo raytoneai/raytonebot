@@ -160,6 +160,7 @@ import { lastRunOutcome, nextQueueStep, queuedPrompt, type QueuedMessage } from 
 import { useComposerDrafts } from "./runtime/useComposerDrafts";
 import { branchReplayEvents, useMessageBranch } from "./runtime/useMessageBranch";
 import { piCancelledTurnEvents } from "./pi/piCancelledTurn";
+import { cancelledTurnsForReplay } from "./runtime/cancelledTurns";
 
 const noop = () => {};
 
@@ -332,7 +333,7 @@ export function AgentApp() {
     ? events.filter((event) => event.visibility !== "debug") : events, [events, activePiConversationId]);
   // In a group, the member that started working and has produced nothing visible yet.
   const groupTyping = useMemo(() => groupTypingMember(activePiConversation, events), [events, activePiConversationId]);
-  const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(historyFeedbackEvents(visibleEvents, activePiConversationId, historyMessage), questionCopy[locale].skipped))
+  const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(cancelledTurnsForReplay(historyFeedbackEvents(visibleEvents, activePiConversationId, historyMessage), locale), questionCopy[locale].skipped))
     .map(identityEventForReplay).map(artifactEventForReplay), [visibleEvents, activePiConversationId, historyMessage, locale]);
   const showDevtools = devtoolsRequested();
   // Read-only preview for developers: never feed the normalized result back into replay or storage.

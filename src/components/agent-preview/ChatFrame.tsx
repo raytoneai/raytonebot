@@ -446,7 +446,7 @@ function TimelineItem({
           <span className="step-icon" data-anim={spin ? "spin" : "none"}>
             <StateIcon slot={stepIconSlot(kind, item.status)} size={14} />
           </span>
-          <span className="step-kind">{kind}</span>
+          {kind === "session" && item.status === "cancelled" ? null : <span className="step-kind">{kind}</span>}
           <strong>{item.label}</strong>
           {item.summary ? <p>{item.summary}</p> : null}
         </article>

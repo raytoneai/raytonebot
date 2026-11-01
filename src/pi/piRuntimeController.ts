@@ -205,7 +205,7 @@ export function createPiRuntimeController(options: {
   // It is closed as interrupted and never replayed: replaying could repeat writes or outward calls.
   for (const summary of store.list()) {
     const saved = store.get(summary.id);
-    const closing = saved ? piCancelledTurnEvents(saved.events) : [];
+    const closing = saved ? piCancelledTurnEvents(saved.events, "host_restart") : [];
     if (closing.length === 0) continue;
     for (const event of closing) store.append(summary.id, event);
     try { store.flush(summary.id); } catch {
