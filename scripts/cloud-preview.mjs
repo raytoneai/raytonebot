@@ -68,6 +68,7 @@ const appendHeaderDiagnostic = (headerLog, req, baseOrigin) => {
     for (const [name, value] of [
       ['host', safeHost(headerValue(requestHeaders, 'host'))],
       ['origin', safeOrigin(headerValue(requestHeaders, 'origin'))],
+      ['sec-fetch-site', ['same-origin', 'same-site', 'cross-site', 'none'].includes(headerValue(requestHeaders, 'sec-fetch-site')) ? headerValue(requestHeaders, 'sec-fetch-site') : undefined],
       ['x-forwarded-host', safeHost(headerValue(requestHeaders, 'x-forwarded-host'), true)],
       ['x-forwarded-port', forwardedPort && /^\d{1,5}$/.test(forwardedPort) && forwardedPortNumber >= 1 && forwardedPortNumber <= 65_535 ? forwardedPort : undefined],
     ]) if (value !== undefined) headers[name] = value;
@@ -360,7 +361,7 @@ if (process.argv.includes('--check')) {
   delete process.env.RAYTONEBOT_PREVIEW_INGRESS;
   await preview({
     preview: {
-      host: '0.0.0.0', port, strictPort: true, cors: false,
+      host: process.env.RAYTONEBOT_LISTEN_LOOPBACK === '1' ? '127.0.0.1' : '0.0.0.0', port, strictPort: true, cors: false,
       allowedHosts: [new URL(process.env.RAYTONEBOT_PUBLIC_ORIGIN).hostname],
     },
     plugins: [{

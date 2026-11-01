@@ -1,11 +1,29 @@
 # 03 路线图与进度
 
+### 2026-11-02 PR #1 审查修改
+
+- Worker 改从 `PUBLIC_ORIGIN` 读取入口并拒绝无效来源或缺失 Access 配置；隔离 DSH 必须显式启用，状态与启动使用同一检查，AgentSphere 重部署保留开关。部署文档替换实例地址与 SSH 密钥名；产物并发修改测试不再依赖相同长度文件的时间戳变化。
+- Node 24 构建、完整测试和部署脚本测试通过；本轮没有更新线上 Worker 或 VPS。更新前必须先配置 `PUBLIC_ORIGIN` 和隔离 DSH 开关，详见 [GreenCloud 部署记录](../greencloud-deployment.md)。
+
+### 2026-11-01 发布与 VPS 初始化加固
+
+- AgentSphere / AgentMatrix 发布包改为跟踪文件和构建产物，过滤常见凭据文件；新文件必须先加入 Git，仍需检查硬编码秘密。
+- 隔离安装先初始化角色工作区，再设置组权限；新的隔离操作核验实时双栈 Agent / 浏览器规则。新增现有 VPS 更新工具：空闲检查、普通数据备份、原应用保留及失败回滚；凭据不随普通备份覆盖。
+- 已运行包内容、规则篡改、部署失败回滚测试和构建；VPS 独立临时目录在严格 umask 下验证实际 Agent UID 可写，root 私有临时目录验证隔离检查器与当前规则。组合更新已上线，服务、隔离检查器和各角色目录验证通过；整机重启、线上规则破坏与回滚演练仍未进行。细节与限制见 [GreenCloud 部署记录](../greencloud-deployment.md)。
+
+### DSH Linux 隔离运行（2026-11-01）
+
+- 目标：满足隔离契约的 VM / microVM 可选用固定版本 DSH，沿用 Bot、审批、模型网关和原生续接；Docker 保留为后续独立适配。
+- 运行时复用隔离 Agent UID、主机工具桥与租约；原生会话纳入 AgentSphere 备份。部署平台各自准备并验证身份、权限、网络、持久化与 CLI，不推断不同平台的实际验收结果。
+- VPS 独立网络命名空间内使用固定版本与可控模型网关完成批准/拒绝、读写/覆盖/编辑、宿主工具、续接、停止验证；GreenCloud 组合发布后完成真实 Beluga 回复与网页侧栏检查，microVM 与 Docker 各需独立验收。
+
 ## 当前工作入口（文档核对：2026-11-01）
 
-- **本机引擎与 Bot**：主机统一 Bot 身份、人设、模型与能力分配；分范围记忆、聊天引用、文本 Skills、用量和一层只读委派已有本机实现（T6.4）。DSH 仍只支持本机，Bot 共用角色工作区，能力边界见 [引擎说明](10-agents-and-permissions.md)。
+- **本机引擎与 Bot**：主机统一 Bot 身份、人设、模型与能力分配；分范围记忆、聊天引用、文本 Skills、用量和一层只读委派已有本机实现（T6.4）。DSH 支持本机与满足现有契约的 Linux 隔离运行，平台验收分别记录；Bot 共用角色工作区，能力边界见 [引擎说明](10-agents-and-permissions.md)。
 - **记忆与交接**：分页回查、明确替换、来源记录、压缩后刷新及主机导出/新目录恢复已有本机实现；任务 Skills 提供研究、增量更新、记忆审计与项目交接，须保存并分配，见下方 T6.10 与[安装说明](../task-skills/README.md)。
 - **交付版本与 RSL**：显式交付可保存 Markdown/文本/PDF 的只读版本，沿原输出面板查看；可选 RSL 默认关闭，空闲提议、人工批准后复用。实现与限制见[版本说明](02-architecture.md#显式交付版本2026-11-01)和下方 T6.9；不把流程可用当成模型效果已证明。
 - **AgentMatrix**：首个运行部署与应用响应已验证；浏览器依赖、UID/网络隔离、常驻、原生会话迁移和完整回归仍待补。以 [部署记录](../agentmatrix-deployment.md) 接续，不再按早期需求稿的“尚未实施”判断。
+- **Greencloud VPS**：单用户试用入口、主机监听与 Agent UID 隔离已部署；网页访问、Pi 真实模型及命令/搜索已验证，Claude/Codex 完整轮次、整机重启与独立备份仍待验证。见 [部署记录](../greencloud-deployment.md)。
 - **M5**：任务回收、结构化表单与本地文档已有本机实现和回归；真实模型及目标环境的缺口继续按各任务卡与 [08](08-acceptance.md) 补验。
 
 下方近期记录和历史任务卡保留各自日期。日志中的“未部署/未推送”描述当次结果；当前部署以对应 runbook 和实际状态查询为准，Git 发布状态以仓库为准。M0–M4 的工期是初版估计，不代表剩余排期。
@@ -765,7 +783,7 @@ M0–M3 约 **6–8 个工作会话日**即可覆盖首版“大部分功能”�
 
 - 2026-10-16 修队列入场 + 线上复验（`b802918`，已部署）：真实运行时这条动画**根本没播**。线上实测入队后 `data-entering` 6ms 就被移除、没有 `animationstart` —— 入队 render 两次（本地状态 + 主机回显），而标记是"只亮一帧"的受控 prop，第二次 render 算出空集就被 React 抹掉；另外旧门控把"空队列加第一条"也当成了恢复历史而拒掉。改为判定放进只会增长的 ref、属性由 ref 回调命令式设置、`onAnimationEnd` 清除；settling 语义不变（首帧与换会话都整队视为已展示）。验证：4 项测试（新增空队列与"回显第二次 render"两个反例）、`npm test` 317/315（仍只有那 2 项环境相关的浏览器用例）、build、typecheck；部署后用 control 的 state 目录（`RAYTONEBOT_HANDOFF_SECRET` 保留，10 项自检含 handoff 401 全过），在同一沙箱真实 DeepSeek 运行里复验：空→首条与追加第二条都抓到 `animationstart composer-queue-item-in` → 158ms 后 `animationend`，属性**恰在 animationend 时刻**清除（不再是 6ms）。坑记入 09「界面」。测试用的对话「请写一篇 1200 字的中文短篇小说《灯塔》」留在沙箱侧栏，未删除。
 
-- 2026-10-16 部署 `ffb8730` 到生产沙箱 `id705on7k0a1ya1d90icj`（<https://5188-id705on7k0a1ya1d90icj.agentsphere.run>）：实例处于暂停态，先 `sandbox.py wake`（27.8 s，窗口至 2026-10-18T14:12Z）再 `deploy.py`（不带 `--timeout`，原因见 09）；本机构建 → 上传 6669 KB → 锁文件未变跳过 `npm ci` → 原生隔离校验通过 → headless shell 1248 → supervisor pid 27435。self-check 9 项全过（鉴权页、未登录/错误密码 401、health、未登录 health 401、Pi state、沙箱模式、三角色工作区、外站 403），三引擎可用（Claude Code 2.1.267、Codex 0.154.0）。
+- 2026-10-16 部署 `ffb8730` 到生产沙箱 `id705on7k0a1ya1d90icj`（地址格式：`https://<PORT>-<SANDBOX_ID>.agentsphere.run`）：实例处于暂停态，先 `sandbox.py wake`（27.8 s，窗口至 2026-10-18T14:12Z）再 `deploy.py`（不带 `--timeout`，原因见 09）；本机构建 → 上传 6669 KB → 锁文件未变跳过 `npm ci` → 原生隔离校验通过 → headless shell 1248 → supervisor pid 27435。self-check 9 项全过（鉴权页、未登录/错误密码 401、health、未登录 health 401、Pi state、沙箱模式、三角色工作区、外站 403），三引擎可用（Claude Code 2.1.267、Codex 0.154.0）。
   - 本次上线三个提交：`f0adf19` 队列新增/复制成功/状态行入场动效；`e2de227` 插话客户端（`useSteeringInput` + `steerPiTurn`）与 Raer 进度契约；`ffb8730` 欢迎页会话交接（ADR-041）与部署工具。
   - deploy.py 之外的独立复核：`curl` 未登录 401、错误密码 401、登录 200、`/health` 200；线上 `assets/index-*.css` 含 `composer-queue-item-in`、`composer-status-in`、`message-action-pop`，线上 `assets/index-*.js` 含插话文案「补充已接收」「未确认接收」；`POST /__agentcanvas/pi/steer` 空体 400、假 run 409，与 `piHost.ts` 的判定一致（路由与控制器都在线上）。
   - 边界：`access.json` 只有 `username`/`password`，没有 `handoffSecret`，所以沙箱仍只有 Basic Auth，欢迎页交接（`/__raytone/handoff`）**未启用**、其自检未执行；插话只验证到编译、测试与端点判定，**未在真实运行的模型回合里试过**，也未做浏览器视觉验收；`tmp/avatar-eye-study/` 的 125 个改动文件未提交，工作区仍留作脏。

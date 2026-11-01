@@ -19,6 +19,13 @@ export function requireAgentIsolation(env: NodeJS.ProcessEnv = process.env): voi
   if (marker.user !== env.RAYTONEBOT_AGENT_USER || marker.port !== gatewayPort(env) || marker.network !== "nft-dual-stack") {
     throw new Error("Agent isolation configuration does not match the installed firewall.");
   }
+  try {
+    const checker = lstatSync("/usr/local/sbin/raytonebot-check-isolation");
+    if (!checker.isFile() || checker.uid !== 0 || (checker.mode & 0o022) !== 0) throw new Error("untrusted checker");
+    execFileSync("/usr/bin/sudo", ["-n", "/usr/local/sbin/raytonebot-check-isolation", "--check"], { stdio: "ignore", timeout: 5000 });
+  } catch {
+    throw new Error("Agent network isolation could not be verified; rerun setup_isolation.py before starting agents.");
+  }
   for (const path of ["/run/dbus", "/run/systemd"]) {
     if (!existsSync(path)) continue;
     const stat = lstatSync(path);
@@ -43,7 +50,7 @@ export function agentEnvironment(env: NodeJS.ProcessEnv, hostEnv: NodeJS.Process
   };
   requireAgentIsolation(hostEnv);
   const proxy = `http://127.0.0.1:${gatewayPort(hostEnv)}`;
-  const isolatedHome = env.HOME?.startsWith("/tmp/raytone-codex-") ? env.HOME : hostEnv.RAYTONEBOT_AGENT_HOME;
+  const isolatedHome = /^\/tmp\/raytone-(?:codex|dsh)-[^/]+$/.test(env.HOME ?? "") ? env.HOME : hostEnv.RAYTONEBOT_AGENT_HOME;
   const next = { ...env, HOME: isolatedHome, USER: "raytone-agent", LOGNAME: "raytone-agent",
     PI_CODING_AGENT_DIR: `${hostEnv.RAYTONEBOT_AGENT_HOME}/.pi`,
     HTTP_PROXY: proxy, HTTPS_PROXY: proxy, http_proxy: proxy, https_proxy: proxy,
@@ -53,13 +60,13 @@ export function agentEnvironment(env: NodeJS.ProcessEnv, hostEnv: NodeJS.Process
   return next;
 }
 
-/** Hand off a fresh, still bot-owned Codex home only after the caller has populated it. */
+/** Hand off a fresh, still bot-owned CLI home only after the caller has populated it. */
 export function prepareAgentDirectory(path: string): void {
   if (!agentIsolationEnabled()) return;
   requireAgentIsolation();
   const stat = lstatSync(path);
-  if (!/^\/tmp\/raytone-codex-[^/]+$/.test(path) || !stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) {
-    throw new Error("Expected a private, freshly created Codex home.");
+  if (!/^\/tmp\/raytone-(?:codex|dsh)-[^/]+$/.test(path) || !stat.isDirectory() || stat.uid !== process.getuid?.() || (stat.mode & 0o077) !== 0) {
+    throw new Error("Expected a private, freshly created CLI home.");
   }
   execFileSync("/usr/bin/sudo", ["-n", "chown", "-R", "--no-dereference", "raytone-agent:user", "--", path]);
   execFileSync("/usr/bin/sudo", ["-n", "chmod", "g+rwx", "--", path]);
@@ -68,7 +75,7 @@ export function prepareAgentDirectory(path: string): void {
 export function cleanupAgentDirectory(path: string): void {
   if (!agentIsolationEnabled()) throw new Error("Use ordinary filesystem cleanup outside isolation.");
   requireAgentIsolation();
-  if (!/^\/tmp\/raytone-codex-[^/]+$/.test(path)) throw new Error("Invalid isolated Codex home.");
+  if (!/^\/tmp\/raytone-(?:codex|dsh)-[^/]+$/.test(path)) throw new Error("Invalid isolated CLI home.");
   // rm runs as the agent, never as root; a replaced symlink cannot affect bot-owned data.
   execFileSync("/usr/bin/sudo", ["-n", "-u", "raytone-agent", "--", "/usr/bin/rm", "-rf", "--", path]);
 }

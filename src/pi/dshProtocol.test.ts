@@ -5,7 +5,7 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDshProtocol, normalizeDshTool } from "./dshProtocol.ts";
-import { dshPatch } from "./dshHarness.ts";
+import { dshPatch, isolatedDshHome, runDsh } from "./dshHarness.ts";
 import { BotConfigStore } from "./botConfig.ts";
 import { DEFAULT_NEW_BOT } from "../runtime/botAppearance.ts";
 
@@ -23,6 +23,31 @@ function fixture(overrides: Partial<Parameters<typeof createDshProtocol>[0]> = {
   return { protocol, push, update, permission, sent, events, permissions, abort };
 }
 const flush = () => new Promise(resolve => setImmediate(resolve));
+
+test("isolated DSH requires explicit deployment opt-in", async () => {
+  const previous = { sandbox: process.env.RAYTONEBOT_SANDBOX, optIn: process.env.RAYTONEBOT_DSH_ISOLATED,
+    binary: process.env.RAYTONEBOT_DSH_BIN };
+  try {
+    process.env.RAYTONEBOT_SANDBOX = "1";
+    process.env.RAYTONEBOT_DSH_BIN = "/nonexistent/raytone-dsh-test";
+    const options = { signal: new AbortController().signal } as Parameters<typeof runDsh>[0];
+    for (const value of [undefined, "0", "true"]) {
+      if (value === undefined) delete process.env.RAYTONEBOT_DSH_ISOLATED;
+      else process.env.RAYTONEBOT_DSH_ISOLATED = value;
+      await assert.rejects(runDsh(options), /RAYTONEBOT_DSH_ISOLATED=1/);
+    }
+    process.env.RAYTONEBOT_DSH_ISOLATED = "1";
+    await assert.rejects(runDsh(options), /DeepSeek Harness is not installed/);
+    delete process.env.RAYTONEBOT_SANDBOX;
+    delete process.env.RAYTONEBOT_DSH_ISOLATED;
+    await assert.rejects(runDsh(options), /DeepSeek Harness is not installed/);
+  } finally {
+    for (const [key, value] of Object.entries({ RAYTONEBOT_SANDBOX: previous.sandbox,
+      RAYTONEBOT_DSH_ISOLATED: previous.optIn, RAYTONEBOT_DSH_BIN: previous.binary })) {
+      if (value === undefined) delete process.env[key]; else process.env[key] = value;
+    }
+  }
+});
 
 test("DSH accepts compaction notifications only for its active native session, including close flush", () => {
   const f = fixture();
@@ -163,4 +188,34 @@ test("DSH controlled profile disables autonomous tools and session uploads, and 
   }
   assert.equal(JSON.stringify(patch).includes("secret-not-in-patch"), false);
   assert.ok(JSON.stringify(patch).includes("/data/dsh/session/sessions"));
+});
+
+
+test("isolated DSH sessions are stable across deployment data paths and separated by conversation", () => {
+  const a = isolatedDshHome("/data/one/dsh/session-1", "/home/raytone-agent");
+  assert.equal(a, isolatedDshHome("/other/data/dsh/session-1", "/home/raytone-agent"));
+  assert.notEqual(a, isolatedDshHome("/data/one/dsh/session-2", "/home/raytone-agent"));
+  assert.match(a, /^\/home\/raytone-agent\/\.raytone-dsh\/[a-f0-9]{64}$/);
+});
+
+test("DSH shares only newly created workspace files in isolated mode", async () => {
+  const { chmodSync, statSync, writeFileSync } = await import("node:fs");
+  const dir = mkdtempSync(join(tmpdir(), "rtb-dsh-shared-"));
+  const outside = mkdtempSync(join(tmpdir(), "rtb-dsh-outside-"));
+  const hooks = new Map<string, (...args: any[]) => any>();
+  const pluginPath = "./runtime/dshPlugin.mjs";
+  const { apply } = await import(pluginPath);
+  const create = join(dir, "created.txt"), existing = join(dir, "existing.txt"), external = join(outside, "other.txt");
+  try {
+    for (const file of [create, existing, external]) { writeFileSync(file, "data"); chmodSync(file, 0o600); }
+    await apply({ on: (name: string, hook: (...args: any[]) => any) => hooks.set(name, hook),
+      tools: { guard() {} }, provide() {} }, { socketPath: "", tools: [], sharedWorkspace: dir, sharedGid: process.getgid?.() });
+    const run = hooks.get("tools/execute")!;
+    for (const [path, operation] of [[create, "create"], [existing, "update"], [external, "create"]]) {
+      await run({ name: "write" }, async () => ({ isError: false, value: { path, operation } }));
+    }
+    assert.equal(statSync(create).mode & 0o777, 0o660);
+    assert.equal(statSync(existing).mode & 0o777, 0o600);
+    assert.equal(statSync(external).mode & 0o777, 0o600);
+  } finally { rmSync(dir, { recursive: true, force: true }); rmSync(outside, { recursive: true, force: true }); }
 });

@@ -17,7 +17,7 @@ import { userQuestions, type UserAnswers, type UserQuestion } from "../runtime/u
 import { scrubSecretEnv } from "./runtime/childEnv.ts";
 import { agentEnvironment, agentIsolationEnabled, cleanupAgentDirectory, prepareAgentDirectory, spawnAgentProcess } from "./runtime/agentProcess.ts";
 import { appendRecentStderr, createChildProcessTerminator, RUNTIME_PROCESS_GROUP } from "./runtime/process.ts";
-import { buildClaudeArgs, buildCodexArgs, claudeEnv, claudeSdkServers, cliCommand, CLAUDE_HOST_MCP, CODEX_PROVIDER_KEY_ENV } from "./cliHarnessConfig.ts";
+import { buildClaudeArgs, buildCodexArgs, claudeEnv, claudeSdkServers, cliCommand, dshInstallation, requireDshIsolationOptIn, CLAUDE_HOST_MCP, CODEX_PROVIDER_KEY_ENV } from "./cliHarnessConfig.ts";
 export { buildClaudeArgs, buildCodexArgs, claudeEnv, cliCommand, CLAUDE_HOST_MCP, CODEX_PROVIDER_KEY_ENV } from "./cliHarnessConfig.ts";
 
 /** Launch Claude Code and Codex CLI for one turn each. Node-only. */
@@ -79,6 +79,9 @@ let statusCache: { at: number; value: Promise<AgentHarnessStatus[]> } | undefine
 export function detectCliHarnesses(): Promise<AgentHarnessStatus[]> {
   if (statusCache && Date.now() - statusCache.at < 60_000) return statusCache.value;
   const probe = (id: Exclude<AgentHarnessId, "pi">) => new Promise<AgentHarnessStatus>((resolve) => {
+    if (id === "dsh") {
+      try { requireDshIsolationOptIn(); dshInstallation(); } catch (error) { resolve({ id, available: false, error: error instanceof Error ? error.message : String(error) }); return; }
+    }
     execFile(cliCommand(id), ["--version"], { timeout: 8_000 }, (error, stdout) => {
       if (error) resolve({ id, available: false, error: error.message });
       else resolve({ id, available: true, version: stdout.trim().split("\n")[0] });

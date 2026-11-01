@@ -769,7 +769,6 @@ export function createPiRuntimeController(options: {
       adapter.startUserMessage(prompt);
       if (sandboxed) requireAgentIsolation();
       if (harness === "dsh") {
-        if (sandboxed) throw new Error("DSH is currently available for local testing only.");
         const provider = await modelLease(claudeProvider(input.provider, input.model, "DeepSeek Harness", conversationId), "anthropic", conversationId, input.thinkingLevel);
         lease = provider;
         await runDsh({

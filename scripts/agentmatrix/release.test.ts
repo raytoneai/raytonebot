@@ -5,7 +5,7 @@ import { tmpdir } from "node:os";
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { test } from "node:test";
 
-import { buildReleaseFromHead, EXCLUDES, manifestFor, releaseName } from "./release.mjs";
+import { buildRelease, buildReleaseFromHead, EXCLUDES, manifestFor, releaseName } from "./release.mjs";
 
 test("releaseName is commit-scoped and marks local edits", () => {
   assert.equal(releaseName("abcdef1234567890", false), "raytonebot-abcdef12.tar.gz");
@@ -100,6 +100,23 @@ function createReleaseFixture({ failingBuild = false } = {}) {
 function archiveEntry(file, entry) {
   return execFileSync("tar", ["-xOzf", file, entry], { encoding: "utf8" });
 }
+
+test("worktree release excludes untracked files and nested private files, including in dist", async () => {
+  const root = createReleaseFixture();
+  try {
+    writeFixtureFile(root, "dist/index.html", "built");
+    writeFixtureFile(root, "dist/.env.local", "secret");
+    writeFixtureFile(root, "scripts/private.txt", "secret");
+    writeFixtureFile(root, "vendor/probe/.env.production", "secret");
+    writeFixtureFile(root, "vendor/probe/id_ed25519", "secret");
+    git(root, ["add", "-f", "vendor/probe/.env.production", "vendor/probe/id_ed25519"]);
+    const release = await buildRelease({ repoRoot: root, outDir: join(root, "out"), skipBuild: true });
+    const entries = execFileSync("tar", ["-tzf", release.file], { encoding: "utf8" });
+    assert.match(entries, /vendor\/probe\/index\.js/);
+    assert.match(entries, /dist\/index\.html/);
+    assert.doesNotMatch(entries, /\.env|id_ed25519|private\.txt/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
 
 test("clean HEAD releases reinstall checkout dependencies and metadata from HEAD", async () => {
   const root = createReleaseFixture();

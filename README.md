@@ -4,7 +4,7 @@ RaytoneBot 是一个单用户 AI 工作助手。你可以在浏览器里给 Bot 
 
 ## 能做什么
 
-- **与不同 Bot 工作**：内置 Raer（Pi）、Tonny（Claude Code）、Bob（Codex），支持独立人设、模型和 MCP/文本 Skills 分配，以及在同一对话里邀请成员协作、一层只读委派。本机还可选用 DeepSeek Harness（DSH）。
+- **与不同 Bot 工作**：内置 Raer（Pi）、Tonny（Claude Code）、Bob（Codex），支持独立人设、模型和 MCP/文本 Skills 分配，以及在同一对话里邀请成员协作、一层只读委派。可选用 DeepSeek Harness（DSH），Linux 隔离部署需满足运行条件。
 - **跟进任务**：查看文本、思考、工具调用和计划；回答问题、批准操作、停止执行或排队追问，Pi 执行中还可补充指令。
 - **管理会话和产物**：恢复与搜索历史，跨对话查找产物，预览工作区文件、代码、Markdown、媒体、交互 HTML 和结构化表单，将文本产物保存为文档。显式交付时可保留 Markdown、文本或 PDF 的只读版本，在原输出面板查看历史版本或当前文件。
 - **连接持续工作能力**：配置 IM 频道、远程 MCP、分范围记忆和例行任务；可显式引用其他聊天供 Agent 回查。有浏览器运行环境时可查看画面、接管操作，并通过 Login Vault 逐次授权填入登录信息。
@@ -12,7 +12,7 @@ RaytoneBot 是一个单用户 AI 工作助手。你可以在浏览器里给 Bot 
 
 [任务 Skills](docs/task-skills/README.md) 提供研究报告、增量更新、记忆审计和项目交接文本，需在设置中保存并分配给 Bot，克隆仓库不会自动安装。记忆支持分页回查、明确替换旧条目及记录来源/核验日期；另有[主机记忆导出与恢复命令](docs/product/02-architecture.md#主机记忆导出与恢复t610)。文件版本只在显式要求保留时保存，不是自动保存或完整实例备份。
 
-各能力的实现、验收和部署范围见 [路线图](docs/product/03-roadmap.md) 与 [验收记录](docs/product/08-acceptance.md)。例行任务只在主机运行时按时触发；云环境休眠期间需要外部唤醒。DSH 目前仅支持本机。
+各能力的实现、验收和部署范围见 [路线图](docs/product/03-roadmap.md) 与 [验收记录](docs/product/08-acceptance.md)。例行任务只在主机运行时按时触发；云环境休眠期间需要外部唤醒。DSH 在 Linux 隔离环境的部署和验收范围见引擎说明。
 
 ## 本机启动
 

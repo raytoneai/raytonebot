@@ -9,10 +9,12 @@
 
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { pipeline } from "node:stream/promises";
 import { promisify } from "node:util";
+import { createGzip } from "node:zlib";
 
 import { AM } from "./config.mjs";
 
@@ -21,7 +23,8 @@ const exec = promisify(execFile);
 /** Paths that are host state, credentials, or build input, never release content. */
 export const EXCLUDES = [
   ".git", "node_modules", ".agentsphere", "backups", "output", "artifacts", "tmp",
-  ".agentmatrix", ".claude", ".DS_Store",
+  ".agentmatrix", ".claude", ".DS_Store", ".env", ".env.*", ".ssh", ".aws", ".kube",
+  ".npmrc", "*.pem", "*.key", "*.p12", "*.pfx", "id_rsa", "id_ed25519",
 ];
 
 const run = async (command, args, cwd, env = {}) => {
@@ -82,10 +85,27 @@ export async function buildRelease({ repoRoot, outDir, skipBuild = false, log = 
   // bsdtar on macOS would otherwise add LIBARCHIVE.xattr headers that GNU tar on the
   // sandbox reports for every entry, flooding the agent's output.
   const metadataFlags = process.platform === "darwin" ? ["--no-mac-metadata", "--no-xattrs"] : [];
-  const args = ["-czf", file, ...metadataFlags,
-    ...EXCLUDES.map((entry) => `--exclude=${entry}`), "--exclude=._*",
-    "-C", repoRoot, ".", "-C", manifestDir, "AM-RELEASE.json"];
-  await run("tar", args, repoRoot, { COPYFILE_DISABLE: "1" });
+  // Only tracked source is eligible. Ignored/untracked host files can have arbitrary names,
+  // so a denylist alone cannot keep them out. dist is the sole generated input.
+  const { stdout: tracked } = await exec("git", ["ls-files", "-z", "--cached"], {
+    cwd: repoRoot, encoding: "buffer", maxBuffer: 64 * 1024 * 1024,
+  });
+  const files = tracked.toString("utf8").split("\0").filter((entry) => entry && existsSync(join(repoRoot, entry)))
+    .map((entry) => `./${entry}`);
+  const listFile = join(manifestDir, "release-files.list");
+  const tarFile = join(manifestDir, "release.tar");
+  writeFileSync(listFile, `${files.join("\0")}\0./dist\0`);
+  try {
+    const args = ["-cf", tarFile, ...metadataFlags,
+      ...EXCLUDES.map((entry) => `--exclude=${entry}`), "--exclude=._*",
+      "--null", "-T", listFile];
+    await run("tar", args, repoRoot, { COPYFILE_DISABLE: "1" });
+    await run("tar", ["-rf", tarFile, ...metadataFlags, "-C", manifestDir, "AM-RELEASE.json"], repoRoot, { COPYFILE_DISABLE: "1" });
+    await pipeline(createReadStream(tarFile), createGzip(), createWriteStream(file));
+  } finally {
+    rmSync(listFile, { force: true });
+    rmSync(tarFile, { force: true });
+  }
 
   const bytes = statSync(file).size;
   if (bytes > AM.maxAttachmentBytes) {
