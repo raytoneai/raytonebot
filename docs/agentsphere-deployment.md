@@ -1,4 +1,6 @@
-# AgentSphere 部署实验
+# AgentSphere 首次部署实验（历史快照）
+
+本文只记录 2026-10-03 首次实验，当时的实例、内存会话及未验证项不代表当前产品或线上状态。现行部署、持久化与实例定位见 [运维手册](product/06-deployment-runbook.md)，后续功能验收见 [验收记录](product/08-acceptance.md)。
 
 2026-10-03：RaytoneBot + Pi 已部署到 AgentSphere，公网 HTTP 检查通过。沿用现有 AgentCanvas 界面，没有引入 OpenAgentCore。
 
@@ -8,7 +10,7 @@
 - 沙箱：`i7ngpr2af8dxd2ttcy842`，模板 `agentmatrix-v1`，2 CPU / 4 GB，Linux x86_64，Node.js 24.18.0。
 - 登录用户名：`raytonebot`；随机访问密码见本机 [access.txt](../.agentsphere/access.txt)。该文件不进入版本库或部署包。
 - 本次最后设置的到期时间：**2026-10-04 13:19:12（北京时间）**（2026-10-03 13:19 用 `set_timeout(86400)` 续期 24 小时）。这是临时实验实例，没有自动续期；到期后 URL 不再可用，不承诺数据保留。
-- 最新实例状态保存在本机 [deployment.json](../.agentsphere/deployment.json)，HTTP 验证结果在 [verification.json](../.agentsphere/verification.json)。
+- 当时的实例状态写入本机 `.agentsphere/deployment.json`，HTTP 验证结果写入 `.agentsphere/verification.json`；这些文件可能已被后续操作更新，不能据其当前内容还原本次实验。
 
 依据用户提供的 `/Users/rickyhuo/Desktop/agentsphere-sandbox-quickstart.md`，使用独立临时 Python 环境中的 `e2b==1.11.1` 和 `E2B_DOMAIN=agentsphere.run`。部署凭证仅在本机 SDK 进程内读取，没有复制进沙箱、源码或此笔记。
 
@@ -39,7 +41,7 @@
 | 浏览器视觉验收 | 未完成。Codex 内置浏览器和受控 Chrome 报 `ERR_BLOCKED_BY_CLIENT`；未关闭浏览器防护，也未取消服务器鉴权。HTTP 成功不等于已完成浏览器验收。 |
 | 真实模型任务、工具执行与流式回复 | 未验证。云端可用模型凭据数量为 0；本机模型凭据未迁移。模型默认配置保持原样。 |
 
-这是单用户临时预览，使用 Vite preview 承载现有 Pi plugin。会话仍在内存中，进程重启或页面刷新不能恢复完整历史；本次没有增加数据库、持久卷、后台任务或多用户权限。
+本次实验是单用户临时预览，使用 Vite preview 承载当时的 Pi plugin。当时会话仍在内存中，进程重启或页面刷新不能恢复完整历史；该次部署没有增加数据库、持久卷、后台任务或多用户权限。后续已加入文件持久化与恢复，当前边界见运维手册。
 
 ## 生命周期与复现要点
 

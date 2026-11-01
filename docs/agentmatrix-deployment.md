@@ -1,10 +1,10 @@
 # AgentMatrix 承载 RaytoneBot：首个可运行部署（RT-01）
 
-日期：2026-10-19。分支：`am-hosting`。范围：把现有 RaytoneBot 运行时放进一个自有 AgentMatrix
+首次部署：2026-10-19，实施分支 `am-hosting`。相关脚本现已纳入 `main`。范围：把现有 RaytoneBot 运行时放进一个自有 AgentMatrix
 Environment，保留 Node HTTP 主机、三引擎和 `dist` 前端，并给出可重复执行的部署、状态和入口命令。
 
 需求与平台评估见 [需求交接稿](agentmatrix-hosting-minimal-requirements-2026-10-19.md) 和
-[可行性评估](agentmatrix-platform-research-2026-10-19.md)。本文件只描述已经实现并可在本分支执行的路径，
+[可行性评估](agentmatrix-platform-research-2026-10-19.md)。本文件描述仓库已实现的部署路径并保留首次部署快照，
 不把未实现的平台能力写成已完成。
 
 ## 结论先说
@@ -47,7 +47,7 @@ npm run am:stop                     # 停应用、归档 Session、删除 Enviro
 
 1. **固定发布包**：`git` commit（脏树会带 `-dirty`）+ `npm run build` 的 `dist/` + 全部源码与
    `vendor/`，打包成 `raytonebot-<sha8>.tar.gz`，记录 SHA-256 和 SDK/合同版本。压缩后约 8.7 MB，
-   低于 20 MiB 附件上限。`--clean` 在临时 worktree 里从 HEAD 构建并打包，未提交改动不会进入发布。
+   低于 20 MiB 附件上限（8.7 MB 为首次部署值，当前以实际包为准）。`--clean` 在临时 worktree 里从 HEAD 独立执行 `npm ci --include=dev`、构建并打包；使用该 checkout 的依赖和 Git 纳管的 vendor，不复用当前工作树的 `node_modules` 或未提交文件。
 2. **Workspace**：按名称复用或创建 `raytonebot` Workspace（一个逻辑部署一个卷）。
 3. **EnvironmentSpec**：复用或创建 `raytonebot-e2b`，入站只开放 5188 端口给 PreviewProxy；出站优先
    `deny` + 只放行 `api.deepseek.com`、`registry.npmjs.org`。若所选 provider 的
@@ -164,7 +164,7 @@ Workspace 里产品数据落在 `.raytonebot/data`，角色目录在 `agents/{as
 
 ## 下次继续时
 
-- 实施分支：`am-hosting`（基于 `raytone-1013-parity-pass`）。分支是否已推送或合并以 Git 状态为准；本文记录的首次部署不代表后续提交已部署。
+- 首次实施分支为 `am-hosting`（基于 `raytone-1013-parity-pass`），部署脚本现已在 `main`；从待发布的 checkout 执行命令。本文记录的首次部署不代表后续提交已部署。
 - 部署状态在本机 `.agentmatrix/deployment.json`（gitignored），资源 ID 见上文；换机器后
   `am:deploy` 会按名称/Workspace 重新发现并接管。
 - 重新部署：`export ARIADRA_API_KEY=…`（Console → API Keys），
@@ -175,7 +175,7 @@ Workspace 里产品数据落在 `.raytonebot/data`，角色目录在 `agents/{as
 
 ## 与需求稿的对应
 
-- RT-01：发布包、摘要、启动/停止/health、最小部署适配 —— 本分支。
+- RT-01：发布包、摘要、启动/停止/health、最小部署适配 —— 仓库内 `scripts/agentmatrix/`。
 - RT-02：产品数据与角色目录落在 `/workspace`；Claude/Codex 原生会话仍写在 `$HOME` 下，换机不会带走，
   归档/校验/恢复脚本也尚未接入。
 - RT-03：origin 与代理 Host 的适配已做；稳定入口、鉴权 handoff 由平台提供。

@@ -30,19 +30,21 @@ tool-call lifecycle including approval, artifacts, errors, retries, interrupts, 
 If something does not appear on screen, the event you emitted is wrong. It is never a missing
 component. Fix the translation, not the view.
 
-Product features that have no entry point yet extend their owner, and only these (ADR-025):
+Product features extend their existing owner (ADR-025):
 
 | Feature | Owner |
 | --- | --- |
 | Follow-up queue (visible, ordered, paused by stop, never silently resent) | `ComposerFrame` |
 | History management: search, rename, delete, archive, branches | `SessionSidebar`, `MessageActions` |
-| Interactive artifacts, file/PDF/HTML previews, workspace files (T2.4) | Output panel (`OutputFrame`, `outputframe/`) |
+| Interactive artifacts, file/PDF/HTML previews, workspace files, explicit delivery versions (T2.4, ADR-057) | Output panel (`OutputFrame`, `outputframe/`); versions in `src/pi/artifactVersions.ts` |
 | Browser / computer takeover | Output panel source; connect only while visible |
 | Questions to the user and approvals | `chatframe/approval.tsx` |
 | IM channel settings and status (ADR-026) | `SettingsDialog` (its "channels" section) |
-| Routines: list, on/off, run now, open conversation (ADR-033); created from chat by Raer's `create_routine` | `SettingsDialog` (its "routines" section); host logic in `src/pi/routines.ts` |
+| Routines: list, on/off, run now, open conversation (ADR-033); created from Pi Bot chat via `create_routine` | `SettingsDialog` (its "routines" section); host logic in `src/pi/routines.ts` |
 | MCP servers: add, edit, on/off, test, delete remote Streamable HTTP servers (ADR-037) | `SettingsDialog` (its "mcp" section); host logic in `src/pi/mcpServers.ts` |
-| Cross-conversation memory: on/off, list, edit, delete, add; agents write with `remember` / `forget` (ADR-038) | `SettingsDialog` (its "memory" section); host logic in `src/pi/memories.ts` |
+| Text Skills: manage and assign to Bots (ADR-055/057) | `SettingsDialog` (its "mcp" section), existing `ShellExtras` Bot editor; host logic in `src/pi/botSkills.ts`; optional task texts in `docs/task-skills/` |
+| Cross-conversation memory: scopes, on/off, list, edit, delete, add, source evidence; agents recall / remember / forget (ADR-038/055, T6.10) | `SettingsDialog` (its "memory" section); host logic in `src/pi/memories.ts`; host-only export/restore in `scripts/memory-backup.mjs` |
+| Optional RSL task review and approved lesson reuse (ADR-056), off by default | `SettingsDialog` (its "developer" section); host logic in `src/pi/learning/` |
 | Login Vault: manage saved logins, secure chat input with optional save, one-time browser fill (ADR-052/053) | `SettingsDialog` (its "vault" section), `chatframe/approval.tsx`, existing Output browser; host logic in `src/pi/vault.ts` and `vaultUse.ts` |
 | Group chat: "+"/To member picker, group faces and previews, author per message, PM confirmation, `@` member completion (ADR-032) | `SessionSidebar`, `ShellExtras` (header/welcome), `ChatFrame`, `ComposerFrame` (`@` list; logic in `src/runtime/mentionCompletion.ts`), `chatframe/approval.tsx`; host logic in `src/pi/groupChat.ts` |
 

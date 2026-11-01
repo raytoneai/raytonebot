@@ -51,7 +51,7 @@
 
 ### Sandbox 已有 Codex 能否复用
 
-可以复用 Agent 调用端。当前运行代码启动的是 `codex app-server --stdio`；部署文档列出模板自带 Codex CLI。这里的 `app-server` 是 CLI 协议入口，不表示已经安装桌面应用及 CUA runtime。[启动参数](../src/pi/cliHarness.ts#L219)、[部署引擎](product/06-deployment-runbook.md#L103)。
+可以复用 Agent 调用端。当前运行代码启动的是 `codex app-server --stdio`；部署文档列出模板自带 Codex CLI。这里的 `app-server` 是 CLI 协议入口，不表示已经安装桌面应用及 CUA runtime。[启动参数](../src/pi/cliHarness.ts#L219)、[部署引擎](product/06-deployment-runbook.md#部署2026-10-03-起用脚本)。
 
 LCU 的 Codex adapter 可以连接这个类型的调用端，但仍需官方桌面应用提供的原始 runtime，以及兼容的 CLI hooks、Chrome extension/native host 与 Linux X11/D-Bus 环境。我们已有完整 Chromium + 私有 Xvfb 的部署分支，可复用其中部分基础设施；其显示与 UID/网络边界是否适合 LCU 需要单独验收。[现有 headed 安装](../scripts/agentsphere/deploy.py#L254)、[LCU Codex adapter](https://github.com/amontlabs/lcu/blob/c38f4b6286ba74ebf053c2b3d1970e387556a559/docs/ADAPTERS.md#codex-cli)。
 

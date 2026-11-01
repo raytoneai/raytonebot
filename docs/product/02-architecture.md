@@ -32,7 +32,7 @@
 
 ## DSH 本地接入补充（2026-10-19）
 
-创建 Bot 的现有表单可选择 `dsh`（DeepSeek Harness），原三个内置 Bot 与默认模型不变。`piHost.runCliPrompt` → `dshHarness.ts` 启动已安装的固定版本 `@deepseek-ai/dsh@0.2.1-rc.2`；`dshProtocol.ts` 将 ACP 的文本、思考、工具、审批转换成 Pi wire events，继续使用 `piAdapter` 和现有界面。ACP 此版本只推送已提交文本。
+创建 Bot 的现有表单可选择 `dsh`（DeepSeek Harness），原三个内置 Bot 与默认模型不变。`piRuntimeController.ts` 的 `runCliPrompt` → `dshHarness.ts` 启动已安装的固定版本 `@deepseek-ai/dsh@0.2.1-rc.2`；`dshProtocol.ts` 将 ACP 的文本、思考、工具、审批转换成 Pi wire events，继续使用 `piAdapter` 和现有界面。ACP 此版本只推送已提交文本。
 
 每轮创建临时 HOME / DSH_HOME / DSH_AGENTS_HOME 与受控 profile，launcher 直接调用已安装包导出的 `runProfile`，避免 CLI 自动加载个人 `.env`。真实模型 key 留在主机，子进程仅持本轮 Anthropic 兼容网关租约。关闭账号凭据、会话日志上传、PTC、子 Agent、自主后台任务与个人配置发现；所有工具经过插件的异步授权和同步 guard。
 
@@ -59,8 +59,10 @@
 Node 主机（本机、AgentSphere 或 AgentMatrix）
    scripts/cloud-preview.mjs   云端入口：鉴权、Host/Origin 校验，然后交给 Vite preview
    vite dev/preview + piRuntimePlugin   前端 + /__agentcanvas/pi/* 接口
-   src/pi/piHost.ts            HTTP 控制器 → Bot 身份/引擎角色 → Pi 或 CLI（DSH 仅本机）
-   @earendil-works/pi-coding-agent  模型循环 + 7 个工具 + 审批闸门
+   src/pi/piHttpHost.ts        HTTP 路由与主机服务组合
+   src/pi/piRuntimeController.ts  Bot 身份/引擎角色 → Pi 或 CLI（DSH 仅本机）
+   src/pi/piSdkBridge.ts       Pi SDK 会话、模型租约与按能力组装的工具
+   @earendil-works/pi-coding-agent  模型循环 + 已配置工具（基础 I/O、计划、提问及可选主机能力）
    cwd = RAYTONEBOT_WORKSPACE_ROOT 下的角色目录；未设置时用 RAYTONEBOT_WORKSPACE 或应用目录
    数据 = RAYTONEBOT_DATA_DIR；默认 ~/.raytonebot/data/
 ```
@@ -79,17 +81,17 @@ Raytone 登录 → control/（Node，常驻主机，持有 E2B key）
 
 本机开发时链路相同，只是 `npm run dev` 监听 `127.0.0.1:5188`，没有 Basic Auth，由 `requestOrigin.ts` 只放行 loopback。
 
-### 请求接口（`src/pi/piClient.ts` ↔ `src/pi/piHost.ts`）
+### 请求接口（`src/pi/piClient.ts` ↔ `src/pi/piHttpHost.ts`）
 
 计划更新复用既有事件存储与产物视图：Codex `turn/plan/updated`、旧 exec `todo_list`、Claude `TodoWrite` 和原生 `TaskCreate/TaskUpdate/TaskGet/TaskList` 成功回执 → 内部 `plan_update`；Pi `update_plan` 的成功工具结果也进入 `piAdapter` 的结构化 `artifact.delta` 快照。每轮一个稳定产物 id，后续完整快照替换其 data；`taskPlan.ts` 在展示时转换成 Markdown，并根据所属 run 的终态显示结束/停止/失败，不推断未完成步骤成功。打开的产物标签按 id 跟随内容更新，不按标题匹配。计划产物没有工作区路径，下载使用实际内容 Blob；没有新增 HTTP 路由或独立任务数据库，见 ADR-018。
 
 Claude 原生任务投影另保留 task id、owner 与 blockedBy；计划模块校验边界并在既有 Markdown 产物显示负责人和仍未完成的前置任务。TaskGet 没有 owner 时保留已确认值，TaskList 为完整负责人快照；TaskUpdate 仅应用成功回执确认的字段，未知依赖 id 标记待核对，后续原生读取解除标记。TaskList 本身会过滤已完成依赖，因此这里是最近回执的展示投影，不是完整依赖图、调度器或子 Agent 状态；执行状态仍归原生任务文件所有。停止不改写原生任务为 completed。
 
-`planTool.ts` 是 Pi 的第八个工具，仅校验并返回计划数据，不访问文件、网络或子进程；原七个 I/O 工具继续在独立 UID worker 中执行。`claudeTaskPlan.ts` 只投影原生成功回执；task id 随快照保存，续接同一 CLI session 时从最新快照初始化，冷启动不沿用。Claude 原生任务文件位于 `.claude/tasks/<session-id>/`，与 `.claude/projects` 一起备份/迁移；依赖、所有者与委派结果仍由原生 CLI 管理，当前 UI 只呈现步骤与状态。
+`planTool.ts` 提供 Pi 的计划工具，仅校验并返回计划数据，不访问文件、网络或子进程；原七个 I/O 工具继续在独立 UID worker 中执行。`claudeTaskPlan.ts` 只投影原生成功回执；task id 随快照保存，续接同一 CLI session 时从最新快照初始化，冷启动不沿用。Claude 原生任务文件位于 `.claude/tasks/<session-id>/`，与 `.claude/projects` 一起备份/迁移；依赖、所有者与委派结果仍由原生 CLI 管理，当前 UI 只呈现步骤与状态。
 
 用户提问复用现有事件存储：`run.awaiting_input` 携带唯一 requestId、toolCallId 与已校验问题；回答先写用户消息和 `tool.call.progress.inputRequestId` 并 flush，再确认 HTTP。`UserInputGate` 不读取权限模式或 always-allow；仅保留最近 100 个内存回执供同回答重试，不是持久消息队列。刷新后仅对仍活跃的等待显示控件，重启沿用会话中断终态，不恢复执行。`userInputEventsForReplay` 在真实 replay 入口隐藏已有消息所代表的工具 JSON，原始事件/游标不变。
 
-Pi 第九个工具 `ask_user` 只等待用户，不访问文件、网络或子进程。Claude 问题先于 permission gate 分流，回答写回原生 `updatedInput.answers`；Codex 启用现有 `features.default_mode_request_user_input`，回答保留原生字符串数组，处理 `serverRequest/resolved` 撤销。控件状态由 shell 的小 hook 持有，开关 Output 不丢失；现有输入框修复回传，不新增组件。普通提问拒绝收集秘密；登录凭据走 Vault 设置或专用安全输入卡，模型 API key 走模型服务设置。`userInputDraft.ts` 使用当前标签页的 sessionStorage，按 conversationId/requestId 保存选项、自由文字和题目进度；恢复前按当前问题校验，不保存 pending/done 等提交状态，不自动发请求。表单 hook 保留内存输入并通过既有 hint 显示保存失败；观察到问题结束或收到确认时仅清理对应 requestId，迟到确认不能删除新题草稿。此数据不跨标签页／设备同步，不进入沙箱备份，关闭标签页后的保留不作保证，详见 `issue.md`。
+Pi 的 `ask_user` 工具只等待用户，不访问文件、网络或子进程。Claude 问题先于 permission gate 分流，回答写回原生 `updatedInput.answers`；Codex 启用现有 `features.default_mode_request_user_input`，回答保留原生字符串数组，处理 `serverRequest/resolved` 撤销。控件状态由 shell 的小 hook 持有，开关 Output 不丢失；现有输入框修复回传，不新增组件。普通提问拒绝收集秘密；登录凭据走 Vault 设置或专用安全输入卡，模型 API key 走模型服务设置。`userInputDraft.ts` 使用当前标签页的 sessionStorage，按 conversationId/requestId 保存选项、自由文字和题目进度；恢复前按当前问题校验，不保存 pending/done 等提交状态，不自动发请求。表单 hook 保留内存输入并通过既有 hint 显示保存失败；观察到问题结束或收到确认时仅清理对应 requestId，迟到确认不能删除新题草稿。此数据不跨标签页／设备同步，不进入沙箱备份，关闭标签页后的保留不作保证，详见 `issue.md`。
 
 | 方法 | 路径 | 作用 |
 | --- | --- | --- |
@@ -199,7 +201,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 | 缺口 | 位置 | 后果 |
 | --- | --- | --- |
 | 本机开发未设 `RAYTONEBOT_WORKSPACE(_ROOT)` 时 cwd = 应用目录 | `piVitePlugin.ts` | 本机 Agent 能改/删应用自身 |
-| 会话 LRU 上限 12（运行中的不淘汰），并行运行上限 3 | `piHost.ts` | 单用户可接受；多用户前必须重做 |
+| 会话 LRU 上限 12（运行中的不淘汰），并行运行上限 3 | `piRuntimeController.ts` | 单用户可接受；多用户前必须重做 |
 | 无常驻外部唤醒保障 | `src/pi/routines.ts`、`control/keeper.ts`、部署脚本 | 主机已内置计时与手动/外部运行接口；control keeper 只是原型，环境休眠期间不运行，见 ADR-036/041 与部署手册 |
 
 ## 多引擎与权限（2026-10-03 新增）
@@ -260,7 +262,7 @@ AgentSphere 沙箱
 - **历史保留**：服务端不再以 200 个会话为界静默删历史，客户端更新也不再截断为 100 条；保留全部列表元数据，正文按需加载。只有显式删除/重置才移除产品记录；备份保留期限与外部存储策略尚未设置。
 - **历史缓存**：`conversationCache.ts` 将完整摘要与最近 12 份已保存正文分开；尚未 flush 的记录单独保留，写入成功才可淘汰，失败同时移除正文/摘要缓存并重新读取已提交文件。冷列表与正文搜索仍扫描文件，热列表复用摘要；无磁盘索引、格式迁移或跨进程一致性保证。600 份约 150 MiB 正文的常驻堆增量约 3 MiB，见 [08 AP 组](08-acceptance.md)；上限按记录数，不是整台主机的字节上限。
 - **进程与运行预算**：Python 标准库 supervisor 在 5 分钟内最多重启 3 次，Linux subreaper 清理遗留进程；不会在进程重启后重放任务。每轮默认 30 分钟执行时间（不含工具审批等待）、10 MiB 事件输出、代理最多 100 次模型请求；分别由 `RAYTONEBOT_RUN_TIMEOUT_MS`、`RAYTONEBOT_RUN_OUTPUT_BYTES`、`RAYTONEBOT_RUN_MODEL_REQUESTS` 配置。模型请求次数不是货币费用上限。
-- **生产服务器**：M1 继续用 `vite preview` + 插件（已验证可用）。只有当 Vite 成为障碍（启动慢、需要自定义路由）时再换成 `node:http` 独立服务，`piHost.handle(req, res)` 已是框架无关的。
+- **生产服务器**：M1 继续用 `vite preview` + 插件（已验证可用）。只有当 Vite 成为障碍（启动慢、需要自定义路由）时再换成 `node:http` 独立服务，`createPiHttpHost()` 返回的 `handle(req, res)` 已是框架无关的。
 
 ## 目录所有权
 
@@ -307,7 +309,7 @@ AgentSphere 沙箱
 - 浏览器 bundle 里不得出现任何 key；`E2B_API_KEY` / `ARIADRA_API_KEY` 只由受信任的部署脚本/服务持有。
 
 AgentSphere 部署脚本安装独立的 `raytone-agent` UID，应用 root 所有且 Agent 不可写，bot 数据/凭据由文件权限隔离。
-Pi 模型循环仍在 bot 内，但全部 7 个工具在该 UID 的短命 worker 中执行；CLI 也用同一受限启动器。
+Pi 的七个文件/命令工具在该 UID 的短命 worker 中执行；模型循环与计划、提问、联网等主机工具留在 bot，实际工具清单按运行上下文和 Bot 能力组装。CLI 也用同一受限启动器。
 模型代理位于 bot 进程内，不新增独立服务或数据库；每轮凭证限制上游、模型、次数和有效期，结束即撤销。
 nftables ip/ip6 + meta skuid 按 UID 禁止直连，只开放 loopback gateway；包仓库 CONNECT 校验域名、TLS SNI 与公网 IP。
 网页搜索与读取由 bot 进程代为执行（`src/pi/webAccess.ts`，ADR-034）：Pi 原生工具、Claude Code 进程内 MCP、Codex dynamicTools，Agent 只拿到文本。

@@ -17,7 +17,7 @@
 2026-10-04 依赖修复：0.84.4 发布包的 `npm-shrinkwrap.json` 固定了受影响的 undici / brace-expansion，
 根项目 `overrides` 在干净安装中仍未生效。[Pi 1.0.1 发布记录](https://github.com/earendil-works/pi/blob/v1.0.1/packages/coding-agent/CHANGELOG.md)
 明确移除该文件并修复依赖；因此在隔离副本验证后更新两项直接依赖，保留精确版本与 lockfile。
-未使用 `audit fix --force`，未修改 vendor 或默认模型，也未启用新增的 MCP / codemode 工具；模型实际可见的工具仍是原八项。
+此次升级未使用 `audit fix --force`，未修改 vendor 或默认模型，也未启用 SDK 新增的 MCP / codemode 工具。当前工具清单由 `piSdkBridge.ts` 按运行上下文和 Bot 能力组装，包含七个文件/命令工具、计划、提问及条件启用的主机工具；不能用升级当时的“八项”作为现在的固定总数。产品自己的远程 MCP 管理由 `mcpServers.ts` 提供，和未启用的 SDK MCP 功能分开。
 
 ## 冻结产物的仓库分发
 

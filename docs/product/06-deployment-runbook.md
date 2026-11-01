@@ -1,6 +1,6 @@
 # 06 AgentSphere 部署运维手册
 
-> AgentMatrix 承载路径（分支 `am-hosting`）见 [../agentmatrix-deployment.md](../agentmatrix-deployment.md)：
+> AgentMatrix 承载路径见 [../agentmatrix-deployment.md](../agentmatrix-deployment.md)（首次实施分支为 `am-hosting`，脚本现已在 `main`）：
 > `npm run am:deploy` 用 SDK 0.11.0 创建 Workspace/Environment/Session，并在机器内执行
 > `scripts/agentmatrix/bootstrap.sh`。下文仍是 AgentSphere 生产栈的操作手册。
 
@@ -23,7 +23,7 @@
 | 凭据 | 位置 | 禁止 |
 | --- | --- | --- |
 | `E2B_API_KEY`（团队 key，可创建任意沙箱） | 本机 shell 环境，或受信任的沙箱外登录服务私有环境 | 写进仓库、沙箱、前端、文档 |
-| 访问密码（Basic Auth，用户名 `raytonebot`） | 本机 `.agentsphere/access.json`；沙箱内 600 权限 env 文件 | 写进仓库或文档 |
+| 访问密码（Basic Auth，用户名 `raytonebot`） | 所选 `--state-dir` 内的 `access.json`（默认 `.agentsphere/`）；沙箱内 600 权限 env 文件 | 写进仓库或文档 |
 | 模型 API key | 沙箱 `~/.raytonebot/env`（M1 起）；或设置页保存到 `~/.raytonebot/data.provider-secrets/`（加密、0700/0600） | 写进 `exported-project.ts` 或 bundle |
 
 `.gitignore` 已排除 `.agentsphere/`、`.env*`、`backups/`。
@@ -47,7 +47,7 @@ node control/server.ts import --owner <用户 id>   # 把 .agentsphere/ 里现�
 ## 实例定位
 
 - 本机 `.agentsphere/deployment.json` 记录 sandboxId、到期时间、PID / supervisorPid；`.agentsphere/verification.json` 记录最近检查结果。两个文件都是本机记录，不代表此刻在线。
-- 运行 `~/.venvs/agentsphere/bin/python scripts/agentsphere/sandbox.py status` 查询实际状态；公网地址按上表由端口与 sandboxId 组成，暂停后的恢复见下文。
+- 选择对应的 `--state-dir` 后运行 `sandbox.py status` 查询实际状态（命令见下文）；公网地址按上表由端口与 sandboxId 组成，暂停后的恢复见下文。
 - 历史实例与部署结果保留在进度和验收日志中，不再把固定 URL 当作当前入口。AgentMatrix 使用独立的 `.agentmatrix/deployment.json` 与 `npm run am:status`。
 
 2026-10-30 已认领实例的本机权威状态位于 `.agentsphere/control-dev/bots/bd8639aea7f/`；本次 backup/deploy 使用该 `--state-dir`，保留访问密码和交接身份。仓库根 `.agentsphere/deployment.json` 是较早记录，不用它覆盖 control 的访问状态。最新应用与真实模型检查见[本次记录](../../output/local-sandbox-2026-10-30/README.md)；实际运行状态仍须查询。
@@ -64,15 +64,26 @@ node control/server.ts import --owner <用户 id>   # 把 .agentsphere/ 里现�
 
 应用层：对话（`~/.raytonebot/data/conversations/*.json`）、Pi 模型上下文（`data/pi-sessions/<对话>/`）、Claude/Codex 会话 id 都落盘，重启或重新部署后侧栏、记录和上下文都恢复（本机与云端均验证）。
 
+先选定实例状态目录。以下使用上节记录的已认领实例；操作其他实例时改为其目录，创建新实例时使用独立的新目录。函数可在 bash 或 zsh 中调用，避免把 Python 路径和参数拼成一个字符串。
+
 ```bash
-S="~/.venvs/agentsphere/bin/python scripts/agentsphere/sandbox.py"
-$S create            # 新建自动暂停沙箱（50 h），之后运行 deploy.py
-$S status | wake | pause | renew [秒]
-$S backup            # 对话 + 三引擎会话 + 工作区 → backups/<id>-<时间>.tgz（不含 env 密钥；在没有运行中的任务时执行）
-$S status --logs 30  # 平台状态、认证后的应用 health、最近运行/守护元数据日志
-$S backup --scheduled # 外部定时器入口：暂停/运行中/重复触发时跳过，不自动唤醒
-$S restore FILE      # 推回沙箱后运行 deploy.py --skip-build
+RAYTONE_STATE_DIR=".agentsphere/control-dev/bots/bd8639aea7f"
+raytone_sandbox() {
+  "$HOME/.venvs/agentsphere/bin/python" scripts/agentsphere/sandbox.py --state-dir "$RAYTONE_STATE_DIR" "$@"
+}
+raytone_sandbox status
+raytone_sandbox status --logs 30
 ```
+
+其余操作按需单独执行：
+
+| 命令 | 用途 |
+| --- | --- |
+| `raytone_sandbox create` | 在独立状态目录新建自动暂停沙箱（默认 50 h），然后部署 |
+| `raytone_sandbox wake` / `raytone_sandbox pause` / `raytone_sandbox renew 86400` | 恢复、暂停或续期 |
+| `raytone_sandbox backup` | 空闲时备份对话、原生会话、工作区及已保存的交付版本；不含 env、Provider/Vault 密钥 |
+| `raytone_sandbox backup --scheduled` | 外部定时入口；暂停、忙碌或重复触发时跳过，不自动唤醒 |
+| `raytone_sandbox restore FILE` | 用实际备份路径替换 FILE；恢复后以同一 `--state-dir` 运行 `deploy.py --skip-build` |
 
 备份应在任务空闲时执行：严格读取、tar 失败及 gzip 校验会阻止损坏包被当作成功，但这不是跨文件事务快照。`data` 与 `workspace` 必须存在；CLI 原生目录可缺省，覆盖旧 `/home/user` 及隔离后的 `/home/raytone-agent` 下 `.claude/projects`、`.claude/tasks`、`.codex/sessions`。Claude task id 对应的任务文件必须与 session 一起迁移；只恢复产品计划快照不能恢复原生任务状态。包不包含 env、CLI 登录凭据或整个 home。自定义 `CODEX_HOME` / `CLAUDE_CONFIG_DIR` 需另行迁移。
 
@@ -83,8 +94,10 @@ $S restore FILE      # 推回沙箱后运行 deploy.py --skip-build
 ```bash
 export E2B_DOMAIN=agentsphere.run E2B_API_KEY=...      # 只在本机
 export DEEPSEEK_API_KEY=...                            # 可选，写入沙箱 env 文件
-~/.venvs/agentsphere/bin/python scripts/agentsphere/deploy.py [--sandbox ID] [--timeout 86400] [--skip-build]
+"$HOME/.venvs/agentsphere/bin/python" scripts/agentsphere/deploy.py --state-dir "$RAYTONE_STATE_DIR"
 ```
+
+`RAYTONE_STATE_DIR` 须先按上节设为目标实例目录。可选参数为 `--sandbox ID`、`--timeout 86400`、`--skip-build`，不要把语法说明的方括号作为实参复制。
 
 隔离验收使用 `--sandbox <测试实例> --state-dir <独立目录>`；目录内放测试访问密码，部署结果也只写该目录，避免改动生产 `.agentsphere/deployment.json`。
 
@@ -138,7 +151,7 @@ sb.set_timeout(3600)          # 从现在起约 1 小时
 | `sandbox.py restore <文件>` | 已实现 | 验证并暂存后停止旧进程、替换数据，失败回滚，之后运行 `deploy.py --skip-build` |
 | `kill` | 未实现 | 先自动 `backup`，再销毁，需 `--yes` |
 
-自检必须覆盖 [08](08-acceptance.md) 的 C 组：未登录 401、错误密码 401、跨站 403、登录后页面与资源 200、Pi state 200 且 7 个工具、空 prompt 400。
+自检必须覆盖 [08](08-acceptance.md) 的 C 组：未登录 401、错误密码 401、跨站 403、登录后页面与资源 200、Pi state 200 且含七个文件/命令工具与 `update_plan`、空 prompt 400。提问、联网及其他主机工具按能力配置增加，不将总数固定为 7 或 8。
 
 ## 部署注意事项（来自实测）
 

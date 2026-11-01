@@ -14,9 +14,16 @@ Only build output (`dist/`) is vendored; the SDK source is not part of this
 repository. The upstream package metadata declares the MIT license and the
 repository `https://github.com/flamingtonForAI/agent-ux-sdk`.
 
-A second copy lives at `src/export/templates/vendor/agent-ux/` — that one is
-stamped into projects produced by the scaffold exporter, so exported projects
-run without depending on this repository.
+`vendor/agentmatrix/agentcanvas-contract/` also contains a frozen prebuilt
+package from the AgentCanvas export. The app uses it for the configuration
+contract and brand mark. All five packages' `dist/` files are tracked in Git;
+the former scaffold-export template copy has been removed.
+
+## Pi runtime
+
+`@earendil-works/pi-coding-agent` and `@earendil-works/pi-ai` are npm dependencies
+pinned to 1.0.1. Their installed package metadata declares the MIT license and
+the repository `https://github.com/earendil-works/pi`.
 
 ## Copied fixtures
 

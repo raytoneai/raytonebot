@@ -17,12 +17,19 @@ RaytoneBot 是一个支持本机与云端部署的单用户 AI 工作助手。�
 | [09 踩坑记录](09-lessons.md) | 已知故障与用户纠正 | 按主题排障时 |
 | [10 引擎与权限](10-agents-and-permissions.md) | Bot 身份、Pi/Claude/Codex/DSH、审批与隔离 | 改引擎、Bot 或权限时 |
 | [11 参考项目对齐](11-parity.md) | 固定版本的历史对照与后续补证 | 回查竞品研究依据时 |
-| [12 Provider 凭据方案](12-provider-credentials-proposal.md) | 模块问题清单、主机密钥持久化与恢复边界 | 接续模型服务与凭据保存工作时 |
+| [12 Provider 配置与凭据](12-provider-credentials-proposal.md) | 已实现的主机密钥持久化、问题记录与恢复边界 | 接续模型服务与凭据保存工作时 |
+
+## 功能说明入口
+
+- [Bot、人设、能力、记忆与权限](10-agents-and-permissions.md)：含可选 RSL 任务复盘、记忆来源和更新规则。
+- [任务 Skills](../task-skills/README.md)：研究报告、增量更新、记忆审计与项目交接的安装、分配和验证边界。
+- [显式交付版本](02-architecture.md#显式交付版本2026-11-01)：保存范围、原输出面板入口与备份边界。
+- [记忆导出与恢复](02-architecture.md#主机记忆导出与恢复t610)：主机命令、目标目录要求与恢复限制。
 
 ## 部署文档
 
 - **AgentSphere**：[运维手册](06-deployment-runbook.md) 维护操作步骤，实例定位以本机部署状态文件为准。
-- **AgentMatrix**：[部署记录](../agentmatrix-deployment.md) 维护 `am-hosting` 分支的已实现路径、首次部署证据和待补能力；[最小改造需求](../agentmatrix-hosting-minimal-requirements-2026-10-19.md) 保留平台与应用的完整验收目标，[可行性评估](../agentmatrix-platform-research-2026-10-19.md) 保留研究依据。首个部署已完成，不等于正式迁移或功能验收完成。
+- **AgentMatrix**：[部署记录](../agentmatrix-deployment.md) 维护仓库内 `scripts/agentmatrix/` 的部署路径、首次部署证据和待补能力；`am-hosting` 是首次实施分支，相关脚本现已在 `main`。[最小改造需求](../agentmatrix-hosting-minimal-requirements-2026-10-19.md) 保留平台与应用的完整验收目标，[可行性评估](../agentmatrix-platform-research-2026-10-19.md) 保留研究依据。首个部署已完成，不等于正式迁移或功能验收完成。
 
 ## 如何判断文档是否仍适用
 

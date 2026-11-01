@@ -21,7 +21,7 @@
 | 实施 | Codex CLI | 改代码、跑命令 | 配置的 Responses 服务或本机 Codex 登录 |
 
 - Bot 在侧栏切换；点击可开始与它的新对话，打开历史会恢复所属 Bot。上下文存在各引擎自己的会话里，不跨引擎继承。当前选择和 CLI 模型来源偏好保存在浏览器 `raytonebot.agentSettings`，不代替服务端 Bot 配置。
-- 点击侧栏 Logo 创建 Bot，右键 Bot 头像编辑名字、外观、职责、性格与长期要求，也可选择该 Bot 的模型、MCP 服务与文本 Skills；聊天顶栏的 ＋ 邀请成员加入原对话，支持同一引擎的多个 Bot。设置包括模型服务、权限、IM 频道、例行任务、MCP/文本 Skills、记忆、Vault、模型用量、外观和关于；依赖主机的分区在无对应状态时隐藏。
+- 点击侧栏 Logo 创建 Bot，右键 Bot 头像编辑名字、外观、职责、性格与长期要求，也可选择该 Bot 的模型、MCP 服务与文本 Skills；聊天顶栏的 ＋ 邀请成员加入原对话，支持同一引擎的多个 Bot。设置包括模型服务、权限、IM 频道、例行任务、MCP/文本 Skills、记忆、Vault、模型用量、开发者模式（RSL）、外观和关于；依赖主机的分区在无对应状态时隐藏。
 - 对话列表每行带角色小头像；输入框占位为「给<角色>发消息…」。
 - 输入框不再显示模型选择（`composer.modelSwitcher: false`）；模型在设置的「模型服务」里配置。Bot 的可选模型覆盖优先于轮次入口传入的 provider/model；未配置覆盖时保持原选择。Pi 自定义模型可在原 Provider 卡设置上下文/输出上限、text/image 与 reasoning 能力，未填写使用原默认。
 - 顶栏显示实际 Bot 模型；设置了覆盖的 Claude/Codex 固定使用模型服务，需在 Bot 编辑器清除覆盖才能切到本机登录。启用可选 Composer 模型菜单时，有覆盖就修改此 Bot，无覆盖才修改全局默认。停用服务保留配置和凭据，但主机拒绝继续执行；不会自动换到其他模型。
@@ -33,12 +33,19 @@
 服务端 `bots.json` 保存 Bot 人设、模型覆盖和能力分配，网页、IM、例行任务和群聊都从主机读取。职责/性格/长期要求进入 `rolePrompt.ts`，可覆盖共享角色的默认表达偏好，不能授予工具或访问权限；用户当前请求优先。同一引擎的两个 Bot 可有不同指令和工具清单，但仍使用该角色的工作目录与基础权限，不是两个独立系统用户、文件沙箱或浏览器 profile。
 
 - **MCP 与 Skills**：未配置 `mcpServerIds` 的旧 Bot 仍可使用全部已启用 MCP，`[]` 明确不分配。MCP 实际调用复核启用状态与当前 Bot 分配；分配不代替 connector 审批，也不信任服务自报的只读标记。主机文本 Skills 在 Settings 原 MCP 分区管理，`skillIds` 缺省为空；模型先读索引，再按需 `read_skill`，未分配、已关闭或删除的正文不可读。文本指引不授权动作、不自动执行脚本；Pi 本机原有非扩展资源发现与云端禁用策略另按下文执行。
-- **记忆**：Settings Memory 管理 global、指定 Bot 或指定群的记忆；缺省旧记录仍为 global。Agent 只看到全局、自己 Bot 与当前父群的条目，不能指定别的 owner ID。`remember` 默认单聊存当前 Bot、群聊存当前群，`forget` 只能删除当前可见条目；两者仍按 connector 询问。只读 `recall_memories` 可查自动提示没放下的旧条目，关闭记忆后既有工具也不可继续操作。
+- **记忆**：Settings Memory 管理 global、指定 Bot 或指定群的记忆；缺省旧记录仍为 global。Agent 只看到全局、自己 Bot 与当前父群的条目，不能指定别的 owner ID。`remember` 默认单聊存当前 Bot、群聊存当前群，`forget` 只能删除当前可见条目；两者仍按 connector 询问。只读 `recall_memories` 按最近修改优先分页读取，覆盖自动提示没放下的旧条目；用 `nextCursor` 继续，数据或查询/范围变化后须从第一页重新读取。关闭记忆后既有工具也不可继续操作。
+- **记忆纠正与来源**：明确替换用 `remember({text,replaceId,expectedText,evidence?})` 校验旧文本并原位更新，保留身份和范围，不先删后建；不附新证据会清除旧证据。可选来源 URL/核验日期是提交者记录，不代表主机抓取核验，也不自动检测所有语义冲突。成功压缩或重置原生上下文后，下一次用户轮次重新补发最新记忆；不保证同一轮压缩续跑已补全。[记忆审计与项目交接 Skills](../task-skills/README.md) 需另行安装分配；[记忆导出与恢复](02-architecture.md#主机记忆导出与恢复t610) 是主机运维命令，不是 Agent 工具或自动备份。
 - **旧聊天**：`search_chat_history`/`read_chat_history` 默认只读当前可见会话的公共用户/助手文本；跨会话须由用户在 Composer 引用，授权随已提交轮次保留并继承到分支。工具参数不能自行扩大范围。群成员和委派读取父群，不开放内部子会话；不回读思考、工具原始内容、Vault 等专用秘密输入或原生会话文件。搜索/读取受命中数、窗口和输出长度限制，缺失或越权明确报错。
 - **模型用量**：Settings Usage 只展示主机网关确认的 token、耗时、状态与覆盖完整度。HTTP 直连、本机登录等未观察路径可显示未知，缺失不当作零；没有价格与账单估算。详情接口只返回有界元数据，不返回对话或凭据。
 - **一层委派**：群主持可向已加入的其他 Bot 委派独立只读任务，每请求/群活动任务最多四项；子任务无命令、写入、浏览器、外部 MCP 或再次委派权限。群内保留 2000 字符摘要，主持通过 `group_tasks` 的 taskId/offset 分页读完整公共答案；取消后的迟到输出不再可用，重启中的任务标为待核对，不自动重放。群重置同时重置成员及委派原生会话，不能只清父聊天。
 
 主机工具对记录范围和能力的限制由代码执行，但不能阻止同 UID 的本机进程或共用 Agent UID 绕过工具直接读可访问文件。要区分产品级 Bot 身份与下面的主机/Agent 硬隔离；此轮没有新增每 Bot 文件系统、进程或网络隔离。
+
+## 可选任务复盘与经验复用（RSL，ADR-056）
+
+设置 →「开发者模式」分别控制后台复盘和批准经验复用，默认都关闭。启用后，主机只从已可靠结束的普通单聊中选择复杂任务或明确纠正，空闲时向原任务模型发送一次无工具的分析请求；前台任务到来会取消后台分析。它会增加模型调用，默认每天最多 5 次，可设为 1–20 次，按 UTC 日切；token 记录可能不完整，不是费用账单。
+
+候选经验必须人工批准，复用还需开启相应开关，并限定同 Bot、同引擎的相关任务。经验存在独立的 `learning/state.json`，不改引擎、代码、人设或用户记忆，也不授予工具权限；关闭或删除不能撤回已经进入原生会话的内容，需要干净上下文时新建对话。队列不跨重启保留，不补跑；真实效果尚未证明。完整预算、范围和验收见 [ADR-056](07-decisions.md#adr-056rsl-使用受限后台提议与人工批准经验2026-10-29)。
 
 ## 工作区：各自目录 + 共享目录
 
@@ -112,7 +119,7 @@ Pi、Claude Code、Codex 和可选 DSH 走同一条事件渲染链路。Claude/C
 ### Linux 边界与剩余限制
 
 - `setup_isolation.py` 建立 `raytone-agent` UID，加入 `user` 工作组；workspace 与 Agent home 使用 setgid 目录共享文件，上传文件 0660。应用 root 所有、不可改；`~/.raytonebot` 为 bot 所有且 0700。`sudo -u raytone-agent setpriv --no-new-privs` 启动工具，缺少已安装隔离配置时拒绝沙箱任务。
-- Pi 的 7 个工具使用相同 SDK 定义，但 execute 在独立 UID worker 内运行；仅模型循环留在 bot。CLI、Pi worker 原始 stdout 与事件输出都有大小上限。Linux 文件 API 逐级以目录 fd 和 `O_NOFOLLOW` 锚定操作，防止父路径替换指向凭据目录。
+- Pi 的七个文件/命令工具使用相同 SDK 定义，但 execute 在独立 UID worker 内运行；模型循环及计划、提问、联网等主机工具留在 bot，实际可见工具总数随能力配置变化。CLI、Pi worker 原始 stdout 与事件输出都有大小上限。Linux 文件 API 逐级以目录 fd 和 `O_NOFOLLOW` 锚定操作，防止父路径替换指向凭据目录。
 - bot 进程内的 gateway 只允许单轮固定 provider/model 路由，禁止转发重定向，token 结束撤销；默认 100 次请求、30 分钟有效期。云端只支持已配置的 HTTPS OpenAI-compatible / Anthropic 服务。本机的其他 Pi 协议、三引擎 HTTP 服务与 CLI 登录模式保持原路径，因此不声称有代理请求次数上限或真实 key 隔离。
 - Agent UID 的 IPv4/IPv6 直连、DNS 与 bot HTTP 端口均被防火墙拒绝；仅 loopback gateway 开放。原生 ACL 另拒绝 Agent 遍历 `/run/dbus`、`/run/systemd`，避免借系统 DNS 服务联网；每次启动 Agent 检查 ACL，丢失即拒绝执行。包下载允许 `registry.npmjs.org`、`pypi.org`、`files.pythonhosted.org` 的 CONNECT，校验 TLS ClientHello SNI、公网 IP，拒绝 ECH 与不匹配握手。任意网页访问、其他下载源默认不可用，确有任务需求时再显式扩域。
 - 联网工具（ADR-034）：三个引擎都有 `web_search`（Tavily）和 `web_fetch`，由 bot 进程执行，Agent UID 的防火墙不变。读取只到公网地址（连接时检查、跳转重检），只回文本；归为只读，不经审批。`TAVILY_API_KEY` 只在 bot 环境。Claude Code 自带 WebSearch/WebFetch、Codex 自带 web_search 均关闭。
