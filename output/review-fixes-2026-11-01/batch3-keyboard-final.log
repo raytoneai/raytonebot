@@ -1,0 +1,23 @@
+▶ expanded Output keeps keyboard access to sandbox HTML and native forms
+  ✔ 1280px expanded: iframe at the final tab position and dynamic native controls (5973.961791ms)
+  ✔ 1280px fullscreen: iframe at the final tab position and dynamic native controls (3106.009708ms)
+  ✔ 390px expanded: iframe at the final tab position and dynamic native controls (2760.298583ms)
+  ✔ 390px fullscreen: iframe at the final tab position and dynamic native controls (2891.887125ms)
+✔ expanded Output keeps keyboard access to sandbox HTML and native forms (14946.029458ms)
+✔ output width survives remounts while invalid saved layouts fall back to defaults (0.661959ms)
+✔ blocked browser storage does not break opening or resizing output (0.133333ms)
+✔ patch files, explicit languages and real patch bodies render as escaped colored text (461.512709ms)
+✔ inline and expanded previews expose close for a single file without adding a tab row (4.697875ms)
+✔ a versioned artifact without source conversation context never falls back to the live file (0.332125ms)
+✔ saved version labels remain distinct when deliveries share a timestamp and size (8.646834ms)
+✔ saved Output versions survive current writes at a 390px viewport (4477.572209ms)
+✔ output tabs merge ordinary live paths but keep distinct saved versions (0.411708ms)
+✔ a current revision keeps its saved origin separate from an ordinary path tab (0.0605ms)
+ℹ tests 14
+ℹ suites 0
+ℹ pass 14
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 15274.563

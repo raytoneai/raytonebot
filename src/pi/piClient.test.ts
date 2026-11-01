@@ -13,10 +13,12 @@ test("memory saves preserve source metadata, explicit removal, and stale-edit pr
   const evidence = { url: "https://example.com/release", checkedAt: "2026-10-30" };
   await saveMemory(undefined, "Added", fetcher, { kind: "global" }, evidence);
   await saveMemory("item", "Updated", fetcher, undefined, null, "Original");
+  await saveMemory("item", "Snapshot update", fetcher, undefined, undefined, "Original", { text: "Original", scope: { kind: "global" }, evidence: null });
   await saveMemory("item", "Legacy client", fetcher);
   assert.deepEqual(calls.map(call => call.body), [
     { text: "Added", scope: { kind: "global" }, evidence },
     { text: "Updated", evidence: null, expectedText: "Original" },
+    { text: "Snapshot update", expectedText: "Original", expectedSnapshot: { text: "Original", scope: { kind: "global" }, evidence: null } },
     { text: "Legacy client" },
   ]);
   assert.ok(calls[0].url.endsWith("/memories"));

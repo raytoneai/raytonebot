@@ -1,0 +1,88 @@
+▶ settings navigation preserves non-secret editor drafts
+  ✖ 1280px: new and existing memory drafts survive section changes with their original save precondition (1833.964208ms)
+  ✖ 1280px: Skill creation, edits, conflicts and cancel keep the intended draft across navigation (5967.011375ms)
+  ✔ 1280px: hidden editors stay out of keyboard navigation; Vault and dialog close still clear inputs (1269.254042ms)
+  ✖ 390px: new and existing memory drafts survive section changes with their original save precondition (936.328958ms)
+  ✖ 390px: Skill creation, edits, conflicts and cancel keep the intended draft across navigation (5953.507333ms)
+  ✔ 390px: hidden editors stay out of keyboard navigation; Vault and dialog close still clear inputs (1260.874083ms)
+✖ settings navigation preserves non-secret editor drafts (17405.207208ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 2
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17676.498625
+
+✖ failing tests:
+
+test at src/runtime/settingsDrafts.browser.test.ts:101:15
+✖ 1280px: new and existing memory drafts survive section changes with their original save precondition (1833.964208ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + ''
+  - 'New memory draft'
+
+      at file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:109:16
+      at async withPage (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:96:11)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:101:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: 'New memory draft',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/runtime/settingsDrafts.browser.test.ts:139:15
+✖ 1280px: Skill creation, edits, conflicts and cancel keep the intended draft across navigation (5967.011375ms)
+  locator.inputValue: Timeout 5000ms exceeded.
+  Call log:
+  [2m  - waiting for locator('.settings-skills').getByRole('group').getByRole('textbox', { name: 'Name', exact: true })[22m
+
+      at /Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:147:87
+      at async withPage (/Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:96:11)
+      at async TestContext.<anonymous> (/Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:139:7) {
+    name: 'TimeoutError',
+    log: [ "  - waiting for locator('.settings-skills').getByRole('group').getByRole('textbox', { name: 'Name', exact: true })" ]
+  }
+
+test at src/runtime/settingsDrafts.browser.test.ts:101:15
+✖ 390px: new and existing memory drafts survive section changes with their original save precondition (936.328958ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+  + actual - expected
+
+  + ''
+  - 'New memory draft'
+
+      at file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:109:16
+      at async withPage (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:96:11)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:101:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: '',
+    expected: 'New memory draft',
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/runtime/settingsDrafts.browser.test.ts:139:15
+✖ 390px: Skill creation, edits, conflicts and cancel keep the intended draft across navigation (5953.507333ms)
+  locator.inputValue: Timeout 5000ms exceeded.
+  Call log:
+  [2m  - waiting for locator('.settings-skills').getByRole('group').getByRole('textbox', { name: 'Name', exact: true })[22m
+
+      at /Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:147:87
+      at async withPage (/Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:96:11)
+      at async TestContext.<anonymous> (/Users/rickyhuo/RaytoneBot/src/runtime/settingsDrafts.browser.test.ts:139:7) {
+    name: 'TimeoutError',
+    log: [ "  - waiting for locator('.settings-skills').getByRole('group').getByRole('textbox', { name: 'Name', exact: true })" ]
+  }

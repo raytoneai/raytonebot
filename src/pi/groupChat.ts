@@ -95,7 +95,10 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
   const delegation = createGroupDelegation({ ...deps, controller,
     settled: (groupId) => { touchGroupActivity(); publishDelegations(groupId); } });
   const hostBusy = () => idleWriteActive || controller.health().busy || active.size > 0 || resets.size > 0 || delegation.hasActive();
+  let disposed = false;
+  let disposal: Promise<void> | undefined;
   const assertNoIdleWrite = () => {
+    if (disposed) throw new Error("Pi runtime controller is disposed.");
     if (idleWriteActive) throw new ConversationRequestError("A document save is in progress. Wait for it to finish.", 409);
   };
   const withIdleWrite = async <T>(callback: () => Promise<T>): Promise<T> => {
@@ -224,15 +227,15 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       meta.tasks = mergeForegroundGroupTasks(groupOf(groupId)?.group?.tasks, meta.tasks);
       deps.store.setExtra(groupId, { group: meta, ...extra });
     };
-    const reportFailure = (event: string, error: unknown) => {
+    const reportFailure = (event: "group.subscriber_failed" | "group.finalize_failed" | "group.delegate_notification_failed" | "group.title_failed") => {
       try { deps.log?.(event, { conversationId: groupId, runId: groupRunId,
-        error: redactCredentials(error instanceof Error ? error.message : String(error)) }); }
+      }); }
       catch { /* Diagnostics must not change the accepted turn's outcome. */ }
     };
     const broadcast = (event: AgentUXEvent) => {
       for (const watcher of slot.watchers) {
         try { watcher(event); }
-        catch (error) { slot.watchers.delete(watcher); reportFailure("group.subscriber_failed", error); }
+        catch { slot.watchers.delete(watcher); reportFailure("group.subscriber_failed"); }
       }
     };
     const recorder = createConversationRecorder({ store: deps.store, conversationId: groupId, runId: groupRunId,
@@ -540,7 +543,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         }
       } catch (error) {
         status = "error";
-        reportFailure("group.finalize_failed", error);
+        reportFailure("group.finalize_failed");
         // Bypass a broken adapter during finalization. A saved terminal stays authoritative;
         // disk failures are reported by finish(). Neither means this prompt was rejected.
         if (!recorder.ended) {
@@ -548,7 +551,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
             message: error instanceof Error ? error.message : String(error) });
           try { emit(failures); }
           catch (failure) {
-            reportFailure("group.finalize_failed", failure);
+            reportFailure("group.finalize_failed");
             if (!recorder.ended) unsavedFailure = failures;
           }
         }
@@ -562,7 +565,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         finally {
           delegation.closeOrigin(groupId, groupRunId);
           active.delete(groupId); touchGroupActivity(); settle();
-          try { publishDelegations(groupId); } catch (error) { reportFailure("group.delegate_notification_failed", error); }
+          try { publishDelegations(groupId); } catch { reportFailure("group.delegate_notification_failed"); }
         }
       }
     }
@@ -570,7 +573,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     if (status === "success" && !isGreeting(prompt) && deps.titleGroup) {
       void Promise.resolve().then(() => {
         if (deps.store.get(groupId)?.titleSource !== "summary") return deps.titleGroup!(groupId, input, prompt);
-      }).catch((error) => reportFailure("group.title_failed", error));
+      }).catch(() => reportFailure("group.title_failed"));
     }
   }
 
@@ -764,9 +767,13 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       return conversation && turn ? { ...conversation, activeRunId: turn.runId, incomplete: false } : conversation;
     },
     dispose() {
-      delegation.dispose();
+      if (disposal) return disposal;
+      disposed = true;
+      const delegates = delegation.dispose();
+      const groups = [...active.values()];
       for (const turn of active.values()) turn.abort.abort();
-      controller.dispose();
+      disposal = Promise.allSettled([controller.dispose(), delegates, ...groups.map(turn => turn.done), ...resets.values()]).then(() => {});
+      return disposal;
     },
   };
 }

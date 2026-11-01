@@ -1,0 +1,24 @@
+▶ settings keep current results when reads and mutations overlap
+  ✔ routines: repeated slow reads can finish without timer or focus refreshes invalidating them (1769.968875ms)
+  ✔ routines: saving excludes polling and stale reads cannot release a newer read (857.102125ms)
+  ✔ routines: saving excludes polling and stale errors cannot release a newer read (871.120417ms)
+  ✔ routines: conflicts refresh current data and reopening drops the previous read (946.60525ms)
+  ✔ memory edit keeps its original precondition and draft across polls and stale saves (1163.534125ms)
+  ✔ memory: a late read cannot undo deletion (1575.143542ms)
+  ✔ memory: a late error cannot undo deletion (1545.453583ms)
+  ✔ mcp: a late read cannot undo deletion (1640.531291ms)
+  ✔ mcp: a late error cannot undo deletion (1558.791083ms)
+  ✔ IM: a slow poll cannot overlap or undo a save (success) (903.756542ms)
+  ✔ IM: a slow poll cannot overlap or undo a save (error) (882.514833ms)
+  ✔ Learning: generation rejects stale reads while revision protection remains (1120.094459ms)
+  ✔ im: an active switch drops the previous read (886.748291ms)
+  ✔ learning: an active switch drops the previous read (882.629667ms)
+✔ settings keep current results when reads and mutations overlap (16789.336375ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 15
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 17063.828125

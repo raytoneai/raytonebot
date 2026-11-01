@@ -8,7 +8,7 @@ import { test } from "node:test";
 import { buildClaudeArgs } from "./cliHarness.ts";
 import { normalizeClaudeTool } from "./cliStreams.ts";
 import { createCodexAppServer } from "./codexAppServer.ts";
-import { createMemoryService, MEMORY_TOOL_SPECS, type MemoryService } from "./memories.ts";
+import { createMemoryService, MEMORY_TOOL_SPECS, MemoryError, type MemoryService } from "./memories.ts";
 import { classifyToolCall } from "./permissionPolicy.ts";
 import { createPiHttpHost, type PiBridgeFactory } from "./piHost.ts";
 
@@ -56,6 +56,47 @@ test("memories are one list on disk: deduplicated, never secrets, capped, editab
     assert.throws(() => memory.add("One more."), /full/);
     assert.doesNotMatch(readFileSync(join(dataDir, "memories.json"), "utf8"), /hunter2/);
   } finally { rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("full memory snapshots independently reject stale text, URL, date, scope and evidence presence", () => {
+  const evidence = { url: "https://example.com/a", checkedAt: "2026-10-30" };
+  const changes: { label: string; beforeEvidence?: typeof evidence; change(memory: MemoryService, id: string): void }[] = [
+    { label: "text", change: (memory, id) => { memory.update(id, "Concurrent text."); } },
+    { label: "URL", change: (memory, id) => { memory.update(id, "Same text.", undefined, { ...evidence, url: "https://example.com/b" }); } },
+    { label: "date", change: (memory, id) => { memory.update(id, "Same text.", undefined, { ...evidence, checkedAt: "2026-10-31" }); } },
+    { label: "scope", change: (memory, id) => { memory.update(id, "Same text.", { kind: "bot", id: "assistant" }); } },
+    { label: "evidence removal", change: (memory, id) => { memory.update(id, "Same text.", undefined, null); } },
+    { label: "evidence addition", beforeEvidence: undefined, change: (memory, id) => { memory.update(id, "Same text.", undefined, evidence); } },
+  ];
+  for (const item of changes) {
+    const memory = createMemoryService({ now: () => 7 });
+    const original = memory.add("Same text.", undefined, item.beforeEvidence === undefined && item.label === "evidence addition" ? undefined : evidence);
+    const snapshot = { text: original.text, scope: { kind: "global" } as const, evidence: original.evidence ?? null };
+    item.change(memory, original.id);
+    const concurrent = memory.state();
+    assert.equal(memory.state().memories[0]!.updatedAt, original.updatedAt, `${item.label}: tied updatedAt is not a version`);
+    assert.throws(() => memory.update(original.id, "My draft.", undefined, undefined, undefined, snapshot),
+      error => error instanceof MemoryError && error.status === 409, `${item.label}: stale full snapshot returns HTTP 409`);
+    assert.deepEqual(memory.state(), concurrent, `${item.label}: conflict leaves every field unchanged`);
+  }
+});
+
+test("memory snapshot accepts legacy global/no-evidence records and rejects malformed snapshots", () => {
+  const memory = createMemoryService({ now: () => 7 });
+  const legacy = memory.add("Legacy memory.");
+  assert.deepEqual(memory.update(legacy.id, "Edited legacy memory.", undefined, undefined, undefined,
+    { text: legacy.text, scope: { kind: "global" }, evidence: null }).text, "Edited legacy memory.");
+  const current = memory.state().memories[0]!;
+  const invalid = [
+    { text: current.text, scope: { kind: "global" } },
+    { text: current.text, scope: { kind: "private" }, evidence: null },
+    { text: current.text, scope: { kind: "global" }, evidence: { url: "https://example.com", unknown: true } },
+  ];
+  for (const expectedSnapshot of invalid) {
+    assert.throws(() => memory.update(legacy.id, "Rejected.", undefined, undefined, undefined, expectedSnapshot as never),
+      error => error instanceof MemoryError && error.status === 400);
+  }
+  assert.equal(memory.state().memories[0]!.text, "Edited legacy memory.");
 });
 
 test("memory evidence survives storage, recall and bounded notes without implying host verification", async () => {
@@ -689,6 +730,19 @@ test("the host adds the memory note to the model's copy of the prompt and serves
     const id = (added.body.memory as Json).id as string;
     assert.equal((await call(`/${id}`, "POST", { text: "Should not overwrite.", expectedText: "Stale original." })).status, 409);
     assert.equal((await call(`/${id}`, "POST", { text: "Prefers short answers in Chinese.", expectedText: "Prefers short answers." })).status, 200);
+    const captured = (await call("")).body.memories as Json[];
+    const prior = captured.find(item => item.id === id)!;
+    const priorSnapshot = { text: prior.text, scope: prior.scope ?? { kind: "global" }, evidence: prior.evidence ?? null };
+    const changedEvidence = { url: "https://example.com/preferences-v2", checkedAt: "2026-11-02" };
+    assert.equal((await call(`/${id}`, "POST", { text: prior.text, evidence: changedEvidence, expectedText: prior.text })).status, 200);
+    const beforeConflict = (await call("")).body.memories as Json[];
+    const staleResponse = await call(`/${id}`, "POST", { text: "Overwritten from stale editor.", expectedText: prior.text, expectedSnapshot: priorSnapshot });
+    assert.equal(staleResponse.status, 409);
+    assert.match(String(staleResponse.body.error), /changed/i);
+    assert.deepEqual((await call("")).body.memories, beforeConflict, "stale metadata snapshots cannot alter the record through HTTP");
+    const malformed = await call(`/${id}`, "POST", { text: "Rejected malformed snapshot.", expectedSnapshot: { text: prior.text, scope: { kind: "global" } } });
+    assert.equal(malformed.status, 400);
+    assert.deepEqual((await call("")).body.memories, beforeConflict, "malformed snapshots are rejected without writing");
     await host.controller.runPrompt({ conversationId: "chat", prompt: "第三轮" }, () => {});
     assert.match(prompts[2], /updated[\s\S]*in Chinese/);
     const clearedEvidence = await call(`/${id}`, "POST", { text: "Prefers short answers in Chinese.", evidence: null, expectedText: "Prefers short answers in Chinese." });

@@ -1,0 +1,9 @@
+{
+  "baseline": "full CSS at c632404 HEAD",
+  "working": "batch5 final CSS",
+  "contexts": 16,
+  "computed_values": 3696,
+  "computed_mismatches": 0,
+  "identical_png_pairs": 16,
+  "limitations": "Representative static markup, separate full app fixture validation."
+}

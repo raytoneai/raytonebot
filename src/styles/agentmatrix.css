@@ -501,16 +501,6 @@ svg.lucide { stroke-width: 1.5; }
 .error-icon[data-anim="spin"] svg {
   animation: am-spin 1s linear infinite;
 }
-.step-item { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
-.step-icon { color: var(--info); }
-.step-item[data-status="completed"] .step-icon,
-.step-item[data-status="success"] .step-icon { color: var(--success); }
-.step-item[data-status="failed"] .step-icon,
-.step-item[data-status="error"] .step-icon { color: var(--danger); }
-.step-kind { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
-.error-item { display: grid; grid-template-columns: auto minmax(0, 1fr); align-items: start; gap: 8px; }
-.error-item > :is(strong, p, details, small) { grid-column: 2; min-width: 0; }
-.error-icon { color: var(--danger); margin-top: 1px; }
 .tool-source-icon { color: var(--text-muted); margin-right: 2px; }
 
 /* "Coming soon" placeholder (e.g. Git for V1) */

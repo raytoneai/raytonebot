@@ -176,8 +176,9 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {section === "routines" && props.routines ? <RoutinesSection key={props.initialBotId ?? "all"} t={t} state={props.routines} initialBotId={props.initialBotId} onOpenConversation={props.onOpenConversation}
                 drafts={routineDrafts} onDraft={(id, draft) => setRoutineDrafts(current => ({ ...current, [id]: draft }))} /> : null}
               {section === "mcp" && props.mcpServers ? <McpSection t={t} state={props.mcpServers} /> : null}
-              {section === "mcp" && props.skills ? <SkillsSection state={props.skills} /> : null}
-              {section === "memory" && props.memories ? <MemorySection key={props.initialMemoryScope ? memoryScopeKey(props.initialMemoryScope) : "all"} t={t} state={props.memories} scopes={props.memoryScopes} initialScope={props.initialMemoryScope} /> : null}
+              {/* Keep non-secret editors mounted across section changes; hidden removes them from keyboard navigation. */}
+              {props.skills ? <div hidden={section !== "mcp"}><SkillsSection state={props.skills} /></div> : null}
+              {props.memories ? <div hidden={section !== "memory"}><MemorySection key={props.initialMemoryScope ? memoryScopeKey(props.initialMemoryScope) : "all"} t={t} state={props.memories} scopes={props.memoryScopes} initialScope={props.initialMemoryScope} /></div> : null}
               {section === "developer" && props.learning ? <LearningSection learning={props.learning} /> : null}
               {section === "usage" && props.usage ? <UsageSection usage={props.usage} /> : null}
               {props.open && section === "vault" && props.vault ? <VaultSection state={props.vault} /> : null}

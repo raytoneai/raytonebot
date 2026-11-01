@@ -1,0 +1,32 @@
+▶ settings keep current results when reads and mutations overlap
+  ✔ routines: repeated slow reads can finish without timer or focus refreshes invalidating them (2067.298542ms)
+  ✔ routines: saving excludes polling and stale reads cannot release a newer read (1022.517333ms)
+  ✔ routines: saving excludes polling and stale errors cannot release a newer read (936.938167ms)
+  ✔ routines: conflicts refresh current data and reopening drops the previous read (1168.194041ms)
+  ✔ memory edit keeps its original precondition and draft across polls and stale saves (1346.367583ms)
+  ✔ memory: a late read cannot undo deletion (1686.925666ms)
+  ✔ memory: a late error cannot undo deletion (1720.93775ms)
+  ✔ mcp: a late read cannot undo deletion (1607.994333ms)
+  ✔ mcp: a late error cannot undo deletion (1540.565833ms)
+  ✔ IM: a slow poll cannot overlap or undo a save (success) (877.292416ms)
+  ✔ IM: a slow poll cannot overlap or undo a save (error) (868.916375ms)
+  ✔ Learning: generation rejects stale reads while revision protection remains (1096.270209ms)
+  ✔ im: an active switch drops the previous read (869.197125ms)
+  ✔ learning: an active switch drops the previous read (863.763416ms)
+✔ settings keep current results when reads and mutations overlap (17862.507875ms)
+▶ settings navigation preserves non-secret editor drafts
+  ✔ 1280px: new and existing memory drafts survive section changes with their original save precondition (2354.04075ms)
+  ✔ 1280px: Skill creation, edits, conflicts and cancel keep the intended draft across navigation (1606.656083ms)
+  ✔ 1280px: hidden editors stay out of keyboard navigation; Vault and dialog close still clear inputs (1506.852084ms)
+  ✔ 390px: new and existing memory drafts survive section changes with their original save precondition (1370.702ms)
+  ✔ 390px: Skill creation, edits, conflicts and cancel keep the intended draft across navigation (1504.17825ms)
+  ✔ 390px: hidden editors stay out of keyboard navigation; Vault and dialog close still clear inputs (1420.30375ms)
+✔ settings navigation preserves non-secret editor drafts (9947.224417ms)
+ℹ tests 22
+ℹ suites 0
+ℹ pass 22
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 18153.802084

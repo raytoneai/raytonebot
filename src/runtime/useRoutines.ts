@@ -25,14 +25,27 @@ export function useRoutines(active: boolean): RoutinesState {
   const [actionError, setActionError] = useState<RoutinesState["actionError"]>();
   const loadSequence = useRef(0);
   const acting = useRef(false);
+  const reading = useRef<number | undefined>(undefined);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; loadSequence.current++; reading.current = undefined; };
+  }, []);
 
-  const load = useCallback(() => {
+  const load = useCallback(async (afterAction = false) => {
+    if (!mounted.current || (!afterAction && (acting.current || reading.current !== undefined))) return;
     const sequence = ++loadSequence.current;
-    return listRoutines().then((value) => {
-      if (sequence !== loadSequence.current) return;
+    reading.current = sequence;
+    try {
+      const value = await listRoutines();
+      if (!mounted.current || sequence !== loadSequence.current) return;
       setRoutines(value);
       setError(undefined);
-    }, (failure: unknown) => { if (sequence === loadSequence.current) setError(failure instanceof Error ? failure.message : String(failure)); });
+    } catch (failure) {
+      if (mounted.current && sequence === loadSequence.current) setError(failure instanceof Error ? failure.message : String(failure));
+    } finally {
+      if (reading.current === sequence) reading.current = undefined;
+    }
   }, []);
 
   useEffect(() => {
@@ -42,26 +55,28 @@ export function useRoutines(active: boolean): RoutinesState {
     const timer = window.setInterval(refresh, 3_000);
     window.addEventListener("focus", refresh);
     document.addEventListener("visibilitychange", refresh);
-    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); loadSequence.current++; };
+    return () => { window.clearInterval(timer); window.removeEventListener("focus", refresh); document.removeEventListener("visibilitychange", refresh); loadSequence.current++; reading.current = undefined; };
   }, [active, load]);
 
   const act = useCallback(async (id: string, action: () => Promise<unknown>) => {
-    if (acting.current) return false;
+    if (acting.current || !mounted.current) return false;
     acting.current = true;
     loadSequence.current++;
+    reading.current = undefined;
     setBusy(id);
     setActionError(undefined);
     try {
       await action();
-      await load();
+      if (!mounted.current) return false;
+      await load(true);
       return true;
     } catch (failure) {
-      setActionError({ id, message: failure instanceof Error ? failure.message : String(failure) });
-      await load(); // A conflict refreshes authoritative data, without replacing the editor's draft.
+      if (mounted.current) setActionError({ id, message: failure instanceof Error ? failure.message : String(failure) });
+      await load(true); // A conflict refreshes authoritative data, without replacing the editor's draft.
       return false;
     } finally {
       acting.current = false;
-      setBusy(undefined);
+      if (mounted.current) setBusy(undefined);
     }
   }, [load]);
 

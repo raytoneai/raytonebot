@@ -81,6 +81,8 @@ Raytone 登录 → control/（Node，常驻主机，持有 E2B key）
 
 本机开发时链路相同，只是 `npm run dev` 监听 `127.0.0.1:5188`，没有 Basic Auth，由 `requestOrigin.ts` 只放行 loopback。
 
+主机同进程关闭时，controller、群聊包装和 HTTP host 的 `dispose()` 返回可重复等待的 `Promise<void>`，Vite 关闭钩子等待它完成。调用立即拒绝新运行并停止已有任务，再等待引擎取消、单聊/群聊/委派收尾及在途会话操作，最后释放 bridge 和网关；缓存淘汰与退出共用 bridge 清理，初始化拒绝和清理失败不会形成未处理拒绝。Pi bridge 初始化没有独立取消接口，关闭仍需等待已在途的初始化返回；不能用销毁缓存代替停止运行。
+
 ### 请求接口（`src/pi/piClient.ts` ↔ `src/pi/piHttpHost.ts`）
 
 计划更新复用既有事件存储与产物视图：Codex `turn/plan/updated`、旧 exec `todo_list`、Claude `TodoWrite` 和原生 `TaskCreate/TaskUpdate/TaskGet/TaskList` 成功回执 → 内部 `plan_update`；Pi `update_plan` 的成功工具结果也进入 `piAdapter` 的结构化 `artifact.delta` 快照。每轮一个稳定产物 id，后续完整快照替换其 data；`taskPlan.ts` 在展示时转换成 Markdown，并根据所属 run 的终态显示结束/停止/失败，不推断未完成步骤成功。打开的产物标签按 id 跟随内容更新，不按标题匹配。计划产物没有工作区路径，下载使用实际内容 Blob；没有新增 HTTP 路由或独立任务数据库，见 ADR-018。
@@ -154,7 +156,9 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 
 界面上缺东西时，先查 `piAdapter.ts` 发出的事件和回放结果，不是加组件。`runtime/eventNormalizer` 与 `admissionReport` 是只读诊断预演模块；开发模式带 `?devtools=1` 时，shell 对实际 `replayEvents` 生成报告并交给现有 DebugDock，但不替换 replay、不写事件存储或重接游标，生产模式不执行。
 
-`runtime/conversationStream.ts` 统一发送与重接路径的会话快照、事件追加、群成员元数据、逐帧提交和等待状态。权威快照替换先取消旧帧；等待按工具或请求分别跟踪，提问内容更新立即提交。Shell 保留提交准备、接受确认、重试和停止策略；卸载先使订阅身份失效，再关闭本地连接，主机任务继续执行。
+`hostOperations.runtimeLogger` 在运行时按事件筛选允许字段并校验类型、固定枚举和有界身份；原始错误、提示词、工具内容、URL、未知事件及额外字段不落盘。群聊失败只传固定类别和会话/轮次身份，日志故障不改变任务结果。
+
+`runtime/conversationStream.ts` 统一发送与重接路径的会话快照、事件追加、群成员元数据、逐帧提交和等待状态。权威快照替换先取消旧帧；等待按工具或请求分别跟踪，提问内容更新立即提交。`runtime/useConversationRuns.ts` 拥有本地订阅身份、准备状态、运行/等待/接收标记和停止反馈；发送与重接通过同一身份对象转换状态，旧回调不能清理替代它的订阅。断线交接保留接收标记，结束统一清理；取消传输仍允许当前订阅提交取消终态。Shell 保留附件、提交、接受后的草稿处理及重试编排。卸载先使所有订阅身份失效，再关闭本地连接，主机任务继续执行。
 
 浏览器断线不停止服务端任务。前端共享历史加载，断线后退避重接；连续 5 次失败后停止本地等待，并提示主机任务状态尚未确认。连接握手、历史/停止请求及事件流无心跳的超时为 15 秒；正常流每 5 秒的心跳维持连接，不限制任务总时长。若 `/live` 返回 409（任务刚结束），再读落盘历史补齐尾部事件，不重放 prompt；记录中缺少本次 `requestId` 时保留用户消息并报错。停止操作收到服务端确认后才取消本地订阅。服务端启动时为没有终态的轮次补「已中断」，包括尚未产生首个 token 的轮次；沙箱暂停/恢复仍走整机快照。
 
@@ -180,7 +184,7 @@ Pi 原生事件 → harness/adapters/piAdapter.ts → AgentUX StandardEvent
 
 普通侧栏与搜索共用 `useSearchWindow.ts`，按各自的行/分组间距只挂载可见范围及焦点行；不截断元数据、存储记录或搜索结果。原按钮支持方向键、Home/End 与跨窗口 Tab；新增记录通过会话键保留阅读行与行内偏移，顶部仍显示新记录。布局计算仍为线性遍历，没有引入列表库、数据库或另一个侧栏。
 
-审批提交共用 `approvalSubmission.ts`：现有 inline/external 控件只保留允许一次、始终允许、拒绝三个直接动作，无预选及二次确认；用户未点击时持续等待，不发送决定。点击后锁定首个决定，禁用重复操作并显示“正在确认你的选择”。Tab 只移动焦点，Enter/空格执行；长期授权范围在操作前持续可见。共用表单的账号选择和填答保留独立提交。POST 单次请求仍有 15 秒网络期限；回执不确定时先通过 GET 核对同一会话/轮次/工具，已处理就收起，仅明确仍待审批才重新送达原决定。查询失败按 0.5–10 秒间隔恢复，不要求用户审批重试、不重跑任务。卡片卸载或用户点击停止立即取消前端核对；刷新通过原历史/实时流恢复等待，禁止自动补发旧页面的选择。审批卡关闭状态以会话 id、具体 awaiting 事件 id 和工具 id 标识，迟到回执不能关闭别的请求。`PiApprovalGate` 在等待期间暂停 `runDeadline` 的执行计时，所有该轮模型租约共用剩余时间；批准/拒绝后按剩余预算继续，停止仍可终止等待。主机重启仍将旧运行标为中断，不伪造跨进程恢复。
+审批提交共用 `approvalSubmission.ts`：现有 inline/external 控件只保留允许一次、始终允许、拒绝三个直接动作，无预选及二次确认；用户未点击时持续等待，不发送决定。点击后锁定首个决定，禁用重复操作并显示“正在确认你的选择”。Tab 只移动焦点，Enter/空格执行；长期授权范围在操作前持续可见。共用表单的账号选择和填答保留独立提交。POST 单次请求仍有 15 秒网络期限；回执不确定时先通过 GET 核对同一会话/轮次/工具，已处理就收起，仅明确仍待审批才重新送达原决定。查询失败按 0.5–10 秒间隔恢复，不要求用户审批重试、不重跑任务。卡片卸载或用户点击停止立即取消前端核对；刷新通过原历史/实时流恢复等待，禁止自动补发旧页面的选择。审批卡关闭状态以会话 id、具体 awaiting 事件 id 和工具 id 标识，迟到回执不能关闭别的请求。主机在工具审批或普通 `ask_user` 问答等待期间暂停 `runDeadline` 的执行计时，所有该轮模型租约共用剩余时间；任一等待仍未结束就不恢复计时，全部答复、跳过或取消后按剩余预算继续，停止仍可终止等待。Vault 保持独立的 120 秒授权有效期。主机重启仍将旧运行标为中断，不伪造跨进程恢复。
 
 提问与两种审批表面共用 `usePromptFocus.ts`，只跟踪用户实际聚焦过的卡片。提交失败时恢复原控件；卡片卸载后，在同一会话且用户未转向其他控件时，把焦点交给后续问题标题或 Composer。新问题出现不抢焦点，问题 key 按会话/requestId 隔离；停止按钮在显式点击时聚焦输入框，不用迟到回执触发。此状态仅属于当前 DOM，不写入持久记录。
 
@@ -261,7 +265,7 @@ AgentSphere 沙箱
 - **沙箱可丢弃**：重建 = 部署脚本 + 恢复最近备份。沙箱内不放 `E2B_API_KEY`。
 - **历史保留**：服务端不再以 200 个会话为界静默删历史，客户端更新也不再截断为 100 条；保留全部列表元数据，正文按需加载。只有显式删除/重置才移除产品记录；备份保留期限与外部存储策略尚未设置。
 - **历史缓存**：`conversationCache.ts` 将完整摘要与最近 12 份已保存正文分开；尚未 flush 的记录单独保留，写入成功才可淘汰，失败同时移除正文/摘要缓存并重新读取已提交文件。冷列表与正文搜索仍扫描文件，热列表复用摘要；无磁盘索引、格式迁移或跨进程一致性保证。600 份约 150 MiB 正文的常驻堆增量约 3 MiB，见 [08 AP 组](08-acceptance.md)；上限按记录数，不是整台主机的字节上限。
-- **进程与运行预算**：Python 标准库 supervisor 在 5 分钟内最多重启 3 次，Linux subreaper 清理遗留进程；不会在进程重启后重放任务。每轮默认 30 分钟执行时间（不含工具审批等待）、10 MiB 事件输出、代理最多 100 次模型请求；分别由 `RAYTONEBOT_RUN_TIMEOUT_MS`、`RAYTONEBOT_RUN_OUTPUT_BYTES`、`RAYTONEBOT_RUN_MODEL_REQUESTS` 配置。模型请求次数不是货币费用上限。
+- **进程与运行预算**：Python 标准库 supervisor 在 5 分钟内最多重启 3 次，Linux subreaper 清理遗留进程；不会在进程重启后重放任务。每轮默认 30 分钟执行时间（不含工具审批与普通问答等待）、10 MiB 事件输出、代理最多 100 次模型请求；分别由 `RAYTONEBOT_RUN_TIMEOUT_MS`、`RAYTONEBOT_RUN_OUTPUT_BYTES`、`RAYTONEBOT_RUN_MODEL_REQUESTS` 配置。模型请求次数不是货币费用上限。
 - **生产服务器**：M1 继续用 `vite preview` + 插件（已验证可用）。只有当 Vite 成为障碍（启动慢、需要自定义路由）时再换成 `node:http` 独立服务，`createPiHttpHost()` 返回的 `handle(req, res)` 已是框架无关的。
 
 ## 目录所有权
@@ -403,7 +407,7 @@ HTTP host 共用一个 BotConfigStore，网页、IM、例行任务和群聊运�
 
 `memories.ts` 继续使用 `<dataDir>/memories.json`，旧记录无 scope 时视为 global；新 scope 为 `{kind:"global"}`、`{kind:"bot",id}` 或 `{kind:"group",id}`。注入、`recall_memories` 与 `forget` 只处理全局、当前 Bot、当前父群可见的记忆；模型不能自报另一个 owner ID。`remember` 单聊默认当前 Bot，群聊默认当前群，可显式选择当前可用范围；写入/删除仍走 connector 审批。Settings 原 Memory 分区负责范围选择与全局管理。总量仍为 100 条、每条 300 字符，提示有约 4000 字符预算；提示与 recall 按最近修改优先，时间相同时最近写入优先。只读 recall 用最多 200 字符的字面查询每页返回最多 20 条；`nextCursor` 可作下一页 `cursor`，绑定存储版本、规范化查询与 Bot/群范围，任一保存变化后需从第一页重新读取，不跨快照拼接。关闭后既有工具句柄也拒绝操作。
 
-记忆可带 `evidence: {url, checkedAt?}`：HTTP(S) 来源网址及可选真实日历日期 YYYY-MM-DD，由提交者记录，主机不抓取或证明来源。提示、recall 和原 Memory 设置行展示该信息；更换网址清掉界面旧核对日期。`remember({text, replaceId, expectedText, evidence?})` 可原位替换当前可见条目，保留 ID/创建时间/范围，不先删除；旧原文不符则拒绝，不能同时改 scope。替换不提供 evidence 时清除旧证据，避免旧来源为新内容背书。普通设置更新省略 evidence 保留、null 清除，带 expectedText 可拒绝过时文本编辑；未更改证据的界面编辑不回写旧证据。新增/更新都拒绝制造同范围的相同文本；不同证据的重复新增要求明确替换。仍沿原 connector 审批及已授权例外，没有额外候选队列或自动语义删除。
+记忆可带 `evidence: {url, checkedAt?}`：HTTP(S) 来源网址及可选真实日历日期 YYYY-MM-DD，由提交者记录，主机不抓取或证明来源。提示、recall 和原 Memory 设置行展示该信息；更换网址清掉界面旧核对日期。`remember({text, replaceId, expectedText, evidence?})` 可原位替换当前可见条目，保留 ID/创建时间/范围，不先删除；旧原文不符则拒绝，不能同时改 scope。替换不提供 evidence 时清除旧证据，避免旧来源为新内容背书。普通设置更新省略 evidence 保留、null 清除；Settings 编辑开始时捕获完整 `expectedSnapshot: {text, scope, evidence}`，保存同时校验文本、范围和来源，变化则返回 409 并保留草稿；旧条目的缺省范围/来源归一为 global/null，不依赖可能相同的更新时间。旧调用的 `expectedText` 文本校验仍兼容，未携带完整快照者不获得元数据冲突保护。新增/更新都拒绝制造同范围的相同文本；不同证据的重复新增要求明确替换。仍沿原 connector 审批及已授权例外，没有额外候选队列或自动语义删除。
 
 `conversationHistoryTools.ts` 直接读取 ConversationStore 的公共用户/助手文本，复用 `conversationSearch.ts` 按 `runId + textId` 累积流式内容；不读取 reasoning、工具原始内容、Vault 等专用秘密输入或引擎原生会话。`search_chat_history` 默认当前可见会话、最多 20 个命中；`read_chat_history` 用 textId/可选 runId 返回目标及合计至多十条邻居。结果保留 conversationId、角色、时间与稳定消息锚点，序列化输出最多 16000 字符，显式标注截断；越权、记录删除、歧义锚点均返回错误。跨会话范围仅来自上述用户引用，群成员与只读委派由宿主传入父群 ID，隐藏子会话即使被点名也拒绝读取。
 

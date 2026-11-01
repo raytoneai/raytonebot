@@ -1,5 +1,5 @@
 export type PermissionMode = "request" | "auto" | "allow-all";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { type SettingsCopy } from "../../i18n/copy/settings";
 import { useCopy } from "../../i18n/LocaleContext";
@@ -37,38 +37,68 @@ export function PermissionsSection({ t, runtime, permissionDefault, onPermission
           </label>
         ))}
       </div>
+      <h3 className="settings-subhead">{t.permissions.workspace}</h3>
+      <WorkspaceList t={t} runtime={runtime} />
       <h3 className="settings-subhead">{t.permissions.alwaysTitle}</h3>
       <p className="settings-intro">{t.permissions.alwaysHint}</p>
       <AlwaysAllowedList t={t} runtime={runtime} />
       <h3 className="settings-subhead">{t.permissions.secretTitle}</h3>
       <p className="settings-intro">{t.permissions.secretHint}</p>
-      <div className="settings-list settings-code-list">
-        {(runtime?.secretPaths ?? []).map((path) => <code key={path}>{path}</code>)}
-      </div>
+      <PermissionPathDetails t={t} paths={runtime?.secretPaths ?? []} />
       <h3 className="settings-subhead">{t.permissions.protectedTitle}</h3>
       <p className="settings-intro">{t.permissions.protectedHint}</p>
-      <div className="settings-list settings-code-list">
-        {(runtime?.protectedPaths ?? []).map((path) => <code key={path}>{path}</code>)}
-      </div>
+      <PermissionPathDetails t={t} paths={runtime?.protectedPaths ?? []} />
       {runtime?.readOnlyPaths?.length ? (
         <>
           <h3 className="settings-subhead">{t.permissions.readOnlyTitle}</h3>
           <p className="settings-intro">{t.permissions.readOnlyHint}</p>
-          <div className="settings-list settings-code-list">
-            {runtime.readOnlyPaths.map((path) => <code key={path}>{path}</code>)}
-          </div>
+          <PermissionPathDetails t={t} paths={runtime.readOnlyPaths} />
         </>
       ) : null}
-      <h3 className="settings-subhead">{t.permissions.workspace}</h3>
-      <WorkspaceList t={t} runtime={runtime} />
     </>
+  );
+}
+
+function PermissionPathDetails({ t, paths }: { t: SettingsCopy; paths: string[] }) {
+  if (paths.length === 0) return null;
+  return (
+    <details className="settings-permission-paths">
+      <summary>{t.permissions.showPaths(paths.length)}</summary>
+      <div className="settings-list settings-code-list">
+        {paths.map((path) => <code key={path}>{path}</code>)}
+      </div>
+    </details>
   );
 }
 
 function AlwaysAllowedList({ t, runtime }: { t: SettingsCopy; runtime?: PiRuntimeState }) {
   const botNames = useBotNames();
   const [granted, setGranted] = useState<Record<string, string[]>>(runtime?.alwaysAllowed ?? {});
+  const [pending, setPending] = useState<string>();
+  const [failed, setFailed] = useState<string>();
+  const busy = useRef(false);
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
   useEffect(() => setGranted(runtime?.alwaysAllowed ?? {}), [runtime?.alwaysAllowed]);
+  const clear = async (preset: string) => {
+    if (busy.current) return;
+    busy.current = true;
+    setPending(preset);
+    setFailed(undefined);
+    try {
+      const next = await clearApprovalMemory(preset);
+      if (!mounted.current) return;
+      setGranted(next);
+    } catch {
+      if (mounted.current) setFailed(preset);
+    } finally {
+      busy.current = false;
+      if (mounted.current) setPending(undefined);
+    }
+  };
   const agents = AGENT_PRESETS.filter((preset) => granted[preset.id]?.length);
   if (agents.length === 0) return <p className="settings-intro">{t.permissions.alwaysEmpty}</p>;
   return (
@@ -78,9 +108,11 @@ function AlwaysAllowedList({ t, runtime }: { t: SettingsCopy; runtime?: PiRuntim
           <span className="settings-row-main">
             <span className="settings-row-title"><strong>{botNames[preset.id]}</strong></span>
             <span className="settings-row-sub">{granted[preset.id].join(", ")}</span>
+            {pending === preset.id ? <span className="settings-row-sub" role="status">{t.permissions.alwaysClearing}</span> : null}
+            {failed === preset.id ? <span className="settings-row-sub" role="alert">{t.permissions.alwaysClearFailed}</span> : null}
           </span>
-          <Button size="sm" variant="ghost" onClick={() => void clearApprovalMemory(preset.id).then(setGranted).catch(() => undefined)}>
-            {t.permissions.alwaysClear}
+          <Button size="sm" variant="ghost" disabled={Boolean(pending)} onClick={() => void clear(preset.id)}>
+            {failed === preset.id ? t.permissions.alwaysRetry : pending === preset.id ? t.permissions.alwaysClearing : t.permissions.alwaysClear}
           </Button>
         </div>
       ))}

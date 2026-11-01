@@ -1,0 +1,88 @@
+✖ host disposal waits for a running CLI to exit and persist cancellation (1686.6395ms)
+✖ disposal waits for a late Pi bridge and stops it before prompting (15.134458ms)
+✖ disposal waits for Pi abort cleanup even when the prompt settles first (1015.217708ms)
+✖ dispose handles a pending bridge rejection without an unhandled cleanup promise (1.701042ms)
+✖ dispose handles bridge dispose failures and still releases the remaining bridges (24.242292ms)
+✖ evict handles a pending bridge rejection without an unhandled cleanup promise (141.178542ms)
+✖ evict handles bridge dispose failures and still releases the remaining bridges (166.088625ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 0
+ℹ fail 7
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3580.288459
+
+✖ failing tests:
+
+test at src/pi/piDisposal.test.ts:15:1
+✖ host disposal waits for a running CLI to exit and persist cancellation (1686.6395ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  1 !== 0
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/piDisposal.test.ts:40:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 1,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/piDisposal.test.ts:58:1
+✖ disposal waits for a late Pi bridge and stops it before prompting (15.134458ms)
+  AssertionError [ERR_ASSERTION]: disposal must wait for the registered run to finish
+
+  true !== false
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/piDisposal.test.ts:73:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: true,
+    expected: false,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/piDisposal.test.ts:87:1
+✖ disposal waits for Pi abort cleanup even when the prompt settles first (1015.217708ms)
+  Error: Pi abort was not called
+      at file:///Users/rickyhuo/RaytoneBot/src/pi/piDisposal.test.ts:103:74
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/piDisposal.test.ts:103:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at src/pi/piDisposal.test.ts:117:3
+✖ dispose handles a pending bridge rejection without an unhandled cleanup promise (1.701042ms)
+  Error: controlled initialization failure
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/piDisposal.test.ts:132:20)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at src/pi/piDisposal.test.ts:143:3
+✖ dispose handles bridge dispose failures and still releases the remaining bridges (24.242292ms)
+  Error: controlled cleanup failure
+      at Object.dispose (file:///Users/rickyhuo/RaytoneBot/src/pi/piDisposal.test.ts:148:93)
+      at file:///Users/rickyhuo/RaytoneBot/src/pi/piRuntimeController.ts:1249:93
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+
+test at src/pi/piDisposal.test.ts:117:3
+✖ evict handles a pending bridge rejection without an unhandled cleanup promise (141.178542ms)
+  Error: controlled initialization failure
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/piDisposal.test.ts:132:20)
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7)
+
+test at src/pi/piDisposal.test.ts:143:3
+✖ evict handles bridge dispose failures and still releases the remaining bridges (166.088625ms)
+  Error: controlled cleanup failure
+      at Object.dispose (file:///Users/rickyhuo/RaytoneBot/src/pi/piDisposal.test.ts:148:93)
+      at file:///Users/rickyhuo/RaytoneBot/src/pi/piRuntimeController.ts:509:46
+      at process.processTicksAndRejections (node:internal/process/task_queues:104:5)

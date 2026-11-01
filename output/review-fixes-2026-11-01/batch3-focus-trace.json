@@ -1,0 +1,1312 @@
+[
+  {
+    "time": 2108.399999976158,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Expand output",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Expand output",
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2111.6999999284744,
+    "kind": "focus-call",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Collapse output",
+      "role": null,
+      "text": ""
+    },
+    "extra": [
+      "    at focusEdge (http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:55:43)",
+      "    at http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:96:3",
+      "    at Object.react_stack_bottom_frame (http://127.0.0.1:50005/@fs/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-output-keyboard-CBXVbH/deps/react-dom_client.js?v=ab02ca27:14178:13)"
+    ]
+  },
+  {
+    "time": 2111.7999999523163,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Collapse output",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2111.7999999523163,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    }
+  },
+  {
+    "time": 2140.5999999046326,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2140.5999999046326,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "preview.html200 B"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "preview.html200 B"
+    }
+  },
+  {
+    "time": 2142.5999999046326,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "preview.html200 B"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2184.5999999046326,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2185,
+    "kind": "keydown",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    },
+    "extra": "Tab"
+  },
+  {
+    "time": 2185.1999999284744,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2207.1999999284744,
+    "kind": "focusin",
+    "target": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2207.5999999046326,
+    "kind": "focus-call",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "extra": [
+      "    at focusEdge (http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:55:43)",
+      "    at onFocus (http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:621:20)",
+      "    at executeDispatch (http://127.0.0.1:50005/@fs/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-output-keyboard-CBXVbH/deps/react-dom_client.js?v=ab02ca27:9906:5)"
+    ]
+  },
+  {
+    "time": 2207.5999999046326,
+    "kind": "focusout",
+    "target": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2207.6999999284744,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    }
+  },
+  {
+    "time": 2209.7999999523163,
+    "kind": "keydown",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "extra": "Shift"
+  },
+  {
+    "time": 2210,
+    "kind": "keydown",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "extra": "Tab"
+  },
+  {
+    "time": 2210,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2210,
+    "kind": "focusin",
+    "target": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2210,
+    "kind": "focus-call",
+    "target": {
+      "tag": "IFRAME",
+      "id": "",
+      "class": "html-output-preview",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "extra": [
+      "    at focusEdge (http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:55:43)",
+      "    at onFocus (http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:174:20)",
+      "    at executeDispatch (http://127.0.0.1:50005/@fs/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-output-keyboard-CBXVbH/deps/react-dom_client.js?v=ab02ca27:9906:5)"
+    ]
+  },
+  {
+    "time": 2210,
+    "kind": "focusout",
+    "target": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2210.0999999046326,
+    "kind": "focusin",
+    "target": {
+      "tag": "IFRAME",
+      "id": "",
+      "class": "html-output-preview",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "IFRAME",
+      "id": "",
+      "class": "html-output-preview",
+      "label": null,
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2324.1999999284744,
+    "kind": "focusout",
+    "target": {
+      "tag": "IFRAME",
+      "id": "",
+      "class": "html-output-preview",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2324.1999999284744,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "workspace-preview-back",
+      "label": null,
+      "role": null,
+      "text": "Workspace files"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "workspace-preview-back",
+      "label": null,
+      "role": null,
+      "text": "Workspace files"
+    }
+  },
+  {
+    "time": 2327.0999999046326,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "workspace-preview-back",
+      "label": null,
+      "role": null,
+      "text": "Workspace files"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2391,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "form.json200 B"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "form.json200 B"
+    }
+  },
+  {
+    "time": 2392.899999976158,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "form.json200 B"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputArtifactConsoleWork"
+    }
+  },
+  {
+    "time": 2423,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2423.399999976158,
+    "kind": "keydown",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    },
+    "extra": "Tab"
+  },
+  {
+    "time": 2423.5999999046326,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Reload preview",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2423.6999999284744,
+    "kind": "focusin",
+    "target": {
+      "tag": "INPUT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "INPUT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2426.1999999284744,
+    "kind": "keydown",
+    "target": {
+      "tag": "INPUT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "INPUT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "extra": "Tab"
+  },
+  {
+    "time": 2426.2999999523163,
+    "kind": "focusout",
+    "target": {
+      "tag": "INPUT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2426.399999976158,
+    "kind": "focusin",
+    "target": {
+      "tag": "SELECT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "—AB"
+    },
+    "active": {
+      "tag": "SELECT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "—AB"
+    }
+  },
+  {
+    "time": 2429.2999999523163,
+    "kind": "keydown",
+    "target": {
+      "tag": "SELECT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "—AB"
+    },
+    "active": {
+      "tag": "SELECT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "—AB"
+    },
+    "extra": "Tab"
+  },
+  {
+    "time": 2429.399999976158,
+    "kind": "focusout",
+    "target": {
+      "tag": "SELECT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "—AB"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2429.5,
+    "kind": "focusin",
+    "target": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2429.5,
+    "kind": "focus-call",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "extra": [
+      "    at focusEdge (http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:55:43)",
+      "    at onFocus (http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:621:20)",
+      "    at executeDispatch (http://127.0.0.1:50005/@fs/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-output-keyboard-CBXVbH/deps/react-dom_client.js?v=ab02ca27:9906:5)"
+    ]
+  },
+  {
+    "time": 2429.5,
+    "kind": "focusout",
+    "target": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2429.5,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    }
+  },
+  {
+    "time": 2431.5,
+    "kind": "keydown",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "extra": "Shift"
+  },
+  {
+    "time": 2431.5999999046326,
+    "kind": "keydown",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "extra": "Tab"
+  },
+  {
+    "time": 2431.5999999046326,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "",
+      "label": "Artifact",
+      "role": null,
+      "text": "Artifact"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2431.6999999284744,
+    "kind": "focusin",
+    "target": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2431.6999999284744,
+    "kind": "focus-call",
+    "target": {
+      "tag": "SELECT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "—AB"
+    },
+    "active": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "extra": [
+      "    at focusEdge (http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:55:43)",
+      "    at onFocus (http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:174:20)",
+      "    at executeDispatch (http://127.0.0.1:50005/@fs/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-output-keyboard-CBXVbH/deps/react-dom_client.js?v=ab02ca27:9906:5)"
+    ]
+  },
+  {
+    "time": 2431.6999999284744,
+    "kind": "focusout",
+    "target": {
+      "tag": "SPAN",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2431.7999999523163,
+    "kind": "focusin",
+    "target": {
+      "tag": "SELECT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "—AB"
+    },
+    "active": {
+      "tag": "SELECT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "—AB"
+    }
+  },
+  {
+    "time": 2456.899999976158,
+    "kind": "focusout",
+    "target": {
+      "tag": "SELECT",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "—AB"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2457,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "workspace-preview-back",
+      "label": null,
+      "role": null,
+      "text": "Workspace files"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "workspace-preview-back",
+      "label": null,
+      "role": null,
+      "text": "Workspace files"
+    }
+  },
+  {
+    "time": 2460.5999999046326,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "workspace-preview-back",
+      "label": null,
+      "role": null,
+      "text": "Workspace files"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2499.5,
+    "kind": "focus-call",
+    "target": {
+      "tag": "DIV",
+      "id": "radix-_r_5_",
+      "class": "ui-dropdown-menu ui-select-menu-content",
+      "label": null,
+      "role": "menu",
+      "text": "Assistant"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    },
+    "extra": [
+      "    at http://127.0.0.1:50005/node_modules/@radix-ui/react-menu/dist/index.mjs?v=ab02ca27:268:35",
+      "    at Object.handleEvent [as current] (http://127.0.0.1:50005/node_modules/@radix-ui/primitive/dist/index.mjs?v=ab02ca27:10:31)",
+      "    at HTMLDivElement.<anonymous> (http://127.0.0.1:50005/node_modules/@radix-ui/react-use-callback-ref/dist/index.mjs?v=ab02ca27:11:65)"
+    ]
+  },
+  {
+    "time": 2500,
+    "kind": "focusin",
+    "target": {
+      "tag": "DIV",
+      "id": "radix-_r_5_",
+      "class": "ui-dropdown-menu ui-select-menu-content",
+      "label": null,
+      "role": "menu",
+      "text": "Assistant"
+    },
+    "active": {
+      "tag": "DIV",
+      "id": "radix-_r_5_",
+      "class": "ui-dropdown-menu ui-select-menu-content",
+      "label": null,
+      "role": "menu",
+      "text": "Assistant"
+    }
+  },
+  {
+    "time": 2504.399999976158,
+    "kind": "keydown",
+    "target": {
+      "tag": "DIV",
+      "id": "radix-_r_5_",
+      "class": "ui-dropdown-menu ui-select-menu-content",
+      "label": null,
+      "role": "menu",
+      "text": "Assistant"
+    },
+    "active": {
+      "tag": "DIV",
+      "id": "radix-_r_5_",
+      "class": "ui-dropdown-menu ui-select-menu-content",
+      "label": null,
+      "role": "menu",
+      "text": "Assistant"
+    },
+    "extra": "Escape"
+  },
+  {
+    "time": 2506.1999999284744,
+    "kind": "focusout",
+    "target": {
+      "tag": "DIV",
+      "id": "radix-_r_5_",
+      "class": "ui-dropdown-menu ui-select-menu-content",
+      "label": null,
+      "role": "menu",
+      "text": "Assistant"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2506.6999999284744,
+    "kind": "hold-radix-unmount",
+    "target": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2509.0999999046326,
+    "kind": "menu-detached",
+    "target": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2511.0999999046326,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Collapse output",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Collapse output",
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2511.399999976158,
+    "kind": "keydown",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Collapse output",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Collapse output",
+      "role": null,
+      "text": ""
+    },
+    "extra": "Escape"
+  },
+  {
+    "time": 2514.399999976158,
+    "kind": "focus-call",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Expand output",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Expand output",
+      "role": null,
+      "text": ""
+    },
+    "extra": [
+      "    at http://127.0.0.1:50005/src/components/agent-preview/OutputFrame.tsx:107:146",
+      "    at Object.react_stack_bottom_frame (http://127.0.0.1:50005/@fs/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-output-keyboard-CBXVbH/deps/react-dom_client.js?v=ab02ca27:14182:5)",
+      "    at runWithFiberInDEV (http://127.0.0.1:50005/@fs/var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/rtb-output-keyboard-CBXVbH/deps/react-dom_client.js?v=ab02ca27:944:66)"
+    ]
+  },
+  {
+    "time": 2515.899999976158,
+    "kind": "output-escape-sent",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Expand output",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Expand output",
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2517.7999999523163,
+    "kind": "radix-unmount",
+    "target": {
+      "tag": "DIV",
+      "id": "radix-_r_5_",
+      "class": "ui-dropdown-menu ui-select-menu-content",
+      "label": null,
+      "role": "menu",
+      "text": "Assistant"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Expand output",
+      "role": null,
+      "text": ""
+    }
+  },
+  {
+    "time": 2517.899999976158,
+    "kind": "focus-call",
+    "target": {
+      "tag": "BUTTON",
+      "id": "radix-_r_4_",
+      "class": "ui-select ui-select-menu-trigger",
+      "label": "Workspace files",
+      "role": null,
+      "text": "Assistant"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Expand output",
+      "role": null,
+      "text": ""
+    },
+    "extra": [
+      "    at http://127.0.0.1:50005/node_modules/@radix-ui/react-dropdown-menu/dist/index.mjs?v=ab02ca27:115:77",
+      "    at Object.handleEvent [as current] (http://127.0.0.1:50005/node_modules/@radix-ui/primitive/dist/index.mjs?v=ab02ca27:10:31)",
+      "    at HTMLDivElement.<anonymous> (http://127.0.0.1:50005/node_modules/@radix-ui/react-use-callback-ref/dist/index.mjs?v=ab02ca27:11:65)"
+    ]
+  },
+  {
+    "time": 2517.899999976158,
+    "kind": "focusout",
+    "target": {
+      "tag": "BUTTON",
+      "id": "",
+      "class": "rail-icon-btn",
+      "label": "Expand output",
+      "role": null,
+      "text": ""
+    },
+    "active": {
+      "tag": "BODY",
+      "id": "",
+      "class": "",
+      "label": null,
+      "role": null,
+      "text": "Open outputHiddenArtifactConso"
+    }
+  },
+  {
+    "time": 2518,
+    "kind": "focusin",
+    "target": {
+      "tag": "BUTTON",
+      "id": "radix-_r_4_",
+      "class": "ui-select ui-select-menu-trigger",
+      "label": "Workspace files",
+      "role": null,
+      "text": "Assistant"
+    },
+    "active": {
+      "tag": "BUTTON",
+      "id": "radix-_r_4_",
+      "class": "ui-select ui-select-menu-trigger",
+      "label": "Workspace files",
+      "role": null,
+      "text": "Assistant"
+    }
+  }
+]

@@ -1,0 +1,96 @@
+▶ expanded Output keeps keyboard access to sandbox HTML and native forms
+  ✖ 1280px expanded: iframe at the final tab position and dynamic native controls (4781.720875ms)
+  ✖ 1280px fullscreen: iframe at the final tab position and dynamic native controls (2681.871709ms)
+  ✖ 390px expanded: iframe at the final tab position and dynamic native controls (2285.541834ms)
+  ✖ 390px fullscreen: iframe at the final tab position and dynamic native controls (2558.166875ms)
+✖ expanded Output keeps keyboard access to sandbox HTML and native forms (12483.361458ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 0
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 12771.393958
+
+✖ failing tests:
+
+test at src/runtime/outputKeyboard.browser.test.ts:62:15
+✖ 1280px expanded: iframe at the final tab position and dynamic native controls (4781.720875ms)
+  AssertionError [ERR_ASSERTION]: Tab after Reload enters the HTML instead of wrapping to the header
+
+  false !== true
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:84:18)
+      at runNextTicks (node:internal/process/task_queues:65:5)
+      at process.processImmediate (node:internal/timers:541:9)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:62:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/runtime/outputKeyboard.browser.test.ts:62:15
+✖ 1280px fullscreen: iframe at the final tab position and dynamic native controls (2681.871709ms)
+  AssertionError [ERR_ASSERTION]: Tab after Reload enters the HTML instead of wrapping to the header
+
+  false !== true
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:84:18)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:62:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/runtime/outputKeyboard.browser.test.ts:62:15
+✖ 390px expanded: iframe at the final tab position and dynamic native controls (2285.541834ms)
+  AssertionError [ERR_ASSERTION]: Tab after Reload enters the HTML instead of wrapping to the header
+
+  false !== true
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:84:18)
+      at runNextTicks (node:internal/process/task_queues:65:5)
+      at process.processImmediate (node:internal/timers:541:9)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:62:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/runtime/outputKeyboard.browser.test.ts:62:15
+✖ 390px fullscreen: iframe at the final tab position and dynamic native controls (2558.166875ms)
+  AssertionError [ERR_ASSERTION]: Tab after Reload enters the HTML instead of wrapping to the header
+
+  false !== true
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:84:18)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:62:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

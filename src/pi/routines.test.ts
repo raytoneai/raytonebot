@@ -1,5 +1,5 @@
 import assert from "node:assert/strict";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { createServer, type Server } from "node:http";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -74,7 +74,7 @@ async function hostFor(dataDir: string, bridge: ReturnType<typeof engine>) {
   };
   const list = async () => (await call("/routines")).body.routines as RoutineView[];
   const close = async () => {
-    host.controller.dispose();
+    await host.dispose();
     server.closeAllConnections();
     await new Promise<void>((resolve) => server.close(() => resolve()));
   };
@@ -325,8 +325,9 @@ test("a run held for an approval shows as waiting on the user until it is answer
   } finally { await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
 });
 
-test("a busy routine refuses a second occurrence instead of queueing it, and a restart marks it interrupted", async () => {
+test("a busy routine refuses another occurrence; graceful shutdown cancels it while an unfinished snapshot recovers as interrupted", async () => {
   const dataDir = mkdtempSync(join(tmpdir(), "rtb-routine-busy-"));
+  const interruptedDir = mkdtempSync(join(tmpdir(), "rtb-routine-interrupted-"));
   const bridge = engine();
   let api = await hostFor(dataDir, bridge);
   try {
@@ -341,14 +342,26 @@ test("a busy routine refuses a second occurrence instead of queueing it, and a r
     assert.equal((await api.list())[0].lastRun?.status, "running");
     assert.equal(bridge.calls.length, 2);
 
+    // Preserve the durable state while the engine is still running, as after a hard exit.
+    cpSync(dataDir, interruptedDir, { recursive: true });
     await api.close();
     api = await hostFor(dataDir, bridge);
+    const [cancelled] = await api.list();
+    assert.equal(cancelled.lastRun?.status, "cancelled");
+    assert.equal(cancelled.history?.[0].status, "cancelled");
+    assert.equal(bridge.calls.length, 2, "graceful shutdown does not replay the cancelled run");
+    await api.close();
+    api = await hostFor(interruptedDir, bridge);
     const [after] = await api.list();
     assert.equal(after.lastRun?.status, "interrupted");
     assert.equal(after.history?.[0].status, "interrupted");
     assert.equal(after.history?.[0].occurrenceId, "first");
     assert.equal(bridge.calls.length, 2, "an interrupted run is not replayed");
-  } finally { bridge.release(); await api.close(); rmSync(dataDir, { recursive: true, force: true }); }
+  } finally {
+    bridge.release(); await api.close();
+    rmSync(dataDir, { recursive: true, force: true });
+    rmSync(interruptedDir, { recursive: true, force: true });
+  }
 });
 
 test("two failures in a row switch a routine off with the reason; turning it on again resets the count", async () => {

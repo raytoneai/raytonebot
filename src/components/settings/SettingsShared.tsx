@@ -2,6 +2,7 @@ import { Check, CircleAlert, Copy } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCopy } from "../../i18n/LocaleContext";
 import { useClipboardFeedback } from "../../runtime/useClipboardFeedback";
+import { handleSettingsRadioKeyDown } from "../../runtime/settingsRadio";
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
@@ -30,7 +31,9 @@ export function Segmented<T extends string>({ value, options, onChange, ariaLabe
           role="radio"
           key={option.value}
           aria-checked={option.value === value}
+          tabIndex={option.value === value && !disabled ? 0 : -1}
           disabled={disabled}
+          onKeyDown={handleSettingsRadioKeyDown}
           onClick={() => onChange(option.value)}
         >
           {option.label}

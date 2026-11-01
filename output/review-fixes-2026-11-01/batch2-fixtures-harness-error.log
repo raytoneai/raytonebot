@@ -1,0 +1,28 @@
+{
+  "viewports": [
+    {
+      "viewport": "desktop",
+      "scenarios": 20
+    },
+    {
+      "viewport": "mobile",
+      "scenarios": 20
+    }
+  ],
+  "scenariosChecked": 40,
+  "expectedScenarios": 40,
+  "failures": 2,
+  "startupFailures": [
+    "desktop",
+    "mobile"
+  ],
+  "fatal": 0,
+  "screenshots": [
+    "output/review-fixes-2026-11-01/batch2-visual/fixture-welcome-desktop.png",
+    "output/review-fixes-2026-11-01/batch2-visual/fixture-tool-approval-desktop.png",
+    "output/review-fixes-2026-11-01/batch2-visual/fixture-html-artifact-desktop.png",
+    "output/review-fixes-2026-11-01/batch2-visual/fixture-group-chat-mobile.png",
+    "output/review-fixes-2026-11-01/batch2-visual/fixture-terminal-incident-mobile.png"
+  ],
+  "report": "output/review-fixes-2026-11-01/batch2-visual/fixture-results.json"
+}

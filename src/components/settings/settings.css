@@ -128,6 +128,21 @@
   font-weight: var(--weight-title);
 }
 
+.settings-permission-paths {
+  margin-top: 8px;
+}
+
+.settings-permission-paths summary {
+  width: fit-content;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: var(--text-sm);
+}
+
+.settings-permission-paths[open] .settings-code-list {
+  margin-top: 8px;
+}
+
 /* One card, hairline-divided rows. */
 .settings-list {
   overflow: hidden;

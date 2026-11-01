@@ -77,6 +77,15 @@ export function OutputFrame({
   const panelRef = useRef<HTMLElement>(null);
   const searchRef = useRef<HTMLInputElement>(null);
   const closeExpanded = () => fullscreen ? onCollapse?.() : setExpanded(false);
+  const closeExpandedRef = useRef(closeExpanded);
+  closeExpandedRef.current = closeExpanded;
+  const focusEdge = (last = false) => {
+    const controls = [...panelRef.current?.querySelectorAll<HTMLElement>(
+      'button, a[href], input, textarea, select, summary, iframe, audio[controls], video[controls], [tabindex], [contenteditable="true"]',
+    ) ?? []].filter(element => element.tabIndex >= 0 && !element.matches(':disabled, [data-output-focus-guard]')
+      && !element.closest('[hidden], [inert]') && element.getClientRects().length && getComputedStyle(element).visibility === "visible");
+    (last ? controls.at(-1) : controls[0])?.focus({ preventScroll: true });
+  };
   useEffect(() => { setPath(""); setQuery(""); setWorkspacePreview(undefined); }, [scope]);
   useEffect(() => { setLocalSource(project.output.source); }, [project.output.source]);
   useEffect(() => {
@@ -92,21 +101,22 @@ export function OutputFrame({
     return () => controller.abort();
   }, [showFiles, workspaceScope, scope, path, revision, workspaceRevision, query, workspacePreview]);
   useEffect(() => {
-    if (!expanded) return;
+    const panel = panelRef.current;
+    if (!expanded || !panel) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
-    const controls = () => Array.from(panelRef.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], [tabindex="0"]') ?? []);
-    controls()[0]?.focus();
+    focusEdge();
     const close = (event: KeyboardEvent) => {
-      if (event.key === "Escape") closeExpanded();
-      if (event.key !== "Tab") return;
-      const focusable = controls();
-      const first = focusable[0];
-      const last = focusable[focusable.length - 1];
-      if (event.shiftKey && document.activeElement === first) { event.preventDefault(); last?.focus(); }
-      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+      if (event.key !== "Escape" || event.defaultPrevented || event.isComposing || !(event.target instanceof HTMLElement) || !panel.contains(event.target)) return;
+      const nested = event.target.closest('[role="menu"], [role="dialog"], [role="alertdialog"]');
+      if (nested && nested !== panel) return;
+      event.preventDefault();
+      closeExpandedRef.current();
     };
     window.addEventListener("keydown", close);
-    return () => { window.removeEventListener("keydown", close); previouslyFocused?.focus(); };
+    return () => {
+      window.removeEventListener("keydown", close);
+      if (previouslyFocused?.isConnected && (panel.contains(document.activeElement) || document.activeElement === document.body)) previouslyFocused.focus({ preventScroll: true });
+    };
   }, [expanded, fullscreen]);
   const artifacts = toolLog ? workArtifacts(viewModel.timeline) : [];
   const artifact: AgentUXArtifactTimelineItem | undefined = toolLog ? artifacts.at(-1)
@@ -147,6 +157,8 @@ export function OutputFrame({
         aria-modal={fullscreen || undefined}
         aria-label={fullscreen ? c.sourceLabel : undefined}
       >
+        {/* Native Tab traversal can leave an opaque iframe without a parent keydown event. */}
+        {expanded ? <span data-output-focus-guard tabIndex={0} style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} onFocus={() => focusEdge(true)} /> : null}
         <header className="utility-header output-header" aria-label={source === "workspace" ? c.files : source === "browser" ? c.sourceBrowser : toolLog && source === "artifact" ? c.sourceArtifact : outputTitle(source, artifactRenderer, c)}>
           <div className="utility-header-leading">
             {onSourceChange || outputPanel ? (
@@ -241,6 +253,7 @@ export function OutputFrame({
           onOpenArtifact={(item) => onOpenFile?.(outputPanelItemFromRenderedArtifact(item, project, artifactCatalog?.conversationId))}
           liveHtml={liveHtml}
         />}
+        {expanded ? <span data-output-focus-guard tabIndex={0} style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} onFocus={() => focusEdge()} /> : null}
       </section>
     </>
   );

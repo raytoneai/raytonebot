@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { validParticipantId } from "./groupParticipants.ts";
 import { isAgentPresetId, type AgentPresetId } from "./harnessCatalog.ts";
 import type { HostToolResult, HostToolSpec } from "./mcpServers.ts";
-import { MEMORY_COUNT_LIMIT, MEMORY_EVIDENCE_URL_LIMIT, MEMORY_TEXT_LIMIT, type MemoryContext, type MemoryEvidence, type MemoryScope, type MemoryState, type MemoryView } from "./memoryTypes.ts";
+import { MEMORY_COUNT_LIMIT, MEMORY_EVIDENCE_URL_LIMIT, MEMORY_TEXT_LIMIT, type MemoryContext, type MemoryEvidence, type MemoryScope, type MemorySnapshot, type MemoryState, type MemoryView } from "./memoryTypes.ts";
 import { readSettingsFile } from "./settingsFile.ts";
 
 /**
@@ -186,13 +186,21 @@ export function createMemoryService(options: { dataDir?: string; now?(): number;
     options.log?.("memory.removed", { memoryId: id });
   };
 
-  const update = (id: string, value: unknown, scope?: MemoryScope, evidence?: MemoryEvidence | null, expectedText?: string): MemoryView => {
+  const update = (id: string, value: unknown, scope?: MemoryScope, evidence?: MemoryEvidence | null, expectedText?: string, expectedSnapshot?: MemorySnapshot): MemoryView => {
     assertReadable();
     const text = cleanText(value);
     const current = data.memories.find((memory) => memory.id === id);
     if (!current) throw new MemoryError("No memory with that id.", 404);
     if (expectedText !== undefined && typeof expectedText !== "string") throw new MemoryError("expectedText must be the original memory text.");
     if (expectedText !== undefined && expectedText !== current.text) throw new MemoryError("Memory changed; read it again before replacing.", 409);
+    if (expectedSnapshot !== undefined) {
+      if (!record(expectedSnapshot) || Object.keys(expectedSnapshot).some(key => !["text", "scope", "evidence"].includes(key))
+        || typeof expectedSnapshot.text !== "string" || !record(expectedSnapshot.scope)
+        || !(expectedSnapshot.evidence === null || record(expectedSnapshot.evidence))) throw new MemoryError("Invalid expected memory snapshot.");
+      const expected = { text: cleanText(expectedSnapshot.text), scope: cleanScope(expectedSnapshot.scope), evidence: expectedSnapshot.evidence === null ? null : cleanEvidence(expectedSnapshot.evidence) };
+      const actual = { text: current.text, scope: cleanScope(current.scope ?? { kind: "global" }), evidence: current.evidence ? cleanEvidence(current.evidence) : null };
+      if (JSON.stringify(expected) !== JSON.stringify(actual)) throw new MemoryError("Memory changed; review the current memory before saving.", 409);
+    }
     const nextScope = scope === undefined ? current.scope : cleanScope(scope);
     if (data.memories.some(item => item.id !== id && scopeKey(item.scope) === scopeKey(nextScope) && item.text.toLowerCase() === text.toLowerCase())) {
       throw new MemoryError("Another memory already has this text in that scope; no records were merged.", 409);

@@ -3,7 +3,7 @@ import { featureText } from "../../i18n/copy/features.ts";
 
 import { type SettingsCopy } from "../../i18n/copy/settings";
 import { useLocale } from "../../i18n/LocaleContext";
-import { MEMORY_COUNT_LIMIT, MEMORY_EVIDENCE_URL_LIMIT, MEMORY_TEXT_LIMIT, type MemoryScope, type MemoryView } from "../../pi/memoryTypes";
+import { MEMORY_COUNT_LIMIT, MEMORY_EVIDENCE_URL_LIMIT, MEMORY_TEXT_LIMIT, type MemoryScope, type MemorySnapshot, type MemoryView } from "../../pi/memoryTypes";
 import type { MemoriesState } from "../../runtime/useMemories";
 import { useBotNames } from "../shell/ShellExtras";
 import { Button, Input, SelectMenu, Switch } from "../ui";
@@ -100,6 +100,7 @@ function MemoryRow({ t, memory, state, scopes }: { t: SettingsCopy; memory: Memo
   const [editing, setEditing] = useState(false);
   const [text, setText] = useState(memory.text);
   const [originalText, setOriginalText] = useState(memory.text);
+  const [expectedSnapshot, setExpectedSnapshot] = useState<MemorySnapshot>(() => snapshot(memory));
   const [url, setUrl] = useState(memory.evidence?.url ?? "");
   const [checkedAt, setCheckedAt] = useState(memory.evidence?.checkedAt ?? "");
   const [evidenceChanged, setEvidenceChanged] = useState(false);
@@ -114,12 +115,12 @@ function MemoryRow({ t, memory, state, scopes }: { t: SettingsCopy; memory: Memo
   const scopeLabel = scopes.find(option => memoryScopeKey(option.scope) === memoryScopeKey(memory.scope))?.label;
   const evidenceUrl = sourceUrl(memory.evidence?.url);
   const reset = () => {
-    setText(memory.text); setOriginalText(memory.text); setScopeKey(memoryScopeKey(memory.scope)); setScopeChanged(false);
+    setText(memory.text); setOriginalText(memory.text); setExpectedSnapshot(snapshot(memory)); setScopeKey(memoryScopeKey(memory.scope)); setScopeChanged(false);
     setUrl(memory.evidence?.url ?? ""); setCheckedAt(memory.evidence?.checkedAt ?? ""); setEvidenceChanged(false);
   };
   const save = async () => {
     const evidence = evidenceChanged ? url.trim() ? { url: url.trim(), ...(checkedAt ? { checkedAt } : {}) } : null : undefined;
-    if (!busy && validScope && await state.save(memory.id, text, scopeChanged ? selectedScope?.scope : undefined, evidence, originalText)) setEditing(false);
+    if (!busy && validScope && await state.save(memory.id, text, scopeChanged ? selectedScope?.scope : undefined, evidence, originalText, expectedSnapshot)) setEditing(false);
   };
   return (
     <div className="settings-row settings-memory-row">
@@ -164,4 +165,8 @@ function MemoryRow({ t, memory, state, scopes }: { t: SettingsCopy; memory: Memo
       )}
     </div>
   );
+}
+
+function snapshot(memory: MemoryView): MemorySnapshot {
+  return { text: memory.text, scope: memory.scope ?? { kind: "global" }, evidence: memory.evidence ? { url: memory.evidence.url, ...(memory.evidence.checkedAt ? { checkedAt: memory.evidence.checkedAt } : {}) } : null };
 }

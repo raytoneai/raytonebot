@@ -53,8 +53,8 @@ export function piRuntimePlugin(options: { cwd?: string } = {}): Plugin {
       mount(server.middlewares);
       getHost();
     },
-    closeBundle() {
-      host?.dispose();
+    async closeBundle() {
+      await host?.dispose();
       host = undefined;
     },
   };

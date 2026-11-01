@@ -88,7 +88,7 @@ import { finishedHtmlEdits } from "./runtime/liveHtmlWrite";
 import { approvalRequestKey } from "./runtime/approvalSubmission";
 import { approvalForReplay, identityEventForReplay } from "./runtime/replayIdentity";
 import { questionCopy } from "./i18n/copy/questions";
-import { useRunStop } from "./runtime/runStop";
+import { useConversationRuns, type ConversationRunLease } from "./runtime/useConversationRuns";
 import { useProviderSettings } from "./runtime/useProviderSettings";
 import { useImChannels } from "./runtime/useImChannels";
 import { useRoutines } from "./runtime/useRoutines";
@@ -217,12 +217,9 @@ export function AgentApp() {
   const composer = useComposerDrafts();
   const [composerFocus, setComposerFocus] = useState<string>();
   const navigatedRef = useRef(false);
-  /** Conversations with a turn in flight. Each runs on its own; switching away does not stop it. */
-  const [runningConversationIds, setRunningConversationIds] = useState<ReadonlySet<string>>(() => new Set());
-  /** Running conversations currently held on a tool approval, including ones not on screen. */
-  const [awaitingConversationIds, setAwaitingConversationIds] = useState<ReadonlySet<string>>(() => new Set());
-  /** The composer still holds a sent message the host has not accepted; queuing it would send it twice. */
-  const [acceptingConversationIds, setAcceptingConversationIds] = useState<ReadonlySet<string>>(() => new Set());
+  const conversationRuns = useConversationRuns();
+  const { runningIds: runningConversationIds, awaitingIds: awaitingConversationIds,
+    acceptingIds: acceptingConversationIds } = conversationRuns;
   const dispatchingQueueRef = useRef(new Set<string>());
   const [queueTick, setQueueTick] = useState(0);
   const piRunning = runningConversationIds.has(activePiConversationId);
@@ -265,7 +262,6 @@ export function AgentApp() {
   const wasRunningRef = useRef<{ id: string; running: boolean }>({ id: "", running: false });
   const [dismissedApprovalKey, setDismissedApprovalKey] = useState<string | null>(null);
   const approvalAbortRefs = useRef(new Map<string, AbortController>());
-  const piAbortRefs = useRef(new Map<string, AbortController>());
   const componentMountedRef = useRef(false);
   useEffect(() => {
     // Reject late starts after unmount; effect replay restores ownership.
@@ -273,15 +269,9 @@ export function AgentApp() {
     return () => {
       componentMountedRef.current = false;
       summaryRequest.current++;
-      // A page unmount must invalidate queued commits without stopping host work.
-      const controllers = [...piAbortRefs.current.values()];
-      piAbortRefs.current.clear();
-      for (const controller of controllers) controller.abort();
     };
   }, []);
   const storedRunIds = useRef(new Map<string, Set<string>>());
-  const preparingPiRefs = useRef(new Set<string>());
-  const runStop = useRunStop(piAbortRefs, preparingPiRefs);
   /** Uploaded copies of draft attachments, so retrying a failed submission does not upload them again. */
   const uploadedFilesRef = useRef(new WeakMap<File, PiFileReference>());
 
@@ -533,7 +523,7 @@ export function AgentApp() {
   }, [composer.restored]);
 
   useEffect(() => {
-    if (activePiConversation.stored && !piAbortRefs.current.has(activePiConversation.id)) {
+    if (activePiConversation.stored && !conversationRuns.has(activePiConversation.id)) {
       void loadStoredConversation(activePiConversation).catch(() => undefined);
     }
   }, [activePiConversation.id, activePiConversation.stored]);
@@ -582,13 +572,12 @@ export function AgentApp() {
       // Background group results get their own persisted turn after the foreground is idle.
       const selected = stored.find(entry => entry.id === activeConversationIdRef.current);
       const loaded = piConversations.find(entry => entry.id === selected?.id);
-      if (selected && loaded && !selected.running && !piAbortRefs.current.has(selected.id) && selected.eventCount > loaded.events.length)
+      if (selected && loaded && !selected.running && !conversationRuns.has(selected.id) && selected.eventCount > loaded.events.length)
         void loadStoredConversation(loaded).catch(() => undefined);
       // The host knows which of them wait on the user, also for an approval announced before this
       // page followed it. A list read just before a new wait must not clear it: a running turn's
       // wait is cleared by its own stream, a finished one's here.
-      setAwaitingConversationIds((current) => stored.reduce((next, entry) => entry.awaitingUser ? toggleIn(next, entry.id, true)
-        : !entry.running ? toggleIn(next, entry.id, false) : next, current));
+      conversationRuns.reconcileAwaiting(stored);
     })
     .catch(() => { if (componentMountedRef.current && request === summaryRequest.current) setHistoryListFailed(true); });
   };
@@ -795,26 +784,16 @@ export function AgentApp() {
     return load;
   }
 
-  /** Adds or removes one conversation from a set held in state. */
-  const toggleIn = (set: ReadonlySet<string>, id: string, on: boolean): ReadonlySet<string> => {
-    if (set.has(id) === on) return set;
-    const next = new Set(set);
-    if (on) next.add(id);
-    else next.delete(id);
-    return next;
-  };
-
   const createShellConversationStream = (
-    conversationId: string,
-    controller: AbortController,
+    lease: ConversationRunLease,
     initial: EphemeralPiConversation,
   ) => createConversationStream(initial, {
-    isCurrent: () => piAbortRefs.current.get(conversationId) === controller,
+    isCurrent: () => lease.isCurrent(),
     commit: conversation => {
       setPiConversations((current) => replacePiConversation(current, conversation));
       if (activeConversationIdRef.current === conversation.id) setPiEvents([...conversation.events]);
     },
-    onAwaiting: awaiting => setAwaitingConversationIds((current) => toggleIn(current, conversationId, awaiting)),
+    onAwaiting: awaiting => lease.awaiting(awaiting),
   });
 
   async function submitToPi(prompt: string, context?: ComposerSubmitContext & { requestId?: string }, target = activePiConversation,
@@ -826,15 +805,12 @@ export function AgentApp() {
     const conversationId = target.id;
     const isGroup = isGroupConversation(target);
     // Synchronous guard: state updates land later, so a double submit could slip past `piRunning`.
-    if (piAbortRefs.current.has(conversationId)) return false;
-    const controller = new AbortController();
-    piAbortRefs.current.set(conversationId, controller);
-    preparingPiRefs.current.add(conversationId);
-    setRunningConversationIds((current) => toggleIn(current, conversationId, true));
+    const fromDraft = !queued && Boolean(context?.draftSnapshot);
+    const lease = conversationRuns.acquire(conversationId, { preparing: true, accepting: fromDraft });
+    if (!lease) return false;
+    const { controller } = lease;
     // A queued follow-up belongs to its conversation's role, whichever one is on screen now.
     const presetId = queued?.agentPreset ?? agentSettings.presetId;
-    const fromDraft = !queued && Boolean(context?.draftSnapshot);
-    if (fromDraft) setAcceptingConversationIds((current) => toggleIn(current, conversationId, true));
     const nextConversation: EphemeralPiConversation = {
       ...titlePiConversation(target, normalizedPrompt),
       agentPreset: presetId,
@@ -843,19 +819,18 @@ export function AgentApp() {
     let promptAttempted = false;
     let reattach = false;
     // The run keeps going when the user opens another conversation; only the one on screen is drawn.
-    const stream = createShellConversationStream(conversationId, controller, nextConversation);
+    const stream = createShellConversationStream(lease, nextConversation);
     const runId = queued?.requestId ?? context?.requestId ?? "pi_export_" + crypto.randomUUID();
     messageSubmissions.current.set(runId, { prompt: normalizedPrompt, attachments: (context?.attachments ?? [])
       .map((file, index) => ({ ...file, id: context?.draftSnapshot?.attachmentIds[index] ?? crypto.randomUUID() })) });
     liveRunIds.current.add(runId);
-    runStop.bind(controller, runId);
+    lease.bind(runId);
     // The composer callback is bound to this conversation's draft, even after switching away.
     const onAccepted = () => {
       messageSubmissions.current.delete(runId);
       setFollowProblems((current) => ({ ...current, [conversationId]: undefined }));
       setHistoryProblems((current) => current[conversationId] === "incomplete" ? { ...current, [conversationId]: undefined } : current);
       composer.accepted(stream.current, new Set([runId]));
-      if (fromDraft) setAcceptingConversationIds((current) => toggleIn(current, conversationId, false));
       context?.onAccepted?.();
     };
     try {
@@ -866,7 +841,7 @@ export function AgentApp() {
         snapshot = await loadStoredConversation(snapshot);
         turnStartEventCount = snapshot.events.length;
       }
-      if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
+      if (controller.signal.aborted || !lease.isCurrent()) return false;
       stream.replace(snapshot);
       const botId = stream.current.groupHostId ?? conversationBotId(syncedBots.store, stream.current) ?? presetId;
       const targetBot = syncedBots.profiles.find(bot => bot.id === botId);
@@ -889,10 +864,10 @@ export function AgentApp() {
         }
         attachments.push(uploaded);
       }
-      if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
+      if (controller.signal.aborted || !lease.isCurrent()) return false;
       if (context?.draftSnapshot) await composer.submitted(stream.current, { requestId: runId, ...context.draftSnapshot });
-      if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) return false;
-      preparingPiRefs.current.delete(conversationId);
+      if (controller.signal.aborted || !lease.isCurrent()) return false;
+      lease.prepared();
       promptAttempted = true;
       for await (const event of (isGroup ? runGroupTurn : runPiTurn)({
         ...(isGroup ? { members: groupMembersOf(stream.current) } : {}),
@@ -913,11 +888,11 @@ export function AgentApp() {
         codexModelSource: model.settings.codexModelSource,
         locale,
       }, { signal: controller.signal })) {
-        if (controller.signal.aborted || piAbortRefs.current.get(conversationId) !== controller) {
+        if (controller.signal.aborted || !lease.isCurrent()) {
           stream.cancel();
           return false;
         }
-        if (confirmsPromptAccepted(event)) onAccepted();
+        if (confirmsPromptAccepted(event)) { if (fromDraft) lease.accepted(); onAccepted(); }
         stream.append(event);
       }
       stream.flush();
@@ -951,15 +926,7 @@ export function AgentApp() {
         stream.replace(appendPiConversationEvents(stream.current, errorEvents));
       }
     } finally {
-      preparingPiRefs.current.delete(conversationId);
-      if (fromDraft && !reattach) setAcceptingConversationIds((current) => toggleIn(current, conversationId, false));
-      if (piAbortRefs.current.get(conversationId) === controller) {
-        piAbortRefs.current.delete(conversationId);
-        if (!reattach) {
-          setRunningConversationIds((current) => toggleIn(current, conversationId, false));
-          setAwaitingConversationIds((current) => toggleIn(current, conversationId, false));
-        }
-      }
+      lease.finish({ handoff: reattach });
     }
     if (reattach) void followRun(stream.current, { requestId: runId, prompt: normalizedPrompt, onAccepted });
     // Acceptance clears the composer explicitly; failures before it preserve the draft/files.
@@ -975,12 +942,10 @@ export function AgentApp() {
   async function followRun(conversation: EphemeralPiConversation, submission?: { requestId: string; prompt: string; onAccepted?: () => void }, preloaded = false) {
     if (!componentMountedRef.current) return;
     const conversationId = conversation.id;
-    if (piAbortRefs.current.has(conversationId)) return;
-    const controller = new AbortController();
-    piAbortRefs.current.set(conversationId, controller);
-    runStop.bind(controller, submission?.requestId ?? conversation.activeRunId);
-    setRunningConversationIds((current) => toggleIn(current, conversationId, true));
-    const stream = createShellConversationStream(conversationId, controller, conversation);
+    const lease = conversationRuns.acquire(conversationId, { runId: submission?.requestId ?? conversation.activeRunId });
+    if (!lease) return;
+    const { controller } = lease;
+    const stream = createShellConversationStream(lease, conversation);
     let retries = 0;
     let reload = !preloaded;
     try {
@@ -990,30 +955,30 @@ export function AgentApp() {
           let snapshot = stream.current;
           if (reload) snapshot = await loadStoredConversation(snapshot);
           reload = true;
-          if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
+          if (!lease.isCurrent()) { stream.cancel(); return; }
           if (controller.signal.aborted) break;
           stream.replace(snapshot);
-          runStop.bind(controller, stream.current.activeRunId ?? [...stream.current.events].reverse().find(event => event.type === "run.started")?.runId);
+          lease.bind(stream.current.activeRunId ?? [...stream.current.events].reverse().find(event => event.type === "run.started")?.runId);
           // Saved and live events are the host's stored transcript; rejected prompts are never saved.
-          if (submission && stream.current.events.some((event) => event.runId === submission.requestId)) submission.onAccepted?.();
+          if (submission && stream.current.events.some((event) => event.runId === submission.requestId)) { lease.accepted(); submission.onAccepted?.(); }
           const requestId = submission && !stream.current.events.some((event) => event.runId === submission.requestId)
             ? submission.requestId : undefined;
           for await (const event of followPiTurn(conversationId, stream.current.events.length, { signal: controller.signal, requestId })) {
-            if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
+            if (!lease.isCurrent()) { stream.cancel(); return; }
             if (controller.signal.aborted) break;
-            if (event.type === "run.started") runStop.bind(controller, event.runId);
+            if (event.type === "run.started") lease.bind(event.runId);
             if (event.runId) liveRunIds.current.add(event.runId);
-            if (submission && event.runId === submission.requestId) submission.onAccepted?.();
+            if (submission && event.runId === submission.requestId) { lease.accepted(); submission.onAccepted?.(); }
             retries = 0;
             stream.append(event);
           }
-          if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
+          if (!lease.isCurrent()) { stream.cancel(); return; }
           stream.flush();
           // A first turn started elsewhere (IM, another tab) is titled by the host as it ends.
           if (stream.current.events.filter((event) => event.type === "run.started").length === 1 || isGroupConversation(stream.current)) refreshConversationTitle(conversationId);
           break;
         } catch (error) {
-          if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
+          if (!lease.isCurrent()) { stream.cancel(); return; }
           stream.flush();
           if (controller.signal.aborted) break;
           // A missing conversation or denied access is definitive; a network failure/5xx is not.
@@ -1028,7 +993,7 @@ export function AgentApp() {
         stream.replace(closed);
       }
     } catch (error) {
-      if (piAbortRefs.current.get(conversationId) !== controller) { stream.cancel(); return; }
+      if (!lease.isCurrent()) { stream.cancel(); return; }
       // Connection failure is not a host terminal and must never advance its event cursor.
       setFollowProblems((problems) => ({ ...problems, [conversationId]: {
         message: featureError(locale, error instanceof Error ? error : "Pi runtime failed."),
@@ -1038,19 +1003,15 @@ export function AgentApp() {
           ?? `pi_follow_${Date.now().toString(36)}`,
       } }));
     } finally {
-      if (piAbortRefs.current.get(conversationId) === controller) {
-        piAbortRefs.current.delete(conversationId);
-        setRunningConversationIds((ids) => toggleIn(ids, conversationId, false));
-        setAwaitingConversationIds((ids) => toggleIn(ids, conversationId, false));
-      }
+      lease.finish();
     }
   }
 
   /** Reads the host's copy of an opened conversation; follows it only if a run is in flight there. */
   async function refreshPiConversation(conversation: EphemeralPiConversation) {
-    if (piAbortRefs.current.has(conversation.id)) return;
+    if (conversationRuns.has(conversation.id)) return;
     const loaded = await loadStoredConversation(conversation).catch(() => undefined);
-    if (!loaded || piAbortRefs.current.has(conversation.id)) return;
+    if (!loaded || conversationRuns.has(conversation.id)) return;
     if (loaded.activeRunId) {
       void followRun(loaded, undefined, true);
       return;
@@ -1064,7 +1025,7 @@ export function AgentApp() {
   const stopPi = (conversationId = activePiConversationId) => {
     composer.pauseQueue(conversationId, "stopped");
     approvalAbortRefs.current.get(conversationId)?.abort();
-    return runStop.stop(conversationId);
+    return conversationRuns.stop(conversationId);
   };
 
   // Follow-ups go one at a time, each only after the previous turn ended well; a stop, failure,
@@ -1076,7 +1037,7 @@ export function AgentApp() {
       const conversation = piConversations.find((entry) => entry.id === conversationId);
       if (!conversation) continue;
       const step = nextQueueStep(queue, {
-        running: runningConversationIds.has(conversationId) || piAbortRefs.current.has(conversationId),
+        running: runningConversationIds.has(conversationId) || conversationRuns.has(conversationId),
         events: conversation.events,
         connectionFailed: Boolean(followProblems[conversationId]),
       });
@@ -1533,7 +1494,7 @@ export function AgentApp() {
       : undefined,
     composerPlaceholder: streamId ? undefined : isGroupConversation(activePiConversation) ? featureText(locale, "Message the group… (type @ to select members)")
       : settingsCopy[locale].shell.messageTo(activeBot.name),
-    stopStatus: !streamId && piRunning ? runStop.statusFor(activePiConversationId) : undefined,
+    stopStatus: !streamId && piRunning ? conversationRuns.stopStatus(activePiConversationId) : undefined,
     composerOptions: {
       value: composerRunOptions,
       onChange: update => changeComposerDraft(current => ({ ...current, runOptions: { ...current.runOptions, ...update } })),

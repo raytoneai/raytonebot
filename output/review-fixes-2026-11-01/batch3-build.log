@@ -1,0 +1,12 @@
+
+> raytonebot@0.1.0 build
+> npm run typecheck && vite build
+
+
+> raytonebot@0.1.0 typecheck
+> tsc -p tsconfig.json --noEmit && tsc -p tsconfig.control.json --noEmit
+
+src/pi/userWaitDeadline.test.ts(11,13): error TS2741: Property 'description' is missing in type '{ label: string; }' but required in type '{ label: string; description: string; }'.
+src/pi/userWaitDeadline.test.ts(11,29): error TS2741: Property 'description' is missing in type '{ label: string; }' but required in type '{ label: string; description: string; }'.
+src/pi/userWaitDeadline.test.ts(45,37): error TS2550: Property 'findLast' does not exist on type 'AgentUXEvent[]'. Do you need to change your target library? Try changing the 'lib' compiler option to 'es2023' or later.
+src/pi/userWaitDeadline.test.ts(45,46): error TS7006: Parameter 'event' implicitly has an 'any' type.

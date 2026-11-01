@@ -1,0 +1,50 @@
+[
+  {
+    "width": 1280,
+    "locale": "en",
+    "workspaceTopPx": 341,
+    "collapsedScrollHeightPx": 1225,
+    "pathCountPerCategory": 65,
+    "totalPathCount": 195
+  },
+  {
+    "width": 1280,
+    "locale": "zh",
+    "workspaceTopPx": 355,
+    "collapsedScrollHeightPx": 1172,
+    "pathCountPerCategory": 65,
+    "totalPathCount": 195
+  },
+  {
+    "width": 1280,
+    "locale": "ja",
+    "workspaceTopPx": 360,
+    "collapsedScrollHeightPx": 1285,
+    "pathCountPerCategory": 65,
+    "totalPathCount": 195
+  },
+  {
+    "width": 390,
+    "locale": "en",
+    "workspaceTopPx": 458,
+    "collapsedScrollHeightPx": 1538,
+    "pathCountPerCategory": 65,
+    "totalPathCount": 195
+  },
+  {
+    "width": 390,
+    "locale": "zh",
+    "workspaceTopPx": 420,
+    "collapsedScrollHeightPx": 1337,
+    "pathCountPerCategory": 65,
+    "totalPathCount": 195
+  },
+  {
+    "width": 390,
+    "locale": "ja",
+    "workspaceTopPx": 442,
+    "collapsedScrollHeightPx": 1571,
+    "pathCountPerCategory": 65,
+    "totalPathCount": 195
+  }
+]

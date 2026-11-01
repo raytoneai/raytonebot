@@ -1,0 +1,54 @@
+▶ expanded Output keeps keyboard access to sandbox HTML and native forms
+  ✖ 1280px expanded: iframe at the final tab position and dynamic native controls (5231.081792ms)
+  ✔ 1280px fullscreen: iframe at the final tab position and dynamic native controls (2900.662625ms)
+  ✖ 390px expanded: iframe at the final tab position and dynamic native controls (2562.014042ms)
+  ✔ 390px fullscreen: iframe at the final tab position and dynamic native controls (2761.997416ms)
+✖ expanded Output keeps keyboard access to sandbox HTML and native forms (13627.761584ms)
+ℹ tests 5
+ℹ suites 0
+ℹ pass 2
+ℹ fail 3
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 13929.127208
+
+✖ failing tests:
+
+test at src/runtime/outputKeyboard.browser.test.ts:62:15
+✖ 1280px expanded: iframe at the final tab position and dynamic native controls (5231.081792ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:162:20)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:62:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/runtime/outputKeyboard.browser.test.ts:62:15
+✖ 390px expanded: iframe at the final tab position and dynamic native controls (2562.014042ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  false !== true
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:162:20)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/outputKeyboard.browser.test.ts:62:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: false,
+    expected: true,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

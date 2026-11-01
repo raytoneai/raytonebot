@@ -1,0 +1,9 @@
+{
+  "source": "pmset -g log",
+  "sleepAt": "2026-11-01T16:18:46+08:00",
+  "wakeAt": "2026-11-01T16:27:55+08:00",
+  "reason": "Idle Sleep",
+  "sleepDurationSeconds": 549,
+  "effect": "browser test deadlines expired after wake; first full run invalid as completion evidence",
+  "action": "Stopped only batch6 validation descendants and reran under temporary caffeinate -i; no permanent system setting changed"
+}

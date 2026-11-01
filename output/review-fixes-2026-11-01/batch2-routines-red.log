@@ -1,0 +1,110 @@
+▶ settings keep current results when reads and mutations overlap
+  ✖ routines: repeated slow reads can finish without timer or focus refreshes invalidating them (1657.165416ms)
+  ✖ routines: saving excludes polling and stale reads cannot release a newer read (789.774709ms)
+  ✖ routines: saving excludes polling and stale errors cannot release a newer read (799.008ms)
+  ✖ routines: conflicts refresh current data and reopening drops the previous read (946.867542ms)
+  ✔ memory edit keeps its original precondition and draft across polls and stale saves (1183.028667ms)
+  ✔ memory: a late read cannot undo deletion (1591.943666ms)
+  ✔ memory: a late error cannot undo deletion (1597.375083ms)
+  ✔ mcp: a late read cannot undo deletion (1598.34225ms)
+  ✔ mcp: a late error cannot undo deletion (1580.580042ms)
+  ✔ IM: a slow poll cannot overlap or undo a save (success) (896.434125ms)
+  ✔ IM: a slow poll cannot overlap or undo a save (error) (880.401875ms)
+  ✔ Learning: generation rejects stale reads while revision protection remains (1102.239291ms)
+  ✔ im: an active switch drops the previous read (872.263917ms)
+  ✔ learning: an active switch drops the previous read (866.010458ms)
+✖ settings keep current results when reads and mutations overlap (16544.506ms)
+ℹ tests 15
+ℹ suites 0
+ℹ pass 10
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 16798.817458
+
+✖ failing tests:
+
+test at src/runtime/settingsConcurrency.test.ts:78:13
+✖ routines: repeated slow reads can finish without timer or focus refreshes invalidating them (1657.165416ms)
+  AssertionError [ERR_ASSERTION]: timer, focus and visibility refreshes must share the in-flight read
+
+  3 !== 0
+
+      at file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:85:18
+      at async hookPage (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:70:9)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:79:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:78:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 3,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/runtime/settingsConcurrency.test.ts:93:15
+✖ routines: saving excludes polling and stale reads cannot release a newer read (789.774709ms)
+  AssertionError [ERR_ASSERTION]: one mutation owns the refresh until it settles
+
+  3 !== 0
+
+      at file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:104:18
+      at async hookPage (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:70:9)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:94:9)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:93:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 3,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/runtime/settingsConcurrency.test.ts:93:15
+✖ routines: saving excludes polling and stale errors cannot release a newer read (799.008ms)
+  AssertionError [ERR_ASSERTION]: one mutation owns the refresh until it settles
+
+  3 !== 0
+
+      at file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:104:18
+      at async hookPage (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:70:9)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:94:9)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:93:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 3,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/runtime/settingsConcurrency.test.ts:126:13
+✖ routines: conflicts refresh current data and reopening drops the previous read (946.867542ms)
+  AssertionError [ERR_ASSERTION]: the old visit cannot unlock the reopened read
+
+  2 !== 0
+
+      at file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:148:16
+      at async hookPage (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:70:9)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:127:7)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/runtime/settingsConcurrency.test.ts:126:5)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: 2,
+    expected: 0,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }

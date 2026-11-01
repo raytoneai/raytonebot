@@ -6,6 +6,8 @@ export type MemoryScope = { kind: "global" } | { kind: "bot"; id: string } | { k
 export type MemoryContext = { botId?: string; groupId?: string };
 /** A submitted source and optional check date, not verification performed by the host. */
 export type MemoryEvidence = { url: string; checkedAt?: string };
+/** Full mutable-field precondition captured when a Settings edit begins. */
+export type MemorySnapshot = { text: string; scope: MemoryScope; evidence: MemoryEvidence | null };
 
 export type MemoryView = {
   id: string;

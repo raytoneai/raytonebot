@@ -1,0 +1,17 @@
+▶ always-allowed reset reports pending/failure and only removes confirmed grants
+  ✔ 1280px en: pending, failure, retry and confirmed cleanup (1910.781583ms)
+  ✔ 1280px zh: pending, failure, retry and confirmed cleanup (1008.419833ms)
+  ✔ 1280px ja: pending, failure, retry and confirmed cleanup (1058.264416ms)
+  ✔ 390px en: pending, failure, retry and confirmed cleanup (1007.968ms)
+  ✔ 390px zh: pending, failure, retry and confirmed cleanup (1055.920291ms)
+  ✔ 390px ja: pending, failure, retry and confirmed cleanup (1004.728875ms)
+  ✔ network failure preserves authorization, retry works, and unmounting during pending is safe (1693.684958ms)
+✔ always-allowed reset reports pending/failure and only removes confirmed grants (8896.108291ms)
+ℹ tests 8
+ℹ suites 0
+ℹ pass 8
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9153.452125

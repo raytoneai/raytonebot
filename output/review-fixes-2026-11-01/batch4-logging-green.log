@@ -1,0 +1,27 @@
+✔ invitations resolve names and never infer consent from mentions, quotes or negations (4.583292ms)
+✔ custom members keep their own identities and only validated engine presets are accepted (1.310042ms)
+✔ renaming preserves mentions, companions, silence rules and every collaboration mode (1.767042ms)
+✔ custom Bots sharing an engine route by ID, with escaped names, continuation and safe ambiguity (2.70875ms)
+✔ assignment identity rejects late results; restart requires explicit review (1.765042ms)
+✔ group write lease serializes members across groups and cancellation removes queued work (0.279875ms)
+✔ parallel assignment read-only guard cannot be bypassed by allow-all or host tools (0.934958ms)
+✔ repeated retries resolve the original task prompt and attachments (0.114625ms)
+✔ a real group watcher failure writes only its fixed diagnostic identity (107.65875ms)
+✔ runtime diagnostics keep bounded metadata and reject caller supplied content (1.672209ms)
+ℹ tests 10
+ℹ suites 0
+ℹ pass 10
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 513.854667
+✔ a throwing live watcher is detached while a healthy watcher receives the remaining terminal sequence (26.616542ms)
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 497.995792

@@ -667,7 +667,7 @@ textarea:focus-visible {
 .preview-frame .composer-frame {
   border-top: 0;
   padding: 10px 22px 16px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0), var(--surface-panel) 24%);
+  background: var(--surface-panel);
 }
 
 /*
@@ -1312,7 +1312,6 @@ textarea:focus-visible {
 }
 
 .chat-frame,
-.composer-frame,
 .utility-card,
 .debug-dock {
   border: var(--border-width) solid var(--border-subtle);
@@ -3267,13 +3266,43 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   background: color-mix(in srgb, var(--text-primary) 88%, var(--surface-panel));
 }
 
-.artifact-inline,
-.step-item,
-.error-item {
+.artifact-inline {
   display: grid;
   gap: 4px;
   padding: 10px;
 }
+
+.step-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  padding: 10px;
+}
+
+.error-item {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: start;
+  gap: 8px;
+  padding: 10px;
+}
+
+.error-item > :is(strong, p, details, small) {
+  grid-column: 2;
+  min-width: 0;
+}
+
+.step-kind { font-family: var(--font-mono); font-size: 10px; color: var(--text-muted); text-transform: uppercase; }
+.error-icon { color: var(--danger); margin-top: 1px; }
+.step-icon { color: var(--info); }
+.preview-frame[data-style-preset="native"] .step-icon {
+  color: color-mix(in srgb, var(--native-muted-text) 66%, var(--surface-panel));
+}
+.step-item[data-status="completed"] .step-icon,
+.step-item[data-status="success"] .step-icon { color: var(--success); }
+.step-item[data-status="failed"] .step-icon,
+.step-item[data-status="error"] .step-icon { color: var(--danger); }
 
 .artifact-inline span,
 .step-item span {
@@ -4553,8 +4582,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 }
 
 .preview-frame .chat-frame,
-.preview-frame .utility-card,
-.preview-frame .composer-frame {
+.preview-frame .utility-card {
   background: var(--surface-panel);
 }
 
@@ -6645,7 +6673,6 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 
 .preview-frame[data-style-preset="native"] :is(
   .tool-status-icon,
-  .step-icon,
   .error-icon,
   .approval-decision,
   .external-approval-title-icon

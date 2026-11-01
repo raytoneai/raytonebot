@@ -1,0 +1,15 @@
+✔ ordinary question answer resumes only the remaining execution budget (19.2615ms)
+✔ ordinary question skip resumes only the remaining execution budget (12.553375ms)
+✔ ordinary question cancel resumes only the remaining execution budget (11.8505ms)
+✔ approval completing first does not resume a run still waiting on the other human decision (15.0735ms)
+✔ question completing first does not resume a run still waiting on the other human decision (12.908208ms)
+✔ stopping a question clears it and a late answer cannot resume the next run's wait (21.762584ms)
+✔ one conversation's question does not pause a different conversation's execution (22.120709ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 513.322208

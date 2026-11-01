@@ -1,0 +1,56 @@
+[
+  {
+    "pid": 82222,
+    "ppid": 45868,
+    "elapsed": "11:47",
+    "executable": "/bin/zsh"
+  },
+  {
+    "pid": 82224,
+    "ppid": 82222,
+    "elapsed": "11:47",
+    "executable": "npm"
+  },
+  {
+    "pid": 82258,
+    "ppid": 82224,
+    "elapsed": "11:47",
+    "executable": "node"
+  },
+  {
+    "pid": 82319,
+    "ppid": 82258,
+    "elapsed": "11:47",
+    "executable": "/opt/homebrew/Cellar/node/26.13.0_1/bin/node"
+  },
+  {
+    "pid": 82324,
+    "ppid": 82319,
+    "elapsed": "11:46",
+    "executable": "/opt/homebrew/Cellar/node/26.13.0_1/bin/node"
+  },
+  {
+    "pid": 82433,
+    "ppid": 82324,
+    "elapsed": "11:46",
+    "executable": "/Users/rickyhuo/Library/Caches/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell"
+  },
+  {
+    "pid": 82456,
+    "ppid": 82433,
+    "elapsed": "11:46",
+    "executable": "/Users/rickyhuo/Library/Caches/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell"
+  },
+  {
+    "pid": 82457,
+    "ppid": 82433,
+    "elapsed": "11:46",
+    "executable": "/Users/rickyhuo/Library/Caches/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell"
+  },
+  {
+    "pid": 82459,
+    "ppid": 82433,
+    "elapsed": "11:46",
+    "executable": "/Users/rickyhuo/Library/Caches/ms-playwright/chromium_headless_shell-1248/chrome-headless-shell-mac-arm64/chrome-headless-shell"
+  }
+]

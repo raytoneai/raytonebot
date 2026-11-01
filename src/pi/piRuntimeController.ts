@@ -149,7 +149,7 @@ export type PiRuntimeController = {
   clearApprovals(agentPreset?: string): Record<string, string[]>;
   /** MCP servers changed: Pi sessions reopen with the new tools, a running one after its run. */
   refreshTools(): void;
-  dispose(): void;
+  dispose(): Promise<void>;
 };
 
 function artifactPath(cwd: string, path: string): string {
@@ -233,12 +233,14 @@ export function createPiRuntimeController(options: {
   const approvalGates = new Map<string, PiApprovalGate>();
   const userInputGate = new UserInputGate();
   const vaultRequests = new VaultRequestGate();
+  const updateDeadlineWaiting = (conversationId: string) => runs.get(conversationId)?.deadline?.setPaused(
+    Boolean(approvalGates.get(conversationId)?.waiting) || userInputGate.waitingIn(conversationId));
   const gateFor = (conversationId: string) => {
     let gate = approvalGates.get(conversationId);
     if (!gate) {
       gate = new PiApprovalGate({ cwd, secretPaths, protectedPaths, readOnlyPaths, egressContained: sandboxed,
         hostCall: options.browser ? (name, args) => options.browser!.classify(name, args) : undefined }, approvalMemory,
-        () => runs.get(conversationId)?.deadline?.setPaused(Boolean(gate?.waiting)));
+        () => updateDeadlineWaiting(conversationId));
       approvalGates.set(conversationId, gate);
     }
     return gate;
@@ -287,11 +289,16 @@ export function createPiRuntimeController(options: {
   });
   /** Pi sessions opened with an older MCP tool list, closed when their run ends. */
   const staleBridges = new Set<string>();
+  const bridgeDisposals = new Set<Promise<void>>();
   const dropBridge = (id: string) => {
     const bridge = bridgePromises.get(id);
     bridgePromises.delete(id);
     bridgeToolContexts.delete(id);
-    void bridge?.then((current) => current.dispose(), () => undefined);
+    if (!bridge) return;
+    const cleanup = bridge.then((current) => current.dispose(), () => undefined)
+      .catch(() => { log("runtime.cleanup_failed", { conversationId: id, status: "bridge" }); });
+    bridgeDisposals.add(cleanup);
+    void cleanup.then(() => bridgeDisposals.delete(cleanup));
   };
   const bridgePromises = new Map<string, Promise<PiSessionBridge>>();
   const bridgeToolContexts = new Map<string, string>();
@@ -330,6 +337,7 @@ export function createPiRuntimeController(options: {
    *  turn, so it reads this (as an age) instead of inferring activity from `activeRuns`. */
   let lastRunTouchedAt: number | undefined;
   const disposed = new AbortController();
+  let disposal: Promise<void> | undefined;
   /** Session resets and configurations in flight, one at a time per conversation. A turn waits
    *  for both; a reset that fails also fails the turns queued behind it. */
   const resets = new Map<string, Promise<void>>();
@@ -405,20 +413,22 @@ export function createPiRuntimeController(options: {
     return { specs: toolkit.specs.filter(tool => names.has(tool.name)), run: (name: string, args: unknown, signal?: AbortSignal) => names.has(name) ? toolkit.run(name, args, signal) : Promise.resolve({ text: "Tool unavailable in a delegated read-only task.", isError: true }) };
   };
   const askUser = async (conversationId: string, { toolCallId, questions, signal }: UserInputRequest) => {
-    if (runs.get(conversationId)?.delegated) throw new Error("Background delegated tasks cannot request user input.");
-    const adapter = runs.get(conversationId)?.adapter;
+    const slot = runs.get(conversationId), adapter = slot?.adapter;
+    if (slot?.delegated) throw new Error("Background delegated tasks cannot request user input.");
     if (!adapter) throw new Error("The question's run is no longer active.");
     let pending: PendingUserInput | undefined;
     let answers: UserAnswers | undefined;
     try {
       return await userInputGate.wait(conversationId, toolCallId, questions, signal, (request) => {
         pending = request;
+        if (runs.get(conversationId) === slot) updateDeadlineWaiting(conversationId);
         adapter.apply({ type: "user_input_required", ...request });
       }, (value) => {
         answers = value;
         adapter.apply({ type: "user_input_resolved", requestId: pending!.requestId, toolCallId, questions, answers });
       });
     } finally {
+      if (runs.get(conversationId) === slot) updateDeadlineWaiting(conversationId);
       if (pending && answers === undefined) adapter.apply({ type: "user_input_resolved", requestId: pending.requestId, toolCallId });
     }
   };
@@ -480,6 +490,7 @@ export function createPiRuntimeController(options: {
 
   const bridge = (conversationId = activeConversationId) => {
     const id = normalizeConversationId(conversationId);
+    if (!runs.has(id)) disposed.signal.throwIfAborted();
     activeConversationId = id;
     const slot = runs.get(id);
     const toolContext = JSON.stringify([slot?.groupId, slot?.delegated, slot?.references, slot?.extraHostTools ? slot.runId : undefined]);
@@ -504,9 +515,7 @@ export function createPiRuntimeController(options: {
     for (const oldestId of [...bridgePromises.keys()]) {
       if (bridgePromises.size <= maxConversations) break;
       if (runs.has(oldestId)) continue;
-      const oldest = bridgePromises.get(oldestId);
-      bridgePromises.delete(oldestId);
-      void oldest?.then((current) => current.dispose());
+      dropBridge(oldestId);
     }
     return created;
   };
@@ -874,16 +883,17 @@ export function createPiRuntimeController(options: {
   };
 
   /** Stops one conversation's run, or every run. A stop before the run has started is kept. */
+  const stopRun = async (slot: RunSlot) => {
+    slot.stopRequested = true;
+    slot.vaultAbort.abort();
+    await slot.stop?.();
+  };
   const abortRuns = async (conversationId?: string, runId?: string) => {
     const targets = conversationId === undefined
       ? [...runs.values()]
       : [runs.get(normalizeConversationId(conversationId))].filter((slot): slot is RunSlot => Boolean(slot));
     if (runId !== undefined && (conversationId === undefined || targets[0]?.runId !== runId)) return false;
-    await Promise.all(targets.map(async (slot) => {
-      slot.stopRequested = true;
-      slot.vaultAbort.abort();
-      await slot.stop?.();
-    }));
+    await Promise.all(targets.map(stopRun));
     return true;
   };
 
@@ -899,7 +909,7 @@ export function createPiRuntimeController(options: {
       lastRunAgoMs: lastRunTouchedAt === undefined ? undefined : Math.max(0, Date.now() - lastRunTouchedAt) }),
     async configure(input) {
       const conversationId = normalizeConversationId(input.conversationId);
-      const idle = () => { if (runs.has(conversationId)) throw new ConversationRequestError("Stop this conversation's run before changing its configuration.", 409); };
+      const idle = () => { disposed.signal.throwIfAborted(); if (runs.has(conversationId)) throw new ConversationRequestError("Stop this conversation's run before changing its configuration.", 409); };
       idle();
       // Checked again after waiting, with nothing awaited before this configuration registers.
       for (let op = sessionOp(conversationId); op; op = sessionOp(conversationId)) await op.catch(() => undefined);
@@ -919,6 +929,7 @@ export function createPiRuntimeController(options: {
           input = { ...input, providerDefinition: { ...definition, apiKeyEnvVar: undefined }, apiKey, clearApiKey: !apiKey };
         }
         const current = await bridge(conversationId);
+        disposed.signal.throwIfAborted();
         await current.configure(input);
       })());
       return state(conversationId);
@@ -1221,7 +1232,7 @@ export function createPiRuntimeController(options: {
     },
     async newSession(conversationId) {
       const id = normalizeConversationId(conversationId);
-      const idle = () => { if (runs.has(id)) throw new ConversationRequestError("Stop this conversation's run before starting a new session.", 409); };
+      const idle = () => { disposed.signal.throwIfAborted(); if (runs.has(id)) throw new ConversationRequestError("Stop this conversation's run before starting a new session.", 409); };
       idle();
       for (let op = sessionOp(id); op; op = sessionOp(id)) await op.catch(() => undefined);
       idle();
@@ -1229,6 +1240,7 @@ export function createPiRuntimeController(options: {
         cliSessions.delete(id);
         store.reset(id);
         const current = await bridge(id);
+        disposed.signal.throwIfAborted();
         await current.newSession();
         memory?.invalidate(id);
         // A new session starts with an empty transcript, so its tool set has to be announced
@@ -1242,14 +1254,22 @@ export function createPiRuntimeController(options: {
       return approvalMemory.list();
     },
     dispose() {
+      if (disposal) return disposal;
       learning.dispose();
       disposed.abort(new Error("Pi runtime controller is disposed."));
-      for (const slot of runs.values()) slot.vaultAbort.abort();
+      const activeRuns = [...runs.values()];
+      const stopping = Promise.allSettled(activeRuns.map(stopRun));
       for (const gate of approvalGates.values()) gate.cancelAll();
-      for (const pending of bridgePromises.values()) void pending.then((current) => current.dispose());
-      bridgePromises.clear();
-      announcedCapabilities.clear();
-      void gatewayPromise?.then((current) => current.close());
+      disposal = (async () => {
+        if ((await stopping).some(result => result.status === "rejected")) log("runtime.cleanup_failed", { status: "run-stop" });
+        await Promise.allSettled([...activeRuns.map(slot => slot.done), ...configuring.values(), ...resets.values()]);
+        for (const id of bridgePromises.keys()) dropBridge(id);
+        await Promise.all(bridgeDisposals);
+        announcedCapabilities.clear();
+        await gatewayPromise?.then((current) => current.close(), () => undefined)
+          .catch(() => { log("runtime.cleanup_failed", { status: "gateway" }); });
+      })();
+      return disposal;
     },
   };
   // Group chat wraps the controller (groupChat.ts, ADR-032).

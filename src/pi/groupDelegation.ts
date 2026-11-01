@@ -179,6 +179,7 @@ export function createGroupDelegation(deps: {
       disposed = true;
       // Persisted pending/running records recover to needs_review; shutdown never replays them.
       for (const handle of running.values()) { handle.detach(); handle.abort.abort(); }
+      return Promise.allSettled([...running.values()].map(handle => handle.done)).then(() => {});
     },
   };
 }

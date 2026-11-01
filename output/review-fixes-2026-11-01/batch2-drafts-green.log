@@ -1,0 +1,16 @@
+▶ settings navigation preserves non-secret editor drafts
+  ✔ 1280px: new and existing memory drafts survive section changes with their original save precondition (2243.257292ms)
+  ✔ 1280px: Skill creation, edits, conflicts and cancel keep the intended draft across navigation (1384.806208ms)
+  ✔ 1280px: hidden editors stay out of keyboard navigation; Vault and dialog close still clear inputs (1267.563125ms)
+  ✔ 390px: new and existing memory drafts survive section changes with their original save precondition (1341.483083ms)
+  ✔ 390px: Skill creation, edits, conflicts and cancel keep the intended draft across navigation (1436.200041ms)
+  ✔ 390px: hidden editors stay out of keyboard navigation; Vault and dialog close still clear inputs (1351.638834ms)
+✔ settings navigation preserves non-secret editor drafts (9197.57425ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 7
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 9482.519959

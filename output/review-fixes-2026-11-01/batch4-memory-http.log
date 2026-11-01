@@ -1,0 +1,35 @@
+✔ preparing a memory note does not deliver it, and an old receipt cannot consume a newer version (1.455459ms)
+✔ memories are one list on disk: deduplicated, never secrets, capped, editable and removable (19.93575ms)
+✔ full memory snapshots independently reject stale text, URL, date, scope and evidence presence (1.417959ms)
+✔ memory snapshot accepts legacy global/no-evidence records and rejects malformed snapshots (0.152417ms)
+✔ memory evidence survives storage, recall and bounded notes without implying host verification (5.768125ms)
+✔ duplicate remembers report existing evidence and reject conflicting supplied evidence (0.300667ms)
+✔ invalid evidence is rejected without changing memory state or its persisted version (0.965167ms)
+✔ a conversation sees memories on its first turn and again only after they change (0.335875ms)
+✔ a long list is cut at the note limit with a count of what was left out (0.332417ms)
+✔ notes and recall isolate Bots and groups while legacy memories stay global (0.367208ms)
+✔ remember resolves owners from the run, deduplicates only within its scope, and retains Bot attribution (0.254834ms)
+✔ remember replaces a visible record atomically at capacity and clears stale evidence unless supplied (17.298209ms)
+✔ replacement rejects stale text, inaccessible records and invalid input without changing memories (1.220792ms)
+✔ failed replacement persistence leaves the prior memory available after restart (0.785708ms)
+✔ replacement rejects another record's text in the same scope but allows text from another scope (0.142417ms)
+✔ recall retrieves older eligible memories with stable metadata and bounded read-only results (0.748917ms)
+✔ recall cursors traverse every matching scoped memory once across bounded pages (0.753417ms)
+✔ editing an old memory brings it into the bounded note and first recall page (0.357208ms)
+✔ recall rejects malformed, stale and mismatched cursors without revealing scoped results (0.640708ms)
+✔ same-timestamp memory order and cursors survive a host restart (0.926958ms)
+✔ scoped delivery receipts acknowledge only their captured version and context (0.088834ms)
+✔ invalidating a memory receipt refreshes only its conversation and scope despite late acknowledgements (0.100583ms)
+✔ a conversation reset invalidates all of its memory contexts while explicit empty scope stays exact (0.089542ms)
+✔ invalidating memory preserves cleared and disabled notices and unseen delivery semantics (0.07ms)
+✔ scope persistence preserves legacy global entries and text-only edits; malformed files fail closed (2.354541ms)
+✔ remember and forget ask like connector calls, through every engine's host-tool channel (3.768958ms)
+✔ the host adds the memory note to the model's copy of the prompt and serves the settings routes (71.937084ms)
+ℹ tests 27
+ℹ suites 0
+ℹ pass 27
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 578.382833

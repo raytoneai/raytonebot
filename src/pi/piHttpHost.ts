@@ -87,6 +87,7 @@ export function createPiHttpHost(options: {
   // Starts the enabled channels; the vite plugin creates this host when its server starts.
   const channels = createChannelManager({ bots, runtime: controller, dataDir, defaultPermissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir), factories: options.channelFactories });
   channelSetup = createChannelSetup(channels);
+  let disposal: Promise<void> | undefined;
 
   return {
     controller,
@@ -383,7 +384,7 @@ export function createPiHttpHost(options: {
               if (scope?.kind === "bot" && !bots.view().profiles.some(bot => bot.id === scope.id)) throw new MemoryError("Memory Bot is unavailable.", 404);
               if (scope?.kind === "group" && (typeof scope.id !== "string" || !/^[a-zA-Z0-9._:-]{1,160}$/.test(scope.id) || scope.id.includes(".m.") || !store.get(scope.id)?.group)) throw new MemoryError("Memory group is unavailable.", 404);
               const evidence = body.evidence as import("./memoryTypes.ts").MemoryEvidence | null | undefined;
-              sendJson(res, id ? 200 : 201, { memory: id ? memory.update(id, body.text, scope, evidence, body.expectedText as string | undefined) : memory.add(body.text, scope, evidence as import("./memoryTypes.ts").MemoryEvidence | undefined) });
+              sendJson(res, id ? 200 : 201, { memory: id ? memory.update(id, body.text, scope, evidence, body.expectedText as string | undefined, body.expectedSnapshot as import("./memoryTypes.ts").MemorySnapshot | undefined) : memory.add(body.text, scope, evidence as import("./memoryTypes.ts").MemoryEvidence | undefined) });
             }
             else if (req.method === "DELETE" && id) { memory.remove(id); sendJson(res, 200, { ok: true }); }
             else sendJson(res, 404, { error: "Unknown memory request." });
@@ -678,10 +679,11 @@ export function createPiHttpHost(options: {
       return true;
     },
     dispose() {
+      if (disposal) return disposal;
       stopClock?.();
-      void browser?.stop();
       channels.dispose();
-      controller.dispose();
+      disposal = Promise.allSettled([controller.dispose(), browser?.stop()]).then(() => {});
+      return disposal;
     },
   };
 }

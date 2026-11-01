@@ -1,0 +1,187 @@
+✖ ordinary question answer resumes only the remaining execution budget (20.227917ms)
+✖ ordinary question skip resumes only the remaining execution budget (13.362209ms)
+✖ ordinary question cancel resumes only the remaining execution budget (11.895959ms)
+✖ approval completing first does not resume a run still waiting on the other human decision (12.874542ms)
+✔ question completing first does not resume a run still waiting on the other human decision (11.968166ms)
+✔ stopping a question clears it and a late answer cannot resume the next run's wait (22.752917ms)
+✖ one conversation's question does not pause a different conversation's execution (23.285458ms)
+ℹ tests 7
+ℹ suites 0
+ℹ pass 2
+ℹ fail 5
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 469.300291
+
+✖ failing tests:
+
+test at src/pi/userWaitDeadline.test.ts:58:3
+✖ ordinary question answer resumes only the remaining execution budget (20.227917ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   {
+  +     id: 'run_e2ae64d2-799a-4739-b096-2995e82c0293_error',
+  +     payload: {
+  +       code: 'run_limit',
+  +       message: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.',
+  +       userMessage: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.'
+  +     },
+  +     protocol: 'agent-ux',
+  +     runId: 'run_e2ae64d2-799a-4739-b096-2995e82c0293',
+  +     seq: 13,
+  +     ts: 13,
+  +     type: 'run.error',
+  +     version: '0.1'
+  +   }
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/userWaitDeadline.test.ts:82:14)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { protocol: 'agent-ux', version: '0.1', id: 'run_e2ae64d2-799a-4739-b096-2995e82c0293_error', runId: 'run_e2ae64d2-799a-4739-b096-2995e82c0293', seq: 13, ts: 13, type: 'run.error', payload: [Object] } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/userWaitDeadline.test.ts:58:3
+✖ ordinary question skip resumes only the remaining execution budget (13.362209ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   {
+  +     id: 'run_a32c4dcf-982e-42e2-bec0-94c624d76767_error',
+  +     payload: {
+  +       code: 'run_limit',
+  +       message: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.',
+  +       userMessage: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.'
+  +     },
+  +     protocol: 'agent-ux',
+  +     runId: 'run_a32c4dcf-982e-42e2-bec0-94c624d76767',
+  +     seq: 13,
+  +     ts: 13,
+  +     type: 'run.error',
+  +     version: '0.1'
+  +   }
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/userWaitDeadline.test.ts:82:14)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { protocol: 'agent-ux', version: '0.1', id: 'run_a32c4dcf-982e-42e2-bec0-94c624d76767_error', runId: 'run_a32c4dcf-982e-42e2-bec0-94c624d76767', seq: 13, ts: 13, type: 'run.error', payload: [Object] } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/userWaitDeadline.test.ts:58:3
+✖ ordinary question cancel resumes only the remaining execution budget (11.895959ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   {
+  +     id: 'run_c1028b96-766f-442b-b955-e0743a2f7924_error',
+  +     payload: {
+  +       code: 'run_limit',
+  +       message: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.',
+  +       userMessage: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.'
+  +     },
+  +     protocol: 'agent-ux',
+  +     runId: 'run_c1028b96-766f-442b-b955-e0743a2f7924',
+  +     seq: 9,
+  +     ts: 9,
+  +     type: 'run.error',
+  +     version: '0.1'
+  +   }
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/userWaitDeadline.test.ts:82:14)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { protocol: 'agent-ux', version: '0.1', id: 'run_c1028b96-766f-442b-b955-e0743a2f7924_error', runId: 'run_c1028b96-766f-442b-b955-e0743a2f7924', seq: 9, ts: 9, type: 'run.error', payload: [Object] } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/userWaitDeadline.test.ts:92:3
+✖ approval completing first does not resume a run still waiting on the other human decision (12.874542ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   {
+  +     id: 'run_3e5056cf-606c-432f-98a4-067f09767bee_error',
+  +     payload: {
+  +       code: 'run_limit',
+  +       message: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.',
+  +       userMessage: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.'
+  +     },
+  +     protocol: 'agent-ux',
+  +     runId: 'run_3e5056cf-606c-432f-98a4-067f09767bee',
+  +     seq: 13,
+  +     ts: 13,
+  +     type: 'run.error',
+  +     version: '0.1'
+  +   }
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/userWaitDeadline.test.ts:127:14)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { protocol: 'agent-ux', version: '0.1', id: 'run_3e5056cf-606c-432f-98a4-067f09767bee_error', runId: 'run_3e5056cf-606c-432f-98a4-067f09767bee', seq: 13, ts: 13, type: 'run.error', payload: [Object] } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/userWaitDeadline.test.ts:160:1
+✖ one conversation's question does not pause a different conversation's execution (23.285458ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly deep-equal:
+  + actual - expected
+
+  + [
+  +   {
+  +     id: 'run_89389003-e814-435b-8acc-7dadc441c2be_error',
+  +     payload: {
+  +       code: 'run_limit',
+  +       message: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.',
+  +       userMessage: 'This turn reached its time limit (RAYTONEBOT_RUN_TIMEOUT_MS). Work so far is kept; send "continue" to resume.'
+  +     },
+  +     protocol: 'agent-ux',
+  +     runId: 'run_89389003-e814-435b-8acc-7dadc441c2be',
+  +     seq: 9,
+  +     ts: 9,
+  +     type: 'run.error',
+  +     version: '0.1'
+  +   }
+  + ]
+  - []
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/userWaitDeadline.test.ts:176:12)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: [ { protocol: 'agent-ux', version: '0.1', id: 'run_89389003-e814-435b-8acc-7dadc441c2be_error', runId: 'run_89389003-e814-435b-8acc-7dadc441c2be', seq: 9, ts: 9, type: 'run.error', payload: [Object] } ],
+    expected: [],
+    operator: 'deepStrictEqual',
+    diff: 'simple'
+  }

@@ -1,6 +1,7 @@
 import { type SettingsCopy } from "../../i18n/copy/settings";
 import { useLocale } from "../../i18n/LocaleContext";
 import { APP_LOCALES } from "../../i18n/locales";
+import { handleSettingsRadioKeyDown } from "../../runtime/settingsRadio";
 import { themeTokens, type ThemePresetId } from "../../theme/themeTokens";
 import { Segmented } from "./SettingsShared";
 
@@ -28,8 +29,10 @@ export function AppearanceSection({ t, themePreset, onThemeChange }: { t: Settin
             type="button"
             role="radio"
             aria-checked={theme.id === themePreset}
+            tabIndex={theme.id === themePreset ? 0 : -1}
             key={theme.id}
             className="settings-theme"
+            onKeyDown={handleSettingsRadioKeyDown}
             onClick={() => onThemeChange(theme.id)}
           >
             <span className="settings-theme-swatch" aria-hidden="true" style={{ background: theme.surface.canvas, borderColor: theme.border.strong }}>

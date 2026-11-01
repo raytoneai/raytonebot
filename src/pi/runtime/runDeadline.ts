@@ -1,4 +1,4 @@
-/** Execution time excludes time spent waiting for a person's approval. */
+/** Execution time excludes time spent waiting for a person's approval or answer. */
 export function createRunDeadline(durationMs: number, expire: () => void) {
   let remaining = durationMs, resumedAt = Date.now(), paused = false, disposed = false;
   let timer: ReturnType<typeof setTimeout>;
