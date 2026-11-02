@@ -1,3 +1,4 @@
+import { isObserverId } from "./observer/identity.ts";
 import { runProvenance, type RunSourceOptions } from "./runProvenance.ts";
 /**
  * Group chat (ADR-032). A group is a conversation with `group` metadata; each member runs in a
@@ -61,6 +62,7 @@ export const untag = (value: string): { member?: string; id: string } => {
 // ---------- controller wrapper ----------
 type Deps = {
   bots?: BotConfigStore;
+  observerHooks?: { foregroundStarted(): void; foregroundIdle(): void; completed(id: string, version: string): void };
   store: ConversationStore;
   userInputGate: UserInputGate;
   validateAttachments?(attachments: PiPromptInput["attachments"], member: AgentPresetId): Promise<void>;
@@ -140,10 +142,12 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         lines: [...current.lines, { author: task.owner, text: result }].slice(-20),
         preview: { author: task.owner, text: `${task.status}: ${task.title}`.slice(0, 80) },
       } });
+      try { const current = deps.store.get(groupId); if (current) deps.observerHooks?.completed(groupId, `${notificationRunId}:${current.updatedAt}`); } catch { /* Observer cannot fail a published delegation result. */ }
     }
   }
 
   function setGroupMembers(id: string, members: string[], bots?: GroupParticipant[], hostId?: string) {
+    if (isObserverId(id) || members.some(isObserverId) || isObserverId(hostId)) throw new ConversationRequestError("Observer cannot join group conversations.", 400);
     const saved = controller.getConversation(id);
     if (active.has(id) || resets.has(id) || saved?.activeRunId) throw new ConversationRequestError("请等当前回复结束后再调整成员。", 409);
     const previous = groupOf(id)?.group;
@@ -175,6 +179,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     runProvenance(options, input.permissionMode ?? "request", options?.readOnly);
     if (input.artifactSubmission !== undefined && (!validArtifactSubmission(input.artifactSubmission) || input.artifactSubmission.submissionId !== input.requestId)) throw new Error("Invalid artifact submission identity.");
     const groupId = input.conversationId!;
+    if (isObserverId(groupId) || isObserverId(input.botId) || input.members?.some(isObserverId) || input.referencedConversationIds?.some(isObserverId)) throw new ConversationRequestError("Observer cannot join group conversations.", 400);
     const userPrompt = redactCredentials(input.prompt.trim());
     let prompt = userPrompt;
     if (!groupId || !prompt) throw new Error("A group conversation and prompt are required.");
@@ -226,6 +231,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       input = { ...input, attachments: input.attachments ?? original?.attachments };
     }
     active.set(groupId, slot);
+    try { deps.observerHooks?.foregroundStarted(); } catch { /* Observer cannot block group chat. */ }
     touchGroupActivity();
     // Until a topic is summarized, a group is named by its members; a summarized topic is kept.
     const named = () => (meta.preserveTitle || deps.store.get(groupId)?.titleSource === "summary" ? {} : { title: groupTitle(meta.members, names) });
@@ -581,6 +587,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         finally {
           delegation.closeOrigin(groupId, groupRunId);
           active.delete(groupId); touchGroupActivity(); settle();
+          try { deps.observerHooks?.foregroundIdle(); const saved = deps.store.get(groupId); if (opened && !recorder.failed && saved) deps.observerHooks?.completed(groupId, `${groupRunId}:${saved.updatedAt}`); } catch { /* Ordinary durable completion remains authoritative. */ }
           try { publishDelegations(groupId); } catch { reportFailure("group.delegate_notification_failed"); }
         }
       }

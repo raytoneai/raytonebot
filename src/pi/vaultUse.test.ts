@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtempSync, readFileSync, rmSync, readdirSync } from "node:fs";
@@ -167,10 +168,11 @@ test("Settings HTTP save, restart, browser-scoped approval and actual HTTPS fill
     const server = createServer((req, res) => { void host.handle(req, res).then(handled => { if (!handled) { res.writeHead(404); res.end(); } }); });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const origin = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
-    return { host, origin, close: async () => { host.dispose(); await new Promise<void>(resolve => server.close(() => resolve())); } };
+    const authFetch = await authenticatedFetch(host, origin);
+    return { host, origin, authFetch, close: async () => { host.dispose(); await new Promise<void>(resolve => server.close(() => resolve())); } };
   };
   let running = await start();
-  const request = (path: string, method = "GET", body?: unknown, headers: Record<string, string> = {}) => fetch(`${running.origin}/__agentcanvas/pi${path}`, {
+  const request = (path: string, method = "GET", body?: unknown, headers: Record<string, string> = {}) => (headers.origin && headers.origin !== running.origin ? fetch : running.authFetch)(`${running.origin}/__agentcanvas/pi${path}`, {
     method, headers: { "x-raytone-vault": "1", ...(body ? { "content-type": "application/json" } : {}), ...headers }, body: body ? JSON.stringify(body) : undefined,
   });
   try {

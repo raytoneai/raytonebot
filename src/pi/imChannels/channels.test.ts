@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "../controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { createServer } from "node:http";
@@ -77,19 +78,20 @@ test("the channels endpoint saves settings, reports status, and never returns a 
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/channels`;
-  const post = (platform: string, body: unknown) => fetch(`${base}/${platform}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const authFetch = await authenticatedFetch(host, base);
+  const post = (platform: string, body: unknown) => authFetch(`${base}/${platform}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   try {
     const saved = await (await post("telegram", { enabled: true, fields: { botToken: "123:secret" }, allowUsers: ["7"], unknown: "x" })).json();
     assert.doesNotMatch(JSON.stringify(saved), /123:secret/);
     await tick();
-    const listed = (await (await fetch(base)).json()).channels.find((channel: { platform: string }) => channel.platform === "telegram");
+    const listed = (await (await authFetch(base)).json()).channels.find((channel: { platform: string }) => channel.platform === "telegram");
     assert.deepEqual([listed.enabled, listed.secretsSet.botToken, listed.status.state, listed.status.botName, listed.allowUsers], [true, true, "connected", "@rtb_bot", ["7"]]);
     assert.deepEqual(started, [{ botToken: "123:secret" }]);
     await post("telegram", { access: "open" });
     assert.equal(started.length, 1, "access changes apply without reconnecting");
     await post("feishu", { enabled: true, fields: { appId: "cli_1", appSecret: "s" } });
     await tick();
-    const feishu = (await (await fetch(base)).json()).channels.find((channel: { platform: string }) => channel.platform === "feishu");
+    const feishu = (await (await authFetch(base)).json()).channels.find((channel: { platform: string }) => channel.platform === "feishu");
     assert.deepEqual([feishu.status.state, feishu.status.error, feishu.fields.appId, feishu.fields.appSecret], ["error", "bad credentials", "cli_1", ""]);
     assert.equal((await post("slack", {})).status, 404);
   } finally {
@@ -123,11 +125,12 @@ test("connect_channel: the token goes from the card to the channel store, never 
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
-  const answer = (body: Record<string, unknown>) => fetch(`${base}/channels/setup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const authFetch = await authenticatedFetch(host, base);
+  const answer = (body: Record<string, unknown>) => authFetch(`${base}/channels/setup`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   const events: { type: string; payload: Record<string, any> }[] = [];
   try {
     const botId = "bot_bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb";
-    assert.equal((await fetch(`${base}/bots/import`, { method: "POST", headers: { "content-type": "application/json" },
+    assert.equal((await authFetch(`${base}/bots/import`, { method: "POST", headers: { "content-type": "application/json" },
       body: JSON.stringify({ profiles: [{ id: botId, presetId: "assistant", name: "Custom pairing Bot", appearance: DEFAULT_NEW_BOT }] }) })).status, 200);
     const run = host.controller.runPrompt({ conversationId: "web-1", botId, requestId: "r1", prompt: "connect my telegram" }, (event) => events.push(event as never));
     await tick();
@@ -137,7 +140,7 @@ test("connect_channel: the token goes from the card to the channel store, never 
     const wrong = await answer({ conversationId: "web-1", requestId, action: "submit", fields: { botToken: "1:bad" } });
     assert.equal(wrong.status, 400);
     assert.match(card().channelSetup.error, /Unauthorized/);
-    const afterWrong = (await (await fetch(`${base}/channels`)).json()).channels.find((entry: { platform: string }) => entry.platform === "telegram");
+    const afterWrong = (await (await authFetch(`${base}/channels`)).json()).channels.find((entry: { platform: string }) => entry.platform === "telegram");
     assert.deepEqual([afterWrong.enabled, afterWrong.secretsSet.botToken], [false, false], "a failed token leaves the earlier settings in place");
     assert.equal((await answer({ conversationId: "other", requestId, action: "submit", fields: { botToken: TOKEN } })).status, 409, "another conversation cannot answer");
     assert.equal((await answer({ conversationId: "web-1", requestId, action: "submit", fields: { botToken: TOKEN } })).status, 200);
@@ -152,7 +155,7 @@ test("connect_channel: the token goes from the card to the channel store, never 
     assert.equal((await answer({ conversationId: "web-1", requestId, action: "allow" })).status, 200);
     await run;
     assert.deepEqual(results, [{ status: "connected", platform: "telegram", bot: "@rtb_bot", allowedUser: "@ann" }]);
-    const channel = (await (await fetch(`${base}/channels`)).json()).channels.find((entry: { platform: string }) => entry.platform === "telegram");
+    const channel = (await (await authFetch(`${base}/channels`)).json()).channels.find((entry: { platform: string }) => entry.platform === "telegram");
     assert.deepEqual([channel.enabled, channel.allowUsers, channel.secretsSet.botToken, channel.botId], [true, ["7"], true, botId], "pairing uses the creating Bot, not the default assistant");
     assert.ok(events.some((event) => event.type === "tool.call.progress" && event.payload.inputRequestId === requestId), "the card closes");
     const transcript = JSON.stringify(host.controller.getConversation("web-1"));

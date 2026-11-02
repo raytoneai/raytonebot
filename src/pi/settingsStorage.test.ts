@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createServer } from "node:http";
@@ -22,10 +23,11 @@ test("unreadable settings report errors without disabling the host or overwritin
     const server = createServer((req, res) => { void host.handle(req, res); });
     await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
     const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+    const authFetch = await authenticatedFetch(host, url);
     try {
-      assert.equal((await fetch(`${url}/health`)).status, 200);
+      assert.equal((await authFetch(`${url}/health`)).status, 200);
       for (const endpoint of ["memories", "mcp", "routines", "channels"]) {
-        const result = await fetch(`${url}/${endpoint}`);
+        const result = await authFetch(`${url}/${endpoint}`);
         assert.equal(result.status, 500, `${endpoint} must not look empty`);
         assert.match((await result.json()).error, /could not be read.*not been changed/i);
       }
@@ -35,7 +37,7 @@ test("unreadable settings report errors without disabling the host or overwritin
         ["routines/missing", { enabled: true }],
         ["channels/telegram", { enabled: true, fields: { botToken: "test-only" } }],
       ] as const) {
-        const result = await fetch(`${url}/${endpoint}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+        const result = await authFetch(`${url}/${endpoint}`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
         assert.equal(result.status, 500, endpoint);
       }
       await host.controller.runPrompt({ conversationId: "healthy", prompt: "hello" }, () => {});

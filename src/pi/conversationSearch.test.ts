@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -50,8 +51,9 @@ test("HTTP search returns cold history and branch prefixes without full transcri
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/conversations`;
+  const authFetch = await authenticatedFetch(host, base);
   try {
-    const search = async (query: string) => (await fetch(`${base}?${new URLSearchParams({ query })}`)).json();
+    const search = async (query: string) => (await authFetch(`${base}?${new URLSearchParams({ query })}`)).json();
     const first = await search("保留口令");
     assert.deepEqual(first.conversations.map((c: { id: string }) => c.id).sort(), ["child", "source"]);
     assert.deepEqual(first.unreadable, ["broken"]);
@@ -62,7 +64,7 @@ test("HTTP search returns cold history and branch prefixes without full transcri
     const found: string[] = [];
     let cursor: string | undefined;
     do {
-      const response = await fetch(pageUrl + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""));
+      const response = await authFetch(pageUrl + (cursor ? `&cursor=${encodeURIComponent(cursor)}` : ""));
       assert.equal(response.status, 200);
       const page = await response.json();
       const hits = page.conversations.flatMap((c: any) => c.matches.map((m: any) => `${c.id}/${m.textId}`));
@@ -73,12 +75,12 @@ test("HTTP search returns cold history and branch prefixes without full transcri
     assert.equal(found.length, 6);
     assert.equal(new Set(found).size, 6, "no gaps or repeats at conversation boundaries");
     for (const suffix of ["&limit=0", "&limit=101", "&limit=1.5", "&limit=2&cursor=garbage"]) {
-      assert.equal((await fetch(`${base}?query=test${suffix}`)).status, 400);
+      assert.equal((await authFetch(`${base}?query=test${suffix}`)).status, 400);
     }
     assert.deepEqual((await search("后续口令")).conversations.map((c: { id: string }) => c.id), ["source"]);
     assert.equal((await search("不存在")).conversations.length, 0);
-    assert.equal((await fetch(`${base}?query=${"x".repeat(201)}`)).status, 400);
-    const ordinaryList = await (await fetch(base)).json();
+    assert.equal((await authFetch(`${base}?query=${"x".repeat(201)}`)).status, 400);
+    const ordinaryList = await (await authFetch(base)).json();
     assert.equal(ordinaryList.conversations.length, 2);
     assert.ok(ordinaryList.conversations.every((c: any) => !c.matches && !c.snippet), "normal sidebar remains metadata-only");
     assert.equal(readFileSync(join(store.dir, "source.json"), "utf8"), original);

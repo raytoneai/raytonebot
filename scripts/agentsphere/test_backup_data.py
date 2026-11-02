@@ -1,5 +1,6 @@
 """Run: python3 -m unittest discover -s scripts/agentsphere -p 'test_*.py'."""
 import io
+import json
 import os
 import subprocess
 import tarfile
@@ -12,6 +13,42 @@ from backup_data import DATA_PATHS, REQUIRED_PATHS, create_archive, restore_arch
 
 
 class BackupRecoveryTest(unittest.TestCase):
+    def test_observer_structured_state_restores_privately_with_background_disabled(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            base = Path(temporary)
+            source, target, archive = base / "source", base / "target", base / "data.tgz"
+            for name in REQUIRED_PATHS:
+                (source / name.lstrip("/")).mkdir(parents=True)
+            observer = source / "home/user/.raytonebot/data/observer"
+            observer.mkdir()
+            state = {"schemaVersion": 1, "revision": 4, "settings": {"revision": 2, "background": True},
+                     "tombstones": [{"source": "deleted-generation"}], "findings": [{"id": "synthetic", "inference": "report"}]}
+            (observer / "state.json").write_text(json.dumps(state))
+            manifests = observer / "manifests"
+            manifests.mkdir()
+            manifest = manifests / ("a" * 64 + ".json")
+            manifest.write_text(json.dumps({"files": [{"path": "src/app.ts", "hash": "b" * 64, "bytes": 5}]}))
+            control = source / "home/user/.raytonebot/data.control-plane"
+            control.mkdir(); (control / "authorization.jsonl").write_text("excluded")
+            create_archive(archive, source)
+            restore_archive(archive, target)
+            restored = target / observer.relative_to(source)
+            actual = json.loads((restored / "state.json").read_text())
+            self.assertFalse(actual["settings"]["background"])
+            self.assertEqual(actual["settings"]["revision"], 3)
+            self.assertEqual(actual["tombstones"], state["tombstones"])
+            self.assertEqual(actual["findings"], state["findings"])
+            self.assertEqual(restored.stat().st_mode & 0o777, 0o700)
+            self.assertEqual((restored / "state.json").stat().st_mode & 0o777, 0o600)
+            self.assertEqual((restored / "manifests").stat().st_mode & 0o777, 0o700)
+            self.assertEqual((restored / "manifests" / manifest.name).stat().st_mode & 0o777, 0o600)
+            self.assertEqual((restored / "manifests" / manifest.name).read_text(), manifest.read_text())
+            self.assertFalse((target / control.relative_to(source)).exists())
+            (observer / "session.json").write_text("synthetic raw model context")
+            with self.assertRaisesRegex(ValueError, "structured state"):
+                create_archive(base / "rejected.tgz", source)
+            self.assertFalse((base / "rejected.tgz").exists())
+
     def test_delivered_version_links_cannot_cross_the_private_restore_boundary(self):
         for hard_link in (False, True):
             with self.subTest(hard_link=hard_link), tempfile.TemporaryDirectory() as temporary:

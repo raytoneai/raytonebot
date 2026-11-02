@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync } from "node:fs";
 import { createServer, type Server } from "node:http";
@@ -105,7 +106,8 @@ test("HTTP group stops reject an old run identity and stop only the current run"
   const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
   const server = createServer((req, res) => { void host.handle(req, res); });
   const base = `${await listen(server)}/__agentcanvas/pi`;
-  const stop = (runId: string) => fetch(`${base}/abort`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId: groupId, runId }) });
+  const authFetch = await authenticatedFetch(host, base);
+  const stop = (runId: string) => authFetch(`${base}/abort`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId: groupId, runId }) });
   let running: Promise<void> | undefined;
   try {
     await host.controller.runGroupPrompt(input("old-run"), () => {});
@@ -162,12 +164,13 @@ test("a terminal transport failure does not turn an accepted group into an HTTP 
     void host.handle(req, res);
   });
   const base = `${await listen(server)}/__agentcanvas/pi`;
+  const authFetch = await authenticatedFetch(host, base);
   try {
-    const response = await fetch(`${base}/group/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input("sink-run")) });
+    const response = await authFetch(`${base}/group/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input("sink-run")) });
     const received = eventsFrom(await response.text());
     assert.equal(injected, true);
     assert.ok(!received.some((event) => event.payload.code === "prompt_rejected"));
-    const restored = await (await fetch(`${base}/conversations/${groupId}`)).json();
+    const restored = await (await authFetch(`${base}/conversations/${groupId}`)).json();
     assert.equal(restored.events.at(-1).type, "run.finished");
     assert.equal(restored.events.at(-1).payload.status, "success");
     await assert.rejects(host.controller.runGroupPrompt(input("sink-run"), () => {}), /already.*submitted/i);
@@ -309,9 +312,10 @@ test("a disconnected group prompt reconnects through HTTP /live while waiting fo
   const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
   const server = createServer((req, res) => { void host.handle(req, res); });
   const base = `${await listen(server)}/__agentcanvas/pi`;
+  const authFetch = await authenticatedFetch(host, base);
   const leave = new AbortController();
   try {
-    const prompt = await fetch(`${base}/group/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input("http-run")), signal: leave.signal });
+    const prompt = await authFetch(`${base}/group/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input("http-run")), signal: leave.signal });
     await prompt.body!.getReader().read();
     await until(() => bridge.waiting.has(childId));
     assert.equal(host.controller.awaitingUser(groupId), true);
@@ -320,7 +324,7 @@ test("a disconnected group prompt reconnects through HTTP /live while waiting fo
     const saved = host.controller.getConversation(groupId)!.events;
     const pending = saved.find((event) => event.type === "run.awaiting_input")!;
     assert.ok(pending);
-    const live = await fetch(`${base}/conversations/${groupId}/live?after=1`);
+    const live = await authFetch(`${base}/conversations/${groupId}/live?after=1`);
     assert.equal(live.status, 200);
     const body = live.text();
     assert.equal(host.controller.resolveUserInput(groupId, pending.payload.requestId, { choice: ["A"] }), true);
@@ -332,7 +336,7 @@ test("a disconnected group prompt reconnects through HTTP /live while waiting fo
     assert.equal(host.controller.awaitingUser(groupId), false);
     assert.equal(host.controller.listConversations().find((entry) => entry.id === groupId)?.awaitingUser, undefined);
     assert.deepEqual(bridge.aborted, []);
-    assert.equal((await fetch(`${base}/conversations/${groupId}/live?after=0`)).status, 409);
+    assert.equal((await authFetch(`${base}/conversations/${groupId}/live?after=0`)).status, 409);
   } finally {
     leave.abort(); await host.controller.abort(groupId); await until(() => !host.controller.getConversation(groupId)?.activeRunId);
     host.dispose(); await close(server); rmSync(dataDir, { recursive: true, force: true });
@@ -345,8 +349,9 @@ test("HTTP group approval replay cannot approve a newer run reusing the native t
   const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
   const server = createServer((req, res) => { void host.handle(req, res); });
   const base = `${await listen(server)}/__agentcanvas/pi`;
-  const answer = (runId: string) => fetch(`${base}/approval`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId: groupId, runId, toolCallId: "assistant~same-tool", decision: "yes" }) });
-  const pending = async (runId: string) => (await fetch(`${base}/approval?${new URLSearchParams({ conversationId: groupId, runId, toolCallId: "assistant~same-tool" })}`)).json();
+  const authFetch = await authenticatedFetch(host, base);
+  const answer = (runId: string) => authFetch(`${base}/approval`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId: groupId, runId, toolCallId: "assistant~same-tool", decision: "yes" }) });
+  const pending = async (runId: string) => (await authFetch(`${base}/approval?${new URLSearchParams({ conversationId: groupId, runId, toolCallId: "assistant~same-tool" })}`)).json();
   let running: Promise<void> | undefined;
   try {
     running = host.controller.runGroupPrompt(input("first"), () => {});
@@ -355,7 +360,7 @@ test("HTTP group approval replay cannot approve a newer run reusing the native t
     assert.equal(host.controller.awaitingUser(groupId), true);
     assert.equal(host.controller.listConversations().find((entry) => entry.id === groupId)?.awaitingUser, true);
     assert.deepEqual(await pending("first"), { pending: true });
-    assert.equal((await fetch(`${base}/approval`)).status, 400);
+    assert.equal((await authFetch(`${base}/approval`)).status, 400);
     assert.equal((await fetch(`${base}/approval?${new URLSearchParams({ conversationId: groupId, runId: "first", toolCallId: "assistant~same-tool" })}`, { headers: { origin: "https://other.example" } })).status, 403);
     assert.equal((await answer("first")).status, 200); await running;
     assert.deepEqual(await pending("first"), { pending: false });
@@ -624,6 +629,7 @@ test("a group waiting in routing is busy without an engine slot and guards HTTP 
   const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory, routineClock: false, browser: false });
   const server = createServer((req, res) => { void host.handle(req, res); });
   const base = `${await listen(server)}/__agentcanvas/pi`;
+  const authFetch = await authenticatedFetch(host, base);
   let running: Promise<void> | undefined;
   try {
     await host.controller.configure({ conversationId: "setup", provider: "router-fixture", model: "fixture",
@@ -636,8 +642,8 @@ test("a group waiting in routing is busy without an engine slot and guards HTTP 
     assert.equal(typeof routingAge, "number", "routing records group activity age");
     await new Promise(resolve => setTimeout(resolve, 15));
     assert.ok((host.controller.health().lastRunAgoMs ?? -1) >= (routingAge ?? Number.MAX_SAFE_INTEGER));
-    assert.equal((await fetch(`${base}/providers`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 409);
-    assert.equal((await fetch(`${base}/documents`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 409);
+    assert.equal((await authFetch(`${base}/providers`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 409);
+    assert.equal((await authFetch(`${base}/documents`, { method: "POST", headers: { "content-type": "application/json" }, body: "{}" })).status, 409);
     releaseRoute!();
     await until(() => Boolean(host.controller.getConversation(groupId)?.events.some((event) => event.type === "run.awaiting_input")));
     const question = host.controller.getConversation(groupId)!.events.find((event) => event.type === "run.awaiting_input");
@@ -987,6 +993,7 @@ test("group HTTP retains shared attachments and rejects inaccessible references 
   const host = createPiHttpHost({ cwd: layout.agents.assistant, layout, dataDir: join(dataDir, "data"), bridgeFactory: bridge.factory });
   const server = createServer((req, res) => { void host.handle(req, res); });
   const base = await listen(server);
+  const authFetch = await authenticatedFetch(host, base);
   try {
     for (const [index, attachment, succeeds] of [
       [0, { scope: "shared", path: "brief.txt" }, true],
@@ -994,7 +1001,7 @@ test("group HTTP retains shared attachments and rejects inaccessible references 
       [2, { scope: "builder", path: "private.txt" }, false],
     ] as const) {
       const request = { ...input(`attached-${index}`), conversationId: `group_files_${index}`, attachments: [attachment] };
-      const response = await fetch(`${base}/__agentcanvas/pi/group/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
+      const response = await authFetch(`${base}/__agentcanvas/pi/group/prompt`, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(request) });
       const events = eventsFrom(await response.text());
       assert.equal(events.at(-1)?.type, succeeds ? "run.finished" : "run.error");
       if (succeeds) {
@@ -1190,18 +1197,19 @@ test("HTTP membership changes preserve the source and require the existing same-
   const host = createPiHttpHost({ cwd: dataDir, dataDir, bridgeFactory: bridge.factory });
   const server = createServer((req, res) => { void host.handle(req, res); });
   const base = `${await listen(server)}/__agentcanvas/pi`;
+  const authFetch = await authenticatedFetch(host, base);
   const body = { conversationId: "pi_http_invite", members: ["assistant", "planner"], hostId: "assistant" };
   try {
-    const request = (origin?: string, members = body.members) => fetch(`${base}/group/members`, { method: "POST",
+    const request = (origin?: string, members = body.members) => (origin ? fetch : authFetch)(`${base}/group/members`, { method: "POST",
       headers: { "content-type": "application/json", ...(origin ? { origin } : {}) }, body: JSON.stringify({ ...body, members }) });
     assert.equal((await request("https://outside.example")).status, 403);
     assert.equal((await request()).status, 200);
-    const saved = await (await fetch(`${base}/conversations/${body.conversationId}`)).json();
+    const saved = await (await authFetch(`${base}/conversations/${body.conversationId}`)).json();
     assert.deepEqual(saved.group.members, body.members);
     assert.equal(saved.events.length, 0);
     assert.equal(bridge.calls.length, 0);
     assert.notEqual((await request(undefined, ["assistant", "unknown"])).status, 200);
-    assert.deepEqual((await (await fetch(`${base}/conversations/${body.conversationId}`)).json()).group.members, body.members);
+    assert.deepEqual((await (await authFetch(`${base}/conversations/${body.conversationId}`)).json()).group.members, body.members);
   } finally { host.dispose(); await close(server); rmSync(dataDir, { recursive: true, force: true }); }
 });
 

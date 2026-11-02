@@ -1,3 +1,4 @@
+import { consumeControlPlaneEntry, controlPlaneSession } from "./runtime/controlPlaneSession";
 import { createRoot } from "react-dom/client";
 import { ErrorBoundary } from "./components/ErrorBoundary";
 import { LocaleProvider } from "./i18n/LocaleContext";
@@ -10,14 +11,25 @@ import "@fontsource-variable/ibm-plex-sans/wght.css";
 import "./styles/app.css";
 import "./styles/agentmatrix.css";
 
-createRoot(document.getElementById("root")!).render(
+let entry = consumeControlPlaneEntry(window.location, window.history);
+const root = createRoot(document.getElementById("root")!);
+const render = () => root.render(
   <ErrorBoundary>
     <LocaleProvider>
       <IconSetProvider>
         <IconStyleProvider value={project.theme.stylePreset === "native" ? "bold" : "line"}>
-          <AgentApp />
+          <AgentApp key={controlPlaneSession.getSnapshot().epoch} />
         </IconStyleProvider>
       </IconSetProvider>
     </LocaleProvider>
   </ErrorBoundary>,
 );
+
+const query = new URLSearchParams(window.location.search);
+const fixture = Boolean(query.get("stream")) || import.meta.env.DEV && ["1", "true"].includes(query.get("devtools") ?? "");
+const initialization = fixture ? Promise.resolve() : controlPlaneSession.initialize(entry);
+entry = undefined;
+void initialization.then(() => {
+  controlPlaneSession.subscribe(render);
+  render();
+});

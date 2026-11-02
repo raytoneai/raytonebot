@@ -138,7 +138,7 @@ export function ComposerFrame({
   const copy = useCopy();
   const { locale } = useLocale();
   const steerLabel = locale === "zh" ? "调整当前任务" : locale === "ja" ? "現在のタスクを調整" : "Adjust current task";
-  const { composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity, onBrowseWorkspace, providerSelection, chatReferences } = useShellExtras();
+  const { diagnostic, composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity, onBrowseWorkspace, providerSelection, chatReferences } = useShellExtras();
   const reduceMotion = useReducedMotion();
   const workingPersona = composerActivity?.persona;
   const activityCopy = composerActivityCopy[locale];
@@ -534,6 +534,7 @@ export function ComposerFrame({
               </div>
             </div>
           ) : null}
+          {diagnostic ? <p className="settings-note" role="note">{diagnostic.note}</p> : null}
           <Textarea
             ref={textareaRef}
             autoGrow
@@ -643,7 +644,7 @@ export function ComposerFrame({
             </DropdownMenuContent>
           </DropdownMenu> : null}
           {!isWelcome && onBrowseWorkspace ? <IconButton type="button" label={copy.workspace.outputFrame.files} disabled={restoringDrafts} onClick={onBrowseWorkspace}><FileText size={16} /></IconButton> : null}
-          {project.composer.toolToggle ? (
+          {project.composer.toolToggle && !diagnostic ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <button

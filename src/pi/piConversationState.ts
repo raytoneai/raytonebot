@@ -1,6 +1,8 @@
 import type { AgentUXEvent } from "@agent-ux/protocol";
 
 export type EphemeralPiConversation = {
+  systemRole?: "observer";
+  acceptedRequestIds?: string[];
   botId?: string;
   availableBots?: import("./groupParticipants.ts").GroupParticipant[];
   id: string;
@@ -22,7 +24,7 @@ export type EphemeralPiConversation = {
   groupPreview?: { author: string; text: string };
 };
 
-export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt" | "agentPreset" | "groupMembers">;
+export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt" | "agentPreset" | "groupMembers" | "systemRole">;
 
 export function isGroupConversation(conversation: { id: string; groupMembers?: readonly string[]; group?: { members: readonly string[] } }): boolean {
   return Boolean(conversation.groupMembers?.length || conversation.group?.members.length || conversation.id.startsWith("group_"));
@@ -84,7 +86,7 @@ export function replacePiConversation(
 export function piConversationSidebarItems(
   conversations: readonly EphemeralPiConversation[],
 ): readonly PiConversationSidebarItem[] {
-  return conversations.map(({ id, title, createdAt, agentPreset, groupMembers }) => ({ id, title, createdAt, agentPreset, groupMembers }));
+  return conversations.map(({ id, title, createdAt, agentPreset, groupMembers, systemRole }) => ({ id, title, createdAt, agentPreset, groupMembers, systemRole }));
 }
 
 function createConversationId(): string {
@@ -92,4 +94,10 @@ function createConversationId(): string {
     return `pi_${crypto.randomUUID()}`;
   }
   return `pi_${Date.now().toString(36)}_${Math.random().toString(36).slice(2)}`;
+}
+
+/** Observer run UUIDs differ from browser submission IDs; only host receipts bridge them. */
+export function conversationHasRequestReceipt(conversation: { events: readonly AgentUXEvent[]; systemRole?: string; acceptedRequestIds?: readonly string[] }, requestId: string): boolean {
+  return conversation.events.some(event => event.runId === requestId)
+    || conversation.systemRole === "observer" && Boolean(conversation.acceptedRequestIds?.includes(requestId));
 }

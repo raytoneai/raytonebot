@@ -1,3 +1,4 @@
+import { isObserverConversation } from "./observerClient.ts";
 import { useEffect, useRef, useState } from "react";
 import type { ComposerDraft, ComposerRunOptions } from "../components/agent-preview/ComposerFrame";
 import type { EphemeralPiConversation } from "../pi/piConversationState";
@@ -62,6 +63,7 @@ export function useComposerDrafts() {
     current.current = { ...current.current, [conversation.id]: draft };
     setDrafts(current.current);
     if (changeQueue) setQueue(conversation.id, changeQueue(currentQueues.current[conversation.id] ?? { items: [] }));
+    if (isObserverConversation(conversation)) { setStatuses(current => ({ ...current, [conversation.id]: "saved" })); return Promise.resolve(); }
     // Draft and queue share one record, so moving text into the queue is a single write.
     const record = savedComposerDraft(conversation, draft, submissions.current.get(conversation.id), currentQueues.current[conversation.id]?.items);
     if (record.hasHistory) withHistory.current.add(record.id);

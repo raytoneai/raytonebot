@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -281,7 +282,8 @@ test("HTTP conversation validation and active-run conflicts keep their client er
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
-  const post = (path: string, body: unknown) => fetch(`${base}${path}`, {
+  const authFetch = await authenticatedFetch(host, base);
+  const post = (path: string, body: unknown) => authFetch(`${base}${path}`, {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body), signal: AbortSignal.timeout(5000),
   });
   let pending: Promise<void> | undefined;
@@ -332,15 +334,16 @@ test("HTTP stop identities reject old or malformed requests without stopping the
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/abort`;
-  const stop = (body: unknown) => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const authFetch = await authenticatedFetch(host, url);
+  const stop = (body: unknown) => authFetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   try {
     const first = host.controller.runPrompt({ conversationId: "a", requestId: "first", prompt: "wait" }, () => {});
     await tick(); release.get("a")!(); await first;
     const second = host.controller.runPrompt({ conversationId: "a", requestId: "second", prompt: "wait" }, () => {});
     const other = host.controller.runPrompt({ conversationId: "b", requestId: "other", prompt: "wait" }, () => {});
     await tick();
-    const listed = await (await fetch(url.replace("/abort", "/conversations"))).json();
-    const detail = await (await fetch(url.replace("/abort", "/conversations/a"))).json();
+    const listed = await (await authFetch(url.replace("/abort", "/conversations"))).json();
+    const detail = await (await authFetch(url.replace("/abort", "/conversations/a"))).json();
     assert.equal(listed.conversations.find((entry: { id: string }) => entry.id === "a").activeRunId, "second");
     assert.equal(detail.activeRunId, "second");
     assert.equal((await stop({ conversationId: "a", runId: "first" })).status, 409);
@@ -348,7 +351,7 @@ test("HTTP stop identities reject old or malformed requests without stopping the
       assert.equal((await stop(body)).status, 400);
     assert.deepEqual(aborted, []);
     assert.equal(host.controller.health().activeRuns, 2);
-    const steer = (body: unknown) => fetch(url.replace("/abort", "/steer"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+    const steer = (body: unknown) => authFetch(url.replace("/abort", "/steer"), { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
     const input = { conversationId: "a", runId: "second", requestId: "input-1", text: "adjust" };
     for (const body of [{ ...input, text: "" }, { ...input, requestId: "../bad" }, { ...input, text: "/new" }, { ...input, text: "x".repeat(16001) }, { ...input, runId: 42 }])
       assert.equal((await steer(body)).status, 400);
@@ -376,7 +379,8 @@ test("HTTP approvals cannot resolve a later run reusing the same native tool id"
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/approval`;
-  const answer = (runId: unknown, decision = "yes") => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId: "a", toolCallId: "call-a", decision, runId }) });
+  const authFetch = await authenticatedFetch(host, url);
+  const answer = (runId: unknown, decision = "yes") => authFetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ conversationId: "a", toolCallId: "call-a", decision, runId }) });
   try {
     const first = host.controller.runPrompt({ conversationId: "a", prompt: "write", requestId: "first", permissionMode: "request" }, () => {});
     await tick();
@@ -435,13 +439,14 @@ test("HTTP history reports corrupt records without hiding healthy ones or starti
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+  const authFetch = await authenticatedFetch(host, base);
   try {
-    const index = await (await fetch(`${base}/conversations`)).json();
+    const index = await (await authFetch(`${base}/conversations`)).json();
     assert.deepEqual(index.conversations.map((entry: { id: string }) => entry.id), ["healthy"]);
     assert.deepEqual(index.unreadable, ["broken"]);
-    assert.equal((await fetch(`${base}/conversations/broken`)).status, 500, "a read error is not 404");
+    assert.equal((await authFetch(`${base}/conversations/broken`)).status, 500, "a read error is not 404");
     for (const conversationId of ["broken", "unwritable"]) {
-      const response = await fetch(`${base}/prompt`, { method: "POST", headers: { "content-type": "application/json" },
+      const response = await authFetch(`${base}/prompt`, { method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ conversationId, requestId: "rejected-id", prompt: "Do not lose this draft" }) });
       const events = (await response.text()).trim().split("\n").map((line) => JSON.parse(line));
       assert.equal(events.at(-1).payload.code, "prompt_rejected", "the browser must keep the draft");
@@ -449,7 +454,7 @@ test("HTTP history reports corrupt records without hiding healthy ones or starti
     assert.equal(engineStarts, 0);
     assert.equal(host.controller.health().activeRuns, 0);
     assert.equal(readFileSync(brokenPath, "utf8"), '{"events":');
-    assert.equal((await fetch(`${base}/conversations/unwritable`)).status, 404);
+    assert.equal((await authFetch(`${base}/conversations/unwritable`)).status, 404);
   } finally { host.dispose(); await new Promise((resolve) => server.close(resolve)); rmSync(dataDir, { recursive: true, force: true }); }
 });
 
@@ -874,9 +879,10 @@ test("over HTTP, a closed prompt stream leaves the turn running and /live reatta
   });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+  const authFetch = await authenticatedFetch(host, base);
   try {
     const leave = new AbortController();
-    const prompt = await fetch(`${base}/prompt`, {
+    const prompt = await authFetch(`${base}/prompt`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify({ conversationId: "a", prompt: "hi" }),
@@ -887,10 +893,10 @@ test("over HTTP, a closed prompt stream leaves the turn running and /live reatta
     leave.abort(); // the tab closes
     await tick();
 
-    const list = await (await fetch(`${base}/conversations`)).json() as { conversations: { id: string; running: boolean }[] };
+    const list = await (await authFetch(`${base}/conversations`)).json() as { conversations: { id: string; running: boolean }[] };
     assert.equal(list.conversations.find((entry) => entry.id === "a")?.running, true);
 
-    const live = await fetch(`${base}/conversations/a/live?after=0`);
+    const live = await authFetch(`${base}/conversations/a/live?after=0`);
     assert.equal(live.status, 200);
     const text = live.text();
     await tick();
@@ -899,7 +905,7 @@ test("over HTTP, a closed prompt stream leaves the turn running and /live reatta
     assert.equal(lines.at(-1)?.type, "run.finished");
     assert.ok(lines.some((line) => line.type === "text.delta"));
     assert.deepEqual(aborted, [], "nobody stopped it");
-    assert.equal((await fetch(`${base}/conversations/a/live?after=0`)).status, 409, "finished: nothing to follow");
+    assert.equal((await authFetch(`${base}/conversations/a/live?after=0`)).status, 409, "finished: nothing to follow");
   } finally {
     host.controller.dispose();
     await new Promise((resolve) => server.close(resolve));
@@ -916,6 +922,7 @@ test("HTTP prompt rejections deliver the rejected message and error without touc
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/prompt`;
+  const authFetch = await authenticatedFetch(host, url);
   const runs: Promise<void>[] = [];
   try {
     const previous = host.controller.runPrompt({ conversationId: "idle", prompt: "old" }, () => {});
@@ -926,7 +933,7 @@ test("HTTP prompt rejections deliver the rejected message and error without touc
     await tick();
     for (const conversationId of ["idle", "a"]) {
       const before = host.controller.getConversation(conversationId)!.events.length;
-      const response = await fetch(url, {
+      const response = await authFetch(url, {
         method: "POST", headers: { "content-type": "application/json" },
         body: JSON.stringify({ conversationId, prompt: "rejected prompt", requestId: "rejected-request" }),
       });
@@ -1089,8 +1096,10 @@ test("health is cheap, same-origin guarded, and does not initialize a model sess
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/health`;
+  const authFetch = await authenticatedFetch(host, url);
   try {
-    const response = await fetch(url);
+    assert.deepEqual(await (await fetch(url)).json(), { status: "ok" });
+    const response = await authFetch(url);
     assert.equal(response.status, 200);
     assert.deepEqual(Object.keys(await response.json()).sort(), ["activeRuns", "busy", "maxConcurrentRuns", "status", "uptimeSeconds"]);
     assert.equal(bridgeCalls, 0);
@@ -1299,8 +1308,9 @@ test("a hand-written title is saved over HTTP, refused mid-run, and a late model
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/conversations`;
+  const authFetch = await authenticatedFetch(host, base);
   const rename = async (id: string, title: unknown) => {
-    const response = await fetch(`${base}/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ title }) });
+    const response = await authFetch(`${base}/${id}`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ title }) });
     return { status: response.status, body: await response.json() as { title?: string; error?: string } };
   };
   const providerDefinition = { id: "local", name: "Local", protocol: "openai-compatible" as const,
@@ -1408,7 +1418,8 @@ test("browser input batches validate every event before dispatch and retain sing
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/browser/input`;
-  const post = (body: unknown) => fetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+  const authFetch = await authenticatedFetch(host, url);
+  const post = (body: unknown) => authFetch(url, { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
   try {
     const valid = { kind: "text", text: "test" };
     for (const inputs of [[], Array(65).fill(valid), [valid, { kind: "text", text: "x".repeat(2001) }]]) {

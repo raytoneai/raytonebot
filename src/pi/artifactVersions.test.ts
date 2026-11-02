@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { createServer, type Server } from "node:http";
 import { mkdirSync, mkdtempSync, readdirSync, rmSync, statSync, symlinkSync, truncateSync, unlinkSync, writeFileSync } from "node:fs";
@@ -61,16 +62,17 @@ test("preserved deliveries keep A/B bytes through source deletion and restart, t
   try {
     ({ server } = await listen(host));
     let base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+    let authFetch = await authenticatedFetch(host, base);
     await host.controller.runPrompt({ conversationId: "deliveries", requestId: "run-a", prompt: "Deliver A", agentPreset: "assistant" }, () => {});
     writeFileSync(file, "B");
     await host.controller.runPrompt({ conversationId: "deliveries", requestId: "run-b", prompt: "Deliver B", agentPreset: "assistant" }, () => {});
-    const catalog = await (await fetch(`${base}/artifacts?conversationId=deliveries`)).json() as { artifacts: { artifactId: string; available: boolean }[] };
+    const catalog = await (await authFetch(`${base}/artifacts?conversationId=deliveries`)).json() as { artifacts: { artifactId: string; available: boolean }[] };
     assert.equal(catalog.artifacts.length, 2, "versioned entries are not path-deduplicated");
     assert.ok(catalog.artifacts.every(entry => entry.available));
     const identities = catalog.artifacts.map(entry => entry.artifactId);
     const selected = new Map<string, string>();
     for (const artifactId of identities) {
-      const response = await fetch(`${base}/artifacts/versions?conversationId=deliveries&artifactId=${encodeURIComponent(artifactId)}`);
+      const response = await authFetch(`${base}/artifacts/versions?conversationId=deliveries&artifactId=${encodeURIComponent(artifactId)}`);
       assert.equal(response.status, 200);
       const body = await response.json() as { versions: { versionId: string; artifactId: string }[]; selectedVersionId: string; source: { scope: string; path: string } };
       assert.equal(body.versions.length, 2);
@@ -79,23 +81,23 @@ test("preserved deliveries keep A/B bytes through source deletion and restart, t
       selected.set(artifactId, body.selectedVersionId);
     }
     const beforeRestart = await Promise.all(identities.map(async artifactId => {
-      const response = await fetch(`${base}/files/download?conversationId=deliveries&artifactId=${encodeURIComponent(artifactId)}&versionId=${selected.get(artifactId)}`);
+      const response = await authFetch(`${base}/files/download?conversationId=deliveries&artifactId=${encodeURIComponent(artifactId)}&versionId=${selected.get(artifactId)}`);
       return { artifactId, body: await response.text() };
     }));
     assert.deepEqual(new Set(beforeRestart.map(item => item.body)), new Set(["A", "B"]));
     const selectedArtifactId = beforeRestart.find(item => item.body === "A")!.artifactId;
     const selectedVersionId = selected.get(selectedArtifactId)!;
     const versionUrl = `${base}/files/download?conversationId=deliveries&artifactId=${encodeURIComponent(selectedArtifactId)}&versionId=${selectedVersionId}`;
-    const head = await fetch(versionUrl, { method: "HEAD" });
+    const head = await authFetch(versionUrl, { method: "HEAD" });
     assert.equal(head.status, 200);
     assert.equal(head.headers.get("content-length"), "1");
-    const range = await fetch(versionUrl, { headers: { range: "bytes=0-0" } });
+    const range = await authFetch(versionUrl, { headers: { range: "bytes=0-0" } });
     assert.equal(range.status, 206);
     assert.equal(await range.text(), "A");
     assert.match(range.headers.get("content-range") ?? "", /^bytes 0-0\/1$/);
-    const forgedVersion = await fetch(`${base}/files/download?conversationId=deliveries&artifactId=${encodeURIComponent(selectedArtifactId)}&versionId=00000000-0000-4000-8000-000000000000`);
+    const forgedVersion = await authFetch(`${base}/files/download?conversationId=deliveries&artifactId=${encodeURIComponent(selectedArtifactId)}&versionId=00000000-0000-4000-8000-000000000000`);
     assert.equal(forgedVersion.status, 404);
-    const wrongConversation = await fetch(`${base}/files/download?conversationId=other&artifactId=${encodeURIComponent(selectedArtifactId)}&versionId=${selectedVersionId}`);
+    const wrongConversation = await authFetch(`${base}/files/download?conversationId=other&artifactId=${encodeURIComponent(selectedArtifactId)}&versionId=${selectedVersionId}`);
     assert.equal(wrongConversation.status, 404);
     const outside = join(root, "outside.md");
     writeFileSync(outside, "outside");
@@ -105,17 +107,18 @@ test("preserved deliveries keep A/B bytes through source deletion and restart, t
     host = createPiHttpHost({ cwd, dataDir, browser: false, routineClock: false, bridgeFactory });
     ({ server } = await listen(host));
     base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
-    const afterRestart = await (await fetch(`${base}/artifacts?conversationId=deliveries`)).json() as { artifacts: { artifactId: string; available: boolean }[] };
+    authFetch = await authenticatedFetch(host, base);
+    const afterRestart = await (await authFetch(`${base}/artifacts?conversationId=deliveries`)).json() as { artifacts: { artifactId: string; available: boolean }[] };
     assert.deepEqual(afterRestart.artifacts.map(entry => entry.artifactId).sort(), identities.slice().sort());
     assert.ok(afterRestart.artifacts.every(entry => entry.available));
     const afterBytes = await Promise.all(identities.map(async artifactId => {
-      const response = await fetch(`${base}/artifacts/versions?conversationId=deliveries&artifactId=${encodeURIComponent(artifactId)}`);
+      const response = await authFetch(`${base}/artifacts/versions?conversationId=deliveries&artifactId=${encodeURIComponent(artifactId)}`);
       const body = await response.json() as { selectedVersionId: string };
-      return (await fetch(`${base}/files/download?conversationId=deliveries&artifactId=${encodeURIComponent(artifactId)}&versionId=${body.selectedVersionId}`)).text();
+      return (await authFetch(`${base}/files/download?conversationId=deliveries&artifactId=${encodeURIComponent(artifactId)}&versionId=${body.selectedVersionId}`)).text();
     }));
     assert.deepEqual(new Set(afterBytes), new Set(["A", "B"]));
-    assert.equal((await fetch(`${base}/conversations/deliveries`, { method: "DELETE" })).status, 200);
-    assert.equal((await fetch(`${base}/artifacts/versions?conversationId=deliveries&artifactId=${encodeURIComponent(identities[0])}`)).status, 404);
+    assert.equal((await authFetch(`${base}/conversations/deliveries`, { method: "DELETE" })).status, 200);
+    assert.equal((await authFetch(`${base}/artifacts/versions?conversationId=deliveries&artifactId=${encodeURIComponent(identities[0])}`)).status, 404);
   } finally {
     if (server) await close(server, host); else host.dispose();
     rmSync(root, { recursive: true, force: true });
@@ -287,6 +290,7 @@ test("real group publishing keeps a dotted public run identity through HTTP", as
   try {
     ({ server } = await listen(host));
     const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+    const authFetch = await authenticatedFetch(host, base);
     const requestId = "group.run.1";
     await host.controller.runGroupPrompt({ conversationId: "group.real", requestId, prompt: "@assistant 保存交付", agentPreset: "assistant" }, () => {});
     const conversation = host.controller.getConversation("group.real");
@@ -296,17 +300,17 @@ test("real group publishing keeps a dotted public run identity through HTTP", as
     assert.ok(finished);
     assert.equal(finished.runId, requestId);
     assert.match(String(finished.payload.artifactId), /^assistant~published_version_/);
-    const catalog = await (await fetch(`${base}/artifacts?conversationId=group.real`)).json() as { artifacts: { artifactId: string }[] };
+    const catalog = await (await authFetch(`${base}/artifacts?conversationId=group.real`)).json() as { artifacts: { artifactId: string }[] };
     assert.equal(catalog.artifacts.length, 1);
     const artifactId = catalog.artifacts[0].artifactId;
     assert.match(artifactId, /^\["group\.run\.1","artifactId","assistant~published_version_/);
-    const versionsResponse = await fetch(`${base}/artifacts/versions?conversationId=group.real&artifactId=${encodeURIComponent(artifactId)}`);
+    const versionsResponse = await authFetch(`${base}/artifacts/versions?conversationId=group.real&artifactId=${encodeURIComponent(artifactId)}`);
     assert.equal(versionsResponse.status, 200);
     const versions = await versionsResponse.json() as { versions: { versionId: string; artifactId: string }[]; selectedVersionId: string; source: { scope: string; path: string } };
     assert.equal(versions.versions.length, 1);
     assert.equal(versions.versions[0].artifactId, artifactId);
     assert.deepEqual(versions.source, { scope: "assistant", path: fileName });
-    const download = await fetch(`${base}/files/download?conversationId=group.real&artifactId=${encodeURIComponent(artifactId)}&versionId=${versions.selectedVersionId}`);
+    const download = await authFetch(`${base}/files/download?conversationId=group.real&artifactId=${encodeURIComponent(artifactId)}&versionId=${versions.selectedVersionId}`);
     assert.equal(download.status, 200);
     assert.equal(await download.text(), "group snapshot");
   } finally {

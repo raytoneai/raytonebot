@@ -1,3 +1,4 @@
+import { controlPlaneSession } from "./controlPlaneSession";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { BROWSER_STREAM_URL, browserControl, browserLogin, browserSelectTab, getBrowserState, sendBrowserInputs } from "../pi/piClient";
@@ -53,7 +54,13 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
 
   useEffect(() => {
     if (!visible || !foreground) { setConnected(false); setFrame(undefined); latency.current.reset(); return; }
-    const source = new EventSource(BROWSER_STREAM_URL);
+    const auth = controlPlaneSession.getSnapshot();
+    if (auth.enabled && !auth.authenticated) return;
+    const source = new EventSource(BROWSER_STREAM_URL, { withCredentials: true });
+    const unsubscribe = controlPlaneSession.subscribe(() => {
+      const auth = controlPlaneSession.getSnapshot();
+      if (auth.enabled && !auth.authenticated) { source.close(); setConnected(false); setFrame(undefined); setState(undefined); inputs.reset(); }
+    });
     source.addEventListener("open", () => setConnected(true));
     source.addEventListener("error", () => { setConnected(false); setFrame(undefined); latency.current.reset(); });
     source.addEventListener("state", (event) => {
@@ -66,7 +73,7 @@ export function useBrowserView(visible: boolean): BrowserViewModel {
       lastFrameSeq.current = next.seq ?? 0;
       setFrame({ src: `data:image/jpeg;base64,${next.data}`, width: next.width, height: next.height, pageId: next.pageId, seq: next.seq, capturedAt: next.capturedAt, inputId: next.inputId });
     });
-    return () => { source.close(); setConnected(false); };
+    return () => { unsubscribe(); source.close(); setConnected(false); };
   }, [visible, foreground, acceptState]);
 
   // The state alone (available or not) is enough for the switch before the view opens.

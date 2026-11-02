@@ -1,0 +1,28 @@
+{
+  "kind": "local-package-content-verification",
+  "noDeploy": true,
+  "packages": [
+    {
+      "name": "agentmatrix",
+      "archiveBytes": 9478654,
+      "fileCount": 1001,
+      "readableFileCount": 801,
+      "manifestHash": "6a821ad0a10716b25730da78743e7b10e56c4ff3ca1ab9e657c98ba4c0e96ad2",
+      "archiveHash": "0fd6862e904ee181b4dca455dcbc68cf73d976ad3015f5329cee3e1cfb0545fd",
+      "gitRevision": "093309a404b5ec139a0e2b596b665f0389b44a6f",
+      "dirty": true
+    },
+    {
+      "name": "agentsphere",
+      "archiveBytes": 9337892,
+      "fileCount": 971,
+      "readableFileCount": 771,
+      "manifestHash": "252435383b6f2ce5885fb7f0f336cd34a97400f67295b4e9e333be9fa0fa9b58",
+      "archiveHash": "3a29ab419ff2d0f7ebecd3c3f40e50de834ca4ad0f3dc429a5f0b3be22b903cd",
+      "gitRevision": "093309a404b5ec139a0e2b596b665f0389b44a6f",
+      "dirty": true
+    }
+  ],
+  "errors": [],
+  "realIndexUnchanged": true
+}

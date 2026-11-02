@@ -106,6 +106,9 @@ function accessGate(publicOrigin, password, handoff, { trustProxy = false, previ
   const headerLog = process.env.RAYTONEBOT_HEADER_LOG;
 
   return (req, res, next) => {
+    const contextKey = Symbol.for('raytonebot.trusted-cloud-control-context.v1');
+    delete req[contextKey];
+    for (const name of Object.keys(req.headers)) if (/^x-raytone(?:bot)?-(?:control|identity|principal|authenticated|authorized|user)(?:-|$)/i.test(name)) delete req.headers[name];
     // Bounded, opt-in diagnostic for adapting to a new reverse proxy. Never record query
     // strings, credentials, cookies, or arbitrary headers from an unauthenticated request.
     appendHeaderDiagnostic(headerLog, req, origin.origin);
@@ -160,6 +163,7 @@ function accessGate(publicOrigin, password, handoff, { trustProxy = false, previ
       return reject(403, 'Cross-origin requests are not allowed');
     }
     delete req.headers.authorization;
+    req[contextKey] = Object.freeze({ principal: 'cloud-owner', publicOrigin: origin.origin });
     req.headers.host = new URL(localOrigin).host;
     if (req.headers.origin !== undefined) req.headers.origin = localOrigin;
     next();
@@ -220,6 +224,11 @@ if (process.argv.includes('--check')) {
   assert.equal(valid.req.headers.origin, localOrigin);
   assert.equal(valid.req.headers.host, '127.0.0.1:5188');
   assert.equal(valid.req.headers.authorization, undefined);
+  const forged = check({ authorization: auth, 'x-raytone-control-identity': 'attacker', 'x-raytonebot-user': 'attacker' });
+  assert.equal(forged.req.headers['x-raytone-control-identity'], undefined);
+  assert.equal(forged.req.headers['x-raytonebot-user'], undefined);
+  assert.deepEqual(forged.req[Symbol.for('raytonebot.trusted-cloud-control-context.v1')], { principal: 'cloud-owner', publicOrigin: origin });
+  assert.equal(check({ 'x-raytone-control-identity': 'cloud-owner' }).res.statusCode, 401);
   assert.throws(() => accessGate('http://preview.example.com', password));
   assert.throws(() => accessGate(`${origin}/unexpected`, password));
   assert.throws(() => accessGate(origin, 'short'));

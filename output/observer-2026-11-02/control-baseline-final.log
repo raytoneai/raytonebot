@@ -1,0 +1,10 @@
+✔ OB-00: HTTP and real auto Pi Bash cannot self-approve; authenticated developer can approve (1363.876375ms)
+ℹ Authenticated developer approval persists; anonymous/forged/real model lease and real auto Pi Bash requests leave candidate and revision unchanged. Cloud deployment isolation is unverified.
+ℹ tests 1
+ℹ suites 0
+ℹ pass 1
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 5198.316666

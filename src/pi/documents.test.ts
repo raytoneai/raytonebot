@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { mkdtemp, mkdir, readFile, rm, symlink, writeFile, link, stat } from "node:fs/promises";
@@ -51,7 +52,8 @@ test("document HTTP saves source metadata, conflicts preserve bytes, and a new c
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
-  const post = (path: string, value: unknown, method = "POST") => fetch(url + path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
+  const authFetch = await authenticatedFetch(host, url);
+  const post = (path: string, value: unknown, method = "POST") => authFetch(url + path, { method, headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
   try {
     await host.controller.runPrompt({ conversationId: "source", prompt: "Create document" }, () => {});
     const saved = await post("/documents", { scope: "shared", name: "Guide.md", content: "original", conversationId: "source", artifactId: "published_test" });
@@ -60,7 +62,7 @@ test("document HTTP saves source metadata, conflicts preserve bytes, and a new c
     const edited = await post("/documents", { scope: "shared", path: doc.path, content: "updated alpha", version: doc.version }, "PUT");
     assert.equal(edited.status, 200);
     assert.equal((await post("/documents", { scope: "shared", path: doc.path, content: "bad", version: doc.version }, "PUT")).status, 409);
-    const opened = await (await fetch(`${url}/documents?${new URLSearchParams({ scope: "shared", path: doc.path })}`)).json();
+    const opened = await (await authFetch(`${url}/documents?${new URLSearchParams({ scope: "shared", path: doc.path })}`)).json();
     assert.equal(opened.source.conversationId, "source"); assert.equal(opened.source.artifactId, "published_test"); assert.equal(typeof opened.source.title, "string");
     assert.equal(opened.content, "updated alpha");
     await host.controller.runPrompt({ conversationId: "next", prompt: "Read the latest", attachments: [{ scope: "shared", path: doc.path }] }, () => {});
@@ -75,7 +77,7 @@ test("document HTTP saves source metadata, conflicts preserve bytes, and a new c
     await assert.rejects(host.controller.runPrompt(request, () => {}), /already.*submitted/);
     assert.equal(prompts.length, calls);
     await assert.rejects(host.controller.runPrompt({ ...request, requestId: "wrong" }, () => {}), /identity/);
-    const found = await (await fetch(`${url}/files?scope=shared&query=alpha`)).json(); assert.equal(found.files.length, 1);
+    const found = await (await authFetch(`${url}/files?scope=shared&query=alpha`)).json(); assert.equal(found.files.length, 1);
     const foreign = await fetch(`${url}/documents`, { method: "POST", headers: { origin: "https://example.com", "content-type": "application/json" }, body: JSON.stringify({ scope: "shared", name: "bad.md", content: "no" }) });
     assert.equal(foreign.status, 403);
   } finally { host.dispose(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); await rm(root, { recursive: true, force: true }); }
@@ -100,12 +102,13 @@ test("a document body that finishes after a run starts is rejected before any fi
   });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
+  const authFetch = await authenticatedFetch(host, url);
   const body = JSON.stringify({ scope: "shared", name: "Race.md", content: "must not be written" });
   let request: ReturnType<typeof httpRequest> | undefined;
   let running: Promise<void> | undefined;
   try {
     const response = new Promise<{ status: number; body: string }>((resolve, reject) => {
-      request = httpRequest(url + "/documents", { method: "POST", headers: { "content-type": "application/json", "content-length": Buffer.byteLength(body) } }, response => {
+      request = httpRequest(url + "/documents", { method: "POST", headers: { ...authFetch.headers, "content-type": "application/json", "content-length": Buffer.byteLength(body) } }, response => {
         const chunks: Buffer[] = [];
         response.on("data", chunk => chunks.push(Buffer.from(chunk)));
         response.on("end", () => resolve({ status: response.statusCode ?? 0, body: Buffer.concat(chunks).toString("utf8") }));
@@ -143,7 +146,8 @@ test("the document write window blocks solo, group and invitation admission unti
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
-  const post = (value: unknown) => fetch(url + "/documents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
+  const authFetch = await authenticatedFetch(host, url);
+  const post = (value: unknown) => authFetch(url + "/documents", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(value) });
   const guest = { id: "bot_88888888-8888-8888-8888-888888888888", name: "Reviewer", presetId: "assistant" as const };
   let release!: () => void, entered!: () => void;
   const writeEntered = new Promise<void>(resolve => { entered = resolve; });

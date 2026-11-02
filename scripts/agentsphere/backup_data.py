@@ -2,9 +2,11 @@
 from __future__ import annotations
 
 import gzip
+import json
 import os
 import posixpath
 import pwd
+import re
 import shutil
 import signal
 import subprocess
@@ -18,6 +20,7 @@ REQUIRED_PATHS = ["/home/user/.raytonebot/data", "/home/user/workspace"]
 # The browser profile holds the user's website logins (ADR-040): restored like the rest, caches left out.
 BROWSER_PROFILE = "/home/raytone-browser/profile"
 ARTIFACT_VERSIONS = "/home/user/.raytonebot/data.artifact-versions"
+OBSERVER_DATA = "home/user/.raytonebot/data/observer"
 DATA_PATHS = [*REQUIRED_PATHS, "/home/user/.claude/projects", "/home/user/.claude/tasks", "/home/user/.codex/sessions",
               "/home/raytone-agent/.claude/projects", "/home/raytone-agent/.claude/tasks", "/home/raytone-agent/.codex/sessions",
               "/home/raytone-agent/.raytone-dsh",
@@ -28,6 +31,9 @@ ARCHIVE_PATHS = [path.lstrip("/") for path in DATA_PATHS]
 
 
 def allowed(name: str) -> bool:
+    if name.startswith(OBSERVER_DATA + "/"):
+        relative = name[len(OBSERVER_DATA) + 1:]
+        return relative in ("state.json", "manifests") or bool(re.fullmatch(r"manifests/[a-f0-9]{64}\.json", relative))
     return any(name == root or name.startswith(root + "/") for root in ARCHIVE_PATHS)
 
 
@@ -48,6 +54,8 @@ def validate_archive(archive: Path) -> list[str]:
             seen.add(name)
             if name.startswith(ARTIFACT_VERSIONS.lstrip("/") + "/") and (member.issym() or member.islnk()):
                 raise ValueError("delivered artifact versions must not contain links")
+            if (name == OBSERVER_DATA or name.startswith(OBSERVER_DATA + "/")) and (member.issym() or member.islnk()):
+                raise ValueError("Observer state must not contain links")
             if name in ARCHIVE_PATHS:
                 if not member.isdir():
                     raise ValueError(f"backup root must be a directory: {name}")
@@ -68,6 +76,13 @@ def validate_archive(archive: Path) -> list[str]:
 
 
 def create_archive(archive: Path, root: Path = Path("/")) -> None:
+    observer = root / OBSERVER_DATA
+    if observer.exists() or observer.is_symlink():
+        if (observer.is_symlink() or not observer.is_dir()
+                or any(path.is_symlink() or not allowed(path.relative_to(root).as_posix())
+                       or (path.name != "manifests" and not path.is_file())
+                       or (path.name == "manifests" and not path.is_dir()) for path in observer.rglob("*"))):
+            raise ValueError("Observer backup accepts only structured state; stop writers and remove temporary contexts before backing up")
     paths = []
     for name in DATA_PATHS:
         source = root / name.lstrip("/")
@@ -164,6 +179,23 @@ def restore_archive(archive: Path, root: Path = Path("/"), before_restore=None, 
         if versions.exists():
             for path in [versions, *versions.rglob("*")]:
                 path.chmod(0o700 if path.is_dir() else 0o600)
+        observer = stage / OBSERVER_DATA
+        if observer.exists():
+            for path in [observer, *observer.rglob("*")]:
+                path.chmod(0o700 if path.is_dir() else 0o600)
+            state_file = observer / "state.json"
+            if state_file.exists():
+                state_file.chmod(0o600)
+                state = json.loads(state_file.read_text())
+                if (not isinstance(state, dict) or state.get("schemaVersion") != 1 or not isinstance(state.get("settings"), dict)
+                        or type(state.get("revision")) is not int or type(state["settings"].get("revision")) is not int
+                        or type(state["settings"].get("background")) is not bool):
+                    raise ValueError("unsupported Observer restore state")
+                if state["settings"].get("background") is True:
+                    state["settings"]["background"] = False
+                    state["settings"]["revision"] += 1
+                    state["revision"] += 1
+                    state_file.write_text(json.dumps(state, ensure_ascii=False, separators=(",", ":")))
         if prepare_stage:
             prepare_stage(stage, roots)
         for name in roots:

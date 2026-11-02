@@ -3,12 +3,13 @@ import { useEffect, useState } from "react";
 import { isAgentPresetId, type AgentPresetId } from "../pi/harnessCatalog.ts";
 import type { SearchSession } from "./useConversationSearch.ts";
 
-export type HistoryGroupId = AgentPresetId | "group" | "other" | `bot_${string}`;
+export type HistoryGroupId = AgentPresetId | "system:observer" | "group" | "other" | `bot_${string}`;
 
-export function conversationHistoryGroup(session: { id: string; agentPreset?: string; groupMembers?: string[]; group?: { members: string[] } }, botIds?: Record<string, string>): HistoryGroupId {
+export function conversationHistoryGroup(session: { id: string; agentPreset?: string; groupMembers?: string[]; systemRole?: string; group?: { members: string[] } }, botIds?: Record<string, string>): HistoryGroupId {
+  if (session.systemRole === "observer") return "system:observer";
   if (isGroupConversation(session)) return "group";
   const botId = botIds?.[session.id];
-  if (botId && (isAgentPresetId(botId) || botId.startsWith("bot_"))) return botId as HistoryGroupId;
+  if (botId && (isAgentPresetId(botId) || botId === "system:observer" || botId.startsWith("bot_"))) return botId as HistoryGroupId;
   return isAgentPresetId(session.agentPreset) ? session.agentPreset : "other";
 }
 

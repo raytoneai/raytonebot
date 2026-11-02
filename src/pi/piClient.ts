@@ -1,3 +1,6 @@
+import { conversationHasRequestReceipt } from "./piConversationState.ts";
+import { controlPlaneMessage } from "../i18n/copy/controlPlane.ts";
+import { controlPlaneFetch } from "../runtime/controlPlaneSession.ts";
 import type { BotProfile, BotConfigView } from "../runtime/botProfiles.ts";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 
@@ -32,7 +35,7 @@ export async function listPiFiles(scope: PiFileScope, path = "", signal?: AbortS
 
 export async function uploadPiFile(file: File, scope: PiFileScope, signal?: AbortSignal): Promise<PiFileReference> {
   const timeout = AbortSignal.timeout(60_000);
-  const response = await fetch(`${PI_API_PREFIX}/files?${new URLSearchParams({ scope, name: file.name })}`, {
+  const response = await controlPlaneFetch(`${PI_API_PREFIX}/files?${new URLSearchParams({ scope, name: file.name })}`, {
     method: "POST", body: file, signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
     headers: { "content-type": "application/octet-stream" },
   });
@@ -68,7 +71,7 @@ export async function getArtifactVersions(
 /** Reused attachments may have been removed since the original turn. Check before acceptance. */
 export async function checkPiAttachment(file: PiPromptAttachment, signal?: AbortSignal, fetcher: typeof fetch = fetch): Promise<void> {
   const timeout = AbortSignal.timeout(15_000);
-  const response = await fetcher(piFileDownloadUrl(file.scope, file.path), {
+  const response = await authorizedFetch(fetcher, piFileDownloadUrl(file.scope, file.path), {
     method: "HEAD", signal: signal ? AbortSignal.any([signal, timeout]) : timeout,
   });
   if (!response.ok) throw new PiRequestError(response.status, `Attachment ${file.name ?? file.path} is unavailable (${response.status}). Restore or remove it before sending.`);
@@ -142,6 +145,7 @@ export type PiRuntimeConfiguration = {
 };
 
 export type PiPromptInput = {
+  observerHandoff?: string;
   referencedConversationIds?: string[];
   members?: string[];
   botId?: string;
@@ -185,6 +189,8 @@ export async function testProviderConnection(
 }
 
 export type StoredConversationSummary = {
+  systemRole?: "observer";
+  acceptedRequestIds?: string[];
   botId?: string;
   availableBots?: import("./groupParticipants.ts").GroupParticipant[];
   group?: { members: string[]; participants?: import("./groupParticipants.ts").GroupParticipant[]; hostId?: string; preserveTitle?: boolean; preview?: { author: string; text: string } };
@@ -240,13 +246,13 @@ export async function updateGroupMembers(conversationId: string, members: string
 
 /** Removes the saved transcript. The host refuses (409) while a run is active in it. */
 export async function deleteStoredConversation(id: string, fetcher: typeof fetch = fetch): Promise<void> {
-  const response = await fetcher(`${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+  const response = await authorizedFetch(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
 }
 
 /** Renames a saved conversation. The host refuses (409) while a run is active in it. */
 export async function renameStoredConversation(id: string, title: string, fetcher: typeof fetch = fetch): Promise<string> {
-  const response = await fetcher(`${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, { method: "PATCH",
+  const response = await authorizedFetch(fetcher, `${PI_API_PREFIX}/conversations/${encodeURIComponent(id)}`, { method: "PATCH",
     headers: { "content-type": "application/json" }, body: JSON.stringify({ title }), signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Rename failed"));
   return ((await response.json()) as { title: string }).title;
@@ -277,7 +283,7 @@ export async function sendBrowserInputs(inputs: BrowserInput[], signal: AbortSig
 export const BROWSER_STREAM_URL = `${PI_API_PREFIX}/browser/stream`;
 
 async function vaultRequest(method: "GET" | "POST" | "DELETE", body?: unknown): Promise<VaultState> {
-  const response = await fetch(`${PI_API_PREFIX}/vault`, { method, cache: "no-store", signal: AbortSignal.timeout(15_000),
+  const response = await controlPlaneFetch(`${PI_API_PREFIX}/vault`, { method, cache: "no-store", signal: AbortSignal.timeout(15_000),
     headers: { "x-raytone-vault": "1", ...(body ? { "content-type": "application/json" } : {}) },
     ...(body ? { body: JSON.stringify(body) } : {}),
   });
@@ -291,7 +297,7 @@ export const deleteVault = (id: string, revision: number): Promise<VaultState> =
 /** Secret answers go directly to the host, never through chat/input or event storage. */
 export async function answerVaultRequest(conversationId: string, requestId: string, runId: string, answer: VaultRequestAnswer,
   fetcher: typeof fetch = fetch): Promise<VaultUseResult> {
-  const response = await fetcher(`${PI_API_PREFIX}/vault/requests/${encodeURIComponent(requestId)}/answer`, {
+  const response = await authorizedFetch(fetcher, `${PI_API_PREFIX}/vault/requests/${encodeURIComponent(requestId)}/answer`, {
     method: "POST", headers: { "content-type": "application/json", "x-raytone-vault": "1" }, cache: "no-store",
     body: JSON.stringify({ conversationId, runId, answer }), signal: AbortSignal.timeout(30_000),
   });
@@ -328,7 +334,7 @@ export async function setMemoryEnabled(enabled: boolean, fetcher: typeof fetch =
 }
 
 export async function deleteMemory(id: string, fetcher: typeof fetch = fetch): Promise<void> {
-  const response = await fetcher(`${PI_API_PREFIX}/memories/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+  const response = await authorizedFetch(fetcher, `${PI_API_PREFIX}/memories/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
 }
 
@@ -347,7 +353,7 @@ export async function refreshMcpServer(id: string, fetcher: typeof fetch = fetch
 }
 
 export async function deleteMcpServer(id: string, fetcher: typeof fetch = fetch): Promise<void> {
-  const response = await fetcher(`${PI_API_PREFIX}/mcp/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+  const response = await authorizedFetch(fetcher, `${PI_API_PREFIX}/mcp/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
 }
 
@@ -407,7 +413,7 @@ export async function runRoutineNow(id: string, fetcher: typeof fetch = fetch): 
 }
 
 export async function deleteRoutine(id: string, fetcher: typeof fetch = fetch): Promise<void> {
-  const response = await fetcher(`${PI_API_PREFIX}/routines/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
+  const response = await authorizedFetch(fetcher, `${PI_API_PREFIX}/routines/${encodeURIComponent(id)}`, { method: "DELETE", signal: AbortSignal.timeout(15_000) });
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
 }
 
@@ -442,7 +448,7 @@ export async function resolvePiApproval(
   signal?: AbortSignal,
 ): Promise<boolean> {
   const timeout = AbortSignal.timeout(15_000);
-  const response = await fetcher(`${PI_API_PREFIX}/approval`, {
+  const response = await authorizedFetch(fetcher, `${PI_API_PREFIX}/approval`, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({ toolCallId, decision, conversationId, runId }),
@@ -538,7 +544,7 @@ export async function* followPiTurn(
   );
   if (response.status === 409) {
     const saved = await getStoredConversation(conversationId, options.fetcher, options.signal);
-    if (options.requestId && !saved.events.some((event) => event.runId === options.requestId)) {
+    if (options.requestId && !conversationHasRequestReceipt(saved, options.requestId)) {
       throw new PiRequestError(409, "Message receipt is unconfirmed. It was not resent automatically. Check the task before retrying.");
     }
     for (const event of saved.events.slice(Math.max(0, after))) {
@@ -553,6 +559,9 @@ export async function* followPiTurn(
     if (event.runId === options.requestId) received = true;
     yield event;
   }
+  if (!received && !options.signal?.aborted && conversationId.startsWith("observer:")) {
+    received = conversationHasRequestReceipt(await getStoredConversation(conversationId, options.fetcher, options.signal), options.requestId!);
+  }
   if (!received && !options.signal?.aborted) {
     throw new PiRequestError(409, "Message receipt is unconfirmed. It was not resent automatically. Check the task before retrying.");
   }
@@ -563,7 +572,7 @@ async function fetchStream(fetcher: typeof fetch, url: string, init: RequestInit
   const timeout = new AbortController();
   const timer = setTimeout(() => timeout.abort(new Error("Pi connection timed out.")), 15_000);
   try {
-    return await fetcher(url, { ...init, signal: init.signal ? AbortSignal.any([init.signal, timeout.signal]) : timeout.signal });
+    return await authorizedFetch(fetcher, url, { ...init, signal: init.signal ? AbortSignal.any([init.signal, timeout.signal]) : timeout.signal });
   } finally {
     clearTimeout(timer);
   }
@@ -631,7 +640,7 @@ async function requestJson<T = Record<string, unknown>>(
   body?: unknown,
   signal?: AbortSignal,
 ): Promise<T> {
-  const response = await fetcher(url, body === undefined ? (signal ? { signal } : undefined) : {
+  const response = await authorizedFetch(fetcher, url, body === undefined ? (signal ? { signal } : undefined) : {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify(body),
@@ -643,7 +652,11 @@ async function requestJson<T = Record<string, unknown>>(
 
 async function responseError(response: Response, fallback: string): Promise<string> {
   try {
-    const body = await response.json() as { error?: string };
+    const body = await response.json() as { error?: string; code?: string };
+    if (body.code?.startsWith("control_")) {
+      const lang = typeof document === "undefined" ? "en" : document.documentElement.lang;
+      return controlPlaneMessage(lang.startsWith("zh") ? "zh" : lang.startsWith("ja") ? "ja" : "en", body.code);
+    }
     return body.error || `${fallback}: ${response.status}`;
   } catch {
     return `${fallback}: ${response.status} ${response.statusText}`.trim();
@@ -671,7 +684,7 @@ export async function readPiDocument(scope: PiFileScope, path: string): Promise<
   return requestJson(fetch, `${PI_API_PREFIX}/documents?${new URLSearchParams({ scope, path })}`, undefined, AbortSignal.timeout(15000));
 }
 export async function savePiDocument(input: { scope: PiFileScope; path?: string; name?: string; content: string; version?: string; conversationId?: string; artifactId?: string }): Promise<PiDocument> {
-  const response = await fetch(`${PI_API_PREFIX}/documents`, { method: input.path ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input), signal: AbortSignal.timeout(15000) });
+  const response = await controlPlaneFetch(`${PI_API_PREFIX}/documents`, { method: input.path ? "PUT" : "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input), signal: AbortSignal.timeout(15000) });
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Document save failed"));
   return response.json();
 }
@@ -704,4 +717,8 @@ export async function getLearning(): Promise<import("./learning/types.ts").Learn
 }
 export async function updateLearning(action: import("./learning/types.ts").LearningAction): Promise<import("./learning/types.ts").LearningView> {
   return requestJson(fetch, `${PI_API_PREFIX}/learning`, action, AbortSignal.timeout(15_000));
+}
+
+function authorizedFetch(fetcher: typeof fetch, url: RequestInfo | URL, init?: RequestInit): Promise<Response> {
+  return controlPlaneFetch(url, init, fetcher);
 }

@@ -1,5 +1,17 @@
 # 02 架构
 
+## Observer 架构（ADR-059，本机实现）
+
+[Observer 方案](13-observer.md) 在原 Node host 内区分现有无工具 RSL、无工具 L1 统计解释和带受控查询的 L2 诊断。`src/pi/observer/` 管理私有状态、版本、查询、统计、专用 Pi 装配与调度；`src/pi/learning/` 保留经验提议/审核/复用。原设置、侧栏、聊天及 Output 承担界面，系统身份固定为 `system:observer`，私有会话使用 `observer:` 前缀，不写入普通 Bot store 或原生会话。
+
+`controlPlaneAuth.ts` 在原 HTTP host 检查短期 HttpOnly 用户会话；写入使用 `x-raytonebot-csrf`，开发者范围单独授予。`/auth/exchange`、`/auth/session`、`/auth/developer/grant|revoke`、`/auth/logout` 均在 `/__agentcanvas/pi` 下。本机入口只经交互 Vite 主机直接打开的一次性 fragment 提供；云端交换依赖原入口已验证的请求上下文，不信任外部自报身份头。前端凭据不持久化，撤销/退出会清除私有视图并终止读取。元数据审计位于同级 `<dataDir>.control-plane/`；无匿名管理写兼容。完整清单见 [14](14-control-plane-inventory.md)。
+
+`GET /observer` 返回状态、预算与 finding 列表，`POST /observer` 承担设置、L1、停止、审核、删除、交接和经验提议；`GET /observer/findings/:id?revision=` 与 `/observer/evidence?findingId=&revision=&evidenceId=` 提供开发者回查。L2 的 prompt/stop/history/search/live 复用既有路径并检查系统身份及开发者范围；查询仅是绑定运行的内部能力，不存在任意查询执行 HTTP API。
+
+`<dataDir>/observer/state.json`（schema 1）保存有界结构记录，完整构建清单在私有 `manifests/<hash>.json` 去重保存，目录/文件为 0700/0600。来源绑定实例、会话世代与内容版本；先持久化删除标记，再撤销查询及多来源派生记录。工具原文和模型上下文仅在内存，历史/搜索/Output 只投影问题、报告、引用和经过过滤的状态。L2 不加载个人扩展、原生上下文、浏览器或通用工具。后台队列仅内存，重启不补跑且后台关闭。
+
+本机工作树使用受跟踪文件清单，部署读取实际包内 `OBSERVER-BUILD.json` 并核对字节；配置/代码/证据失效后不能继续批准、交接或注入旧经验。所有云环境 L2 暂不开放，不以已有隔离环境变量代替逐平台验证。实施与验收状态见 [T6.11](03-roadmap.md#t611) 和 [本机证据](../../output/observer-2026-11-02/README.md)。
+
 ## 例行任务等待与业务报告（2026-11-02）
 
 原 `SettingsDialog` 例行任务行、详情与历史展示当前等待原因、数量和时长。服务只检查对应活动 run；审批、提问、Vault 与频道设置分别关联解除事件，终态与其他轮次不能延续等待。`conversationRecorder` 在等待事件落盘/广播前覆盖主机观察时间 `waitObservedAt`，不使用适配器合成的 `event.ts` 计算等待时长。老事件没有观察时间时明确未知；重复事件保留首次等待时间。沿原设置轮询刷新，30 分钟提示打开会话；没有页面关闭后的推送或新增汇总入口。
@@ -32,7 +44,7 @@
 
 ## RSL 可选学习（2026-10-29）
 
-`src/pi/learning/` 在现有主机内管理独立 `learning/state.json`。`GET/POST /__agentcanvas/pi/learning` 由原鉴权与 Origin 检查保护，设置保存带 revision。SettingsDialog 的开发者分区管理开关、每日预算、候选审核/停用/删除及用量。默认关闭。
+`src/pi/learning/` 在现有主机内管理独立 `learning/state.json`。`GET/POST /__agentcanvas/pi/learning` 执行现有 Origin 检查，云入口另有鉴权；本机无 Origin 请求仍被接受，不具备独立的用户控制面会话授权。该缺口由 [T6.11.0a/0b](03-roadmap.md#t611-0a) 处理，不能宣称已阻止本机 Agent 自批。设置保存带 revision；SettingsDialog 的开发者分区管理开关、每日预算、候选审核/停用/删除及用量，默认关闭。
 
 普通轮次可靠结束后可入有界内存队列，空闲时用原模型服务做一次无工具分析；前台任务到来取消。批准经验可按同 Bot/引擎相关性注入后续轮次，不改变原模型、工具、审批或原生 session。坏存储只停用 RSL；队列不持久化，不重放。范围、预算与限制见 ADR-056；真实效果尚待模型对照评测。
 

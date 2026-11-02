@@ -652,3 +652,12 @@
 @media (max-width: 720px) { .routine-run-summary { padding-left: 14px; } }
 .routine-waiting-details .settings-status { display: grid; grid-template-columns: 7px minmax(0, 1fr); align-items: start; }
 .routine-waiting-details .settings-status > .settings-dot { margin-top: 5px; }
+
+[data-observer-settings] .settings-row { flex-wrap: wrap; justify-content: space-between; padding-inline: 0; }
+[data-observer-settings] .settings-row > span { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+[data-observer-settings] :is(input[type="number"], select, textarea) { box-sizing: border-box; max-width: 100%; min-width: 0; border: var(--border-width) solid var(--border-subtle); border-radius: 8px; padding: 8px; color: var(--text-primary); background: var(--surface-inset); font: inherit; }
+[data-observer-settings] input[type="number"] { width: 120px; }
+[data-observer-settings] textarea { width: 100%; min-height: 80px; resize: vertical; }
+[data-observer-settings] .settings-provider-card { overflow-wrap: anywhere; }
+[data-observer-settings] .settings-provider-actions { flex-wrap: wrap; }
+[data-observer-settings] .ui-button { max-width: 100%; white-space: normal; height: auto; min-height: 32px; }

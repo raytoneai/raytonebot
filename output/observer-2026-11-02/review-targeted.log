@@ -1,0 +1,84 @@
+✔ control plane is private by default; public health and preflight disclose no credentials (89.192ms)
+✔ local one-time exchange, CSRF, developer grant/revoke, logout and expiry preserve boundaries (85.420667ms)
+✔ authorization audit failure blocks mutations; RSL provenance is committed atomically with state (59.697041ms)
+✔ cloud identity stays in trusted request context; sessions require it on every request (49.733583ms)
+✔ slow JSON and upload bodies cannot commit after their session is revoked (381.050542ms)
+✔ package manifests cover real bytes without Git; readable scope includes observer/learning/docs/scripts/vendor but not dist or secrets (38.83075ms)
+✔ local tracked manifest excludes untracked private files and identifies dirty byte changes without changing HEAD (245.063834ms)
+✔ capabilities cannot be forged; source generation and declared scope constrain private reads (269.576167ms)
+✔ only public messages and lifecycle metadata reach queries; secrets and raw tool/native reasoning never enter persistent evidence (260.559834ms)
+✔ host facts and typed actions cannot be replaced by model-authored facts or foreign fact IDs (139.3655ms)
+✔ tombstone is durable before revocation; deleting one source removes multi-source derived content and rejects late publication and ID reuse (187.368708ms)
+✔ failed derived cleanup keeps a persistent tombstone and fails closed; restart finishes cleanup before exposing reports (133.180334ms)
+✔ source content, repository bytes and model config changes invalidate evidence; run TTL does not expire a saved finding (137.477917ms)
+✖ concurrent queries respect cumulative budgets and cancellation; failed/cancelled model requests remain charged across restart (105.407667ms)
+✔ aggregate counts separate errors, cancellations and business outcomes and allow no-findings reports (75.382667ms)
+✔ scoped log evidence rejects unrelated/deleted generations, supports bounded replay, and rejects rotation before publication (101.110792ms)
+✔ config and usage evidence are revalidated at publication and opened only while their exact snapshot exists (97.863084ms)
+✔ pagination is bound to query and fixed source versions; changed source cannot mix pages (121.827166ms)
+✔ model output rejects extra executable fields, mismatched target categories and dangling evidence; review preserves original authorization (100.955083ms)
+✔ repeated supported findings explicitly supersede prior approvals without inheriting acceptance; deleting private history frees run metadata (151.950833ms)
+✔ aggregate denominator counts runs, excludes unknown timestamps, and reports routine policy and duration baseline gaps (66.017458ms)
+✔ background toggle preserves manual capability; actual model changes invalidate it and generation tombstones cannot be bypassed by re-registering old birth (149.899666ms)
+✔ manifest metadata is private, deduplicated and bounded across build refreshes; conflicting existing manifest is never trusted (557.949458ms)
+✖ async manifest creation and repository verification yield to cancellation instead of blocking ordinary host work (19.434041ms)
+✔ default no-Git deployment discovers its package manifest and refuses a malformed manifest without fallback (24.118625ms)
+✔ metadata byte quota rejects incremental query growth without corrupting storage; terminal and deletion writes retain reserved space (210.704459ms)
+✔ Observer HTTP has a reserved host identity, developer-only history/evidence, durable reports and independent ordinary history (474.659167ms)
+✔ a revoked developer request cannot cross asynchronous repository preparation, and scope regrant does not revive its proof (177.301583ms)
+✔ session expiry cancels an accepted manual Observer run, and trusted but unverified cloud ingress cannot open L2 (545.127166ms)
+✔ L1 has one bounded tool-free request, reports usage, and rejects forged facts or redirect following (3.504792ms)
+✔ L1/L2 persist reports only, reconstruct report artifacts, deduplicate requests and reject stale review/handoff (161.157541ms)
+✔ background observes only new source batches and advances watermarks only after durable completion (206.877542ms)
+✔ developer revocation cancels manual work; disabling background preserves a manual run and disabled platforms cannot start L2 (384.283584ms)
+✔ actual Pi SDK uses memory only, exposes query tools only, and does not load local context or extensions (381.629583ms)
+✔ system identity is separate from editable profiles and cannot be created by a name or prefix (0.921584ms)
+✔ Observer questions and queues cannot enter the normal persistent draft store (1.110667ms)
+✔ report previews show fact, inference, scope, validity and action separately in all locales (0.535041ms)
+✔ untrusted HTML evidence opens as temporary source, without downloads, forms or workspace identity (0.22675ms)
+✔ Observer reconnect replaces transient tool history before deriving the live cursor (0.255791ms)
+✔ Observer host readiness does not fall through to the ordinary provider catalog (0.108125ms)
+✔ Observer owner renders in three locales, keeps evidence temporary, and clears late private reads (2586.488917ms)
+ℹ tests 41
+ℹ suites 0
+ℹ pass 39
+ℹ fail 2
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 3312.20575
+
+✖ failing tests:
+
+test at src/pi/observerEvidence.test.ts:140:1
+✖ concurrent queries respect cumulative budgets and cancellation; failed/cancelled model requests remain charged across restart (105.407667ms)
+  AssertionError [ERR_ASSERTION]: Expected values to be strictly equal:
+
+  0 !== 1
+
+      at TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/observerEvidence.test.ts:144:156)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: true,
+    code: 'ERR_ASSERTION',
+    actual: 0,
+    expected: 1,
+    operator: 'strictEqual',
+    diff: 'simple'
+  }
+
+test at src/pi/observerEvidence.test.ts:250:1
+✖ async manifest creation and repository verification yield to cancellation instead of blocking ordinary host work (19.434041ms)
+  AssertionError [ERR_ASSERTION]: Missing expected rejection.
+      at runNextTicks (node:internal/process/task_queues:65:5)
+      at process.processImmediate (node:internal/timers:541:9)
+      at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/observerEvidence.test.ts:255:201)
+      at async Test.run (node:internal/test_runner/test:1409:7)
+      at async Test.processPendingSubtests (node:internal/test_runner/test:974:7) {
+    generatedMessage: false,
+    code: 'ERR_ASSERTION',
+    actual: undefined,
+    expected: /observer_cancelled/,
+    operator: 'rejects',
+    diff: 'simple'
+  }
