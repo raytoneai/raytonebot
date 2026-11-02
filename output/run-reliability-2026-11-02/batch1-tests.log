@@ -996,9 +996,9 @@
 test at src/pi/observerRuntime.test.ts:67:1
 ✖ background observes only new source batches and advances watermarks only after durable completion (1625.106041ms)
   AssertionError [ERR_ASSERTION]: The expression evaluated to a falsy value:
-  
+
     assert.ok(check())
-  
+
       at until (file:///Users/rickyhuo/RaytoneBot/src/pi/observerRuntime.test.ts:18:149)
       at async TestContext.<anonymous> (file:///Users/rickyhuo/RaytoneBot/src/pi/observerRuntime.test.ts:71:47)
       at async Test.run (node:internal/test_runner/test:1409:7)

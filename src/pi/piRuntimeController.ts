@@ -446,6 +446,7 @@ export function createPiRuntimeController(options: {
       allowedConversationIds: runs.get(conversationId)?.references }),
     runs.get(conversationId)?.extraHostTools,
     options.browser?.toolsFor({ conversationId, agent,
+      currentRunId: () => { const slot = runs.get(conversationId); return slot?.adapter && !slot.stopRequested ? slot.runId : undefined; },
       saveDownload: (name, bytes) => saveWorkspaceDownload(layout, agent, name, bytes, privatePaths),
       ask: (questions, signal) => askUser(conversationId, { toolCallId: `browser_takeover_${randomUUID()}`, questions, signal: signal ?? new AbortController().signal }) }),
     );
@@ -926,6 +927,7 @@ export function createPiRuntimeController(options: {
   /** Stops one conversation's run, or every run. A stop before the run has started is kept. */
   const stopRun = async (slot: RunSlot) => {
     slot.stopRequested = true;
+    for (const [conversationId, current] of runs) if (current === slot) browser?.releaseRun(conversationId, slot.runId);
     slot.watchdog?.dispose();
     slot.vaultAbort.abort();
     await slot.stop?.();
@@ -1187,6 +1189,7 @@ export function createPiRuntimeController(options: {
           } catch (failure) { if (!recorder.failed) throw failure; }
         }
       } finally {
+        browser?.releaseRun(conversationId, slot.runId);
         slot.watchdog?.dispose();
         slot.vaultAbort.abort();
         deadline.dispose();

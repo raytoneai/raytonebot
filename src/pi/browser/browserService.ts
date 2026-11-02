@@ -27,6 +27,9 @@ const CLOSING = "The browser is closing. Wait for it to finish before opening it
 /** The snapshot an action returns; browser_snapshot pages through the rest. */
 const SNAPSHOT_CHARS = 8000;
 const PAGE_CHARS = 15_000;
+const CONTENT_INLINE_CHARS = 4000;
+const CONTENT_EXCERPT_CHARS = 1500;
+const CONTENT_PAGE_CHARS = 4000;
 const SESSION_DOWNLOAD_LIMIT = 500 * 1024 * 1024;
 const EXECUTABLE = /\.(exe|msi|dmg|pkg|app|sh|bash|zsh|command|bat|cmd|ps1|psm1|vbs|jar|apk|deb|rpm|appimage|bin|run|com|scr|so|dylib|dll)$/i;
 const SANDBOX = { user: "raytone-browser", home: "/home/raytone-browser", proxyPort: 5191, cdpPort: 5192 };
@@ -34,6 +37,8 @@ const SANDBOX = { user: "raytone-browser", home: "/home/raytone-browser", proxyP
 export type BrowserToolContext = {
   conversationId: string;
   agent: AgentPresetId;
+  /** Live lookup: Pi caches this toolkit across turns. Undefined means no active run. */
+  currentRunId?(): string | undefined;
   /** Files a download into the agent's own workspace (`downloads/`), safely; returns its path. */
   saveDownload(name: string, bytes: Buffer): Promise<string>;
   ask(questions: UserQuestion[], signal?: AbortSignal): Promise<Record<string, string[]> | null>;
@@ -118,6 +123,9 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
   let snapshotText = "";
   let snapshotId: string | undefined;
   let snapshotOwner: string | undefined;
+  let snapshotRun: string | undefined;
+  let contentSpilled = false;
+  const activeCalls = new Set<{ conversationId: string; runId?: string; released: boolean }>();
   let refPrefix = "";
   const refSession = randomUUID().slice(0, 8);
   let refVersion = 0;
@@ -131,7 +139,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
   // Retained across browser restarts: page-controlled errors can echo an earlier credential.
   const vaultSecrets = new Set<string>();
   const redact = createBrowserRedactor(vaultSecrets);
-  const invalidate = () => { elements = {}; snapshotText = ""; snapshotId = undefined; snapshotOwner = undefined; };
+  const invalidate = () => { elements = {}; snapshotText = ""; snapshotId = undefined; snapshotOwner = undefined; snapshotRun = undefined; contentSpilled = false; };
 
   /** The innermost focused element of the latest snapshot (a page with nothing focused marks its root). */
   const focusedRef = () => Object.keys(elements).filter((ref) => elements[ref].active).at(-1);
@@ -286,20 +294,22 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
    *  while its action waited in the queue never starts it: approval is not a licence to act after
    *  the turn it belonged to has ended. */
   const act = (body: BrowserRequest, signal?: AbortSignal, conversationId?: string,
-    saveDownload?: BrowserToolContext["saveDownload"]) => {
+    saveDownload?: BrowserToolContext["saveDownload"], runId?: string, check = () => {}) => {
     if (stopping) return Promise.reject(new Error(CLOSING));
     if (clearing || changingControl) return Promise.reject(new Error("Browser login state or control is changing."));
     const run = queue.then(async () => {
+      check();
       if (stopping) throw new Error(CLOSING);
       if (clearing) throw new Error("Browser login state is being cleared.");
       if (changingControl) throw new Error("Browser control is changing.");
       if (signal?.aborted) signal.throwIfAborted();
       if (state.controller === "user") throw new Error("The user is controlling the browser right now. Wait for them to hand it back, then take a new snapshot.");
-      if ("snapshotId" in body && (!body.snapshotId || body.snapshotId !== snapshotId || snapshotOwner !== conversationId)) {
+      if ("snapshotId" in body && (!body.snapshotId || body.snapshotId !== snapshotId || snapshotOwner !== conversationId || snapshotRun !== runId)) {
         throw new Error("The page or snapshot changed. Take a new browser_snapshot before acting.");
       }
       if (!worker?.connected) await start();
       // Starting the browser awaited: check again before the action leaves the host.
+      check();
       if (signal?.aborted) signal.throwIfAborted();
       if (clearing) throw new Error("Browser login state is being cleared.");
       if (stopping) throw new Error(CLOSING);
@@ -313,6 +323,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
       }
       const result = await request(body);
       await stream();
+      check();
       return result;
     });
     queue = run.catch(() => undefined);
@@ -348,28 +359,43 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     publish();
   };
 
-  const describe = (summary: BrowserPageSummary, limit: number, conversationId: string, offset = 0) => {
-    if (!offset) {
-      snapshotId = summary.snapshotId;
-      snapshotOwner = conversationId;
-      // Model refs are snapshot-specific even when Playwright keeps a surviving DOM ref stable.
-      refPrefix = `s${refSession}${(++refVersion).toString(36)}x`;
-      elements = Object.fromEntries(Object.entries(summary.elements).map(([ref, el]) => [refPrefix + ref, el]));
-      snapshotText = redactBrowserSnapshot(summary.snapshot, redact).replace(/\[ref=([a-z0-9]+)\]/g, (_, ref: string) => `[ref=${refPrefix}${ref}]`);
-      if (summary.content !== undefined) snapshotText = `${redact(summary.content)}\n\nLinks:\n${snapshotText}`;
-    }
+  const retain = (summary: BrowserPageSummary, conversationId: string, runId?: string, content = false) => {
+    snapshotId = summary.snapshotId;
+    snapshotOwner = conversationId;
+    snapshotRun = runId;
+    // Model refs are snapshot-specific even when Playwright keeps a surviving DOM ref stable.
+    refPrefix = `s${refSession}${(++refVersion).toString(36)}x`;
+    elements = Object.fromEntries(Object.entries(summary.elements).map(([ref, el]) => [refPrefix + ref, el]));
+    snapshotText = redactBrowserSnapshot(summary.snapshot, redact).replace(/\[ref=([a-z0-9]+)\]/g, (_, ref: string) => `[ref=${refPrefix}${ref}]`);
+    if (summary.content !== undefined) snapshotText = `${redact(summary.content)}\n\nLinks:\n${snapshotText}`;
+    contentSpilled = content && snapshotText.length > CONTENT_INLINE_CHARS;
     state.url = summary.url; state.title = summary.title;
+  };
+
+  const describe = (summary: BrowserPageSummary, limit: number, offset = 0) => {
     const end = Math.min(snapshotText.length, offset + limit);
-    const lineEnd = snapshotText.lastIndexOf("\n", end);
-    const cut = end < snapshotText.length && lineEnd > offset ? lineEnd + 1 : end;
+    // Search before the exclusive end so a newline at the boundary cannot overflow the budget.
+    const lineEnd = snapshotText.lastIndexOf("\n", end - 1);
+    let cut = end < snapshotText.length && lineEnd >= offset ? lineEnd + 1 : end;
+    // UTF-16 offsets remain exact, but do not send half of a surrogate pair to the model.
+    if (cut < snapshotText.length && /[\uD800-\uDBFF]/.test(snapshotText[cut - 1]) && /[\uDC00-\uDFFF]/.test(snapshotText[cut])) cut--;
+    if (cut === offset && offset < snapshotText.length) throw new Error("Snapshot limit is too small for the next Unicode character.");
     const part = snapshotText.slice(offset, cut);
-    const more = cut < snapshotText.length ? `\n[Snapshot characters ${offset}–${cut} of ${snapshotText.length}. Call browser_snapshot with offset=${cut} for more.]` : "";
-    return [`URL: ${redact(summary.url)}`, `Title: ${redact(summary.title)}`, `Page: ${summary.pageId}`, `Snapshot: ${snapshotId}`, ...summary.notes.map(redact), ...notes.splice(0).map(redact), "", part + more].join("\n");
+    const truncated = cut < snapshotText.length;
+    const page = contentSpilled ? [`Excerpt: characters ${offset}–${cut} of ${snapshotText.length}; truncated=${truncated}; nextOffset=${truncated ? cut : "none"}.`,
+      `Read retained text with browser_snapshot snapshotId="${snapshotId}", offset=${truncated ? cut : 0}, limit=${CONTENT_PAGE_CHARS}. Offsets count UTF-16 characters; omit snapshotId/offset/limit for a fresh snapshot.`] : [];
+    const more = truncated && !contentSpilled ? `\n[Snapshot characters ${offset}–${cut} of ${snapshotText.length}. Call browser_snapshot with offset=${cut}, snapshotId="${snapshotId}" for more.]` : "";
+    return [`URL: ${redact(summary.url)}`, `Title: ${redact(summary.title)}`, `Page: ${summary.pageId}`, `Snapshot: ${snapshotId}`, ...page, ...summary.notes.map(redact), ...notes.splice(0).map(redact), "", part + more].join("\n");
   };
 
   const accountNote = () => browserAccountNote(loggedIn, { controller: state.controller, clearing }, redact);
 
   return {
+    /** Invalidate only this run; late completions cannot republish its retained text or refs. */
+    releaseRun(conversationId: string, runId: string) {
+      for (const call of activeCalls) if (call.conversationId === conversationId && call.runId === runId) call.released = true;
+      if (snapshotOwner === conversationId && snapshotRun === runId) invalidate();
+    },
     /** Captures only current refs owned by this conversation; never accepts a model-supplied origin. */
     async captureLoginTarget(conversationId: string, input: { snapshotId: string; passwordRef: string; usernameRef?: string }): Promise<BrowserVaultTarget> {
       const run = queue.then(async () => {
@@ -441,13 +467,30 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
         specs: BROWSER_TOOL_SPECS,
         async run(name, args, signal) {
           const input = args && typeof args === "object" ? args as Record<string, unknown> : {};
-          const actFor = (body: BrowserRequest) => act(body, signal, context.conversationId, context.saveDownload);
-          const describeResult = (result: unknown, limit = SNAPSHOT_CHARS) => describe(result as BrowserPageSummary, limit, context.conversationId);
+          const call = { conversationId: context.conversationId, runId: context.currentRunId?.(), released: false };
+          const controlEpoch = state.controlEpoch;
+          const checkRun = () => {
+            signal?.throwIfAborted();
+            if (call.released || (context.currentRunId && (!call.runId || context.currentRunId() !== call.runId))) throw new Error("The browser run is no longer active. Take a new snapshot in the current run.");
+          };
+          const check = () => {
+            checkRun();
+            if (stopping) throw new Error(CLOSING);
+            if (clearing || changingControl || controlEpoch !== state.controlEpoch) throw new Error("Browser control or state changed. Take a new snapshot.");
+          };
+          activeCalls.add(call);
+          const actFor = (body: BrowserRequest) => act(body, signal, context.conversationId, context.saveDownload, call.runId, check);
+          const describeResult = (result: unknown, limit = SNAPSHOT_CHARS, content = false) => {
+            check();
+            retain(result as BrowserPageSummary, context.conversationId, call.runId, content);
+            return describe(result as BrowserPageSummary, contentSpilled ? CONTENT_EXCERPT_CHARS : limit);
+          };
           const target = (ref?: string) => {
-            if (!snapshotId || snapshotOwner !== context.conversationId || (ref && !elements[ref])) throw new Error("The page or snapshot changed. Take a new browser_snapshot before acting.");
+            if (!snapshotId || snapshotOwner !== context.conversationId || snapshotRun !== call.runId || (ref && !elements[ref])) throw new Error("The page or snapshot changed. Take a new browser_snapshot before acting.");
             return { snapshotId, ...(ref ? { ref: ref.slice(refPrefix.length) } : {}) };
           };
           try {
+            if (name !== "browser_accounts") check();
             if (stopping && name !== "browser_accounts") throw new Error(CLOSING);
             switch (name) {
               case "browser_accounts": {
@@ -458,27 +501,34 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
               case "browser_screenshot": {
                 if (typeof input.snapshotId !== "string" || input.snapshotId !== snapshotId) throw new Error("The snapshot changed. Pass the Snapshot ID from a new browser_snapshot.");
                 const image = await actFor({ op: "screenshot", snapshotId: target().snapshotId }) as HostToolImage;
-                signal?.throwIfAborted();
+                check();
                 if (state.controller !== "agent" || stopping || clearing || changingControl || input.snapshotId !== snapshotId || snapshotOwner !== context.conversationId) throw new Error("Browser control or snapshot changed during capture. Take a new snapshot.");
                 return { text: `Browser viewport (1280×800). Page: ${state.pageId}. Snapshot: ${snapshotId}. Use snapshot refs for actions.`, images: [image], isError: false };
               }
               case "browser_snapshot": {
-                const offset = Number.isInteger(input.offset) && (input.offset as number) > 0 ? input.offset as number : 0;
-                if (offset) {
-                  if (state.controller !== "agent" || !snapshotText || snapshotOwner !== context.conversationId) throw new Error("Snapshot expired. Take a new browser_snapshot without offset.");
+                if (input.snapshotId !== undefined || input.offset !== undefined || input.limit !== undefined) {
+                  if (typeof input.snapshotId !== "string" || !input.snapshotId || input.snapshotId !== snapshotId || snapshotOwner !== context.conversationId || snapshotRun !== call.runId || state.controller !== "agent") throw new Error("Snapshot expired or missing snapshotId. Take a new browser_snapshot without snapshotId, offset or limit.");
+                  if (input.mode !== undefined || input.scope !== undefined || input.frameRef !== undefined) throw new Error("Retained snapshot reads cannot change mode, scope or frameRef. Omit them or request a fresh snapshot.");
+                  const offset = input.offset === undefined ? 0 : input.offset;
+                  const maxLimit = contentSpilled ? CONTENT_PAGE_CHARS : PAGE_CHARS;
+                  const limit = input.limit === undefined ? maxLimit : input.limit;
+                  if (typeof offset !== "number" || !Number.isInteger(offset) || offset < 0 || offset > snapshotText.length || (offset > 0 && /[\uD800-\uDBFF]/.test(snapshotText[offset - 1]) && /[\uDC00-\uDFFF]/.test(snapshotText[offset] ?? ""))) throw new Error("Invalid snapshot offset.");
+                  if (typeof limit !== "number" || !Number.isInteger(limit) || limit < 1 || limit > maxLimit) throw new Error(`Snapshot limit must be an integer from 1 to ${maxLimit}.`);
+                  check();
                   const summary = { url: state.url ?? "", title: state.title ?? "", pageId: state.pageId ?? "", snapshotId: snapshotId!, snapshot: "", elements, notes: [] };
-                  return { text: describe(summary, PAGE_CHARS, context.conversationId, offset), isError: false };
+                  return { text: describe(summary, limit, offset), isError: false };
                 }
                 const scope = typeof input.scope === "string" ? input.scope.trim() : undefined;
                 if (scope && scope.length > 512) throw new Error("Snapshot scope is too long.");
                 const mode = input.mode === "interactive" || input.mode === "content" ? input.mode : "full";
                 if (input.frameRef !== undefined && (typeof input.frameRef !== "string" || !input.frameRef)) throw new Error("Use an iframe ref from the latest snapshot.");
                 const frame = typeof input.frameRef === "string" ? target(input.frameRef) : undefined;
-                return { text: describeResult(await actFor({ op: "snapshot", scope, mode, ...(frame ? { frameRef: frame.ref!, snapshotId: frame.snapshotId } : {}) }), PAGE_CHARS), isError: false };
+                return { text: describeResult(await actFor({ op: "snapshot", scope, mode, ...(frame ? { frameRef: frame.ref!, snapshotId: frame.snapshotId } : {}) }), PAGE_CHARS, mode === "content"), isError: false };
               }
               case "browser_tabs": {
                 const pageId = typeof input.pageId === "string" ? input.pageId : undefined;
                 const result = await actFor({ op: "tabs", pageId });
+                check();
                 return { text: pageId ? describeResult(result) : JSON.stringify(result, (key, value: unknown) => (key === "url" || key === "title") && typeof value === "string" ? redact(value) : value), isError: false };
               }
               case "browser_wait_for": {
@@ -502,15 +552,20 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
               case "browser_back": return { text: describeResult(await actFor({ op: "back" })), isError: false };
               case "browser_request_takeover": {
                 if (!worker?.connected) await start();
+                check();
                 const reason = String(input.reason ?? "").trim().slice(0, 300) || "The agent needs you in the browser.";
+                invalidate();
                 state.requested = { reason };
                 publish();
                 const labels = takeoverLabels(reason);
                 const answer = await context.ask([{ id: "browser_takeover", header: labels.header, question: reason,
                   options: [{ label: labels.done, description: labels.doneDetail }, { label: labels.skip, description: labels.skipDetail }], multiSelect: false, allowOther: false }], signal)
                   .finally(() => { delete state.requested; publish(); });
+                // The user may have changed control while answering; the run must still own this call.
+                checkRun();
                 // Answering also hands the browser back.
                 await release();
+                checkRun();
                 const done = answer?.browser_takeover?.[0] === labels.done;
                 return { text: done ? `The user finished and handed the browser back. Take a new snapshot before acting. ${notes.splice(0).map(redact).join(" ")}`.trim() : "The user skipped taking over. Continue without it, or explain what you need.", isError: false };
               }
@@ -518,7 +573,7 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
             return { text: redact(`Unknown browser tool: ${name}.`), isError: true };
           } catch (error) {
             return { text: redact(error instanceof Error ? error.message : String(error)), isError: true };
-          }
+          } finally { activeCalls.delete(call); }
         },
       };
     },

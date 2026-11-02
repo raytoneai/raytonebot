@@ -402,7 +402,11 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 
 浏览器工作流加固（2026-10-17）：每轮只注入有长度上限的 `browserAccountHint` 动态摘要（空清单也明确覆盖旧记录），静态规则放工具说明，完整清单仍由 `browser_accounts` 按需返回。Google 国家域名使用官方 supported_domains 的187项明确白名单，不按名称前缀推测归属；审批授权 key 仍为完整 origin。
 
-worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭回 opener；现有 BrowserView 在多页时增加标签页选择，只有用户接管时能操作。`browser_tabs` 读取/选择，`browser_wait_for` 有界等文本（至多10秒）；`browser_snapshot` 增加 `scope` CSS区域及 full/interactive/content 模式、按行分页，正文模式保留链接，未知/秘密字段不暴露值。每次快照给模型不同的 refs 前缀，内部快照ID绑定页面/版本/对话；press 显式携带结果中的 snapshotId，防旧按键审批采用新快照。动作派发前用旧ref与Playwright角色/可访问名称交集核对目标，再读提交事实；不重建整页树或修改兄弟ref。正文与带ref的链接树通过独立IPC字段传递，只改写真实树中的refs。动作后等待DOM安静200ms，最多1秒；持续变化则明确提示未收敛，较晚的异步结果仍需定向等待，不自动重放不确定动作。
+worker 管理共享 context 中的 page/popup，自动激活新窗口，关闭回 opener；现有 BrowserView 在多页时增加标签页选择，只有用户接管时能操作。`browser_tabs` 读取/选择，`browser_wait_for` 有界等文本（至多10秒）；`browser_snapshot` 增加 `scope` CSS区域及 full/interactive/content 模式、按行分页，正文模式保留链接，未知/秘密字段不暴露值。每次快照给模型不同的 refs 前缀，内部快照ID绑定页面/版本/对话及当前运行；press 显式携带结果中的 snapshotId，防旧按键审批采用新快照。动作派发前用旧ref与Playwright角色/可访问名称交集核对目标，再读提交事实；不重建整页树或修改兄弟ref。正文与带ref的链接树通过独立IPC字段传递，只改写真实树中的refs。动作后等待DOM安静200ms，最多1秒；持续变化则明确提示未收敛，较晚的异步结果仍需定向等待，不自动重放不确定动作。
+
+正文 Spill（2026-11-02，ADR-060）：仅 `browser_snapshot(mode=content)` 的脱敏后文本超过 4000 个 UTF-16 字符时，首次返回至多 1500 字符的原文摘录及 Snapshot ID、总长、截断标记和 nextOffset；后续页至多 4000 字符。小正文保持内联，full/interactive 和动作响应沿用原预算。复用原 BrowserService 单份内存快照，无新文件或通用缓存；按行截断，不拆 Unicode 代理对。所有保留文本回读均显式携带 snapshotId（包括 offset=0），可带 offset/limit，不与 mode/scope/frameRef 混用；新快照不带这些分页参数。当前会话/运行、快照身份和范围均校验，替换快照、接管、清除、停止或轮次结束使旧引用失效。Pi 缓存的 toolkit 每次调用动态查 live run，并在排队和异步完成后复查，释放后的迟到结果不能恢复旧快照。Vault 脱敏发生在保留全文之前。
+
+Codex 的动态工具 schema 随 thread/start 保存；已存在的旧线程可能缺少新增 snapshotId 参数，需要新会话取得新 schema。缺少身份的旧式分页会明确拒绝，不静默读取另一快照。本次没有更改引擎协议或验证真实模型阅读效果。
 
 接管输入批次在服务端冻结 pageId/controlEpoch，逐项检查，worker 再核 pageId。切页/交还先封住新输入和Agent动作、等待已派发输入结束；`release()` 因此为异步，所有调用必须 await。原 `/browser/control` 增加 `{action:"select-tab",pageId}`，`/browser/input` 兼容旧格式并可携带目标；新前端换目标清空队列，busy或画面页不匹配时不发输入。帧附加 pageId/seq/capturedAt，前端丢旧页/旧seq并记录 receivedAt；有界 runtime 日志仅记每批输入数量与处理时间，不记内容。关闭采用单次清理、Chrome优雅退出5秒，TERM/KILL后备总预算约8秒，服务层等待12秒；关闭期间拒绝新启动、模型动作和接管，已开始的启动完成后再关闭；SSE、首次HTTP和控制操作的返回统一检查controlEpoch。代理、UID、持久profile和审批分级保持。
 

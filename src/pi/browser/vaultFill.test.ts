@@ -174,7 +174,7 @@ for (const shortUsername of ["a", "e"]) test(`Vault username ${shortUsername} ke
   const site = createServer((req, res) => {
     res.setHeader("content-type", "text/html");
     if (req.url === "/login") res.end('<label>Username<input autocomplete="username"></label><label>Password<input type="password" autocomplete="current-password"></label>');
-    else if (req.url?.startsWith("/echo")) res.end(`<title>${password}</title><p>${shortUsername}</p><input aria-label="${password}" placeholder="${password}" value="${password}"><button aria-label="${password}: it's &quot;quoted&quot; [ref=e9]">Go</button><a href="/${password}">${password}</a><p>${"visible line ".repeat(1500)}</p>`);
+    else if (req.url?.startsWith("/echo")) res.end(`<title>${password}</title><p>${shortUsername}</p><input aria-label="${password}" placeholder="${password}" value="${password}"><button aria-label="${password}: it's &quot;quoted&quot; [ref=e9]">Go</button><a href="/${password}">${password}</a><p>${"visible line ".repeat(1500)}</p><p>${password}</p>`);
     else res.end('<input aria-label="Note"><button>Pay</button><button onclick="this.textContent=\'OK\'">Go</button>');
   });
   await new Promise<void>(resolve => site.listen(0, "127.0.0.1", resolve));
@@ -224,13 +224,29 @@ for (const shortUsername of ["a", "e"]) test(`Vault username ${shortUsername} ke
       assert.match(echo, /textbox "\[redacted\]" \[ref=[a-z0-9]+\]/);
       const offset = /browser_snapshot with offset=(\d+)/.exec(echo)?.[1];
       assert.ok(offset, "pagination instructions must stay intact");
-      const more = await tools.run("browser_snapshot", { offset: Number(offset) });
+      const more = await tools.run("browser_snapshot", { offset: Number(offset), snapshotId: snapshotId(echo) });
       assert.equal(more.isError, false, more.text);
       assert.equal(snapshotId(more.text), snapshotId(echo));
       for (const mode of ["content", "interactive"]) {
         const result = await tools.run("browser_snapshot", { mode });
         assert.equal(result.isError, false, result.text);
         assert.ok(!result.text.includes(password), result.text);
+        if (mode === "content") {
+          const retainedId = snapshotId(result.text);
+          let reconstructed = result.text.slice(result.text.indexOf("\n\n") + 2);
+          let next = /nextOffset=(\d+)/.exec(result.text)?.[1];
+          let pages = 1;
+          while (next !== undefined) {
+            const page = await tools.run("browser_snapshot", { snapshotId: retainedId, offset: Number(next) });
+            assert.equal(page.isError, false, page.text);
+            assert.ok(!page.text.includes(password), page.text);
+            reconstructed += page.text.slice(page.text.indexOf("\n\n") + 2);
+            next = /nextOffset=(\d+)/.exec(page.text)?.[1]; pages++;
+          }
+          assert.ok(pages > 1, "redacted long content is retained and read across several pages");
+          assert.equal(reconstructed.length, Number(/ of (\d+); truncated=/.exec(result.text)![1]));
+          assert.ok(reconstructed.includes("[redacted]\n\nLinks:"), "the secret beyond the initial excerpt was redacted before retaining text");
+        }
       }
       assert.ok(!(await tools.run("browser_tabs", {})).text.includes(password));
       const error = await tools.run("browser_snapshot", { scope: `[${password}` });
