@@ -42,6 +42,15 @@ export const featureCopy = {
     "zh": "配置已检查，请继续原任务。先核对已经完成的步骤和当前状态，不要重复执行已成功或结果尚未确认的操作；需要对外操作时仍按原权限请求批准。\n\n原请求：\n",
     "ja": "設定を確認しました。元のタスクを続けてください。まず完了済みの手順と現在の状態を確認し、成功した操作や結果が未確認の操作を繰り返さないでください。既存の承認ルールに従ってください。\n\n元のリクエスト：\n"
   },
+  "Check and continue": {"zh": "核对并继续", "ja": "確認して続ける"},
+  "The host restarted before this task finished.": {"zh": "主机在任务完成前重启。", "ja": "タスクの完了前にホストが再起動しました。"},
+  "Last tool with an unconfirmed result: {tool}.": {"zh": "最后结果待核对的工具：{tool}。", "ja": "最後に結果を確認できなかったツール：{tool}。"},
+  "Last stage: preparing the run.": {"zh": "中断阶段：准备运行。", "ja": "中断した段階：実行準備。"},
+  "Last stage: reasoning.": {"zh": "中断阶段：思考。", "ja": "中断した段階：推論。"},
+  "Last stage: replying.": {"zh": "中断阶段：回复。", "ja": "中断した段階：返信。"},
+  "Last stage: tool work.": {"zh": "中断阶段：工具操作。", "ja": "中断した段階：ツール操作。"},
+  "Some actions may have taken effect. Check their outcomes before continuing; the original request and attachments are retained.": {"zh": "部分操作可能已生效，请先核对结果再继续；原请求和附件会保留。", "ja": "一部の操作は反映済みの可能性があります。結果を確認してから続けてください。元のリクエストと添付ファイルは保持されます。"},
+  "The host restarted during the original task. First inspect the current state and identify completed, pending and uncertain actions. Do not repeat successful external writes or writes with an uncertain outcome. If an outcome cannot be verified, ask the user before proceeding. Continue only the remaining safe work in this conversation. Keep the existing approval rules.\n\nOriginal request:\n": {"zh": "主机在原任务执行期间重启。先检查当前状态，区分已完成、待完成和结果不确定的操作。不要重复执行已成功或结果不确定的对外写入。如果无法核实结果，先询问用户再继续。在当前会话中仅继续剩余的安全工作，并遵守原有审批规则。\n\n原请求：\n", "ja": "元のタスク実行中にホストが再起動しました。まず現在の状態を調べ、完了済み、未実施、結果が不確かな操作を区別してください。成功した外部への書き込みや結果が不確かな書き込みを繰り返さないでください。結果を検証できない場合は、先にユーザーへ確認してください。この会話で残りの安全な作業だけを続け、既存の承認ルールを守ってください。\n\n元のリクエスト：\n"},
   "Check model service": {
     "zh": "检查模型服务",
     "ja": "モデルサービスを確認"

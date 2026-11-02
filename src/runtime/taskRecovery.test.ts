@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { AgentUXEvent } from "@agent-ux/protocol";
-import { taskRecovery, recoveryPrompt } from "./taskRecovery.ts";
+import { taskRecovery, recoveryPrompt, interruptedRecoveryMessage } from "./taskRecovery.ts";
 import { createPiEventAdapter } from "../harness/adapters/piAdapter.ts";
 
 const event = (type: string, payload: object, runId = "r"): AgentUXEvent => ({ type, payload, runId, id: `${runId}:${type}`, ts: 1, seq: 1 }) as AgentUXEvent;
@@ -55,4 +55,41 @@ test("a successful retry clears the resolved connection failure but leaves other
   call("retry", "mcp__docs__read", { path: "report" }, false);
   adapter.finish();
   assert.equal(taskRecovery(adapter.events), undefined);
+});
+
+
+test("only the latest host-restart cancellation offers explicit interrupted recovery", () => {
+  const started = event("run.started", {});
+  const restart = event("run.finished", { status: "cancelled", interruptionReason: "host_restart" });
+  assert.equal(taskRecovery([started, restart])?.kind, "interrupted");
+  assert.equal(taskRecovery([started, event("run.finished", { status: "cancelled" })]), undefined);
+  assert.equal(taskRecovery([started, event("run.error", { message: "Transport failed" })]), undefined);
+  for (const next of [event("run.started", {}, "new"), event("run.finished", { status: "success" }, "new")]) {
+    assert.equal(taskRecovery([started, restart, next]), undefined);
+  }
+});
+
+test("interrupted summary names only unfinished tools, excluding completed calls and private contents", () => {
+  const adapter = createPiEventAdapter({ runId: "interrupted" });
+  adapter.startUserMessage("Private original request");
+  adapter.apply({ type: "tool_execution_start", toolCallId: "done", toolName: "write", args: { private: "hidden-args" } });
+  adapter.apply({ type: "tool_execution_end", toolCallId: "done", toolName: "write", isError: false, result: { content: [{ type: "text", text: "hidden-result" }] } });
+  adapter.apply({ type: "tool_execution_start", toolCallId: "pending", toolName: "mcp__publish", args: { private: "hidden-args" } });
+  const recovery = taskRecovery([...adapter.events, event("tool.call.finished", { toolCallId: "pending", status: "cancelled" }, "interrupted"),
+    event("run.finished", { status: "cancelled", interruptionReason: "host_restart" }, "interrupted")]);
+  assert.equal(recovery?.kind, "interrupted");
+  if (recovery?.kind !== "interrupted") return;
+  assert.equal(recovery.unfinishedTool, "mcp__publish");
+  for (const locale of ["en", "zh", "ja"] as const) {
+    const message = interruptedRecoveryMessage(recovery, locale);
+    assert.match(message, /mcp__publish/);
+    assert.doesNotMatch(message, /hidden-|Private original|write/);
+    const prompt = recoveryPrompt("Original task", true, locale, "interrupted");
+    assert.ok(prompt.endsWith("Original task"));
+    assert.doesNotMatch(prompt, /Configuration has been checked|配置已检查|設定を確認しました/);
+  }
+  assert.match(recoveryPrompt("Original task", true, "en", "interrupted"), /If an outcome cannot be verified, ask the user/);
+  const completedOnly = taskRecovery([...adapter.events.filter(event => event.payload.toolCallId !== "pending"),
+    event("run.finished", { status: "cancelled", interruptionReason: "host_restart" }, "interrupted")]);
+  assert.equal(completedOnly?.kind === "interrupted" && completedOnly.unfinishedTool, undefined);
 });

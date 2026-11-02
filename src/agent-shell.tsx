@@ -1432,7 +1432,7 @@ export function AgentApp() {
     permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
     budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
   } satisfies ComposerRunOptions;
-  const recovery = useTaskRecovery({ conversation: activePiConversation, enabled: !streamId && !activeObserver && !historyMessage, running: piRunning, locale,
+  const recovery = useTaskRecovery({ conversation: activePiConversation, enabled: !streamId && !activeObserver && !isGroupConversation(activePiConversation) && !historyMessage, running: piRunning, locale,
     submissions: messageSubmissions.current,
     isCurrent: id => activeConversationIdRef.current === id && !activeStreamIdRef.current,
     configure: destination => destination === "browser" ? showBrowser() : openSettings(destination, activeBot.id),

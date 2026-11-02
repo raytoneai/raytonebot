@@ -13,3 +13,15 @@
 证据：[Watchdog 定向测试](batch1-watchdog.log)、[构建](batch1-build.log)、[第一轮完整测试](batch1-tests.log)、[最终完整测试](batch1-tests-final.log)、[本机 HTTP](batch1-local.log)、[云入口](batch1-cloud.log)。
 
 边界：检测与 Node host 同进程，不检测该进程自身失活；长工具主动排除，五分钟无活动可能只是慢模型。日志有界且非完整审计账本；没有新增实时弹窗、自动 finding 或模型调用。真实误报率、收益及逐平台部署未验。
+
+## 第二批：明确确认的中断恢复
+
+- 主机重启中断的最新单聊，在原 ChatFrame 恢复区域显示结果待核对的工具/阶段与「核对并继续」。不为用户主动停止、一般断线、群聊或 Observer 增加恢复快捷操作。
+- 点击后重新读取主机历史，拒绝活跃、未确认、有新工作、原请求缺失或目标已变化的恢复。原请求和附件构成新 follow-up，沿原生会话续接；相同源轮次确定性请求 ID 保持去重，其他未发送草稿不动。
+- 提示模型先检查已完成/待完成/结果不确定操作，不重复成功或不确定的对外写入，无法核实时问用户。不是底层事务回放，也不保证外部副作用恰好一次；原生 session 缺失仍拒绝执行。
+- 主代理 review：恢复 key 加 runId，避免复用的重启终态 ID 造成跨轮次旧回调；旧闭包在读取主机前就拒绝；移除不必要的新提交返回值/本地去重状态，保留原运行租约和主机请求身份；将“未完成”改为“结果待核对”，不推断旧操作未生效。
+- 定向 selector/实际 React hook＋ChatFrame＋Composer Chromium 测试 16/16，通过 zh/en/ja、桌面/390px、刷新、显式点击、附件/草稿、双击/跨标签、旧回调与最新主机拒绝分支。HTTP 历史为受控响应、submit 为捕获函数；实际主机重启/原生上下文由已有服务端测试覆盖，未调用真实模型。
+- [构建](batch2-build.log)、[完整测试](batch2-tests.log)：973 项、972 通过、0 失败、1 项既有 DSH 环境跳过；[本机 HTTP](batch2-local.log)、[云入口自检](batch2-cloud.log)通过。
+- 实际隔离 App 的 devtools 桌面/390px 各 20 场景，[40/40 通过](fixture-results.json)，无启动/场景错误。[复跑脚本](fixture-browser-check.mjs)。主代理查看[中文桌面](batch2-ui/zh-1280-recovery.png)、[中文窄屏](batch2-ui/zh-390-recovery.png)及[日文窄屏](batch2-ui/ja-390-recovery.png)，按钮可达、草稿保持、无横向溢出。
+
+第二批没有修改恢复时的主机执行协议、审批或模型，也没有验证线上重启/外部业务系统结果核对。

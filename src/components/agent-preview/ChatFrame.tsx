@@ -102,7 +102,7 @@ export function ChatFrame({
         {groupTyping && !composerActivity ? <GroupTypingRow member={groupTyping} /> : null}
         {taskRecovery ? <div className="task-recovery" data-preview-anchor="task-recovery">
           <p>{taskRecovery.message}</p>
-          <div><button type="button" disabled={taskRecovery.busy} onClick={taskRecovery.configure}>{taskRecovery.configureLabel}</button>
+          <div>{taskRecovery.configureLabel ? <button type="button" disabled={taskRecovery.busy} onClick={taskRecovery.configure}>{taskRecovery.configureLabel}</button> : null}
             {taskRecovery.ready ? <button type="button" disabled={taskRecovery.busy} onClick={() => void taskRecovery.resume()}>{taskRecovery.continueLabel}</button> : null}</div>
           {taskRecovery.error ? <p role="status">{taskRecovery.error}</p> : null}
         </div> : null}
