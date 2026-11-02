@@ -19,6 +19,7 @@ export function observerLogRecords(dataDir: string): ObserverLogRecord[] {
         const item: ObserverLogRecord = { id: `${segment}:${position}`, segment, at, event: value.event.slice(0, 100) };
         for (const key of ["conversationId", "runId", "code", "status", "tool", "decision"] as const) if (typeof value[key] === "string" && /^[a-zA-Z0-9_.:~-]{1,320}$/.test(value[key])) item[key] = value[key];
         if (Number.isSafeInteger(value.durationMs) && value.durationMs >= 0) item.durationMs = value.durationMs;
+        if (Number.isSafeInteger(value.count) && value.count >= 0) item.count = value.count;
         return [item];
       } catch { return []; }
     });

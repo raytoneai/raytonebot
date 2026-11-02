@@ -22,6 +22,7 @@ const eventFields: Record<string, ReadonlySet<string>> = {
   "run.started": new Set(["conversationId", "harness"]),
   "run.ended": new Set(["conversationId", "harness", "status", "durationMs", "outputBytes"]),
   "run.limit": new Set(["conversationId", "harness", "limit"]),
+  "run.watchdog": new Set(["conversationId", "runId", "code", "tool", "count", "durationMs"]),
   "run.checkpoint_failed": new Set(["conversationId", "harness"]),
   "run.subscriber_failed": new Set(["conversationId", "status"]),
   "tool.decision": new Set(["conversationId", "runId", "toolCallId", "tool", "class", "decision", "reason"]),
@@ -46,6 +47,7 @@ const eventFields: Record<string, ReadonlySet<string>> = {
 };
 
 function safeRuntimeValue(event: string, key: string, value: unknown): boolean {
+  if (event === "run.watchdog" && key === "code") return value === "repeated_tool_failure" || value === "inactive_run";
   const numericFields = ["durationMs", "outputBytes", "count", "bytes", "code", "rounds", "ms", "tools"];
   if (key === "code" && value === null) return true;
   if (numericFields.includes(key)) return typeof value === "number" && Number.isSafeInteger(value) && value >= 0;

@@ -5,7 +5,7 @@ import { readVerifiedFile, verifyRepoSnapshotAsync } from "./version.ts";
 import { ObserverError, type ConversationProjection, type EvidenceRef, type EvidenceView, type HostFact, type ObserverQuery, type QueryResult, type RepoSnapshot, type RunSnapshot, type SourceIdentity, type Finding, type Validity } from "./types.ts";
 export type ObserverCapability = { readonly id: string };
 export type ObserverRoutineStats = { id: string; botId?: string; failureCount: number; history: { at: number; status: string; durationMs?: number; conversationId?: string; runId?: string }[] };
-export type ObserverLogRecord = { id?: string; segment?: string; source?: SourceIdentity; at: number; event: string; conversationId?: string; runId?: string; code?: string; status?: string; tool?: string; decision?: string; durationMs?: number };
+export type ObserverLogRecord = { id?: string; segment?: string; source?: SourceIdentity; at: number; event: string; conversationId?: string; runId?: string; code?: string; status?: string; tool?: string; decision?: string; durationMs?: number; count?: number };
 export function createObserverQueries(options: { store: ObserverStore; repo: RepoSnapshot; conversations(): ConversationProjection[]; logs?(): ObserverLogRecord[]; config?(): Record<string, unknown>; usage?(): Record<string, unknown>; routines?(): ObserverRoutineStats[]; now?: () => number }) {
   const now = options.now ?? Date.now, caps = new Map<ObserverCapability, { snapshot: RunSnapshot; signal: AbortSignal; revoked: boolean; busy: boolean; queries: number; bytes: number; versions?: Map<string, string>; cursors: Map<string, Set<number>> }>();
   const unsub = options.store.subscribeSourceRevoked(source => { for (const item of caps.values()) if (item.snapshot.sourceScope.some(scope => sourceKey(scope) === sourceKey(source))) item.revoked = true; });
@@ -43,7 +43,7 @@ export function createObserverQueries(options: { store: ObserverStore; repo: Rep
       const projected = sources.find(source => item.source ? sourceKey(source.source) === sourceKey(item.source) : item.conversationId === source.source.conversationId && item.runId && source.events.some(event => event.runId === item.runId));
       if (!projected || !options.store.sourceValid(projected.source)) return [];
       const value = { source: projected.source, at: item.at, event: String(item.event).slice(0, 100), ...(item.conversationId ? { conversationId: item.conversationId } : {}), ...(item.runId ? { runId: item.runId } : {}), ...(item.code ? { code: item.code } : {}), ...(item.status ? { status: item.status } : {}), ...(item.tool ? { tool: item.tool } : {}), ...(item.decision ? { decision: item.decision } : {}), ...(item.durationMs !== undefined ? { durationMs: item.durationMs } : {}) };
-      return [{ ...value, id: item.id ?? evidenceHash(value), segment: item.segment ?? "host-log" }];
+      return [{ ...value, ...(Number.isSafeInteger(item.count) && item.count! >= 0 ? { count: item.count } : {}), id: item.id ?? evidenceHash(value), segment: item.segment ?? "host-log" }];
     });
   };
   const scopedRoutines = (run: RunSnapshot) => {
@@ -152,8 +152,9 @@ export function createObserverQueries(options: { store: ObserverStore; repo: Rep
             const selected = page(eligible);
             const runs = new Map<string, { terminal?: string }>(), unknownTimeRuns = new Set<string>();
             const counters = { samples: 0, numerator: 0, denominator: 0, executionErrors: 0, cancelled: 0, interrupted: 0, completed: 0, unterminated: 0, policyDenied: 0, policyDecisionCount: 0,
-              policyDistribution: {} as Record<string, number>, unknownTimeSamples: 0, populationConversations: eligible.length, sampledConversations: selected.length,
+              policyDistribution: {} as Record<string, number>, watchdogAlerts: 0, watchdogRuns: 0, repeatedToolFailures: 0, inactiveRuns: 0, unknownTimeSamples: 0, populationConversations: eligible.length, sampledConversations: selected.length,
               businessOutcome: "unknown", completeness: "public_projection_and_bounded_logs", definitionVersion: 1, since: query.since, until: query.until,
+              watchdogInterpretation: "signals_only_not_proof_of_stall_or_business_failure",
               gaps: [] as string[], routineAnomalies: [] as { id: string; consecutiveFailures: number; slowRuns: number; durationSamples: number; baselineAvailable: boolean; incomplete: boolean }[] };
             for (const source of selected) {
               ref("aggregate", source.version, evidenceHash(source.events), {}, source.source);
@@ -168,6 +169,14 @@ export function createObserverQueries(options: { store: ObserverStore; repo: Rep
             for (const value of runs.values()) { if (["error", "failed"].includes(value.terminal ?? "")) counters.executionErrors++; else if (value.terminal === "cancelled") counters.cancelled++; else if (value.terminal === "interrupted") counters.interrupted++; else if (value.terminal === "success") counters.completed++; else counters.unterminated++; }
             counters.samples = counters.denominator = runs.size; counters.numerator = counters.executionErrors; counters.unknownTimeSamples = unknownTimeRuns.size;
             const logs = scopedLogs(run);
+            const watchdogRuns = new Set<string>();
+            for (const item of logs.filter(item => Number.isFinite(item.at) && item.at >= query.since && item.at <= query.until && item.event === "run.watchdog" && ["repeated_tool_failure", "inactive_run"].includes(item.code ?? ""))) {
+              counters.watchdogAlerts++;
+              if (item.runId) watchdogRuns.add(`${sourceKey(item.source)}:${item.runId}`);
+              if (item.code === "repeated_tool_failure") counters.repeatedToolFailures++; else counters.inactiveRuns++;
+              ref("log", evidenceHash(logs), evidenceHash(item), { eventId: item.id, path: item.segment, runId: item.runId }, item.source);
+            }
+            counters.watchdogRuns = watchdogRuns.size;
             for (const item of logs.filter(item => Number.isFinite(item.at) && item.at >= query.since && item.at <= query.until && item.event === "tool.decision" && item.decision)) {
               counters.policyDecisionCount++; const key = `${item.tool ?? "unknown"}:${item.decision}`; counters.policyDistribution[key] = (counters.policyDistribution[key] ?? 0) + 1;
               if (["denied", "refused"].includes(item.decision!)) counters.policyDenied++;

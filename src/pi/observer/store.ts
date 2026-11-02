@@ -22,6 +22,7 @@ export function createObserverStore(options: { dataDir: string; instanceId?: str
   let data: State = { schemaVersion: 1, instanceId: options.instanceId ?? randomUUID(), revision: 0, settings: { enabled: false, background: false, windowDays: 7, revision: 0, budget: DEFAULT_BUDGET }, day: dayOf(now()), requests: 0, runs: [], findings: [], sources: [], tombstones: [], handled: [] };
   let storageError: string | undefined;
   const listeners = new Set<(source: SourceIdentity) => void>();
+  const settingsListeners = new Set<() => void>();
   const fail = () => { storageError = "observer_storage_unavailable"; };
   const usable = () => { if (storageError) throw new ObserverError(storageError, 503); };
   const commit = (next: State, essential = false) => {
@@ -114,8 +115,11 @@ export function createObserverStore(options: { dataDir: string; instanceId?: str
       const settings = { ...data.settings, ...clone(input), revision: expectedRevision + 1, authorizedVia, authorizedAt: now() };
       if (typeof settings.enabled !== "boolean" || typeof settings.background !== "boolean" || !Number.isSafeInteger(settings.windowDays) || settings.windowDays < 1 || settings.windowDays > 366 || !budgetValid(settings.budget) || settings.model && (![settings.model.provider, settings.model.model, settings.model.configRevision].every(value => typeof value === "string" && value.length > 0 && value.length <= 200))) throw new ObserverError("observer_settings_invalid");
       if (settings.background && !settings.enabled) throw new ObserverError("observer_settings_invalid");
-      commit({ ...data, settings }, !settings.enabled); return clone(settings);
+      commit({ ...data, settings }, !settings.enabled);
+      for (const listener of settingsListeners) try { listener(); } catch { /* Settings persistence remains authoritative. */ }
+      return clone(settings);
     },
+    subscribeSettings(listener: () => void) { settingsListeners.add(listener); return () => settingsListeners.delete(listener); },
     registerSource(conversationId: string, birthKey: string): SourceIdentity {
       usable(); if (!/^[a-zA-Z0-9._:-]{1,160}$/.test(conversationId) || !birthKey || birthKey.length > 200) throw new ObserverError("observer_source_invalid");
       const current = [...data.sources].reverse().find(item => item.source.conversationId === conversationId);
@@ -273,7 +277,7 @@ export function createObserverStore(options: { dataDir: string; instanceId?: str
     renameConversation(id: string, title: string) { usable(); safeText(title, 240); if (!title.trim() || !data.runs.some(run => run.conversationId === id)) throw new ObserverError("observer_conversation_missing", 404); commit({ ...data, runs: data.runs.map(run => run.conversationId === id ? { ...run, title: title.trim() } : run) }); },
     markHandled(key: string, value: string) { usable(); safeText(key, 300); safeText(value, 300); const handled = data.handled.filter(item => item.key !== key); if (handled.length >= 1000) throw new ObserverError("observer_metadata_full", 507); commit({ ...data, handled: [...handled, { key, value }] }); },
     handled(key: string) { usable(); return data.handled.find(item => item.key === key)?.value; },
-    dispose() { listeners.clear(); },
+    dispose() { listeners.clear(); settingsListeners.clear(); },
   };
   return api;
 }

@@ -16,6 +16,7 @@ const model: ObserverModel = { definition: { id: "fixture", name: "Fixture", pro
 const authorization = { requestedBy: "user_session", authorizedVia: "session-id", scope: "developer", version: 1, at: Date.now() } as const;
 const proposal = (facts: readonly HostFact[], code = false): FindingProposal => ({ kind: "project_suggestion", title: "Verify the result", inference: "The host observed a condition that warrants a test.", factIds: facts.map(fact => fact.id), proposedAction: { kind: code ? "add_test" : "inspect", target: { kind: code ? "code" : "project", id: code ? "src/demo.ts" : "current_project" }, description: "Verify the condition against a focused test.", verificationRefs: facts.flatMap(fact => fact.evidenceIds) } });
 async function until(check: () => boolean) { for (let i = 0; i < 200 && !check(); i++) await new Promise(resolve => setTimeout(resolve, 5)); assert.ok(check()); }
+function deferred<T = void>() { let resolve!: (value: T) => void; const promise = new Promise<T>(done => { resolve = done; }); return { promise, resolve }; }
 function fixture() {
   const root = mkdtempSync(join(tmpdir(), "rtb-observer-runtime-")), repoRoot = join(root, "repo"), dataDir = join(root, "data");
   mkdirSync(join(repoRoot, "src"), { recursive: true }); writeFileSync(join(repoRoot, "src/demo.ts"), "export const value = 'SOURCE_RAW_PAYLOAD';\n");
@@ -64,14 +65,44 @@ test("L1/L2 persist reports only, reconstruct report artifacts, deduplicate requ
   } finally { await service.dispose(); f.close(); }
 });
 
-test("background observes only new source batches and advances watermarks only after durable completion", async () => {
-  const f = fixture(), service = createObserverService(f.options);
+test("background observes only new source batches and advances watermarks only after durable completion", { timeout: 10000 }, async () => {
+  const f = fixture();
+  const handled = deferred<{ key: string; value: string }>();
+  const failed = deferred<NonNullable<ReturnType<typeof f.store.getRun>>>();
+  const explaining = deferred(), release = deferred();
+  const markHandled = f.store.markHandled, finishRun = f.store.finishRun;
+  f.store.markHandled = (key, value) => { markHandled(key, value); handled.resolve({ key, value }); };
+  f.store.finishRun = (...args) => { finishRun(...args); const run = f.store.getRun(args[0])!; if (!["running", "success", "no_findings"].includes(run.status)) failed.resolve(run); };
+  let failNext = false;
+  const service = createObserverService({ ...f.options, explain: async input => {
+    explaining.resolve(); await release.promise;
+    const result = await f.options.explain(input);
+    if (failNext) throw new Error("controlled background failure");
+    return result;
+  } });
   try {
     await service.update({ action: "settings", revision: f.store.settings().revision, enabled: true, backgroundEnabled: true, model: { provider: "fixture", model: "model" }, budgets: f.store.settings().budget, windowDays: 7 }, authorization);
-    service.completed("chat", "new-version"); await until(() => f.store.runs().some(run => run.status === "success"));
+    service.completed("chat", "new-version");
+    const failEarly = failed.promise.then(run => { throw new Error(`Background ended ${run.status}: ${run.errorCode ?? "no error code"}`); });
+    await Promise.race([explaining.promise, failEarly]);
+    assert.equal(f.store.handled("chat"), undefined, "a model request still in progress cannot advance the watermark");
+    assert.equal(f.store.runs()[0].status, "running");
+    release.resolve();
+    const marker = await Promise.race([handled.promise, failEarly]);
+    assert.equal(marker.key, "chat"); assert.match(marker.value, /^new-version\|/);
     const run = f.store.runs()[0]; assert.equal(run.requestedBy, "background"); assert.deepEqual(run.sourceScope.map(source => source.conversationId), ["chat"]); assert.match(f.store.handled("chat")!, /^new-version\|/);
-    service.completed("chat", "new-version"); await new Promise(resolve => setTimeout(resolve, 15)); assert.equal(f.calls, 1);
-  } finally { await service.dispose(); f.close(); }
+    assert.equal(run.status, "success");
+    const persisted = JSON.parse(readFileSync(join(f.dataDir, "observer/state.json"), "utf8"));
+    assert.deepEqual(persisted.handled, [{ key: "chat", value: marker.value }]);
+    service.completed("chat", "new-version"); assert.equal(f.calls, 1);
+    failNext = true;
+    service.completed("chat", "failed-version");
+    const failure = await failed.promise;
+    assert.equal(failure.status, "failed"); assert.equal(failure.errorCode, "observer_model_failed");
+    assert.equal(f.calls, 2, "the duplicate successful source version did not create another request");
+    assert.equal(f.store.handled("chat"), marker.value, "a failed batch cannot advance the durable watermark");
+    assert.deepEqual(JSON.parse(readFileSync(join(f.dataDir, "observer/state.json"), "utf8")).handled, persisted.handled);
+  } finally { release.resolve(); await service.dispose(); f.close(); }
 });
 
 test("developer revocation cancels manual work; disabling background preserves a manual run and disabled platforms cannot start L2", async () => {

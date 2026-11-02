@@ -79,6 +79,7 @@ import type { RoutineView } from "./routineTypes.ts";
 import { requireAgentIsolation } from "./runtime/agentProcess.ts";
 import { createModelGateway } from "./runtime/modelGateway.ts";
 import { createRunDeadline } from "./runtime/runDeadline.ts";
+import { createRunWatchdog } from "./runtime/runWatchdog.ts";
 import { createUsageService } from "./usage.ts";
 import type { UsageState } from "./usageTypes.ts";
 import { UserInputGate } from "./userInputGate.ts";
@@ -363,11 +364,16 @@ export function createPiRuntimeController(options: {
     memoryDelivered?: () => void;
     limit?: string;
     deadline?: ReturnType<typeof createRunDeadline>;
+    watchdog?: ReturnType<typeof createRunWatchdog>;
     /** Browsers watching the run; it keeps going with none (a closed tab does not stop it). */
     watchers: Set<(event: AgentUXEvent) => void>;
     done: Promise<void>;
   };
   const runs = new Map<string, RunSlot>();
+  const watchdogEnabled = () => { try { return observerStore?.settings().enabled === true; } catch { return false; } };
+  const unsubscribeWatchdog = observerStore?.subscribeSettings(() => {
+    if (!watchdogEnabled()) for (const slot of runs.values()) slot.watchdog?.dispose();
+  });
   /** When a turn was last accepted or ended. The keeper's per-minute sampling cannot see a short
    *  turn, so it reads this (as an age) instead of inferring activity from `activeRuns`. */
   let lastRunTouchedAt: number | undefined;
@@ -920,6 +926,7 @@ export function createPiRuntimeController(options: {
   /** Stops one conversation's run, or every run. A stop before the run has started is kept. */
   const stopRun = async (slot: RunSlot) => {
     slot.stopRequested = true;
+    slot.watchdog?.dispose();
     slot.vaultAbort.abort();
     await slot.stop?.();
   };
@@ -1051,6 +1058,12 @@ export function createPiRuntimeController(options: {
       const slot: RunSlot = { runId: input.requestId!, fromChannel: options?.fromChannel, groupConversation: options?.groupConversation, groupId: options?.groupId, publicRunId: options?.publicRunId, delegated: options?.delegated, extraHostTools: options?.extraHostTools,
         references, turn: { provider: input.provider, model: input.model, locale: input.locale }, vaultAbort: new AbortController(), stopRequested: false, watchers: new Set([onEvent]), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
+      if (watchdogEnabled()) slot.watchdog = createRunWatchdog({ enabled: watchdogEnabled,
+        waiting: () => awaitingUser(conversationId),
+        alert: evidence => {
+          if (runs.get(conversationId) === slot && !slot.stopRequested) log("run.watchdog", { conversationId: slot.groupId ?? conversationId, runId: slot.publicRunId ?? slot.runId, ...evidence });
+        },
+      });
       learning.interrupt();
       try { optionsHostHooks?.foregroundStarted(); } catch { /* Observer must not block ordinary chat. */ }
       lastRunTouchedAt = Date.now();
@@ -1060,7 +1073,10 @@ export function createPiRuntimeController(options: {
       const approvalGate = gateFor(conversationId);
       approvalGate.setReadOnly(options?.readOnly ?? false);
       approvalGate.setAudit(event => {
-        if (runs.get(conversationId) === slot) log("tool.decision", { conversationId, runId: slot.runId, ...event });
+        if (runs.get(conversationId) === slot) {
+          if (["denied", "refused", "cancelled"].includes(event.decision)) slot.watchdog?.excludeTool(event.toolCallId);
+          log("tool.decision", { conversationId, runId: slot.runId, ...event });
+        }
       });
       const role = isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant";
       const harness = agentPreset(role).harness;
@@ -1097,6 +1113,7 @@ export function createPiRuntimeController(options: {
       });
       const record = (event: AgentUXEvent) => {
         if (recorder.ended) return;
+        slot.watchdog?.observe(event);
         const terminal = event.type === "run.finished" || event.type === "run.error";
         if (!terminal) {
           // A streaming delta costs its text, not its envelope; otherwise token-sized events
@@ -1170,6 +1187,7 @@ export function createPiRuntimeController(options: {
           } catch (failure) { if (!recorder.failed) throw failure; }
         }
       } finally {
+        slot.watchdog?.dispose();
         slot.vaultAbort.abort();
         deadline.dispose();
         options?.signal?.removeEventListener("abort", stopOnSignal);
@@ -1356,6 +1374,7 @@ export function createPiRuntimeController(options: {
     },
     dispose() {
       if (disposal) return disposal;
+      unsubscribeWatchdog?.();
       learning.dispose();
       disposed.abort(new Error("Pi runtime controller is disposed."));
       const activeRuns = [...runs.values()];
