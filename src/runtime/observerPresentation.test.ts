@@ -38,7 +38,8 @@ test("report previews show fact, inference, scope, validity and action separatel
     assert.equal(item.downloadUrl, undefined);
     assert.equal(item.workspacePath, undefined);
     assert.equal(item.artifactId, undefined);
-    assert.match(item.id, /:2$/);
+    assert.equal(item.observerRef?.revision, 2);
+    assert.match(item.id, /:2:follow-up:0$/);
   }
 });
 test("untrusted HTML evidence opens as temporary source, without downloads, forms or workspace identity", () => {

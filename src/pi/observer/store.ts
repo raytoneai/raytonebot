@@ -1,3 +1,6 @@
+import type { ControlAuthorization } from "../controlPlaneAuth.ts";
+import { clearFollowUpSources, effectInput, followUpProvenance, implementationInput, validFollowUp } from "./followUp.ts";
+import type { FollowUp, FollowUpReference, FollowUpReferenceInput } from "./types.ts";
 import { randomUUID } from "node:crypto";
 import { constants, closeSync, fstatSync, lstatSync, mkdirSync, openSync, readFileSync, renameSync, rmSync, writeFileSync, chmodSync, fsyncSync } from "node:fs";
 import { join } from "node:path";
@@ -51,7 +54,7 @@ export function createObserverStore(options: { dataDir: string; instanceId?: str
       || !Number.isSafeInteger(saved.settings.revision) || !/^\d{4}-\d{2}-\d{2}$/.test(saved.day) || !Number.isSafeInteger(saved.requests)
       || !Array.isArray(saved.sources) || saved.sources.length > MAX_SOURCES || saved.sources.some(item => !record(item.source) || sourceKey(item.source).length > 1000 || typeof item.birthKey !== "string" || typeof item.deleted !== "boolean")
       || !Array.isArray(saved.tombstones) || saved.tombstones.length > MAX_SOURCES || saved.tombstones.some(item => !record(item.source) || typeof item.cleanupPending !== "boolean")
-      || !Array.isArray(saved.findings) || saved.findings.length > MAX_FINDINGS || saved.findings.some(item => !record(item) || item.schemaVersion !== 1 || !Array.isArray(item.scope) || !Array.isArray(item.evidenceRefs) || typeof item.inference !== "string")
+      || !Array.isArray(saved.findings) || saved.findings.length > MAX_FINDINGS || saved.findings.some(item => !record(item) || item.schemaVersion !== 1 || !Array.isArray(item.scope) || !Array.isArray(item.evidenceRefs) || typeof item.inference !== "string" || item.followUp !== undefined && !validFollowUp(item.followUp))
       || !Array.isArray(saved.runs) || saved.runs.length > MAX_RUNS || saved.runs.some(item => !record(item) || !Array.isArray(item.sourceScope) || !Array.isArray(item.facts) || !Array.isArray(item.evidenceRefs) || !Array.isArray(item.queryRecords) || !record(item.spent))
       || !Array.isArray(saved.handled) || saved.handled.length > 1000) throw new Error();
     if (options.instanceId && saved.instanceId !== options.instanceId) throw new Error();
@@ -83,7 +86,7 @@ export function createObserverStore(options: { dataDir: string; instanceId?: str
   const cleanupDeleted = () => {
     const affected = (sources: SourceIdentity[]) => sources.some(source => !sourceValid(source));
     const runs = data.runs.map(run => affected(run.sourceScope) ? { ...run, sourceScope: [], facts: [], evidenceRefs: [], queryRecords: [], report: undefined, question: undefined, title: undefined, pendingQueries: [], status: "cancelled" as const, errorCode: "observer_source_deleted", endedAt: now() } : run);
-    commit({ ...data, findings: data.findings.filter(finding => !affected(finding.scope)), runs, tombstones: data.tombstones.map(item => ({ ...item, cleanupPending: false })) }, true);
+    commit({ ...data, findings: data.findings.filter(finding => !affected(finding.scope)).map(finding => ({ ...finding, ...(finding.followUp ? { followUp: clearFollowUpSources(finding.followUp, sourceValid, now()) } : {}) })), runs, tombstones: data.tombstones.map(item => ({ ...item, cleanupPending: false })) }, true);
   };
   const cleanupManifests = () => {
     const pending = data.manifestCleanup ?? [];
@@ -235,6 +238,32 @@ export function createObserverStore(options: { dataDir: string; instanceId?: str
       if (finding.revision !== input.revision) throw new ObserverError("observer_revision_conflict", 409);
       if (!["pending", "accepted", "rejected", "disabled"].includes(input.status) || input.status === "accepted" && finding.validity !== "current") throw new ObserverError("observer_finding_invalid", 409);
       commit({ ...data, findings: data.findings.map(item => item.id === input.id ? { ...item, revision: item.revision + 1, reviewStatus: input.status, reviewAuthorization: authorizedVia, reviewedAt: now(), ...(input.status === "accepted" ? { approvedRevision: item.revision, approvedAction: clone(item.proposedAction) } : { approvedRevision: undefined, approvedAction: undefined }) } : item) }); return api.get(input.id)!;
+    },
+    recordFollowUp(input: { id: string; revision: number; followUpRevision: number; section: "implementation" | "effect"; value: unknown }, authorization: ControlAuthorization, resolve: (refs: FollowUpReferenceInput[]) => FollowUpReference[]): FollowUp {
+      usable();
+      const requireFinding = () => {
+        const finding = api.get(input.id);
+        if (!finding) throw new ObserverError("observer_finding_missing", 404);
+        if (finding.revision !== input.revision) throw new ObserverError("observer_revision_conflict", 409);
+        if (!Number.isSafeInteger(input.followUpRevision) || input.followUpRevision < 0 || input.followUpRevision >= Number.MAX_SAFE_INTEGER || (finding.followUp?.revision ?? 0) !== input.followUpRevision) throw new ObserverError("observer_follow_up_conflict", 409);
+        return finding;
+      };
+      requireFinding();
+      const provenance = followUpProvenance(input.revision, authorization, now());
+      let section: Pick<FollowUp, "implementation"> | Pick<FollowUp, "effect">;
+      if (input.section === "implementation") { const parsed = implementationInput(input.value); section = { implementation: { ...parsed, references: resolve(parsed.references), ...provenance } }; }
+      else if (input.section === "effect") { const parsed = effectInput(input.value); section = { effect: { ...parsed, baseline: resolve(parsed.baseline), candidate: resolve(parsed.candidate), ...provenance } }; }
+      else throw new ObserverError("observer_follow_up_invalid");
+      // Reference resolution may register a newly reused source identity. Recheck after it.
+      const finding = requireFinding(), clearedSections = finding.followUp?.clearedSections?.filter(item => item !== input.section);
+      const followUp: FollowUp = { ...clone(finding.followUp ?? { revision: 0 }), ...section, revision: input.followUpRevision + 1 };
+      delete followUp.clearedSections; delete followUp.clearedAt;
+      if (clearedSections?.length) { followUp.clearedSections = clearedSections; followUp.clearedAt = finding.followUp?.clearedAt; }
+      if (!validFollowUp(followUp) || [...(followUp.implementation?.references ?? []), ...(followUp.effect?.baseline ?? []), ...(followUp.effect?.candidate ?? [])].some(ref => !sourceValid(ref.source))) throw new ObserverError("observer_follow_up_source_changed", 409);
+      if (Buffer.byteLength(JSON.stringify(followUp)) > 32768) throw new ObserverError("observer_follow_up_limit", 413);
+      const findings = data.findings.map(item => item.id === input.id ? { ...item, followUp } : item);
+      if (Buffer.byteLength(JSON.stringify({ findings, reports: data.runs.map(run => run.report) })) > MAX_CONTENT) throw new ObserverError("observer_report_full", 507);
+      commit({ ...data, findings }); return clone(followUp);
     },
     deleteFinding(id: string, revision: number) { usable(); const finding = api.get(id); if (!finding || finding.revision !== revision) throw new ObserverError("observer_revision_conflict", 409); const findings = data.findings.filter(item => item.id !== id);
       const runs = data.runs.filter(run => run.id !== finding.observerRunId || findings.some(item => item.observerRunId === run.id));

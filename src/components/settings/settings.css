@@ -661,3 +661,13 @@
 [data-observer-settings] .settings-provider-card { overflow-wrap: anywhere; }
 [data-observer-settings] .settings-provider-actions { flex-wrap: wrap; }
 [data-observer-settings] .ui-button { max-width: 100%; white-space: normal; height: auto; min-height: 32px; }
+[data-observer-follow-up] > summary { cursor: pointer; margin-block: 12px; font-weight: var(--weight-strong); }
+[data-observer-follow-up] form { border-top: 1px solid var(--border-subtle); margin-block: 16px; padding-top: 4px; }
+[data-observer-follow-up] .settings-row > :is(label, input:not([type="number"])) { flex: 1 1 160px; min-width: 0; max-width: 100%; }
+.observer-follow-up-references { min-width: 0; margin: 12px 0; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 8px; }
+.observer-follow-up-references select { width: 100%; }
+.observer-follow-up-references select[multiple] { height: auto; }
+.observer-follow-up-references ul { padding-left: 18px; }
+.observer-follow-up-references li { margin-block: 8px; overflow-wrap: anywhere; }
+.observer-follow-up-references li .ui-button { margin: 4px; }
+[data-observer-saved-follow-up] pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; padding: 10px; background: var(--surface-inset); border-radius: 8px; }

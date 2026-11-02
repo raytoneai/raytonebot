@@ -1,4 +1,4 @@
-import { conversationModelUnavailable } from "./runtime/observerPresentation";
+import { conversationModelUnavailable, observerOutputMatchesFinding } from "./runtime/observerPresentation";
 import { conversationHasRequestReceipt } from "./pi/piConversationState";
 import { Button } from "./components/ui";
 import { useObserver } from "./runtime/useObserver";
@@ -223,7 +223,7 @@ export function AgentApp() {
     for (const item of outputPanel.items) {
       if (!item.observerRef) continue;
       const finding = observer.state.findings.find(entry => entry.id === item.observerRef!.id);
-      if (!finding || finding.revision !== item.observerRef.revision || finding.validity !== item.observerRef.validity) outputPanel.closeItem(item.id);
+      if (!observerOutputMatchesFinding(item, finding)) outputPanel.closeItem(item.id);
     }
   }, [observer.state, outputPanel.items, outputPanel.closeItem]);
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});

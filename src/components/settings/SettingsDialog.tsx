@@ -215,7 +215,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
                     <Button size="sm" disabled={authBusy} onClick={() => void authorize(() => controlPlaneSession.logout())}>{authCopy.logout}</Button>
                   </div>}
                 </section> : null}
-                {props.observer && auth.authenticated && auth.developerScope && props.onOpenObserverChat && props.onOpenObserverOutput && props.onObserverHandoff ? <ObserverSection observer={props.observer} bots={props.observerBots ?? []} onOpenChat={props.onOpenObserverChat} onOpenOutput={props.onOpenObserverOutput} onHandoff={props.onObserverHandoff} /> : null}
+                {props.observer && auth.authenticated && auth.developerScope && props.onOpenObserverChat && props.onOpenObserverOutput && props.onObserverHandoff ? <ObserverSection observer={props.observer} bots={props.observerBots ?? []} onOpenChat={props.onOpenObserverChat} onOpenOutput={props.onOpenObserverOutput} onHandoff={props.onObserverHandoff} onOpenConversation={props.onOpenConversation} /> : null}
                 {props.learning && (!auth.enabled || auth.authenticated && auth.developerScope) ? <LearningSection learning={props.learning} /> : null}
               </> : null}
               {section === "usage" && props.usage ? <UsageSection usage={props.usage} /> : null}

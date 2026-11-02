@@ -1,3 +1,4 @@
+import { ObserverFollowUp } from "./ObserverFollowUp";
 import { useEffect, useRef, useState } from "react";
 import { useLocale } from "../../i18n/LocaleContext";
 import { observerRunLabel, observerText } from "../../i18n/copy/observer";
@@ -12,10 +13,11 @@ import { Button, Switch } from "../ui";
 const budgetKeys = ["dailyRequests", "maxRequests", "maxDurationMs", "maxQueries", "maxBytes", "pageBytes", "pageSize"] as const;
 
 /** The existing SettingsDialog owns this developer section and its review controls. */
-export function ObserverSection({ observer, bots, onOpenChat, onOpenOutput, onHandoff }: {
+export function ObserverSection({ observer, bots, onOpenChat, onOpenOutput, onHandoff, onOpenConversation }: {
   observer: ObserverSettingsState; bots: readonly BotProfile[];
   onOpenChat: () => void; onOpenOutput: (item: OutputPanelItem) => void;
   onHandoff: (handoff: ObserverHandoff, draft: string) => void;
+  onOpenConversation?: (id: string, target?: { runId?: string; textId?: string }) => void;
 }) {
   const { locale } = useLocale();
   const t = (key: Parameters<typeof observerText>[1]) => observerText(locale, key);
@@ -82,7 +84,7 @@ export function ObserverSection({ observer, bots, onOpenChat, onOpenOutput, onHa
       <h4>{t("findings")}</h4>
       <p className="settings-note">{t("acceptedNote")}</p>
       {state.findings.length === 0 ? <p>{t("none")}</p> : null}
-      {state.findings.map(finding => <article className="settings-provider-card" data-observer-finding={finding.id} key={`${finding.id}:${finding.revision}`}>
+      {state.findings.map(finding => <article className="settings-provider-card" data-observer-finding={finding.id} key={finding.id}>
         <h4>{finding.title}</h4><p>{t(finding.reviewStatus)} · {t(finding.validity)} · #{finding.revision}</p>
         <p><strong>{t("action")}</strong>: {t(finding.proposedAction.kind)} · {finding.proposedAction.description}</p>
         <p>{t("target")}: {t(finding.proposedAction.target.kind)} / {finding.proposedAction.target.id}</p>
@@ -95,6 +97,7 @@ export function ObserverSection({ observer, bots, onOpenChat, onOpenOutput, onHa
           {(["accepted", "rejected", "disabled"] as const).map(status => <Button size="sm" key={status} disabled={busy || finding.reviewStatus === status || status === "accepted" && finding.validity !== "current"} onClick={() => void observer.update({ action: "review", id: finding.id, revision: finding.revision, status })}>{t(({ accepted: "accept", rejected: "reject", disabled: "disable" } as const)[status])}</Button>)}
           <Button size="sm" disabled={busy} onClick={() => void observer.update({ action: "remove", id: finding.id, revision: finding.revision })}>{t("remove")}</Button>
         </div>
+        <ObserverFollowUp finding={finding} onOpenConversation={onOpenConversation} refresh={observer.refresh} />
         <details><summary>{t("handoff")}</summary>
           <label className="settings-row"><span>{t("bot")}</span><select aria-label={`${t("bot")} · ${finding.title}`} value={botId} onChange={event => setBotId(event.target.value)}>{bots.map(bot => <option key={bot.id} value={bot.id}>{bot.name}</option>)}</select></label>
           <label className="settings-row"><span>{t("handoffScope")}</span><textarea aria-label={`${t("handoffScope")} · ${finding.title}`} value={scope} onChange={event => setScope(event.target.value)} maxLength={1000} /></label>

@@ -1,0 +1,1 @@
+export function createQuestionAnswerRequest(host: { controlPlaneAuth: { issueEntry(origin: string): string } }, origin: string): Promise<(conversationId: string, requestId: string, answers: Record<string, string[]> | null) => Promise<Response>>;

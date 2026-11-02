@@ -1,6 +1,6 @@
 import { controlPlaneFetch } from "./controlPlaneSession.ts";
 import type { BotProfile } from "./botProfiles.ts";
-import type { EvidenceView, Finding, ObserverBudget } from "../pi/observer/types.ts";
+import type { EvidenceView, Finding, ObserverBudget, ImplementationInput, EffectInput, FollowUp, FollowUpSource } from "../pi/observer/types.ts";
 export const OBSERVER_BOT_ID = "system:observer";
 export type ObserverView = {
   l2Available: boolean; l2UnavailableReason?: string;
@@ -19,6 +19,8 @@ export type ObserverAction =
   | { action: "analyze" }
   | { action: "clear_finished_runs" }
   | { action: "stop"; runId: string }
+  | { action: "record_implementation"; id: string; revision: number; followUpRevision: number; implementation: ImplementationInput }
+  | { action: "record_effect"; id: string; revision: number; followUpRevision: number; effect: EffectInput }
   | { action: "review"; id: string; revision: number; status: "accepted" | "rejected" | "disabled" }
   | { action: "remove"; id: string; revision: number }
   | { action: "lesson"; id: string; revision: number; botId: string; harness: string }
@@ -33,7 +35,8 @@ async function observerRequest<T>(url: string, action?: ObserverAction, signal?:
   return body;
 }
 export const getObserver = (signal?: AbortSignal) => observerRequest<ObserverView>(prefix, undefined, signal);
-export const updateObserver = (action: ObserverAction) => observerRequest<{ handoff?: ObserverHandoff; draft?: string; cleared?: number }>(prefix, action);
+export const updateObserver = (action: ObserverAction) => observerRequest<{ handoff?: ObserverHandoff; draft?: string; cleared?: number; followUp?: FollowUp }>(prefix, action);
+export const getObserverFollowUpSources = (options: { cursor?: number; limit?: number; query?: string } = {}, signal?: AbortSignal) => observerRequest<{ sources: FollowUpSource[]; nextCursor?: number }>(`${prefix}/follow-up-sources?${new URLSearchParams(Object.entries(options).filter(([, value]) => value !== undefined).map(([key, value]) => [key, String(value)]))}`, undefined, signal);
 export const getObserverFinding = (id: string, revision: number, signal?: AbortSignal) => observerRequest<Finding>(`${prefix}/findings/${encodeURIComponent(id)}?revision=${revision}`, undefined, signal);
 export const getObserverEvidence = (findingId: string, revision: number, evidenceId: string, signal?: AbortSignal) => observerRequest<EvidenceView>(`${prefix}/evidence?${new URLSearchParams({ findingId, revision: String(revision), evidenceId })}`, undefined, signal);
 export function isObserverConversation(value: { systemRole?: string; botId?: string; id: string }): boolean {

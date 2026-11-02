@@ -1,0 +1,101 @@
+{
+  "base": "b97d55b",
+  "files": [
+    {
+      "path": "scripts/check-browser-latency.mjs",
+      "sha256": "8a8b7852e337c610e092e8d9c04d53d18a54f61c5737781c022c44718649898d"
+    },
+    {
+      "path": "scripts/check-user-input.d.mts",
+      "sha256": "6ddd4a36f5068396f55a59e256c166269b879a408e54d6d3290856936a517493"
+    },
+    {
+      "path": "scripts/check-user-input.mjs",
+      "sha256": "d06beed0fed1d21be182940f31eb339773cd6d085592c3cf9fd3f83dc7379097"
+    },
+    {
+      "path": "src/agent-shell.tsx",
+      "sha256": "cacdb92b354ce753fee8cbe3fac1841ed43fcbabf7492896547cddf46f37a4a4"
+    },
+    {
+      "path": "src/components/agent-preview/outputframe/panelItem.ts",
+      "sha256": "a1a7564ed89c833d9f9055bf552f7df1737633e9b414d8a2a89df47602d43114"
+    },
+    {
+      "path": "src/components/settings/ObserverFollowUp.tsx",
+      "sha256": "99a9b5a06889ed25caf709a581518cd7c0baa28b93ffdb106cf5b867ac6dfde5"
+    },
+    {
+      "path": "src/components/settings/ObserverSection.tsx",
+      "sha256": "cdf0c3e8f43d5daddadd46f2767482b3a55b1d4f1190f1bc012e132ca929d0ca"
+    },
+    {
+      "path": "src/components/settings/SettingsDialog.tsx",
+      "sha256": "d6d9acbd6fce6c27aac0d41cd50f0c48a43660f608872f14c26659b05849944e"
+    },
+    {
+      "path": "src/components/settings/settings.css",
+      "sha256": "6dfc454e4fb8b384927028a9f23e10122ece8c3e396c7657fbef789f640f32b1"
+    },
+    {
+      "path": "src/i18n/copy/observer.ts",
+      "sha256": "818d1c93227da9175b899c4b29355aaa3f63d5df409ab583fec5a4d7986be85c"
+    },
+    {
+      "path": "src/pi/checkUserInputScript.test.ts",
+      "sha256": "ce388dee47c8bea4a0d03d9c9f99277c4fceb07c07d7ff9df478af02aa43f3e4"
+    },
+    {
+      "path": "src/pi/observer/followUp.ts",
+      "sha256": "d71f678faebe342d74969c05669f5c78a4b4e6325070ab383fa6765ede68317d"
+    },
+    {
+      "path": "src/pi/observer/service.ts",
+      "sha256": "9b11e936bc5eb55ebf5e65cea024c718379061b0ee421ad1dcf515a9a7e0eb6f"
+    },
+    {
+      "path": "src/pi/observer/store.ts",
+      "sha256": "d40757ba6cb5013eade1bf3142af9189b89293e8043487399f86c8c091be5ab6"
+    },
+    {
+      "path": "src/pi/observer/types.ts",
+      "sha256": "77aa20361c09070e0926131e5ef09017096b6b17c87bf419d0bc35c8031bd25d"
+    },
+    {
+      "path": "src/pi/observerFollowUp.test.ts",
+      "sha256": "8f3799d342612ee184aa5f02f1d270829f503f526d6c477c5c4125358d03a049"
+    },
+    {
+      "path": "src/pi/piHttpHost.ts",
+      "sha256": "8cf4df1a4efe20af5bf746e476baf048c691c07c475255ce80daeef09bef0f8f"
+    },
+    {
+      "path": "src/pi/piRuntimeController.ts",
+      "sha256": "107fb674dc3a448032e9700da167598cb907c43aaf816f73520fb43bc57bbb9d"
+    },
+    {
+      "path": "src/runtime/observerClient.ts",
+      "sha256": "e5a25eae4729e4d3cb5e0e45448a7e426571e0417895e4c15a4d9c58ee677946"
+    },
+    {
+      "path": "src/runtime/observerFollowUpDraft.test.ts",
+      "sha256": "0a749797ba526a8c4651449438040bd97b131579c11721877a322784adabfe97"
+    },
+    {
+      "path": "src/runtime/observerFollowUpDraft.ts",
+      "sha256": "0d43ff5f42ea36c716c4ce056980dc34719012b885e86189d809f3875a63280d"
+    },
+    {
+      "path": "src/runtime/observerFollowUpUi.test.ts",
+      "sha256": "0286af963c2f7f251c7071b6f2983ebb7d31bfab2f780bbe5ca047cbf03ee4df"
+    },
+    {
+      "path": "src/runtime/observerPresentation.test.ts",
+      "sha256": "792b3e015ed663ba5c0490a7f4979a35271f09b68740aa414057eb00f47780a9"
+    },
+    {
+      "path": "src/runtime/observerPresentation.ts",
+      "sha256": "d753c5ca427889663093278c4e67e92455b698283a26be33d88ef9114e1d9647"
+    }
+  ]
+}

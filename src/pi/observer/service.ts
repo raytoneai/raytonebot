@@ -10,6 +10,8 @@ import { matchConversationText } from "../conversationSearch.ts";
 import type { HostTools } from "../memories.ts";
 import { explainObserverFacts, OBSERVER_INSTRUCTION_VERSION, type ObserverAnalysis, type ObserverModel, type ObserverModelUsage } from "./analysis.ts";
 import { runObserverDiagnostic, type ObserverDiagnosticInput } from "./diagnostic.ts";
+import { followUpSourcesFromProjections, resolveFollowUpReferences } from "./followUp.ts";
+import type { FollowUpSource } from "./types.ts";
 import { evidenceHash, safeText, sourceKey } from "./evidence.ts";
 import { createObserverQueries, type ObserverLogRecord, type ObserverRoutineStats } from "./queries.ts";
 import type { ObserverStore } from "./store.ts";
@@ -26,6 +28,7 @@ export function createObserverService(options: {
   store: ObserverStore; appRoot: string; allowL2?: boolean; models(): Models; resolveModel(provider: string, model: string): ObserverModel;
   leaseModel(model: ObserverModel, run: RunSnapshot, onUsage: (id: string, usage: ObserverModelUsage) => void): Promise<Lease>;
   conversations(): ConversationProjection[]; logs?(): ObserverLogRecord[]; routines?(): ObserverRoutineStats[]; config?(): Record<string, unknown>; usage?(): Record<string, unknown>;
+  followUpSources?(): FollowUpSource[] | Promise<FollowUpSource[]>;
   submitLesson(finding: Finding, botId: string, harness: string): void;
   repo?(): RepoSnapshot | Promise<RepoSnapshot>; now?(): number; idleMs?: number;
   explain?: typeof explainObserverFacts; diagnose?: (input: ObserverDiagnosticInput) => Promise<ObserverAnalysis>;
@@ -54,6 +57,7 @@ export function createObserverService(options: {
     finally { validator.dispose(); }
     return { snapshot, conversations };
   };
+  const followUpSources = async () => (options.followUpSources ? await options.followUpSources() : followUpSourcesFromProjections(options.conversations()));
   const cancel = (runId?: string) => {
     if (active && (!runId || active.run.id === runId)) { active.abort.abort(); latestQueries?.revokeRun(active.run.id); return true; }
     return false;
@@ -195,6 +199,14 @@ export function createObserverService(options: {
     async update(action: ObserverAction, authorization: ControlAuthorization, assertAuthorized?: () => void) {
       const pending = prepareAuthorization(authorization, assertAuthorized);
       try {
+      if (action.action === "record_implementation" || action.action === "record_effect") {
+        // Historical records do not require enabling the Observer or a still-matching build.
+        const allowed = ["action", "id", "revision", "followUpRevision", action.action === "record_implementation" ? "implementation" : "effect"];
+        if (Object.keys(action).some(key => !allowed.includes(key))) throw new ObserverError("observer_follow_up_invalid");
+        const sources = await followUpSources(); pending.check();
+        const followUp = store.recordFollowUp({ id: action.id, revision: action.revision, followUpRevision: action.followUpRevision, section: action.action === "record_implementation" ? "implementation" : "effect", value: action.action === "record_implementation" ? action.implementation : action.effect }, authorization, refs => resolveFollowUpReferences(refs, sources));
+        return { followUp };
+      }
       if (!["stop", "remove", "clear_finished_runs"].includes(action.action) && !(action.action === "settings" && !action.enabled)) await refresh();
       pending.check();
       if (action.action === "settings") {
@@ -256,6 +268,12 @@ export function createObserverService(options: {
     async follow(id: string, after: number, listener: (event: AgentUXEvent) => void) { await refresh(); if (active?.run.conversationId !== id) return undefined; const current = active, previous = store.runs().filter(run => run.conversationId === id && run.id !== current.run.id).flatMap(projection), events = [...previous, ...current.events]; for (const [index, event] of events.entries()) if (index >= after) listener({ ...event, seq: index + 1 }); const forward = (event: AgentUXEvent) => listener({ ...event, seq: previous.length + (event.seq ?? 0) }); current.listeners.add(forward); return { done: current.done, stop() { current.listeners.delete(forward); } }; },
     async deleteConversation(id: string, assertAuthorized?: () => void) { assertAuthorized?.(); store.deleteConversation(id); },
     async renameConversation(id: string, title: string, assertAuthorized?: () => void) { await refresh(); assertAuthorized?.(); store.renameConversation(id, title); return title.trim(); },
+    async followUpSources(input: { cursor?: number; limit?: number; query?: string } = {}) {
+      const cursor = input.cursor ?? 0, limit = input.limit ?? 100, query = input.query?.trim().toLowerCase() ?? "";
+      if (!Number.isSafeInteger(cursor) || cursor < 0 || !Number.isSafeInteger(limit) || limit < 1 || limit > 100 || query.length > 200) throw new ObserverError("observer_follow_up_source_invalid");
+      const rows = (await followUpSources()).filter(item => store.sourceValid(item.source) && (!query || `${item.conversationTitle} ${item.source.conversationId} ${item.runId}`.toLowerCase().includes(query))).sort((a, b) => (b.at ?? 0) - (a.at ?? 0) || a.source.conversationId.localeCompare(b.source.conversationId) || a.runId.localeCompare(b.runId));
+      return { sources: rows.slice(cursor, cursor + limit), ...(cursor + limit < rows.length ? { nextCursor: cursor + limit } : {}) };
+    },
     async finding(id: string, revision: number) { await refresh(); const finding = store.get(id); if (!finding) throw new ObserverError("observer_finding_missing", 404); if (finding.revision !== revision) throw new ObserverError("observer_revision_conflict", 409); return finding; },
     async evidence(id: string, revision: number, refId: string) { const { snapshot } = await refresh(); const queries = createObserverQueries(queryOptions(snapshot)); try { return await queries.openEvidence(id, revision, refId); } finally { queries.dispose(); } },
     async handoffTools(token: string, botId: string, runId: string, isActive: () => boolean): Promise<HostTools> {

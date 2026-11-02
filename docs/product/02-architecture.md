@@ -6,9 +6,11 @@
 
 `controlPlaneAuth.ts` 在原 HTTP host 检查短期 HttpOnly 用户会话；写入使用 `x-raytonebot-csrf`，开发者范围单独授予。`/auth/exchange`、`/auth/session`、`/auth/developer/grant|revoke`、`/auth/logout` 均在 `/__agentcanvas/pi` 下。本机入口只经交互 Vite 主机直接打开的一次性 fragment 提供；云端交换依赖原入口已验证的请求上下文，不信任外部自报身份头。前端凭据不持久化，撤销/退出会清除私有视图并终止读取。元数据审计位于同级 `<dataDir>.control-plane/`；无匿名管理写兼容。完整清单见 [14](14-control-plane-inventory.md)。
 
-`GET /observer` 返回状态、预算与 finding 列表，`POST /observer` 承担设置、L1、停止、审核、删除、交接和经验提议；`GET /observer/findings/:id?revision=` 与 `/observer/evidence?findingId=&revision=&evidenceId=` 提供开发者回查。L2 的 prompt/stop/history/search/live 复用既有路径并检查系统身份及开发者范围；查询仅是绑定运行的内部能力，不存在任意查询执行 HTTP API。
+`GET /observer` 返回状态、预算与 finding 列表，`POST /observer` 承担设置、L1、停止、审核、删除、交接、经验提议及手动 `record_implementation` / `record_effect`；`GET /observer/findings/:id?revision=` 与 `/observer/evidence?findingId=&revision=&evidenceId=` 提供开发者回查。`GET /observer/follow-up-sources?cursor=&limit=&query=` 在同一开发者授权下返回有界普通会话轮次元数据，供后续记录选择；不返回正文。L2 的 prompt/stop/history/search/live 复用既有路径并检查系统身份及开发者范围；查询仅是绑定运行的内部能力，不存在任意查询执行 HTTP API。
 
 `<dataDir>/observer/state.json`（schema 1）保存有界结构记录，完整构建清单在私有 `manifests/<hash>.json` 去重保存，目录/文件为 0700/0600。来源绑定实例、会话世代与内容版本；先持久化删除标记，再撤销查询及多来源派生记录。工具原文和模型上下文仅在内存，历史/搜索/Output 只投影问题、报告、引用和经过过滤的状态。L2 不加载个人扩展、原生上下文、浏览器或通用工具。后台队列仅内存，重启不补跑且后台关闭。
+
+可选 `finding.followUp` 在同一状态文件原子保存，独立 revision，不改变原审核或有效性；旧记录缺省为未记录。实施/效果为有界用户记录，实际源由主机确认，删除源清理相关段正文。Settings 内草稿仅在内存，Output 报告绑定 follow-up revision，变化后关闭旧副本；不把后续记录写入聊天投影。[完整契约](13-observer.md#follow-up)。
 
 本机工作树使用受跟踪文件清单，部署读取实际包内 `OBSERVER-BUILD.json` 并核对字节；配置/代码/证据失效后不能继续批准、交接或注入旧经验。所有云环境 L2 暂不开放，不以已有隔离环境变量代替逐平台验证。实施与验收状态见 [T6.11](03-roadmap.md#t611) 和 [本机证据](../../output/observer-2026-11-02/README.md)。
 

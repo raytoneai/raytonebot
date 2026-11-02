@@ -1,9 +1,9 @@
 import type { ObserverStore } from "./observer/store.ts";
 import { isObserverId } from "./observer/identity.ts";
 import { observerConversationProjection } from "./observer/projection.ts";
-import { evidenceHash } from "./observer/evidence.ts";
+import { evidenceHash, safeText } from "./observer/evidence.ts";
 import type { ObserverModel, ObserverModelUsage } from "./observer/analysis.ts";
-import type { ConversationProjection, RunSnapshot } from "./observer/types.ts";
+import type { ConversationProjection, FollowUpSource, RunSnapshot } from "./observer/types.ts";
 import { runProvenance, type RunSourceOptions } from "./runProvenance.ts";
 import { asRecord, errorMessage, normalizeConversationId } from "./piHostUtils.ts";
 import type { AgentUXEvent } from "@agent-ux/protocol";
@@ -113,6 +113,7 @@ export type PiRuntimeController = {
   observerModel(provider: string, model: string): ObserverModel;
   observerModelLease(model: ObserverModel, run: RunSnapshot, onUsage: (id: string, usage: ObserverModelUsage) => void): Promise<{ baseUrl: string; apiKey: string; revoke(): void }>;
   observerProjections(): ConversationProjection[];
+  observerFollowUpSources(): FollowUpSource[];
   learning: ReturnType<typeof createLearningService>;
   usage(): UsageState;
   /** Permission mode a turn gets when its client does not choose one (IM channels). */
@@ -947,6 +948,21 @@ export function createPiRuntimeController(options: {
       const current = api.observerModel(model.definition.id, model.model);
       if (current.configRevision !== model.configRevision) throw new ConversationRequestError("observer_model_changed", 409);
       return (await gateway()).issue({ baseUrl: current.definition.baseUrl, apiKey: current.apiKey ?? "agentcanvas-no-auth", model: current.model, protocol: current.definition.protocol === "anthropic" ? "anthropic" : "openai", maxRequests: run.budget.maxRequests, maxDurationMs: run.budget.maxDurationMs, onUsage });
+    },
+    observerFollowUpSources() {
+      if (!observerStore) return [];
+      const measured = usage.list().runs;
+      return store.list().filter(summary => !isObserverId(summary.id) && !isChildConversationId(summary.id)).flatMap(summary => {
+        const source = observeSource(summary.id), saved = store.get(summary.id); if (!source || !saved) return [];
+        const events = saved.events.filter(event => (!event.visibility || event.visibility === "public") && event.runId && ["run.started", "run.finished", "run.error", "text.started", "text.finished"].includes(event.type));
+        const version = evidenceHash([source, saved.updatedAt, saved.title, events.map(event => [event.id, event.type, event.runId, event.seq, event.ts, event.type === "run.finished" ? event.payload.status : undefined])]);
+        let conversationTitle = "Conversation"; try { conversationTitle = safeText(saved.title, 240); } catch { /* Titles derived from sensitive messages are never returned. */ }
+        return [...new Set(events.map(event => event.runId!))].map(runId => {
+          const turn = saved.turns?.find(item => item.runId === runId), record = measured.find(item => item.runId === runId && item.conversationId === saved.id), publicEvents = events.filter(event => event.runId === runId), terminal = [...publicEvents].reverse().find(event => event.type === "run.finished" || event.type === "run.error");
+          let model: FollowUpSource["model"]; try { if (record?.requestCount && record.provider && record.model) model = { provider: safeText(record.provider, 256), model: safeText(record.model, 256) }; } catch { /* Missing or unsafe historical model identity stays unknown. */ }
+          return { source, version, conversationTitle, botId: saved.botId ?? saved.agentPreset, harness: turn?.harness ?? record?.harness ?? "unknown", ...(model ? { model } : {}), contextFreshness: "unknown" as const, runId, ...(Number.isFinite(publicEvents[0]?.ts) ? { at: publicEvents[0].ts } : {}), ...(terminal ? { status: terminal.type === "run.error" ? "error" : String(terminal.payload.status ?? "unknown") } : {}) };
+        });
+      });
     },
     observerProjections() {
       if (!observerStore) return [];
