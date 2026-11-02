@@ -383,7 +383,8 @@ export function createBrowserService(options: { dataDir: string; log?(event: str
     const part = snapshotText.slice(offset, cut);
     const truncated = cut < snapshotText.length;
     const page = contentSpilled ? [`Excerpt: characters ${offset}–${cut} of ${snapshotText.length}; truncated=${truncated}; nextOffset=${truncated ? cut : "none"}.`,
-      `Read retained text with browser_snapshot snapshotId="${snapshotId}", offset=${truncated ? cut : 0}, limit=${CONTENT_PAGE_CHARS}. Offsets count UTF-16 characters; omit snapshotId/offset/limit for a fresh snapshot.`] : [];
+      truncated ? `Read retained text with browser_snapshot snapshotId="${snapshotId}", offset=${cut}, limit=${CONTENT_PAGE_CHARS}. Offsets count UTF-16 characters; omit snapshotId/offset/limit for a fresh snapshot.`
+        : "End of retained snapshot. No further continuation is needed; omit snapshotId/offset/limit for a fresh snapshot."] : [];
     const more = truncated && !contentSpilled ? `\n[Snapshot characters ${offset}–${cut} of ${snapshotText.length}. Call browser_snapshot with offset=${cut}, snapshotId="${snapshotId}" for more.]` : "";
     return [`URL: ${redact(summary.url)}`, `Title: ${redact(summary.title)}`, `Page: ${summary.pageId}`, `Snapshot: ${snapshotId}`, ...page, ...summary.notes.map(redact), ...notes.splice(0).map(redact), "", part + more].join("\n");
   };

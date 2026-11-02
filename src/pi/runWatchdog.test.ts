@@ -76,6 +76,49 @@ test("watchdog excludes active tools and all host waiting states, then clears on
   t.mock.timers.tick(idle * 2); assert.equal(alerts.length, 0);
 });
 
+test("watchdog bounds fingerprint traversal before serialization and never compares truncated inputs", t => {
+  const alerts: WatchdogAlert[] = [];
+  const watchdog = createRunWatchdog({ enabled: () => true, waiting: () => false, alert: value => alerts.push(value) });
+  t.after(() => watchdog.dispose());
+  let calls = 0;
+  const finish = (args: unknown) => {
+    const toolCallId = `bounded-${calls++}`;
+    watchdog.observe(event("tool.call.started", { toolCallId, name: "read" }));
+    watchdog.observe(event("tool.call.running", { toolCallId, args }));
+    watchdog.observe(event("tool.call.finished", { toolCallId, status: "error" }));
+  };
+  const oversizedArray = new Array(1_000_000).fill("x");
+  const wide = Object.fromEntries(Array.from({ length: 10_000 }, (_, index) => [`key${index}`, "x"]));
+  let deep: unknown = "tail";
+  for (let index = 0; index < 1000; index++) deep = { next: deep };
+  const stringify = t.mock.method(JSON, "stringify");
+  const descriptors = t.mock.method(Object, "getOwnPropertyDescriptor");
+  for (const [name, args, maxReads] of [
+    ["oversized string", { text: "x".repeat(1_000_000) }, 1],
+    ["oversized array", oversizedArray, 0],
+    ["wide object", wide, 2048],
+    ["deep object", deep, 17],
+  ] as const) {
+    stringify.mock.resetCalls(); descriptors.mock.resetCalls();
+    finish(args);
+    const serializations = stringify.mock.callCount(), reads = descriptors.mock.callCount();
+    assert.equal(serializations, 0, `${name} must be rejected before serialization`);
+    assert.ok(reads <= maxReads, `${name} read ${reads} entries instead of stopping within ${maxReads}`);
+  }
+  let getterCalls = 0, proxyCalls = 0, toJSONCalls = 0;
+  const accessor = { get text() { getterCalls++; return "value"; } };
+  const proxy = new Proxy({}, { ownKeys() { proxyCalls++; return []; }, getPrototypeOf() { proxyCalls++; return Object.prototype; } });
+  const custom = { toJSON() { toJSONCalls++; return {}; } };
+  const cycle: Record<string, unknown> = {}; cycle.self = cycle;
+  for (const args of [accessor, proxy, custom, cycle, { value: undefined }, { value: Infinity }, { value: 1n }]) finish(args);
+  assert.equal(getterCalls + proxyCalls + toJSONCalls, 0, "unsupported values cannot execute user hooks");
+  // Distinct suffixes past the budget must not become equal by keeping a shared prefix.
+  for (let index = 0; index < 8; index++) finish({ text: `${"x".repeat(65536)}${index}` });
+  assert.equal(alerts.length, 0);
+  for (let index = 0; index < 4; index++) finish(index % 2 ? { b: [null, true, { y: 2, x: "ok" }], a: 1 } : { a: 1, b: [null, true, { x: "ok", y: 2 }] });
+  assert.deepEqual(alerts, [{ code: "repeated_tool_failure", tool: "read", count: 4 }], "ordinary nested key order stays canonical");
+});
+
 test("controller logs bounded watchdog evidence and Observer exposes scoped logs and aggregate facts", async t => {
   t.mock.timers.enable({ apis: ["Date", "setTimeout"], now: Date.now() });
   const root = mkdtempSync(join(tmpdir(), "rtb-watchdog-")), dataDir = join(root, "data");

@@ -1,4 +1,5 @@
 import { createHash } from "node:crypto";
+import { types } from "node:util";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 
 export type WatchdogAlert = { code: "repeated_tool_failure" | "inactive_run"; tool?: string; count?: number; durationMs?: number };
@@ -37,8 +38,49 @@ export function createRunWatchdog(options: { enabled(): boolean; waiting(): bool
   const fingerprint = (args: unknown) => {
     if (args === undefined) return undefined;
     try {
-      const text = JSON.stringify(args, (_key, value) => value && typeof value === "object" && !Array.isArray(value)
-        ? Object.fromEntries(Object.keys(value).sort().map(key => [key, value[key]])) : value);
+      let entries = 2048, characters = 65536;
+      const ancestors = new Set<object>();
+      const reject = (): never => { throw new Error("watchdog_fingerprint_limit"); };
+      const spend = (amount: number) => { if (amount > characters) reject(); characters -= amount; };
+      const copy = (value: unknown, depth: number): unknown => {
+        if (depth > 16) reject();
+        if (typeof value === "string") { spend(value.length + 2); return value; }
+        if (value === null || typeof value === "boolean") { spend(5); return value; }
+        if (typeof value === "number" && Number.isFinite(value)) { spend(24); return value; }
+        if (typeof value !== "object" || !value || types.isProxy(value) || ancestors.has(value)) return reject();
+        const array = Array.isArray(value), prototype = Object.getPrototypeOf(value);
+        if (array ? prototype !== Array.prototype : prototype !== null && prototype !== Object.prototype) reject();
+        ancestors.add(value); spend(2);
+        let result: unknown;
+        if (array) {
+          if (value.length > entries) reject();
+          entries -= value.length; spend(value.length);
+          const items: unknown[] = [];
+          for (let index = 0; index < value.length; index++) {
+            const descriptor = Object.getOwnPropertyDescriptor(value, index);
+            if (!descriptor || !("value" in descriptor)) return reject();
+            items.push(copy(descriptor.value, depth + 1));
+          }
+          result = items;
+        } else {
+          const fields = new Map<string, unknown>();
+          // Stop collecting before sorting; never copy an unbounded Object.keys array.
+          for (const key in value) {
+            if (!Object.hasOwn(value, key)) continue;
+            if (--entries < 0) reject();
+            spend(key.length + 4);
+            const descriptor = Object.getOwnPropertyDescriptor(value, key);
+            if (!descriptor || !("value" in descriptor)) return reject();
+            fields.set(key, descriptor.value);
+          }
+          const object = Object.create(null) as Record<string, unknown>;
+          for (const key of [...fields.keys()].sort()) object[key] = copy(fields.get(key), depth + 1);
+          result = object;
+        }
+        ancestors.delete(value);
+        return result;
+      };
+      const text = JSON.stringify(copy(args, 0));
       if (!text || text.length > 65536) return undefined;
       return createHash("sha256").update(text).digest("hex");
     } catch { return undefined; }

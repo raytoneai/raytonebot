@@ -24,3 +24,8 @@ __pycache__/
 /output/observer-2026-11-02/agentsphere-manifest.json
 /output/observer-followup-2026-11-02/**/*.log
 /output/observer-followup-2026-11-02/**/*.png
+
+# Run reliability checks keep only the summary and reproducible scripts in Git.
+/output/run-reliability-2026-11-02/**/*.log
+/output/run-reliability-2026-11-02/**/*.png
+/output/run-reliability-2026-11-02/**/*.json

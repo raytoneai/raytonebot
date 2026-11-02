@@ -2,6 +2,8 @@
 
 基线 `2d8f3b9`。用户授权快速子代理实现、主代理逐批 review 和独立 commit。本轮使用隔离临时数据及受控引擎，不启用真实 Observer 后台、不调用真实模型、不推送或部署。
 
+仓库只保留验收摘要与复跑脚本。原始日志、截图和 fixture JSON 已退出 Git 跟踪并加入忽略规则，本机文件保留；下述结果是执行记录，不依赖缺失附件链接。原三批提交历史未改写。
+
 ## 第一批：Watchdog
 
 - 现有主机内确定性检测，Observer 开启后对新运行生效。四次相同工具/参数执行失败或排除工具与用户等待后的五分钟无活动，只记诊断信号。
@@ -10,7 +12,7 @@
 - 主代理 review 要求补齐：执行前策略拒绝的排除，真实审批/问答与长工具等待，群成员到公开父轮的来源关联和错轮次排除。已检查实现和新增回归。
 - 定向测试 7/7、构建、隔离 `check-local.mjs`、云入口自检通过。第一轮完整测试 960 项，958 通过、1 失败、1 既有 DSH 环境跳过；Observer 后台测试的约一秒轮询断言失败，没有提供实际终态。修正测试等待真正的 `markHandled` 落盘信号，同时对失败终态立即给出错误、验证在途/失败不推进水位；不改生产调度。相关 47 项通过，最终完整 961 项测试：960 通过、0 失败、1 项既有 DSH 环境跳过。
 
-证据：[Watchdog 定向测试](batch1-watchdog.log)、[构建](batch1-build.log)、[第一轮完整测试](batch1-tests.log)、[最终完整测试](batch1-tests-final.log)、[本机 HTTP](batch1-local.log)、[云入口](batch1-cloud.log)。
+回归入口：[Watchdog 测试](../../src/pi/runWatchdog.test.ts)、[Observer 后台测试](../../src/pi/observerRuntime.test.ts)。
 
 边界：检测与 Node host 同进程，不检测该进程自身失活；长工具主动排除，五分钟无活动可能只是慢模型。日志有界且非完整审计账本；没有新增实时弹窗、自动 finding 或模型调用。真实误报率、收益及逐平台部署未验。
 
@@ -21,8 +23,8 @@
 - 提示模型先检查已完成/待完成/结果不确定操作，不重复成功或不确定的对外写入，无法核实时问用户。不是底层事务回放，也不保证外部副作用恰好一次；原生 session 缺失仍拒绝执行。
 - 主代理 review：恢复 key 加 runId，避免复用的重启终态 ID 造成跨轮次旧回调；旧闭包在读取主机前就拒绝；移除不必要的新提交返回值/本地去重状态，保留原运行租约和主机请求身份；将“未完成”改为“结果待核对”，不推断旧操作未生效。
 - 定向 selector/实际 React hook＋ChatFrame＋Composer Chromium 测试 16/16，通过 zh/en/ja、桌面/390px、刷新、显式点击、附件/草稿、双击/跨标签、旧回调与最新主机拒绝分支。HTTP 历史为受控响应、submit 为捕获函数；实际主机重启/原生上下文由已有服务端测试覆盖，未调用真实模型。
-- [构建](batch2-build.log)、[完整测试](batch2-tests.log)：973 项、972 通过、0 失败、1 项既有 DSH 环境跳过；[本机 HTTP](batch2-local.log)、[云入口自检](batch2-cloud.log)通过。
-- 实际隔离 App 的 devtools 桌面/390px 各 20 场景，[40/40 通过](fixture-results.json)，无启动/场景错误。[复跑脚本](fixture-browser-check.mjs)。主代理查看[中文桌面](batch2-ui/zh-1280-recovery.png)、[中文窄屏](batch2-ui/zh-390-recovery.png)及[日文窄屏](batch2-ui/ja-390-recovery.png)，按钮可达、草稿保持、无横向溢出。
+- 构建、完整测试通过：973 项、972 通过、0 失败、1 项既有 DSH 环境跳过；本机 HTTP、云入口自检通过。
+- 实际隔离 App 的 devtools 桌面/390px 各 20 场景，40/40 通过，无启动/场景错误。[复跑脚本](fixture-browser-check.mjs)。主代理查看中文桌面、中文窄屏及日文窄屏截图，按钮可达、草稿保持、无横向溢出。
 
 第二批没有修改恢复时的主机执行协议、审批或模型，也没有验证线上重启/外部业务系统结果核对。
 
@@ -31,8 +33,29 @@
 - 仅 `browser_snapshot(mode=content)` 的脱敏后正文超过 4000 个 UTF-16 字符时返回至多 1500 字符的原文摘录；包含快照身份、总长、截断标记和下一偏移，按需页至多 4000。小正文保持内联，full/interactive 和动作预算保持，复用原单份内存快照，不增加文件、通用缓存或摘要模型。
 - 所有保留快照回读显式带 snapshotId，包括 offset=0；拒绝缺失/错误/过期身份、越界和跨会话/运行访问。页不拆 Unicode 代理对，接管、清除、停止或结束释放引用；排队和异步完成后重新核验，迟到结果不能恢复已释放快照。
 - 主代理 review 核对：Pi 缓存 toolkit 必须动态读取 live run；释放且 getter 尚未变、getter 变化但尚未释放两个独立分支；Vault 在保留全文前脱敏；精确复现旧 describe 换行截断/头部/续读提示后才比较响应大小。补明旧 Codex thread/start schema 限制，不扩展引擎协议。
-- 子代理首轮相关 108 项出现一项既有浏览器关闭提示断言失败；新检查提前返回了泛化状态提示，已恢复原关闭错误语义，相关 108 项通过。主代理最终 [10 项专项](batch3-spill.log)全部通过（实际 Chromium，无跳过），覆盖 18,522 字符 Unicode/换行正文完整重构、范围与生命周期、缓存 bridge 跨两轮及停止、Vault 多页回读。
+- 子代理首轮相关 108 项出现一项既有浏览器关闭提示断言失败；新检查提前返回了泛化状态提示，已恢复原关闭错误语义，相关 108 项通过。主代理最终 10 项专项全部通过（实际 Chromium，无跳过），覆盖 18,522 字符 Unicode/换行正文完整重构、范围与生命周期、缓存 bridge 跨两轮及停止、Vault 多页回读。
 - 独立 30 段受控文章保留文本 31,199 字符：旧算法预算 15,000，实际返回 14,551 字符，响应 **14,870 UTF-8 字节**；新首段预算 1500，按行返回 1039 字符，响应 **1539 字节**。两侧均包含头部和续读元数据，正文相同；没有使用名义预算作为旧响应实测值。不代表总任务读取量、token、成本或完成质量的改善。
-- [构建](batch3-build.log)、[完整测试](batch3-tests.log)：979 项、978 通过、0 失败、1 项既有 DSH 环境跳过；[本机 HTTP](batch3-local.log)、[云入口自检](batch3-cloud.log)通过。构建仍有既有的大 chunk 提示。未改 UI 组件/事件映射；本批实际 Chromium 工具行为与第二批已有 40/40 开发场景记录分开，不把后者算作本批新复跑。
+- 构建、完整测试通过：979 项、978 通过、0 失败、1 项既有 DSH 环境跳过；本机 HTTP、云入口自检通过。构建仍有既有的大 chunk 提示。未改 UI 组件/事件映射；本批实际 Chromium 工具行为与第二批已有 40/40 开发场景记录分开，不把后者算作本批新复跑。
 
 兼容边界：Codex 旧线程保存的动态工具 schema 可能缺少 snapshotId，需要新会话取得新定义；无身份分页明确拒绝。保留文本只在当前主机内存和运行有效，不提供跨轮或重启召回。未部署，未调用真实模型验证分页使用效果。
+
+## 外部 review 收尾
+
+- Watchdog 比较前限制深度 16、累计条目 2048、源字符预算 65536。超限或非普通 JSON 输入直接跳过，不截断后比较；只序列化受限副本，序列化长度仍检查 65536。回归核对百万字符/百万元素数组、万键对象和千层嵌套不进入 JSON.stringify，属性读取在预算处停止；普通嵌套键重排仍正确触发。V8 内部可能枚举属性名，这不是硬 CPU 时间保证。
+- Spill 最后一页明确结束，保留 nextOffset=none，删除 offset=0 的续读建议；显式请求 offset=0 重读仍通过。主代理核对实现与对应回归，没有改变恢复权限或其他产品行为。
+- 40 个生成文件（约 1.49 MB）退出 Git 跟踪并忽略，摘要和两个复跑脚本保留。旧日志的用户主目录路径不再出现在当前跟踪文件中；原三批提交未改写，历史仍包含原产物。
+- 验证：专项 13/13；Node v26.13.0 下 `npm test` 共 980 项，979 通过、0 失败、1 项既有 DSH 环境跳过。build、本机 HTTP、云入口自检、跟踪文件链接和 diff 检查通过。未改 UI/事件映射，未新增整套 devtools 视觉复跑；实际 Chromium 分页测试通过。原始日志仅留本机，不再入库。
+
+## 复跑
+
+在仓库根目录执行；浏览器回归需要已安装 Chromium。以上三批本机完整测试使用 Node v26.13.0；外部评审报告 Node 24 下 890 项（858 通过、32 跳过），未取得其完整命令/逐项报告，暂不归因测试数量差异。
+
+```sh
+node --test src/pi/runWatchdog.test.ts src/pi/browser/snapshotSpill.test.ts src/pi/browserRunScope.test.ts src/pi/browser/vaultFill.test.ts
+node --test src/runtime/taskRecovery.test.ts src/runtime/taskRecovery.browser.test.ts
+npm run build
+npm test
+node output/run-reliability-2026-11-02/check-local.mjs
+node scripts/cloud-preview.mjs --check
+node output/run-reliability-2026-11-02/fixture-browser-check.mjs
+```

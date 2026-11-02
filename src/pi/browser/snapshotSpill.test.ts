@@ -68,12 +68,19 @@ test("content Spill reconstructs exact Unicode/newline text within budgets; smal
       assert.equal(part.start, next);
       assert.equal(part.end - part.start, part.text.length);
       assert.ok(part.text.length <= 4000);
+      if (part.next === undefined) {
+        assert.match(result.text, /truncated=false; nextOffset=none/);
+        assert.match(result.text, /End of retained snapshot\. No further continuation is needed/);
+        assert.doesNotMatch(result.text, /Read retained text|offset=\d+/);
+      } else assert.match(result.text, new RegExp(`Read retained text.*offset=${part.next},`));
       assert.doesNotMatch(part.text, /^[\uDC00-\uDFFF]|[\uD800-\uDBFF]$/u);
       reconstructed += part.text; next = part.next;
     }
     assert.equal(reconstructed, f.content + "\n\nLinks:\n");
     assert.equal(first.total, reconstructed.length);
     const reread = await tools.run("browser_snapshot", { snapshotId, offset: 0, limit: 1500 });
+    assert.equal(reread.isError, false, "explicit offset=0 reread remains available after the final page");
+    assert.equal(id(reread.text), snapshotId);
     assert.equal(page(reread.text).text, first.text);
     const boundary = await tools.run("browser_snapshot", { snapshotId, offset: 1501, limit: 4000 });
     assert.equal(page(boundary.text).text, "界".repeat(3999), "page ends before the surrogate pair at its limit");
