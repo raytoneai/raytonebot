@@ -9222,6 +9222,14 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   .exported-shell .preview-frame {
     padding-inline: env(safe-area-inset-left) env(safe-area-inset-right);
   }
+  .exported-shell .preview-frame .message-actions { gap: 6px; }
+  .exported-shell .preview-frame .message-action-icon {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex: none;
+  }
   .exported-shell .preview-frame .rail-icon-btn { --rail-icon-button-size: 44px; }
   .exported-shell .session-search-trigger { width: 44px; height: 44px; }
   .exported-shell .preview-frame .composer-frame :is(.composer-upload, .ui-icon-button, .permission-mode-trigger, .budget-mode-trigger, .provider-model-picker, .ui-select, .send-button) {

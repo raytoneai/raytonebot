@@ -46,7 +46,11 @@ test("settings navigation preserves non-secret editor drafts", { skip: !findHead
     } }],
   });
   let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
-  const nav = (page: Page, name: string) => page.locator(".settings-rail").getByRole("button", { name, exact: true }).click();
+  const nav = async (page: Page, name: string) => {
+    const button = page.locator(".settings-rail").getByRole("button", { name, exact: true });
+    if (await button.isVisible()) return button.click();
+    return page.locator(".settings-mobile-nav select").selectOption({ label: name });
+  };
   try {
     await server.listen();
     browser = await chromium.launch({ executablePath: findHeadlessShell(), headless: true });
@@ -103,6 +107,25 @@ test("settings navigation preserves non-secret editor drafts", { skip: !findHead
       };
 
       await t.test(`${width}px: new and existing memory drafts survive section changes with their original save precondition`, () => withPage(async (page, data) => {
+        if (width === 390) {
+          const sectionSelect = page.locator(".settings-mobile-nav select");
+          assert.equal(await sectionSelect.getAttribute("aria-label"), "Settings");
+          assert.equal(await sectionSelect.inputValue(), "memory", "the initial section is selected on mobile");
+          assert.deepEqual(await sectionSelect.locator("option").evaluateAll(options => options.map(option => (option as HTMLOptionElement).value)),
+            ["providers", "permissions", "mcp", "memory", "vault", "appearance", "about"], "absent capabilities must not add mobile options");
+          await sectionSelect.selectOption("appearance");
+          assert.equal(await page.locator(".settings-body-header h2").textContent(), "Appearance");
+          await page.setViewportSize({ width: 1280, height: 844 });
+          await page.locator(".settings-rail").getByRole("button", { name: "Appearance", exact: true }).waitFor({ state: "visible" });
+          assert.equal(await page.locator(".settings-rail").getByRole("button", { name: "Appearance", exact: true }).getAttribute("aria-current"), "page");
+          await page.setViewportSize({ width: 390, height: 844 });
+          assert.equal(await sectionSelect.inputValue(), "appearance", "resizing keeps the selected section");
+          await sectionSelect.focus();
+          assert.equal(await sectionSelect.evaluate(element => element === document.activeElement), true, "the mobile selector is keyboard focusable");
+          await sectionSelect.press("Tab");
+          assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('[hidden]'))), false, "tabbing from the selector does not focus a hidden editor");
+          await sectionSelect.selectOption("memory");
+        }
         const add = page.getByRole("textbox", { name: "Add something to remember…", exact: true });
         await add.fill("New memory draft");
         const details = page.locator("details").last();

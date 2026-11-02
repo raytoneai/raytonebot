@@ -31,7 +31,7 @@ import type { UsageViewState } from "../../runtime/useUsage";
 import type { VaultSettingsState } from "../../runtime/useVault";
 import { type AgentFrontendProject, type ProviderConnectionId } from "../../schema/agentuxConfig";
 import { type ThemePresetId } from "../../theme/themeTokens";
-import { Button } from "../ui";
+import { Button, Select } from "../ui";
 import { AboutSection } from "./AboutSection";
 import { AppearanceSection } from "./AppearanceSection";
 import { ChannelsSection } from "./ChannelsSection";
@@ -166,6 +166,15 @@ export function SettingsDialog(props: SettingsDialogProps) {
         <RadixDialog.Content className="settings-dialog" aria-describedby={undefined} onCloseAutoFocus={props.onCloseAutoFocus}>
           <nav ref={navigationRef} className="settings-rail" aria-label={t.title}>
             <RadixDialog.Title className="settings-rail-title">{t.title}</RadixDialog.Title>
+            <div className="settings-mobile-nav">
+              <Select
+                aria-label={t.title}
+                value={section}
+                onChange={(event) => setSection(event.currentTarget.value as SectionId)}
+              >
+                {nav.map(({ id, label }) => <option key={id} value={id}>{label}</option>)}
+              </Select>
+            </div>
             {nav.map(({ id, label, Icon }) => (
               <button
                 type="button"
