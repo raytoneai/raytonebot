@@ -1,3 +1,5 @@
+import { isObserverId } from "./observer/identity.ts";
+import { runProvenance, type RunSourceOptions } from "./runProvenance.ts";
 /**
  * Group chat (ADR-032). A group is a conversation with `group` metadata; each member runs in a
  * hidden child conversation (`<group>.m.<role>`) through the ordinary `runPrompt`, so native
@@ -35,6 +37,7 @@ import { validArtifactSubmission } from "../runtime/artifactForm.ts";
 import { createGroupWriteQueue, originalGroupTaskRequest, newGroupTask, retainedGroupTasks, recoverGroupTasks, settleGroupTask, groupTaskEvents, groupTaskContext, mergeForegroundGroupTasks, type GroupTask } from "./groupTasks.ts";
 import { createGroupDelegation, delegationConversationPrefix } from "./groupDelegation.ts";
 import { redactCredentials } from "./imChannels/redactCredentials.ts";
+import { mergeHostTools, type HostTools } from "./memories.ts";
 
 const CHILD = ".m.";
 export const childConversationId = (groupId: string, member: string) => `${groupId}${CHILD}${member}`;
@@ -59,6 +62,7 @@ export const untag = (value: string): { member?: string; id: string } => {
 // ---------- controller wrapper ----------
 type Deps = {
   bots?: BotConfigStore;
+  observerHooks?: { foregroundStarted(): void; foregroundIdle(): void; completed(id: string, version: string): void };
   store: ConversationStore;
   userInputGate: UserInputGate;
   validateAttachments?(attachments: PiPromptInput["attachments"], member: AgentPresetId): Promise<void>;
@@ -73,7 +77,7 @@ type Deps = {
 
 export type GroupController = PiRuntimeController & {
   setGroupMembers(id: string, members: string[], bots?: GroupParticipant[], hostId?: string): StoredConversation;
-  runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void): Promise<void>;
+  runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: RunSourceOptions & { signal?: AbortSignal; fromChannel?: boolean; readOnly?: boolean; extraHostTools?: HostTools }): Promise<void>;
   withIdleWrite<T>(callback: () => Promise<T>): Promise<T>;
 };
 
@@ -138,10 +142,12 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         lines: [...current.lines, { author: task.owner, text: result }].slice(-20),
         preview: { author: task.owner, text: `${task.status}: ${task.title}`.slice(0, 80) },
       } });
+      try { const current = deps.store.get(groupId); if (current) deps.observerHooks?.completed(groupId, `${notificationRunId}:${current.updatedAt}`); } catch { /* Observer cannot fail a published delegation result. */ }
     }
   }
 
   function setGroupMembers(id: string, members: string[], bots?: GroupParticipant[], hostId?: string) {
+    if (isObserverId(id) || members.some(isObserverId) || isObserverId(hostId)) throw new ConversationRequestError("Observer cannot join group conversations.", 400);
     const saved = controller.getConversation(id);
     if (active.has(id) || resets.has(id) || saved?.activeRunId) throw new ConversationRequestError("请等当前回复结束后再调整成员。", 409);
     const previous = groupOf(id)?.group;
@@ -168,13 +174,17 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     publishDelegations(id);
   };
 
-  async function runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, invitation: string[] = []) {
+  async function runGroupPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: RunSourceOptions & { signal?: AbortSignal; fromChannel?: boolean; readOnly?: boolean; extraHostTools?: HostTools }, invitation: string[] = []) {
+    options?.signal?.throwIfAborted();
+    runProvenance(options, input.permissionMode ?? "request", options?.readOnly);
     if (input.artifactSubmission !== undefined && (!validArtifactSubmission(input.artifactSubmission) || input.artifactSubmission.submissionId !== input.requestId)) throw new Error("Invalid artifact submission identity.");
     const groupId = input.conversationId!;
+    if (isObserverId(groupId) || isObserverId(input.botId) || input.members?.some(isObserverId) || input.referencedConversationIds?.some(isObserverId)) throw new ConversationRequestError("Observer cannot join group conversations.", 400);
     const userPrompt = redactCredentials(input.prompt.trim());
     let prompt = userPrompt;
     if (!groupId || !prompt) throw new Error("A group conversation and prompt are required.");
     for (let reset = resets.get(groupId); reset; reset = resets.get(groupId)) await reset;
+    options?.signal?.throwIfAborted();
     assertNoIdleWrite();
     if (active.has(groupId)) throw new Error("This group already has a turn in progress.");
     if (controller.getConversation(groupId)?.activeRunId) throw new Error("This conversation already has a turn in progress.");
@@ -187,6 +197,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     const existing = groupOf(groupId);
     conversationReferences(deps.store, input.referencedConversationIds, existing);
     const abort = new AbortController();
+    const stopOnSignal = () => abort.abort();
     let settle!: () => void;
     const slot = { abort, runId: groupRunId, done: new Promise<void>((resolve) => { settle = resolve; }),
       watchers: new Set([onEvent]), children: new Map<string, string>() };
@@ -220,6 +231,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       input = { ...input, attachments: input.attachments ?? original?.attachments };
     }
     active.set(groupId, slot);
+    try { deps.observerHooks?.foregroundStarted(); } catch { /* Observer cannot block group chat. */ }
     touchGroupActivity();
     // Until a topic is summarized, a group is named by its members; a summarized topic is kept.
     const named = () => (meta.preserveTitle || deps.store.get(groupId)?.titleSource === "summary" ? {} : { title: groupTitle(meta.members, names) });
@@ -260,7 +272,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
     let joinLines: GroupLine[] = [];
 
     let root: GroupTask | undefined;
-    let readOnly = false;
+    let readOnly = options?.readOnly ?? false;
     let declined = false;
     let taskToolStarted = false;
     const taskToolId = `${groupRunId}_assignments`;
@@ -324,9 +336,13 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
           }
           if (event.type === "text.delta" && typeof (event.payload as { delta?: unknown }).delta === "string") text += (event.payload as { delta: string }).delta;
           emit([retag(event, member, groupRunId, childRunId)]);
-        }, { signal: abort.signal, waitForCapacity: true, groupConversation: true, groupId, publicRunId: groupRunId, readOnly,
-          ...(member === hostId && record ? { extraHostTools: delegation.toolsFor({ groupId, requestId: groupRunId, hostId,
-            parentId: root?.id, input, signal: abort.signal, isCurrent: () => active.get(groupId) === slot }) } : {}) });
+        }, { origin: options?.origin, fromChannel: options?.fromChannel,
+          requestedPermissionMode: options?.requestedPermissionMode ?? input.permissionMode ?? "request",
+          parent: { conversationId: groupId, runId: groupRunId, ...(assignment ? { taskId: assignment.id } : {}) },
+          signal: abort.signal, waitForCapacity: true, groupConversation: true, groupId, publicRunId: groupRunId, readOnly,
+          ...(member === hostId && record ? { extraHostTools: mergeHostTools(options?.extraHostTools, delegation.toolsFor({ groupId, requestId: groupRunId, hostId,
+            parentId: root?.id, input: { ...input, permissionMode }, source: { origin: options?.origin,
+              requestedPermissionMode: options?.requestedPermissionMode ?? input.permissionMode ?? "request" }, signal: abort.signal, isCurrent: () => active.get(groupId) === slot })) } : {}) });
         if (failure !== undefined) throw new Error(failure);
         if (cancelled) abort.abort();
         abort.signal.throwIfAborted();
@@ -363,11 +379,14 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       emit(adapter.startUserMessage(userPrompt));
       emit([{ type: "group.members.updated", id: `${groupRunId}_members`, runId: groupRunId, visibility: "debug", payload: { group: { members: meta.members, participants: catalog, hostId } } } as AgentUXEvent]);
     };
+    if (options?.signal?.aborted) stopOnSignal();
+    options?.signal?.addEventListener("abort", stopOnSignal, { once: true });
     try {
+      abort.signal.throwIfAborted();
       if (input.attachments === undefined) openGroup();
       if (reviewed && command && command[2] !== "retry") {
         if (!opened) openGroup();
-        deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt: userPrompt,
+        deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt: userPrompt, provenance: runProvenance(options, permissionMode ?? "request", readOnly),
           ...(input.referencedConversationIds ? { referencedConversationIds: input.referencedConversationIds } : {}) });
         if (reviewed.kind === "delegation" && command[2] === "cancel") {
           await delegation.cancel(groupId, reviewed.id);
@@ -411,10 +430,12 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       }
       abort.signal.throwIfAborted();
       if (!opened) openGroup();
-      deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt: userPrompt,
+      // Discussion members and their summary share the same host-enforced read-only scope.
+      readOnly = options?.readOnly === true || plan.mode === "parallel" || plan.mode === "discussion" || invitedIds.length > 0;
+      // Keep the accepted root mode; children snapshot any later PM-authorized mode.
+      deps.store.saveTurn(groupId, { runId: groupRunId, harness: "pi", prompt: userPrompt, provenance: runProvenance(options, permissionMode ?? "request", readOnly),
         ...(input.referencedConversationIds ? { referencedConversationIds: input.referencedConversationIds } : {}),
         ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}), attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
-      readOnly = plan.mode === "parallel" || invitedIds.length > 0;
       meta.tasks = retainedGroupTasks(meta.tasks);
       if (meta.tasks.length > 800) throw new Error("Too many unresolved assignments; review them before starting more work.");
       root = { ...newGroupTask(groupRunId, hostId, prompt), ...(reviewed ? { retryOf: reviewed.id } : {}) };
@@ -518,6 +539,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       status = memberFailure || !abort.signal.aborted ? "error" : "cancelled";
       turnFailure = memberFailure ?? error;
     } finally {
+      options?.signal?.removeEventListener("abort", stopOnSignal);
       try {
         if (opened) {
           if (!recorder.failed) {
@@ -565,6 +587,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         finally {
           delegation.closeOrigin(groupId, groupRunId);
           active.delete(groupId); touchGroupActivity(); settle();
+          try { deps.observerHooks?.foregroundIdle(); const saved = deps.store.get(groupId); if (opened && !recorder.failed && saved) deps.observerHooks?.completed(groupId, `${groupRunId}:${saved.updatedAt}`); } catch { /* Ordinary durable completion remains authoritative. */ }
           try { publishDelegations(groupId); } catch { reportFailure("group.delegate_notification_failed"); }
         }
       }
@@ -610,12 +633,13 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
         lastRunAgoMs: ages.length ? Math.min(...ages) : undefined };
     },
     async runPrompt(input, onEvent, options) {
+      options?.signal?.throwIfAborted();
       assertNoIdleWrite();
       if (deps.bots) input = deps.bots.input(input, input.conversationId ? deps.store.get(input.conversationId) : undefined);
       // Only top-level user requests can invite. A child prompt/tool result never alters the room.
       if (options?.groupConversation || !input.conversationId) return controller.runPrompt(input, onEvent, options);
       const existing = groupOf(input.conversationId);
-      if (existing) return runGroupPrompt(input, onEvent);
+      if (existing) return runGroupPrompt(input, onEvent, options);
       const saved = deps.store.get(input.conversationId);
       const catalog = participantCatalog(input.availableBots, participantCatalog(saved?.availableBots));
       const invited = invitedParticipants(input.prompt, catalog);
@@ -625,7 +649,7 @@ export function attachGroupChat(controller: PiRuntimeController, deps: Deps): Gr
       const members = [...new Set([hostId, ...invited.map(bot => bot.id)])];
       if (members.length === 1) return controller.runPrompt(input, onEvent, options);
       setGroupMembers(input.conversationId, members, catalog, hostId);
-      return runGroupPrompt({ ...input, members }, onEvent, invited.map(bot => bot.id).filter(id => id !== hostId));
+      return runGroupPrompt({ ...input, members }, onEvent, options, invited.map(bot => bot.id).filter(id => id !== hostId));
     },
     listConversations: (query) => controller.listConversations(query).filter((entry) => !isChildConversationId(entry.id))
       .map((entry) => {

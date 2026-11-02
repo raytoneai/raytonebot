@@ -8,10 +8,10 @@ import type { AgentPresetId } from "../pi/harnessCatalog.ts";
 import type { AvatarKind } from "../avatars/AgentPersona.tsx";
 
 // Group chat: members and the last message come with the host's summary of the conversation.
-export function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupParticipants" | "groupHostId" | "groupPreview" | "botId" | "availableBots" | "titleSource" | "groupTitlePreserved"> {
+export function groupFields(entry: object): Pick<EphemeralPiConversation, "groupMembers" | "groupParticipants" | "groupHostId" | "groupPreview" | "botId" | "availableBots" | "titleSource" | "groupTitlePreserved" | "systemRole"> {
   const group = (entry as StoredConversationSummary).group;
   const saved = entry as StoredConversationSummary;
-  return { ...(saved.titleSource ? { titleSource: saved.titleSource } : {}), ...(saved.botId ? { botId: saved.botId, availableBots: saved.availableBots } : {}), ...(group ? { groupMembers: group.members, groupParticipants: group.participants, groupHostId: group.hostId, groupPreview: group.preview, ...(group.preserveTitle !== undefined ? { groupTitlePreserved: group.preserveTitle } : {}) } : {}) };
+  return { ...(saved.systemRole ? { systemRole: saved.systemRole } : {}), ...(saved.titleSource ? { titleSource: saved.titleSource } : {}), ...(saved.botId ? { botId: saved.botId, availableBots: saved.availableBots } : {}), ...(group ? { groupMembers: group.members, groupParticipants: group.participants, groupHostId: group.hostId, groupPreview: group.preview, ...(group.preserveTitle !== undefined ? { groupTitlePreserved: group.preserveTitle } : {}) } : {}) };
 }
 
 // Group chat: members live on the conversation; the host keeps its own copy per turn.

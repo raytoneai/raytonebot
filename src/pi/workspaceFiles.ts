@@ -158,14 +158,16 @@ async function readUpload(req: IncomingMessage): Promise<Buffer> {
   });
 }
 
-export async function uploadWorkspaceFile(layout: WorkspaceLayout, scope: unknown, name: unknown, req: IncomingMessage, excluded?: readonly string[]): Promise<PiFileReference> {
+export async function uploadWorkspaceFile(layout: WorkspaceLayout, scope: unknown, name: unknown, req: IncomingMessage, excluded?: readonly string[], authorize?: () => void): Promise<PiFileReference> {
   if (typeof name !== "string" || !name.trim() || name.includes("/") || Buffer.byteLength(name) > 240) fail(400, "Invalid upload filename.");
   checkedPath(name);
   const location = await checkedTarget(layout, scope, "", excluded);
   const bytes = await readUpload(req);
+  authorize?.();
   const root = await anchoredDirectory(location.root);
   const directory = `uploads/${randomUUID()}`;
   try {
+    authorize?.();
     await mkdir(join(root.path, "uploads"), { recursive: true });
     await checkedTarget(layout, scope, "uploads", excluded);
     // Open from the already anchored parent. Never resolve /proc/self/fd back into a mutable path.
@@ -180,6 +182,7 @@ export async function uploadWorkspaceFile(layout: WorkspaceLayout, scope: unknow
         ? await open(child, constants.O_RDONLY | constants.O_DIRECTORY | constants.O_NOFOLLOW)
           .catch(() => fail(403, "Upload directory changed.")) : undefined;
       try {
+        authorize?.();
         await writeFile(join(entry ? `/proc/self/fd/${entry.fd}` : child, name), bytes, { flag: "wx", mode: 0o660 });
       } finally { await entry?.close(); }
     } catch (error) {

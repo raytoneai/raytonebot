@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, symlinkSync } from 'node:fs';
@@ -69,11 +70,15 @@ test('provider save rejects a run started while its request body is still arrivi
       newSession: async () => {}, subscribe: () => () => {},
     }),
   });
+  const server = createServer((req, res) => { void host.handle(req, res); });
+  await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
+  const base = `http://127.0.0.1:${(server.address() as { port: number }).port}`;
+  const authFetch = await authenticatedFetch(host, base);
   const response = { statusCode: 0, headersSent: false, body: '',
-    setHeader() {}, writeHead(status: number) { this.statusCode = status; this.headersSent = true; },
+    once() {}, setHeader() {}, writeHead(status: number) { this.statusCode = status; this.headersSent = true; },
     end(body: string) { this.body = body; },
   };
-  const request = { method: 'POST', url: '/__agentcanvas/pi/providers', headers: {},
+  const request = { method: 'POST', url: '/__agentcanvas/pi/providers', headers: { ...authFetch.headers, host: new URL(base).host }, socket: { remoteAddress: '127.0.0.1' },
     async *[Symbol.asyncIterator]() {
       readingBody(); await bodyReady;
       yield Buffer.from(JSON.stringify({ providers: project.providers, keys: {}, revision: 0 }));
@@ -93,7 +98,7 @@ test('provider save rejects a run started while its request body is still arrivi
     assert.equal(view.revision, 0, 'rejected changes must not be persisted');
   } finally {
     releaseBody(); releaseRun(); await run;
-    host.dispose(); rmSync(dir, { recursive: true, force: true });
+    host.dispose(); server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(dir, { recursive: true, force: true });
   }
 });
 
@@ -156,10 +161,11 @@ test('HTTP save reloads configuration and key into fresh turns after restart; de
     const server = createServer((req, res) => { void host.handle(req, res); });
     await new Promise<void>(resolve => server.listen(0, '127.0.0.1', resolve));
     const url = `http://127.0.0.1:${(server.address() as any).port}/__agentcanvas/pi`;
-    return { host, url, close: async () => { host.dispose(); await new Promise<void>(resolve => server.close(() => resolve())); } };
+    const authFetch = await authenticatedFetch(host, url);
+    return { host, url, authFetch, close: async () => { host.dispose(); await new Promise<void>(resolve => server.close(() => resolve())); } };
   };
   let service = await start();
-  const post = (path: string, body: unknown, headers = {}) => fetch(service.url + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
+  const post = (path: string, body: unknown, headers = {}) => ('origin' in headers ? fetch : service.authFetch)(service.url + path, { method: 'POST', headers: { 'content-type': 'application/json', ...headers }, body: JSON.stringify(body) });
   try {
     const body = { providers, keys: { gemini: 'private-http-test-key' }, revision: 0 };
     assert.equal((await post('/providers', body, { origin: 'https://evil.example' })).status, 403);
@@ -167,7 +173,7 @@ test('HTTP save reloads configuration and key into fresh turns after restart; de
     assert.equal(saved.status, 200); assert.equal(saved.headers.get('cache-control'), 'no-store');
     assert.ok(!(await saved.text()).includes('private-http-test-key'));
     await service.close(); service = await start();
-    const view = await (await fetch(service.url + '/providers')).json();
+    const view = await (await service.authFetch(service.url + '/providers')).json();
     assert.equal(view.providers.defaultProviderId, 'gemini'); assert.equal(view.credentials.gemini, true);
     assert.equal((await post('/config', { conversationId: 'restored', provider: 'gemini', model: provider.defaultModel, providerDefinition: definition })).status, 200);
     assert.equal(received.at(-1).apiKey, 'private-http-test-key');

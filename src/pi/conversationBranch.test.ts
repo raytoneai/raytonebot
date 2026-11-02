@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -55,7 +56,8 @@ test("branch route checks source activity and origin, and never executes the new
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const base = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi`;
-  const branch = (origin?: string, beforeRunId = "first") => fetch(`${base}/conversations/source/branch`, {
+  const authFetch = await authenticatedFetch(host, base);
+  const branch = (origin?: string, beforeRunId = "first") => (origin ? fetch : authFetch)(`${base}/conversations/source/branch`, {
     method: "POST", headers: { "content-type": "application/json", ...(origin ? { origin } : {}) }, body: JSON.stringify({ beforeRunId }),
   });
   try {

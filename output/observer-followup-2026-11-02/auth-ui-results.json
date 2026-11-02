@@ -1,0 +1,18 @@
+{
+  "checks": [
+    "anonymous UI remains usable; host fragment is cleared and exchanged",
+    "zh 1280: grant/read/revoke, ordinary access retained",
+    "zh 390: grant/read/revoke, ordinary access retained",
+    "en 1280: grant/read/revoke, ordinary access retained",
+    "en 390: grant/read/revoke, ordinary access retained",
+    "ja 1280: grant/read/revoke, ordinary access retained",
+    "ja 390: grant/read/revoke, ordinary access retained"
+  ],
+  "errors": [],
+  "anonymousText": "当前页面需要主机授权。 打开授权设置\nAgent\nRaer\nPi\nTonny\nClaude Code\nBob\nCodex CLI\n设置\nv0.1.0\n让 Raer 查资料、处理文件或整理思路\n请求权限\n中等\n发送\n设置\n模型服务\n权限\n外观\n开发者模式\n关于\nv0.1.0\n开发者模式\n主机授权\n\n当前页面需要主机授权。\n\n请从主机重新打开一次性入口来授权本页面。结果未确认的操作不会自动重发。\n\n通过可信云入口授权",
+  "checkLocal": {
+    "status": 0,
+    "stdout": "PASS: UI, Pi SDK, 12 tools, empty-prompt validation, cross-origin rejection. No model request made.\n",
+    "stderr": ""
+  }
+}

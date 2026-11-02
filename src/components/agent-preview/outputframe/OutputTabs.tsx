@@ -161,15 +161,15 @@ export function OpenedOutputItem({ item, copy, onClose }: { item: OutputPanelIte
   let form, formError;
   // A saved delivery is a read-only byte snapshot. Even if its JSON happens to
   // describe a raytone-form, do not turn historical bytes into a submit-capable UI.
-  try { form = !readOnlyVersion && preview.body ? parseArtifactForm(preview.body, locale) : undefined; } catch (error) { formError = error instanceof Error ? error.message : String(error); }
+  try { form = !item.ephemeral && !readOnlyVersion && preview.body ? parseArtifactForm(preview.body, locale) : undefined; } catch (error) { formError = error instanceof Error ? error.message : String(error); }
   return (
-    <div className="opened-output-item" data-kind={item.kind} data-render-kind={renderKind} data-versioned={versions.versioned ? "true" : undefined}>
+    <div className="opened-output-item" data-kind={item.kind} data-ephemeral={item.ephemeral ? "true" : undefined} data-render-kind={renderKind} data-versioned={versions.versioned ? "true" : undefined}>
       <div className="artifact-title">
         {outputItemIcon(item, 16)}
         <span title={item.subtitle ?? item.workspacePath ?? item.title}>{item.title}</span>
         {item.kind !== "file" && item.subtitle ? <em>{item.subtitle}</em> : null}
         {!/\.[a-z0-9]+$/i.test(item.title) ? <code>{language}</code> : null}
-        {downloadUrl || preview.contentUrl ? <a className="rail-icon-btn" href={downloadUrl ?? preview.contentUrl} download={item.title} aria-label={copy.download}><Download size={16} /></a> : null}
+        {!item.ephemeral && (downloadUrl || preview.contentUrl) ? <a className="rail-icon-btn" href={downloadUrl ?? preview.contentUrl} download={item.title} aria-label={copy.download}><Download size={16} /></a> : null}
         {downloadUrl || failed || (failedVersion && versions.canLoad) ? <button className="rail-icon-btn" type="button" aria-label={copy.retryPreview} onClick={retry}><RefreshCw size={16} /></button> : null}
         {onClose ? <button className="rail-icon-btn" type="button" aria-label={copy.closeFile(item.title)} title={copy.closeFile(item.title)} onClick={() => onClose(item.id)}><X size={16} /></button> : null}
       </div>
@@ -179,7 +179,7 @@ export function OpenedOutputItem({ item, copy, onClose }: { item: OutputPanelIte
         : versions.versioned && versions.state.status === "unavailable" ? <p role="alert">{featureText(locale, "Saved version context is unavailable. Open the source conversation to view it.")}</p>
         : versions.versioned && versions.state.status === "failed" ? <p role="alert">{featureText(locale, "Could not load saved versions. Retry to view this delivery.")}</p>
         : failedVersion ? <p role="alert">{featureText(locale, "Saved version is unavailable. Retry to view this delivery.")}</p>
-        : !readOnlyVersion && !loadingVersion && !failed && preview.body !== undefined && (/\.(md|txt)$/i.test(item.title) || !downloadUrl && ["markdown", "text"].includes(language)) ? <DocumentActions key={item.id} item={item} body={preview.body} downloadUrl={downloadUrl} /> : null}
+        : !item.ephemeral && !readOnlyVersion && !loadingVersion && !failed && preview.body !== undefined && (/\.(md|txt)$/i.test(item.title) || !downloadUrl && ["markdown", "text"].includes(language)) ? <DocumentActions key={item.id} item={item} body={preview.body} downloadUrl={downloadUrl} /> : null}
       {loadingVersion ? null
         : versions.versioned && (versions.state.status === "unavailable" || versions.state.status === "failed" || failedVersion) ? null
         : preview.loading ? <p role="status">{copy.loadingFiles}</p>

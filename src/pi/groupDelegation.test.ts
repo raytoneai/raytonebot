@@ -1,3 +1,4 @@
+import type { RunSourceOptions } from "./runProvenance.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -86,8 +87,8 @@ function fixture() {
   };
   let controller = createPiRuntimeController({ cwd: dataDir, dataDir, store, bridgeFactory: factory });
   const tasks = () => store.get(groupId)?.group?.tasks?.filter(task => task.kind === "delegation") ?? [];
-  const request = (requestId: string, text = "delegate-now", events: AgentUXEvent[] = []) => controller.runGroupPrompt({ conversationId: groupId, requestId,
-    prompt: `@Raer ${text}`, members: ["assistant", guest.id], availableBots: [...DEFAULT_PARTICIPANTS, guest] }, event => events.push(event));
+  const request = (requestId: string, text = "delegate-now", events: AgentUXEvent[] = [], source?: RunSourceOptions) => controller.runGroupPrompt({ conversationId: groupId, requestId,
+    prompt: `@Raer ${text}`, members: ["assistant", guest.id], availableBots: [...DEFAULT_PARTICIPANTS, guest] }, event => events.push(event), source);
   return { store, calls, released, accepted, rejected, statusResults, delegatedSpecs, nestedErrors, referencedChecks, tasks, request,
     get controller() { return controller; }, get hostTools() { return hostTools; },
     setCount(value: number) { count = value; }, setHoldMain(value: boolean) { holdMain = value; }, checkInvalid() { checkInvalid = true; },
@@ -314,5 +315,24 @@ test("group references validate before acceptance and delegates inherit only tru
     await until(() => f.referencedChecks.length === 1);
     assert.deepEqual(f.referencedChecks, [true]);
     assert.deepEqual(f.store.get(groupId)!.turns?.find(turn => turn.runId === "valid-ref")?.referencedConversationIds, ["allowed-history"]);
+  } finally { await f.cleanup(); }
+});
+
+
+test("delegation keeps entrypoint source, effective scope and its public assignment identity", async () => {
+  const f = fixture();
+  const origin = { kind: "routine" as const, routineId: "routine-source", occurrenceId: "actual-occurrence" };
+  try {
+    await f.request("provenance-root", "delegate-now", [], { origin });
+    await until(() => f.released.size === 1);
+    const task = f.tasks()[0];
+    const turn = f.controller.getConversation(task.conversationId!)!.turns!.find(turn => turn.runId === task.runId)!;
+    assert.deepEqual(turn.provenance, { origin, permissionMode: "request", readOnly: true,
+      parent: { conversationId: groupId, runId: "provenance-root", taskId: task.id } });
+    assert.notEqual(turn.runId, "provenance-root");
+    const root = f.controller.getConversation(groupId)!.turns!.find(turn => turn.runId === "provenance-root")!;
+    assert.deepEqual(root.provenance, { origin, permissionMode: "request" });
+    f.releaseDelegates();
+    await until(() => f.tasks()[0].status === "completed");
   } finally { await f.cleanup(); }
 });

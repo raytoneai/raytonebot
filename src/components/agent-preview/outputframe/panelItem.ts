@@ -2,6 +2,9 @@ import type { ArtifactVersion } from "../../../runtime/artifactVersions.ts";
 import type { PiFileScope } from "../../../pi/piClient.ts";
 
 export type OutputPanelItem = {
+  /** Private diagnostic preview: memory only, no export, editing or form submission. */
+  ephemeral?: boolean;
+  observerRef?: { id: string; revision: number; followUpRevision?: number; validity: "current" | "stale" | "evidence_missing" };
   id: string;
   kind: "file" | "review";
   title: string;

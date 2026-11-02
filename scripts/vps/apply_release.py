@@ -20,8 +20,8 @@ from urllib.parse import urlsplit
 APP = Path('/home/user/raytonebot')
 CONFIG = Path('/home/user/.raytonebot')
 BACKUPS = Path('/root/raytonebot-backups')
-ALLOWED = {'dist', 'src', 'scripts', 'vendor', 'public', 'index.html', 'package.json',
-           'package-lock.json', 'tsconfig.json', 'vite.config.ts', 'LICENSE', 'THIRD_PARTY_NOTICES.md'}
+ALLOWED = {'dist', 'src', 'scripts', 'vendor', 'public', 'docs', 'README.md', 'AGENTS.md', 'OBSERVER-BUILD.json', 'index.html', 'package.json',
+           'package-lock.json', 'tsconfig.json', 'tsconfig.control.json', 'vite.config.ts', 'LICENSE', 'THIRD_PARTY_NOTICES.md'}
 
 
 def run(*args, cwd=None):

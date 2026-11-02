@@ -2,7 +2,11 @@
 
 本次是单用户试用实例，不复用 AgentSphere 或 AgentMatrix 的部署状态。2026-11-01 在 `b4a22ab` 基础上部署本机工作树的 DSH 与发布、隔离加固；Cloudflare Worker 源码在 `scripts/cloudflare/vps-worker.mjs`。未迁移既有会话、工作区或模型密钥。
 
+2026-11-02 Observer 改动仅在本机实现，尚未发布到此 VPS。更新包必须包含匹配的 `OBSERVER-BUILD.json`、源码、文档及 dist；`apply_release.py` 已允许这些包内项目。新版本私有接口需经既有 Access/Basic 入口交换控制会话，开发者权限另行授予。L2 在云环境保持关闭，现有隔离标志不替代新版本实测。备份恢复的 Observer 私有状态、删除标记、0700/0600 和后台关闭规则见 [迁移说明](product/06-deployment-runbook.md#observer-与控制面迁移2026-11-02本机实现)。本段不改变下文旧部署快照或宣称 VPS 已完成 [OB-09](product/08-acceptance.md#obs-09)。
+
 ## 入口与边界
+
+Observer L2 由主机执行 `!sandboxed && !process.env.RAYTONEBOT_PUBLIC_ORIGIN` 检查。本 VPS 配置的 `RAYTONEBOT_PUBLIC_ORIGIN` 非空，所以 L2 自动禁用，即使 `RAYTONEBOT_SANDBOX=0` 或已授予 developer 权限也是如此；应保留云入口所需的公开地址配置。具体条件与后续开放要求见 [迁移说明](product/06-deployment-runbook.md#observer-与控制面迁移2026-11-02本机实现)。
 
 `https://BOT_HOSTNAME/` → Cloudflare Access 邮箱一次性验证码 → Worker → Workers VPC Service → Cloudflare Tunnel → VPS 的 `127.0.0.1:5188`。Access 按账户邮箱限制；Worker 核对 Access 身份后，以单独的内部密码访问原有 Basic Auth 入口，并重写受信任的代理 Host。只有通过身份验证的首页顶层 GET 导航可消除 Cloudflare 登录跳转带来的跨站导航标记；接口的 Origin / Fetch-Site 检查保留。Worker 禁用预览 URL。
 

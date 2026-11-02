@@ -27,6 +27,7 @@ import sys
 import tarfile
 import time
 import urllib.error
+import urllib.parse
 import urllib.request
 import uuid
 from datetime import datetime, timezone
@@ -42,8 +43,8 @@ PORT = 5188
 # Official fd 10.3.0 release asset digest; Ubuntu's 8.3 lacks Pi's --no-require-git.
 FD_ARCHIVE = "fd-v10.3.0-x86_64-unknown-linux-gnu"
 FD_SHA256 = "c3c2bc79f838e780173fc8f18b337ec273e7ba17c7ff8f551be29fc3c19b7916"
-UPLOAD = ["dist", "src", "scripts", "vendor", "public", "index.html", "package.json",
-          "package-lock.json", "tsconfig.json", "vite.config.ts", "LICENSE", "THIRD_PARTY_NOTICES.md"]
+UPLOAD = ["dist", "src", "scripts", "vendor", "public", "docs", "README.md", "AGENTS.md", "index.html", "package.json",
+          "package-lock.json", "tsconfig.json", "tsconfig.control.json", "vite.config.ts", "LICENSE", "THIRD_PARTY_NOTICES.md"]
 
 
 def fail(message: str) -> None:
@@ -117,19 +118,50 @@ def package() -> bytes:
     private = (".env", ".env.*", ".ssh", ".aws", ".kube", ".npmrc", "*.pem", "*.key",
                "*.p12", "*.pfx", "id_rsa", "id_ed25519", "node_modules")
     def safe(info: tarfile.TarInfo) -> tarfile.TarInfo | None:
-        return None if any(fnmatch.fnmatchcase(part, pattern) for part in Path(info.name).parts for pattern in private) else info
+        if any(fnmatch.fnmatchcase(part, pattern) for part in Path(info.name).parts for pattern in private):
+            return None
+        if not (info.isfile() or info.isdir()):
+            raise ValueError("release must contain only regular files and directories")
+        return info
     buffer = io.BytesIO()
-    with tarfile.open(fileobj=buffer, mode="w:gz") as tar:
+    with tarfile.open(fileobj=buffer, mode="w") as tar:
         for raw in tracked:
             if not raw:
                 continue
             entry = os.fsdecode(raw)
             path = ROOT / entry
-            if Path(entry).parts[0] in allowed and (path.exists() or path.is_symlink()):
+            if Path(entry).parts[0] != "dist" and Path(entry).parts[0] in allowed and (path.exists() or path.is_symlink()):
                 tar.add(path, arcname=entry, recursive=False, filter=safe)
         if (ROOT / "dist").is_dir():
             tar.add(ROOT / "dist", arcname="dist", filter=safe)
-    return buffer.getvalue()
+    # The manifest describes archived bytes, not files read again after packaging.
+    # JSON field order/separators and UTF-16 path ordering match observer-manifest.mjs.
+    files = []
+    output = io.BytesIO()
+    buffer.seek(0)
+    with tarfile.open(fileobj=buffer, mode="r:") as source, tarfile.open(fileobj=output, mode="w:gz") as target:
+        for entry in source:
+            contents = source.extractfile(entry).read() if entry.isfile() else None
+            target.addfile(entry, io.BytesIO(contents) if contents is not None else None)
+            if contents is not None:
+                files.append({"path": entry.name, "hash": hashlib.sha256(contents).hexdigest(), "bytes": len(contents)})
+        files.sort(key=lambda entry: entry["path"].encode("utf-16-be"))
+        canonical = json.dumps(files, ensure_ascii=False, separators=(",", ":")).encode()
+        try:
+            revision = subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=ROOT, stderr=subprocess.DEVNULL).decode().strip()
+            if len(revision) != 40 or any(char not in "0123456789abcdef" for char in revision):
+                revision = None
+            dirty = bool(subprocess.check_output(["git", "status", "--porcelain", "--untracked-files=no"], cwd=ROOT, stderr=subprocess.DEVNULL).strip())
+        except (OSError, subprocess.CalledProcessError):
+            revision, dirty = None, None
+        manifest = {"schemaVersion": 1, "gitRevision": revision, "dirty": dirty,
+                    "buildId": f"agentsphere:{datetime.now(timezone.utc).isoformat()}",
+                    "files": files, "manifestHash": hashlib.sha256(canonical).hexdigest()}
+        payload = json.dumps(manifest, ensure_ascii=False, separators=(",", ":")).encode()
+        entry = tarfile.TarInfo("OBSERVER-BUILD.json")
+        entry.size, entry.mode = len(payload), 0o644
+        target.addfile(entry, io.BytesIO(payload))
+    return output.getvalue()
 
 
 def run(sandbox, command: str, timeout: int = 120, check: bool = True):
@@ -143,16 +175,25 @@ def run(sandbox, command: str, timeout: int = 120, check: bool = True):
     return result
 
 
-def http(url: str, password: str | None, extra: dict | None = None) -> tuple[int, bytes]:
+def http(url: str, password: str | None, extra: dict | None = None, *, control_session=False) -> tuple[int, bytes]:
     headers = dict(extra or {})
     if password is not None:
         headers["Authorization"] = "Basic " + base64.b64encode(f"raytonebot:{password}".encode()).decode()
-    request = urllib.request.Request(url, headers=headers)
     class NoRedirect(urllib.request.HTTPRedirectHandler):
         def redirect_request(self, *_args, **_kwargs):
             return None
+    opener = urllib.request.build_opener(NoRedirect, urllib.request.HTTPCookieProcessor())
     try:
-        with urllib.request.build_opener(NoRedirect).open(request, timeout=20) as response:
+        if control_session:
+            parsed = urllib.parse.urlsplit(url)
+            exchange = urllib.parse.urlunsplit((parsed.scheme, parsed.netloc, "/__agentcanvas/pi/auth/exchange", "", ""))
+            request = urllib.request.Request(exchange, data=b"{}", headers={**headers, "Content-Type": "application/json"}, method="POST")
+            with opener.open(request, timeout=20) as response:
+                receipt = json.loads(response.read())
+                if response.status != 200 or receipt.get("authenticated") is not True:
+                    return 401, b"Control session required"
+        request = urllib.request.Request(url, headers=headers)
+        with opener.open(request, timeout=20) as response:
             return response.status, response.read()
     except urllib.error.HTTPError as error:
         with error:
@@ -356,13 +397,13 @@ def main() -> None:
     expect("unauthenticated health blocked", http(f"{origin}/__agentcanvas/pi/health", None)[0] == 401)
     if handoff_secret:
         expect("handoff without token blocked", http(f"{origin}/__raytone/handoff", None)[0] == 401)
-    status, body = http(f"{origin}/__agentcanvas/pi/state", password)
+    status, body = http(f"{origin}/__agentcanvas/pi/state", password, control_session=True)
     expect("Pi state", status == 200)
     state = json.loads(body)
     expect("sandbox mode", state.get("sandboxed") is True)
     expect("per-role workspaces", state.get("workspace", {}).get("shared") == f"{WORKSPACE_ROOT}/shared")
     harnesses = {entry["id"]: entry for entry in state.get("harnesses", [])}
-    expect("foreign origin blocked", http(f"{origin}/__agentcanvas/pi/state", password, {"Origin": "https://attacker.example"})[0] == 403)
+    expect("foreign origin blocked", http(f"{origin}/__agentcanvas/pi/state", password, {"Origin": "https://attacker.example"}, control_session=True)[0] == 403)
 
     info = sandbox.get_info()
     deployment.pop("processId", None)

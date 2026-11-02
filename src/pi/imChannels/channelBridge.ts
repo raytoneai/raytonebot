@@ -279,7 +279,7 @@ export class ChannelBridge {
               cancelled = payload.status === "cancelled";
               break;
           }
-        }, { fromChannel: true });
+        }, { fromChannel: true, origin: { kind: "im", platform: this.options.platform, requesterId: message.senderId } });
       }
     } catch (error) {
       failure = errorMessage(error);

@@ -1,0 +1,76 @@
+{
+  "checks": [
+    "finding accepted before two real ordinary result runs; result-source deletion cannot delete the independent finding",
+    "implemented result reference and improved baseline/candidate, criteria, sample count and cost saved through the real UI; pure edits preserve code-evidence Output",
+    "browser refresh restores records without replaying diagnostic or ordinary runs",
+    "real concurrent HTTP revision produces 409; dirty draft survives, explicit latest-read rebases and explicit retry persists it",
+    "Settings source action opens the actual candidate conversation/run and its real saved assistant result",
+    "deleting linked result source removes whole effect and affected implementation, preserves original accepted finding/review, evicts stale Output and new Output has no removed content",
+    "developer revocation clears forms and ephemeral Output and rejects direct private HTTP read"
+  ],
+  "errors": [],
+  "ordinaryRuns": 2,
+  "diagnosticRequests": 1,
+  "externalModelRequests": 0,
+  "layouts": [
+    {
+      "locale": "zh",
+      "viewport": 390,
+      "document": 390,
+      "overflow": false,
+      "baselineSelectHeight": 60,
+      "baselineOptions": 2
+    },
+    {
+      "locale": "en",
+      "viewport": 390,
+      "document": 390,
+      "overflow": false,
+      "baselineSelectHeight": 56,
+      "baselineOptions": 2
+    },
+    {
+      "locale": "ja",
+      "viewport": 390,
+      "document": 390,
+      "overflow": false,
+      "baselineSelectHeight": 62,
+      "baselineOptions": 2
+    }
+  ],
+  "screenshots": [
+    "followup-records-desktop.png",
+    "followup-conflict-notice.png",
+    "followup-conflict-draft.png",
+    "followup-open-source-run.png",
+    "followup-zh-desktop.png",
+    "followup-zh-mobile.png",
+    "followup-en-desktop.png",
+    "followup-en-mobile.png",
+    "followup-ja-desktop.png",
+    "followup-ja-mobile.png",
+    "followup-output-before-delete.png",
+    "followup-output-cleared-after-delete.png",
+    "followup-output-after-delete.png",
+    "followup-revoked-mobile.png"
+  ],
+  "expectedConflictConsoleMessages": 1,
+  "conflict": {
+    "status": 409,
+    "draftPreserved": true,
+    "explicitReloadAndRetry": true
+  },
+  "deleteWhileActive": "observer:ad542e00-952c-4b33-955d-e8187fd9d97c",
+  "deletion": {
+    "status": 200,
+    "findingRevisionBefore": 2,
+    "findingRevisionAfter": 2,
+    "reviewPreserved": "accepted",
+    "clearedSections": [
+      "implementation",
+      "effect"
+    ],
+    "followUpRevisionAfter": 5
+  },
+  "passed": true
+}

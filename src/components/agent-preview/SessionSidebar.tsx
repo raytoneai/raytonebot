@@ -327,7 +327,7 @@ export function SessionSidebar({
             if (next >= 0 && next <= last) { event.preventDefault(); historyWindow.focus(next); }
           }}>
           {botGroups ? botGroups.map((group, index) => {
-            const bot = extras.bots?.find(entry => entry.id === group.id);
+            const bot = extras.systemBot?.id === group.id ? extras.systemBot : extras.bots?.find(entry => entry.id === group.id);
             return (
             <SessionGroup key={group.id}
               label={bot?.name ?? (group.id === "group" ? c.groupChats : isAgentPresetId(group.id) ? copy.composer.agentSettings.presets[group.id].name : c.groupOther)}
@@ -337,7 +337,7 @@ export function SessionSidebar({
                 onToggle: () => extras.historyGroups!.toggle(group.id),
                 icon: group.id === "group" ? <GroupFace size={20} kinds={["woman", "man", "boy"]} />
                   : group.id === "other" ? <MessagesSquare size={18} />
-                  : <span onContextMenu={event => { if (bot && extras.onEditBot) { event.preventDefault(); event.stopPropagation(); extras.onEditBot(bot); } }}><AgentAvatar size={20}
+                  : <span onContextMenu={event => { if (bot && bot.id !== "system:observer" && extras.onEditBot) { event.preventDefault(); event.stopPropagation(); extras.onEditBot(bot); } }}><AgentAvatar size={20}
                     appearance={bot?.appearance} kind={bot ? BOT_KINDS[bot.presetId] : extras.sessionAvatars?.[group.items[0].id] ?? "woman"} /></span> }} />
           ); }) : grouping ? (
             <>

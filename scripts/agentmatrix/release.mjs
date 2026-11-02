@@ -9,7 +9,7 @@
 
 import { createHash } from "node:crypto";
 import { execFile } from "node:child_process";
-import { createReadStream, createWriteStream, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { createReadStream, createWriteStream, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { pipeline } from "node:stream/promises";
@@ -17,6 +17,7 @@ import { promisify } from "node:util";
 import { createGzip } from "node:zlib";
 
 import { AM } from "./config.mjs";
+import { createManifest } from "../observer-manifest.mjs";
 
 const exec = promisify(execFile);
 
@@ -90,10 +91,11 @@ export async function buildRelease({ repoRoot, outDir, skipBuild = false, log = 
   const { stdout: tracked } = await exec("git", ["ls-files", "-z", "--cached"], {
     cwd: repoRoot, encoding: "buffer", maxBuffer: 64 * 1024 * 1024,
   });
-  const files = tracked.toString("utf8").split("\0").filter((entry) => entry && existsSync(join(repoRoot, entry)))
+  const files = tracked.toString("utf8").split("\0").filter((entry) => entry && entry !== "OBSERVER-BUILD.json" && !entry.startsWith("dist/") && existsSync(join(repoRoot, entry)))
     .map((entry) => `./${entry}`);
   const listFile = join(manifestDir, "release-files.list");
   const tarFile = join(manifestDir, "release.tar");
+  const snapshot = mkdtempSync(join(tmpdir(), "raytonebot-package-manifest-"));
   writeFileSync(listFile, `${files.join("\0")}\0./dist\0`);
   try {
     const args = ["-cf", tarFile, ...metadataFlags,
@@ -101,10 +103,30 @@ export async function buildRelease({ repoRoot, outDir, skipBuild = false, log = 
       "--null", "-T", listFile];
     await run("tar", args, repoRoot, { COPYFILE_DISABLE: "1" });
     await run("tar", ["-rf", tarFile, ...metadataFlags, "-C", manifestDir, "AM-RELEASE.json"], repoRoot, { COPYFILE_DISABLE: "1" });
+    // Hash the bytes actually archived, including dist and release metadata. Reject links
+    // before extraction; the observer never follows a package entry outside this snapshot.
+    const entries = await run("tar", ["-tvf", tarFile], repoRoot);
+    if (entries.split("\n").some(line => line && !["-", "d"].includes(line[0]))) throw new Error("release must contain only regular files and directories");
+    await run("tar", ["-xf", tarFile, "-C", snapshot], repoRoot, { COPYFILE_DISABLE: "1" });
+    const paths = [];
+    const walk = (directory, prefix = "") => {
+      for (const name of readdirSync(directory)) {
+        const path = prefix ? `${prefix}/${name}` : name, info = lstatSync(join(directory, name));
+        if (info.isDirectory()) walk(join(directory, name), path);
+        else if (info.isFile() && path !== "OBSERVER-BUILD.json") paths.push(path);
+        else if (!info.isFile()) throw new Error("release contains a non-regular file");
+      }
+    };
+    walk(snapshot);
+    const observerBuild = createManifest(snapshot, paths, { gitRevision: commit, dirty, buildId: `agentmatrix:${manifest.builtAt}` });
+    if (observerBuild.files.length !== paths.length) throw new Error("release contains files outside the allowed build manifest");
+    writeFileSync(join(manifestDir, "OBSERVER-BUILD.json"), `${JSON.stringify(observerBuild)}\n`);
+    await run("tar", ["-rf", tarFile, ...metadataFlags, "-C", manifestDir, "OBSERVER-BUILD.json"], repoRoot, { COPYFILE_DISABLE: "1" });
     await pipeline(createReadStream(tarFile), createGzip(), createWriteStream(file));
   } finally {
     rmSync(listFile, { force: true });
     rmSync(tarFile, { force: true });
+    rmSync(snapshot, { recursive: true, force: true });
   }
 
   const bytes = statSync(file).size;

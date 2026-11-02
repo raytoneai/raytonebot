@@ -1,11 +1,15 @@
 """Run without the SDK or network: python3 -m unittest discover -s scripts/agentsphere -p test_deploy.py."""
 import io
+import hashlib
 import json
+import os
 import sys
 import tempfile
 import tarfile
 import unittest
 import urllib.error
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from threading import Thread
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from types import SimpleNamespace
@@ -13,6 +17,43 @@ from unittest.mock import Mock, patch
 
 import deploy
 import setup_isolation
+
+
+class ControlProbeTest(unittest.TestCase):
+    def test_probe_exchanges_existing_entry_auth_and_keeps_cookie_private(self):
+        seen = []
+        class Handler(BaseHTTPRequestHandler):
+            def log_message(self, *_args):
+                pass
+            def do_POST(self):
+                seen.append((self.path, self.headers.get("Authorization"), self.headers.get("Cookie")))
+                self.rfile.read(int(self.headers.get("Content-Length", 0)))
+                self.send_response(200)
+                self.send_header("Set-Cookie", "raytone_control=synthetic; Path=/__agentcanvas/pi; HttpOnly")
+                self.end_headers()
+                self.wfile.write(b'{"authenticated":true}')
+            def do_GET(self):
+                seen.append((self.path, self.headers.get("Authorization"), self.headers.get("Cookie")))
+                self.send_response(200 if self.headers.get("Cookie") == "raytone_control=synthetic" else 401)
+                self.end_headers()
+                self.wfile.write(b'{"available":true}')
+        server = ThreadingHTTPServer(("127.0.0.1", 0), Handler)
+        thread = Thread(target=server.serve_forever, daemon=True)
+        thread.start()
+        try:
+            url = f"http://127.0.0.1:{server.server_port}/__agentcanvas/pi/state"
+            with patch.dict(os.environ, {"no_proxy": "127.0.0.1,localhost"}):
+                self.assertEqual(deploy.http(url, "synthetic-password", control_session=True)[0], 200)
+            self.assertEqual([item[0] for item in seen], ["/__agentcanvas/pi/auth/exchange", "/__agentcanvas/pi/state"])
+            self.assertIsNone(seen[0][2])
+            self.assertEqual(seen[1][2], "raytone_control=synthetic")
+            self.assertTrue(all(item[1].startswith("Basic ") for item in seen))
+            with patch.dict(os.environ, {"no_proxy": "127.0.0.1,localhost"}):
+                self.assertEqual(deploy.http(url, "synthetic-password")[0], 401, "cookie is confined to one probe")
+        finally:
+            server.shutdown()
+            server.server_close()
+            thread.join()
 
 
 class FirewallCheckTest(unittest.TestCase):
@@ -47,14 +88,23 @@ class PackageTest(unittest.TestCase):
     def test_package_excludes_untracked_and_nested_private_files(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
-            for name in ("scripts/app.py", "scripts/.env.local", "scripts/id_ed25519", "scripts/private.txt", "dist/index.html", "dist/.env.production"):
+            for name in ("scripts/app.py", "docs/observer.md", "scripts/.env.local", "scripts/id_ed25519", "scripts/private.txt", "dist/index.html", "dist/.env.production"):
                 path = root / name
                 path.parent.mkdir(parents=True, exist_ok=True)
                 path.write_text("fixture")
-            with patch.object(deploy, "ROOT", root), patch.object(deploy.subprocess, "check_output", return_value=b"scripts/app.py\0scripts/.env.local\0scripts/id_ed25519\0"):
+            with patch.object(deploy, "ROOT", root), patch.object(deploy.subprocess, "check_output", return_value=b"scripts/app.py\0docs/observer.md\0scripts/.env.local\0scripts/id_ed25519\0"):
                 with tarfile.open(fileobj=io.BytesIO(deploy.package()), mode="r:gz") as archive:
                     names = archive.getnames()
+                    manifest = json.load(archive.extractfile("OBSERVER-BUILD.json"))
+                    canonical = json.dumps(manifest["files"], ensure_ascii=False, separators=(",", ":")).encode()
+                    self.assertEqual(manifest["manifestHash"], hashlib.sha256(canonical).hexdigest())
+                    for entry in manifest["files"]:
+                        data = archive.extractfile(entry["path"]).read()
+                        self.assertEqual(entry["hash"], hashlib.sha256(data).hexdigest())
+                        self.assertEqual(entry["bytes"], len(data))
+                    self.assertEqual({entry["path"] for entry in manifest["files"]}, {"scripts/app.py", "docs/observer.md", "dist/index.html"})
             self.assertIn("scripts/app.py", names)
+            self.assertIn("docs/observer.md", names)
             self.assertIn("dist/index.html", names)
             self.assertFalse(any(".env" in name or "id_ed25519" in name or "private.txt" in name for name in names))
 

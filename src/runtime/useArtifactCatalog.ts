@@ -1,3 +1,4 @@
+import { controlPlaneFetch } from "./controlPlaneSession";
 import { useEffect, useRef, useState } from "react";
 import { PI_API_PREFIX } from "../pi/piClient";
 import type { ArtifactCatalogPage } from "./artifactCatalog";
@@ -19,7 +20,7 @@ export function useArtifactCatalog(active: boolean, query: string, conversationI
     setState(current => cursor ? { ...current, more: true, error: undefined } : { ...empty });
     try {
       const params = new URLSearchParams({ query, limit: "50", ...(cursor ? { cursor } : {}) });
-      const response = await fetch(`${PI_API_PREFIX}/artifacts?${params}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
+      const response = await controlPlaneFetch(`${PI_API_PREFIX}/artifacts?${params}`, { signal: AbortSignal.any([controller.signal, AbortSignal.timeout(15_000)]) });
       if (!response.ok) throw new Error(String(response.status));
       const page = await response.json() as ArtifactCatalogPage;
       if (ticket !== generation.current || latest.current !== startKey || controller.signal.aborted) return;

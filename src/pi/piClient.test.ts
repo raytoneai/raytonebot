@@ -208,3 +208,19 @@ test("a turn finishing between history and live subscription still delivers its 
   for await (const event of followPiTurn("a", 3, { fetcher })) caughtUp.push(event);
   assert.deepEqual(caughtUp, [], "already received events are not duplicated");
 });
+
+test("Observer lost-response recovery accepts a persisted browser receipt without treating the host run UUID as the request ID", async () => {
+  const hostEvent = { id: "host-terminal", type: "run.finished", seq: 1, ts: 1, runId: "host-run-uuid", payload: { status: "success" } };
+  for (const live of [false, true]) {
+    const calls: string[] = [];
+    const fetcher: typeof fetch = async url => {
+      calls.push(String(url));
+      return String(url).includes("/live?") ? live ? new Response(JSON.stringify(hostEvent) + "\n") : Response.json({}, { status: 409 })
+        : Response.json({ id: "observer:receipt", systemRole: "observer", botId: "system:observer", events: [hostEvent], acceptedRequestIds: ["browser-request"] });
+    };
+    const received = [];
+    for await (const event of followPiTurn("observer:receipt", 0, { fetcher, requestId: "browser-request" })) received.push(event);
+    assert.equal(received[0].runId, "host-run-uuid");
+    assert.equal(calls.length, 2);
+  }
+});

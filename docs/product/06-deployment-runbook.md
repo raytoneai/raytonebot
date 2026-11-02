@@ -6,6 +6,20 @@
 
 平台：AgentSphere 生产栈（E2B fork，Firecracker microVM，单台 OVH 裸金属，无故障自愈）。原始使用指南：本机 `~/Desktop/agentsphere-sandbox-quickstart.md`。首次部署记录：[../agentsphere-deployment.md](../agentsphere-deployment.md)。
 
+## Observer 与控制面迁移（2026-11-02，本机实现）
+
+此次没有更新远端实例。新版本私有 HTTP API 要求用户控制会话；原 Basic/handoff 云入口验证后，页面显式交换短期 HttpOnly 会话，写请求另带内存 CSRF。开发者权限需在原设置页单独授予。部署脚本的 state 探针复用已有云入口认证并交换一次控制会话，不保留匿名写兼容。health 运维探针保持已有云入口保护。不要把浏览器控制凭据放进 Agent、环境变量或诊断日志。
+
+本机 `npm run dev` 的交互终端直接打开一次性授权页面，`a`/`o` + Enter 可重新打开；地址 fragment 交换后立即移除，不打印入口密钥。非交互启动不发放入口。本机同 UID 不是物理隔离边界。
+
+发布包增加跟踪的 `docs/`、`AGENTS.md`、`README.md` 和 `tsconfig.control.json`，`OBSERVER-BUILD.json` 按实际归档字节记录逐文件哈希、清单哈希、commit/dirty/buildId；自身不参与哈希。远端无需 `.git`。包校验失败不允许取证，回滚必须同时还原代码、dist 和清单，不能只替换前端。
+
+普通备份仅纳入 `<dataDir>/observer/state.json` 与 `manifests/<hash>.json`，包含报告、版本依赖和删除标记；排除原始模型上下文、临时文件及同级控制面凭据。恢复后目录/文件为 0700/0600，后台关闭，未完成运行标中断，不补跑队列。备份前仍须停止写入；旧离线备份和模型服务留存不代表已擦除。
+
+L1/L2、后台与 RSL 默认关闭，Observer 模型须显式选择。本轮 sandbox/VPS 的新版本 UID、网络、取消、更新回滚及恢复均未实测；所有云环境 L2 由主机保持关闭，既有 `ISOLATION_READY` 变量不自动放行。平台验证清单见 [OB-09](08-acceptance.md#obs-09)，本机证据见 [验收记录](../../output/observer-2026-11-02/README.md)。
+
+L2 的实际开放条件是 `!sandboxed && !process.env.RAYTONEBOT_PUBLIC_ORIGIN`，见 [HTTP host](../../src/pi/piHttpHost.ts)。因此只要 `RAYTONEBOT_PUBLIC_ORIGIN` 为非空值，VPS 上即使未设 sandbox 模式也会禁用 L2；授予 developer 权限或设置 `ISOLATION_READY` 不会覆盖该限制。该变量同时供云入口的公开地址、Host/Origin 和认证校验使用，应保留正确配置。L2 的逐平台开放需另行完成权限与部署验收，不能通过删除云入口配置来启用。
+
 ## 必须记住的平台事实
 
 | 事实 | 后果 |

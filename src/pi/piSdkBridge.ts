@@ -94,10 +94,10 @@ export async function createDefaultPiBridge(input: {
       const { mcpPiTools } = await import("./mcpTool.ts");
       definitions.push(...mcpPiTools(tools).map((definition) => guardTool(definition, input.approvalGate)) as ToolDefinition<any, any, any>[]);
     }
-    if (input.onChannelSetup) definitions.push(connectChannelTool(input.onChannelSetup));
+    if (input.onChannelSetup) definitions.push(guardTool(connectChannelTool(input.onChannelSetup), input.approvalGate));
     if (input.onCreateRoutine) {
       const { createRoutineTool } = await import("./routineTool.ts");
-      definitions.push(createRoutineTool(input.onCreateRoutine));
+      definitions.push(guardTool(createRoutineTool(input.onCreateRoutine), input.approvalGate));
     }
     const result = await pi.createAgentSession({
       cwd: input.cwd,

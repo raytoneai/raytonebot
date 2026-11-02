@@ -1,3 +1,4 @@
+import { authenticatedFetch } from "./controlPlaneTestSupport.ts";
 import assert from "node:assert/strict";
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
@@ -10,7 +11,7 @@ import type { PiProviderDefinition } from "./piClient.ts";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 const fixture = () => {
   const dataDir = mkdtempSync(join(tmpdir(), "raytone-learning-"));
-  const service = createLearningService({ dataDir, busy: () => false, delayMs: 1 });
+  const service = createLearningService({ dataDir, busy: () => false, delayMs: 1, validateCandidate: () => true });
   const enable = () => service.update({ action: "settings", revision: service.state().revision, enabled: true, reuse: false, dailyLimit: 1 });
   return { dataDir, service, enable, cleanup() { service.dispose(); rmSync(dataDir, { recursive: true, force: true }); } };
 };
@@ -70,7 +71,7 @@ test("RSL corrupt storage is preserved; calls and candidates survive restart", a
 
 test("RSL write failure and model failure stay contained; busy host defers work", async () => {
   const f = fixture(); let busy = true, calls = 0;
-  const service = createLearningService({ dataDir: f.dataDir, busy: () => busy, delayMs: 1 });
+  const service = createLearningService({ dataDir: f.dataDir, busy: () => busy, delayMs: 1, validateCandidate: () => true });
   try {
     service.update({ action: "settings", revision: 0, enabled: true, reuse: false, dailyLimit: 1 });
     service.enqueue({ ...source, review: async () => { calls++; throw new Error("private provider error"); } });
@@ -110,7 +111,7 @@ test("RSL review is one tool-free bounded request; invalid proposals retain usag
 
 test("RSL daily budget resets at UTC boundary and deleted candidates stop reuse", async () => {
   const f = fixture(); let now = Date.parse("2026-10-29T23:59:00Z"), calls = 0;
-  const service = createLearningService({ dataDir: f.dataDir, busy: () => false, now: () => now, delayMs: 1 });
+  const service = createLearningService({ dataDir: f.dataDir, busy: () => false, now: () => now, delayMs: 1, validateCandidate: () => true });
   try {
     service.update({ action: "settings", revision: 0, enabled: true, reuse: true, dailyLimit: 1 });
     const review = async () => { calls++; return { proposal }; };
@@ -131,14 +132,15 @@ test("RSL HTTP settings preserve origin checks, revisions and disabled default",
   const server = createServer((req, res) => { void host.handle(req, res); });
   await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
   const url = `http://127.0.0.1:${(server.address() as { port: number }).port}/__agentcanvas/pi/learning`;
+  const authFetch = await authenticatedFetch(host, url, true);
   try {
-    const initial = await (await fetch(url)).json(); assert.equal(initial.enabled, false);
+    const initial = await (await authFetch(url)).json(); assert.equal(initial.enabled, false);
     const action = { action: "settings", revision: initial.revision, enabled: true, reuse: false, dailyLimit: 2 };
-    const post = (body: unknown, origin?: string) => fetch(url, { method: "POST", headers: { "content-type": "application/json", ...(origin ? { origin } : {}) }, body: JSON.stringify(body) });
+    const post = (body: unknown, origin?: string) => (origin ? fetch : authFetch)(url, { method: "POST", headers: { "content-type": "application/json", ...(origin ? { origin } : {}) }, body: JSON.stringify(body) });
     assert.equal((await post(action, "https://foreign.example")).status, 403);
     assert.equal((await post(action)).status, 200);
     assert.equal((await post(action)).status, 409);
-    const saved = await (await fetch(url)).json(); assert.equal(saved.enabled, true); assert.equal(saved.reuse, false);
+    const saved = await (await authFetch(url)).json(); assert.equal(saved.enabled, true); assert.equal(saved.reuse, false);
     assert.equal((await post({ ...action, revision: saved.revision, dailyLimit: 0 })).status, 400);
   } finally { host.dispose(); await new Promise<void>(resolve => server.close(() => resolve())); f.cleanup(); }
 });
@@ -163,5 +165,57 @@ test("RSL Chinese retrieval includes overlapping terms", async () => {
     f.service.update({ action: "review", revision: f.service.state().revision, id: f.service.state().candidates[0].id, status: "approved" });
     f.service.update({ action: "settings", revision: f.service.state().revision, enabled: true, reuse: true, dailyLimit: 1 });
     assert.match(f.service.noteFor("bot", "pi", "请导出数据")!, /检查列名/);
+  } finally { f.cleanup(); }
+});
+
+test("RSL source deletion cancels late candidates; a new generation reusing the ID can learn without reviving the old job", async () => {
+  const f = fixture(); let release!: () => void;
+  try {
+    f.enable(); f.service.registerSourceGeneration("chat", "generation-1");
+    f.service.enqueue({ ...source, review: async () => { await new Promise<void>(resolve => { release = resolve; }); return { proposal }; } });
+    await until(() => Boolean(release)); f.service.deleteSource("chat", "generation-1"); f.service.registerSourceGeneration("chat", "generation-2"); release();
+    await until(() => !f.service.state().running); assert.equal(f.service.state().candidates.length, 0);
+    f.service.update({ action: "settings", revision: f.service.state().revision, enabled: true, reuse: true, dailyLimit: 2 });
+    f.service.enqueue({ ...source, runId: "new-generation-run", review: async () => ({ proposal }) });
+    await until(() => f.service.state().candidates.length === 1); assert.equal(f.service.state().candidates[0].runId, "new-generation-run");
+  } finally { f.cleanup(); }
+});
+
+test("RSL records each reused candidate revision and target; source validation failure and deletion stop future reuse", async () => {
+  const dataDir = mkdtempSync(join(tmpdir(), "rtb-rsl-reuse-source-")); let valid = true;
+  const service = createLearningService({ dataDir, busy: () => false, delayMs: 1, validateCandidate: () => valid });
+  try {
+    service.update({ action: "settings", revision: 0, enabled: true, reuse: true, dailyLimit: 1 });
+    service.enqueue({ ...source, review: async () => ({ proposal }) }); await until(() => service.state().candidates.length === 1);
+    const id = service.state().candidates[0].id; service.update({ action: "review", revision: service.state().revision, id, status: "approved" });
+    const candidate = service.state().candidates[0]; assert.equal(candidate.revision, 2);
+    assert.match(service.noteFor("bot", "pi", "CSV export", { conversationId: "target", runId: "target-run" })!, /Parse the exported/);
+    assert.deepEqual(service.state().reuseRecords?.map(item => [item.candidateId, item.candidateRevision, item.conversationId, item.runId]), [[id, 2, "target", "target-run"]]);
+    valid = false; assert.equal(service.noteFor("bot", "pi", "CSV export", { conversationId: "target", runId: "later-run" }), undefined);
+    service.deleteSource("chat"); assert.equal(service.state().candidates.length, 0); assert.equal(service.state().reuseRecords?.length, 0);
+    const reopened = createLearningService({ dataDir, busy: () => false, validateCandidate: () => true }); assert.equal(reopened.noteFor("bot", "pi", "CSV export"), undefined); reopened.dispose();
+  } finally { service.dispose(); rmSync(dataDir, { recursive: true, force: true }); }
+});
+
+test("legacy RSL candidates remain readable but missing source or failed validation never injects them", async () => {
+  const f = fixture();
+  try {
+    f.enable(); f.service.enqueue({ ...source, review: async () => ({ proposal }) }); await until(() => f.service.state().candidates.length === 1);
+    const id = f.service.state().candidates[0].id; f.service.update({ action: "review", revision: f.service.state().revision, id, status: "approved" });
+    f.service.update({ action: "settings", revision: f.service.state().revision, enabled: true, reuse: true, dailyLimit: 1 });
+    const file = join(f.dataDir, "learning/state.json"), saved = JSON.parse(readFileSync(file, "utf8")); delete saved.candidates[0].origin; delete saved.candidates[0].revision; delete saved.candidates[0].validity; writeFileSync(file, JSON.stringify(saved));
+    const legacy = createLearningService({ dataDir: f.dataDir, busy: () => false }); assert.equal(legacy.state().candidates[0].status, "approved"); assert.equal(legacy.noteFor("bot", "pi", "CSV export"), undefined); legacy.dispose();
+    const failed = createLearningService({ dataDir: f.dataDir, busy: () => false, validateCandidate: () => { throw new Error("missing source storage"); } }); assert.doesNotThrow(() => assert.equal(failed.noteFor("bot", "pi", "CSV export"), undefined)); failed.dispose();
+  } finally { f.cleanup(); }
+});
+
+test("deleting any source of an Observer lesson removes candidate text and reuse receipts, including a non-primary source", () => {
+  const f = fixture();
+  try {
+    f.service.update({ action: "settings", revision: 0, enabled: true, reuse: true, dailyLimit: 1 });
+    const a = { instanceId: "instance", conversationId: "source-a", generation: "generation-a" }, b = { instanceId: "instance", conversationId: "source-b", generation: "generation-b" };
+    const candidate = f.service.addObserverCandidate({ conversationId: a.conversationId, runId: "observer-run", botId: "bot", harness: "pi", title: "CSV export", trigger: "CSV export", lesson: "DERIVED-MULTI-SOURCE-LESSON", origin: { kind: "observer", findingId: "finding", findingRevision: 1, source: a, sources: [a, b] } });
+    f.service.update({ action: "review", revision: f.service.state().revision, id: candidate.id, status: "approved" }); assert.ok(f.service.noteFor("bot", "pi", "CSV export", { conversationId: "target", runId: "target-run" }));
+    f.service.deleteSource(b.conversationId, b.generation); assert.equal(f.service.state().candidates.length, 0); assert.equal(f.service.state().reuseRecords?.length, 0); assert.doesNotMatch(readFileSync(join(f.dataDir, "learning/state.json"), "utf8"), /DERIVED-MULTI-SOURCE-LESSON/);
   } finally { f.cleanup(); }
 });

@@ -1,3 +1,10 @@
+import type { ObserverStore } from "./observer/store.ts";
+import { isObserverId } from "./observer/identity.ts";
+import { observerConversationProjection } from "./observer/projection.ts";
+import { evidenceHash, safeText } from "./observer/evidence.ts";
+import type { ObserverModel, ObserverModelUsage } from "./observer/analysis.ts";
+import type { ConversationProjection, FollowUpSource, RunSnapshot } from "./observer/types.ts";
+import { runProvenance, type RunSourceOptions } from "./runProvenance.ts";
 import { asRecord, errorMessage, normalizeConversationId } from "./piHostUtils.ts";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { randomUUID } from "node:crypto";
@@ -35,7 +42,7 @@ import {
 } from "./conversationStore.ts";
 import { summarizeConversationTitle } from "./conversationTitle.ts";
 import { runDsh } from "./dshHarness.ts";
-import { attachGroupChat, type GroupController } from "./groupChat.ts";
+import { attachGroupChat, isChildConversationId, type GroupController } from "./groupChat.ts";
 import { resolveBotIdentity } from "./groupParticipants.ts";
 import {
   agentPreset,
@@ -102,6 +109,11 @@ export type PiBridgeFactory = (input: {
 
 export type PiRuntimeController = {
   readonly artifactVersions: ArtifactVersionStore;
+  observerModels(): { provider: string; model: string; label: string; available: boolean; configRevision: string }[];
+  observerModel(provider: string, model: string): ObserverModel;
+  observerModelLease(model: ObserverModel, run: RunSnapshot, onUsage: (id: string, usage: ObserverModelUsage) => void): Promise<{ baseUrl: string; apiKey: string; revoke(): void }>;
+  observerProjections(): ConversationProjection[];
+  observerFollowUpSources(): FollowUpSource[];
   learning: ReturnType<typeof createLearningService>;
   usage(): UsageState;
   /** Permission mode a turn gets when its client does not choose one (IM channels). */
@@ -114,7 +126,7 @@ export type PiRuntimeController = {
    *  `fromChannel` marks a turn sent from an IM chat, which cannot show browser cards.
    *  Internal group children may `waitForCapacity`; cancelling that wait leaves no receipt.
    *  `title` names a new conversation instead of its first prompt (a routine's own name). */
-  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean; groupId?: string; publicRunId?: string; delegated?: boolean; extraHostTools?: import("./memories.ts").HostTools; readOnly?: boolean }): Promise<void>;
+  runPrompt(input: PiPromptInput, onEvent: (event: AgentUXEvent) => void, options?: RunSourceOptions & { signal?: AbortSignal; fromChannel?: boolean; waitForCapacity?: boolean; title?: string; groupConversation?: boolean; groupId?: string; publicRunId?: string; delegated?: boolean; extraHostTools?: import("./memories.ts").HostTools; readOnly?: boolean }): Promise<void>;
   /** Stops one conversation's run; every run when no conversation is given. */
   abort(conversationId?: string, runId?: string): Promise<boolean>;
   steer(conversationId: string, runId: string, requestId: string, text: string): Promise<boolean>;
@@ -159,6 +171,8 @@ function artifactPath(cwd: string, path: string): string {
 
 export function createPiRuntimeController(options: {
   cwd: string;
+  observerStore?: ObserverStore;
+  observerHooks?: { foregroundStarted(): void; foregroundIdle(): void; completed(conversationId: string, version: string): void; beforeReuse?(): Promise<unknown> };
   /** Where the bot's own code lives; protected when the agent works elsewhere. */
   appRoot?: string;
   /** Running inside a disposable sandbox VM: generous defaults are safe. */
@@ -193,19 +207,40 @@ export function createPiRuntimeController(options: {
   const store = options.store ?? createConversationStore(dataDir);
   const usage = createUsageService({ dataDir });
   const artifactVersions = options.artifactVersions ?? new ArtifactVersionStore(`${dataDir}.artifact-versions`);
-  const learning = createLearningService({ dataDir, busy: () => runs.size > 0 });
+  const observerStore = options.observerStore;
+  const learning = createLearningService({ dataDir, busy: () => runs.size > 0, validateCandidate(candidate) {
+    try {
+      if (candidate.origin?.kind === "observer") {
+        const finding = candidate.origin.findingId && observerStore?.get(candidate.origin.findingId);
+        return Boolean(finding && finding.validity === "current" && finding.reviewStatus === "accepted" && finding.revision === candidate.origin.findingRevision && finding.scope.every(source => observerStore!.sourceValid(source) && Boolean(store.get(source.conversationId))) && (candidate.origin.sources ?? []).every(source => observerStore!.sourceValid(source)));
+      }
+      return Boolean(store.get(candidate.conversationId) && (!candidate.origin?.source || observerStore?.sourceValid(candidate.origin.source)));
+    } catch { return false; }
+  } });
+  const observeSource = (id: string) => {
+    const saved = store.get(id); if (!saved) return;
+    const generation = saved.sourceGeneration ?? randomUUID();
+    if (!saved.sourceGeneration) store.setExtra(id, { sourceGeneration: generation });
+    learning.registerSourceGeneration(id, generation);
+    return observerStore?.registerSource(id, generation);
+  };
+  const deleteObservedSource = (id: string) => {
+    if (observerStore) for (const { source } of observerStore.sources(id)) observerStore.beginSourceDeletion(source);
+    learning.deleteSource(id);
+  };
   const limits = options.limits ?? runLimits();
   const log = runtimeLogger(dataDir);
   /** `runPrompt` has its own `options`; services are read through these names. */
   const memory = options.memory;
   const optionsSkills = options.skills;
+  const optionsHostHooks = options.observerHooks;
   const browser = options.browser;
   const startedAt = Date.now();
   // A turn still open on disk was cut off when the last process ended (restart, crash, redeploy).
   // It is closed as interrupted and never replayed: replaying could repeat writes or outward calls.
   for (const summary of store.list()) {
     const saved = store.get(summary.id);
-    const closing = saved ? piCancelledTurnEvents(saved.events) : [];
+    const closing = saved ? piCancelledTurnEvents(saved.events, "host_restart") : [];
     if (closing.length === 0) continue;
     for (const event of closing) store.append(summary.id, event);
     try { store.flush(summary.id); } catch {
@@ -778,7 +813,7 @@ export function createPiRuntimeController(options: {
           onAccepted: () => slot.memoryDelivered?.(),
           provider, webTools, mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role), hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
-            const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
+            const refusal = approvalGate.checkRefusal(request.toolCallId, request.tool.name, request.tool.args);
             if (refusal) return refusal;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) { request.startExecution(); return true; }
             try { await hold(request.toolCallId, request.tool.name, request.tool.args, request.startExecution); return true; }
@@ -812,11 +847,12 @@ export function createPiRuntimeController(options: {
           async onPermission(request) {
             // The planner writes only into the shared directory: plans and handoffs for others.
             if (request.tool.name === "write" && !plannerMayWrite(request.tool.args)) {
+              approvalGate.recordRefusal(request.toolCallId, request.tool.name, request.tool.args, "planner_scope");
               return layout.shared
                 ? `The planner may only write inside ${layout.shared}.`
                 : "The planner does not write files.";
             }
-            const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
+            const refusal = approvalGate.checkRefusal(request.toolCallId, request.tool.name, request.tool.args);
             if (refusal) return refusal;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
               request.startExecution();
@@ -853,7 +889,7 @@ export function createPiRuntimeController(options: {
           mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role),
           hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {
-            const refusal = approvalGate.refusalReason(request.tool.name, request.tool.args);
+            const refusal = approvalGate.checkRefusal(request.toolCallId, request.tool.name, request.tool.args);
             if (refusal) return refusal;
             if (!approvalGate.requiresApproval(request.tool.name, request.tool.args)) {
               request.startExecution();
@@ -897,6 +933,45 @@ export function createPiRuntimeController(options: {
   };
 
   const api: PiRuntimeController = {
+    observerModels() {
+      return [...providerDefinitions.values()].flatMap(definition => definition.models.map(model => {
+        let available = false; try { available = definition.authMode === "none" || Boolean(resolveProviderKey(definition)); } catch { /* Expose unavailable without secrets. */ }
+        return { provider: definition.id, model, label: `${definition.name} / ${model}`, available, configRevision: evidenceHash([providerStore.view().revision, definition, model]) };
+      }));
+    },
+    observerModel(provider, model) {
+      const credentials = providerCredentials(provider), selected = api.observerModels().find(item => item.provider === provider && item.model === model);
+      if (!credentials || !selected?.available || !credentials.definition.models.includes(model)) throw new ConversationRequestError("observer_model_unavailable", 409);
+      return { ...credentials, model, configRevision: selected.configRevision };
+    },
+    async observerModelLease(model, run, onUsage) {
+      const current = api.observerModel(model.definition.id, model.model);
+      if (current.configRevision !== model.configRevision) throw new ConversationRequestError("observer_model_changed", 409);
+      return (await gateway()).issue({ baseUrl: current.definition.baseUrl, apiKey: current.apiKey ?? "agentcanvas-no-auth", model: current.model, protocol: current.definition.protocol === "anthropic" ? "anthropic" : "openai", maxRequests: run.budget.maxRequests, maxDurationMs: run.budget.maxDurationMs, onUsage });
+    },
+    observerFollowUpSources() {
+      if (!observerStore) return [];
+      const measured = usage.list().runs;
+      return store.list().filter(summary => !isObserverId(summary.id) && !isChildConversationId(summary.id)).flatMap(summary => {
+        const source = observeSource(summary.id), saved = store.get(summary.id); if (!source || !saved) return [];
+        const events = saved.events.filter(event => (!event.visibility || event.visibility === "public") && event.runId && ["run.started", "run.finished", "run.error", "text.started", "text.finished"].includes(event.type));
+        const version = evidenceHash([source, saved.updatedAt, saved.title, events.map(event => [event.id, event.type, event.runId, event.seq, event.ts, event.type === "run.finished" ? event.payload.status : undefined])]);
+        let conversationTitle = "Conversation"; try { conversationTitle = safeText(saved.title, 240); } catch { /* Titles derived from sensitive messages are never returned. */ }
+        return [...new Set(events.map(event => event.runId!))].map(runId => {
+          const turn = saved.turns?.find(item => item.runId === runId), record = measured.find(item => item.runId === runId && item.conversationId === saved.id), publicEvents = events.filter(event => event.runId === runId), terminal = [...publicEvents].reverse().find(event => event.type === "run.finished" || event.type === "run.error");
+          let model: FollowUpSource["model"]; try { if (record?.requestCount && record.provider && record.model) model = { provider: safeText(record.provider, 256), model: safeText(record.model, 256) }; } catch { /* Missing or unsafe historical model identity stays unknown. */ }
+          return { source, version, conversationTitle, botId: saved.botId ?? saved.agentPreset, harness: turn?.harness ?? record?.harness ?? "unknown", ...(model ? { model } : {}), contextFreshness: "unknown" as const, runId, ...(Number.isFinite(publicEvents[0]?.ts) ? { at: publicEvents[0].ts } : {}), ...(terminal ? { status: terminal.type === "run.error" ? "error" : String(terminal.payload.status ?? "unknown") } : {}) };
+        });
+      });
+    },
+    observerProjections() {
+      if (!observerStore) return [];
+      return store.list().filter(summary => !isObserverId(summary.id) && !isChildConversationId(summary.id)).flatMap(summary => {
+        const source = observeSource(summary.id), saved = store.get(summary.id);
+        if (!source || !saved) return [];
+        return [observerConversationProjection(saved, source)];
+      });
+    },
     artifactVersions,
     learning,
     usage: () => usage.list(),
@@ -907,6 +982,7 @@ export function createPiRuntimeController(options: {
       // An age, not a timestamp: the keeper's clock and the sandbox's need not agree.
       lastRunAgoMs: lastRunTouchedAt === undefined ? undefined : Math.max(0, Date.now() - lastRunTouchedAt) }),
     async configure(input) {
+      if (isObserverId(input.conversationId)) throw new ConversationRequestError("Observer uses its own explicit configuration.", 400);
       const conversationId = normalizeConversationId(input.conversationId);
       const idle = () => { disposed.signal.throwIfAborted(); if (runs.has(conversationId)) throw new ConversationRequestError("Stop this conversation's run before changing its configuration.", 409); };
       idle();
@@ -934,7 +1010,9 @@ export function createPiRuntimeController(options: {
       return state(conversationId);
     },
     async runPrompt(input, onEvent, options) {
+      if (isObserverId(input.botId) || isObserverId(input.conversationId) || input.referencedConversationIds?.some(isObserverId)) throw new ConversationRequestError("Observer is available only through its authorized host entry.", 400);
       if (input.artifactSubmission !== undefined && (!validArtifactSubmission(input.artifactSubmission) || input.artifactSubmission.submissionId !== input.requestId)) throw new Error("Invalid artifact submission identity.");
+      const provenance = runProvenance(options, input.permissionMode ?? "request", options?.readOnly);
       const prompt = input.prompt?.trim() ? redactCredentials(input.prompt.trim()) : undefined;
       if (!prompt) throw new Error("Pi prompt is empty.");
       const conversationId = normalizeConversationId(input.conversationId);
@@ -974,11 +1052,16 @@ export function createPiRuntimeController(options: {
         references, turn: { provider: input.provider, model: input.model, locale: input.locale }, vaultAbort: new AbortController(), stopRequested: false, watchers: new Set([onEvent]), done: new Promise<void>((resolve) => { settle = resolve; }) };
       runs.set(conversationId, slot);
       learning.interrupt();
+      try { optionsHostHooks?.foregroundStarted(); } catch { /* Observer must not block ordinary chat. */ }
       lastRunTouchedAt = Date.now();
       const stopOnSignal = () => void abortRuns(conversationId, slot.runId).catch(() => undefined);
       if (options?.signal?.aborted) stopOnSignal();
       options?.signal?.addEventListener("abort", stopOnSignal, { once: true });
-      gateFor(conversationId).setReadOnly(options?.readOnly ?? false);
+      const approvalGate = gateFor(conversationId);
+      approvalGate.setReadOnly(options?.readOnly ?? false);
+      approvalGate.setAudit(event => {
+        if (runs.get(conversationId) === slot) log("tool.decision", { conversationId, runId: slot.runId, ...event });
+      });
       const role = isAgentPresetId(input.agentPreset) ? input.agentPreset : "assistant";
       const harness = agentPreset(role).harness;
       const runStartedAt = Date.now();
@@ -1055,6 +1138,7 @@ export function createPiRuntimeController(options: {
         usage.start({ runId: input.requestId!, conversationId, botId: identity.botId, harness, provider: input.provider, model: input.model, startedAt: runStartedAt });
         const fresh = !saved;
         const conversation = store.begin(conversationId, role, options?.title ?? prompt);
+        try { observeSource(conversationId); } catch { /* Observer source registration is retried on explicit observation. */ }
         opened = true;
         store.setExtra(conversationId, { botId: identity.botId, availableBots: identity.availableBots });
         if (fresh && !options?.title) void titleConversation(conversationId, conversation.createdAt, input, prompt);
@@ -1065,9 +1149,13 @@ export function createPiRuntimeController(options: {
         const browserNote = slot.delegated ? undefined : browser?.contextNote();
         const referenceNote = conversationReferenceNote(store, references);
         const modelPrompt = withReplyLanguage(`${withUnseenPrompts(withConversationContext(workspacePrompt, options?.groupConversation), unseenPrompts(conversationId, harness))}\n\n[Current Bot identity from host configuration: ${JSON.stringify(identity.bot)}. Use this identity even if earlier messages use an old name.]${memoryNote?.text ? `\n\n${memoryNote.text}` : ""}${browserNote ? `\n\n${browserNote}` : ""}${skillNote ? `\n\n${skillNote}` : ""}`, input.locale);
-        store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt, ...(input.referencedConversationIds?.length ? { referencedConversationIds: input.referencedConversationIds } : {}), ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}),
+        store.saveTurn(conversationId, { runId: input.requestId!, harness, prompt, ...(provenance ? { provenance } : {}), ...(input.referencedConversationIds?.length ? { referencedConversationIds: input.referencedConversationIds } : {}), ...(input.artifactSubmission ? { artifactSubmission: input.artifactSubmission } : {}),
           attachments: input.attachments?.map(({ scope, path, name }) => ({ scope, path, ...(name ? { name } : {}) })) });
-        const learningNote = slot.groupId || slot.delegated ? undefined : learning.noteFor(identity.botId, harness, prompt);
+        let learningNote: string | undefined;
+        if (!slot.groupId && !slot.delegated) try {
+          if (learning.state().reuse && learning.state().candidates.some(candidate => candidate.status === "approved" && candidate.origin?.kind === "observer")) await optionsHostHooks?.beforeReuse?.();
+          learningNote = learning.noteFor(identity.botId, harness, prompt, { conversationId, runId: slot.runId });
+        } catch { /* An unverifiable Observer lesson is skipped; the ordinary task continues. */ }
         const referencedPrompt = referenceNote ? `${modelPrompt}\n\n${referenceNote}` : modelPrompt;
         const fullPrompt = learningNote ? `${referencedPrompt}\n\n${learningNote}` : referencedPrompt;
         if (harness !== "pi") await runCliPrompt(role, harness, input, conversationId, prompt, record, fullPrompt);
@@ -1088,6 +1176,7 @@ export function createPiRuntimeController(options: {
         try {
           if (opened && !recorder.finish()) terminalStatus = "error";
         } finally {
+          approvalGate.setAudit(undefined);
           runs.delete(conversationId);
           if (staleBridges.delete(conversationId)) dropBridge(conversationId);
           settle();
@@ -1095,6 +1184,13 @@ export function createPiRuntimeController(options: {
         log("run.ended", { conversationId, harness, status: terminalStatus, durationMs: Date.now() - runStartedAt, outputBytes });
         usage.end(slot.runId, terminalStatus === "success" ? "completed" : terminalStatus === "cancelled" ? "cancelled" : "failed", conversationId);
         learning.idle();
+        try {
+          optionsHostHooks?.foregroundIdle();
+          if (opened && !recorder.failed && !slot.groupId && !slot.delegated && !options?.title) {
+            const saved = store.get(conversationId);
+            if (saved) optionsHostHooks?.completed(conversationId, evidenceHash([saved.sourceGeneration, saved.updatedAt, slot.runId, terminalStatus]));
+          }
+        } catch { /* Observer failure never changes the ordinary task result. */ }
         // Learning is best effort after durable completion, outside the foreground model loop.
         if (opened && !recorder.failed && terminalStatus === "success" && !slot.groupId && !slot.delegated && !options?.title && learning.enabled) {
           try {
@@ -1103,7 +1199,7 @@ export function createPiRuntimeController(options: {
             if (evidence && input.provider && settingsUseProvider({ presetId: role, claudeCodeModelSource: input.claudeCodeModelSource ?? "provider", codexModelSource: input.codexModelSource ?? "provider" })) {
               const configured = providerDefinitions.get(input.provider);
               const binding = configured ? JSON.stringify([configured.baseUrl, configured.protocol]) : undefined;
-              learning.enqueue({ conversationId, runId: slot.runId, botId: input.botId ?? role, harness, evidence,
+              learning.enqueue({ ...(observerStore ? { origin: { kind: "rsl" as const, source: observeSource(conversationId) } } : {}), conversationId, runId: slot.runId, botId: input.botId ?? role, harness, evidence,
                 async review(excerpt, signal) {
                   const credentials = providerCredentials(input.provider, conversationId);
                   if (!credentials || JSON.stringify([credentials.definition.baseUrl, credentials.definition.protocol]) !== binding || credentials.definition.authMode !== "none" && !credentials.apiKey) throw new Error("Learning provider unavailable");
@@ -1159,6 +1255,7 @@ export function createPiRuntimeController(options: {
     deleteConversation(id) {
       const normalized = normalizeConversationId(id);
       api.preflightDeleteConversation(normalized);
+      deleteObservedSource(normalized);
       store.remove(normalized);
       artifactVersions.removeConversationsSync([normalized]);
       // A deleted id may be reused immediately; do not let it inherit a live bridge or
@@ -1183,7 +1280,10 @@ export function createPiRuntimeController(options: {
       const sourceId = normalizeConversationId(id);
       if (!beforeRunId) throw new ConversationBranchError("beforeRunId is required.", 400);
       if (runs.has(sourceId)) throw new ConversationBranchError("Stop this conversation's run before creating a branch.");
-      return store.branch(`branch_${randomUUID()}`, sourceId, beforeRunId);
+      const result = store.branch(`branch_${randomUUID()}`, sourceId, beforeRunId);
+      store.setExtra(result.conversation.id, { sourceGeneration: randomUUID() });
+      try { observeSource(result.conversation.id); } catch { /* Explicit observation can retry registration. */ }
+      return result;
     },
     refreshProviders() {
       providerKeys.clear();
@@ -1230,6 +1330,7 @@ export function createPiRuntimeController(options: {
       return false;
     },
     async newSession(conversationId) {
+      if (isObserverId(conversationId)) throw new ConversationRequestError("Observer starts a fresh memory context for every diagnosis.", 400);
       const id = normalizeConversationId(conversationId);
       const idle = () => { disposed.signal.throwIfAborted(); if (runs.has(id)) throw new ConversationRequestError("Stop this conversation's run before starting a new session.", 409); };
       idle();
@@ -1237,6 +1338,7 @@ export function createPiRuntimeController(options: {
       idle();
       await track(resets, id, (async () => {
         cliSessions.delete(id);
+        deleteObservedSource(id);
         store.reset(id);
         const current = await bridge(id);
         disposed.signal.throwIfAborted();
@@ -1274,6 +1376,7 @@ export function createPiRuntimeController(options: {
   // Group chat wraps the controller (groupChat.ts, ADR-032).
   return attachGroupChat(api, { store, userInputGate,
     bots: options.bots,
+    observerHooks: optionsHostHooks,
     validateAttachments: (attachments, role) => promptWithWorkspaceFiles("", attachments, role, layout, privatePaths).then(() => {}),
     credentials: providerCredentials,
     providerDefinition: (id) => id ? providerDefinitions.get(id) : undefined,

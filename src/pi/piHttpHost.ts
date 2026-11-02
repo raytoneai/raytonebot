@@ -1,3 +1,10 @@
+import { randomUUID } from "node:crypto";
+import { createObserverService, type ObserverService } from "./observer/service.ts";
+import { createObserverStore } from "./observer/store.ts";
+import { ObserverError } from "./observer/types.ts";
+import { OBSERVER_ID, isObserverId } from "./observer/identity.ts";
+import { observerLogRecords, observerRoutineStats } from "./observer/hostInputs.ts";
+import type { ObserverAction } from "../runtime/observerClient.ts";
 import type { IncomingMessage, ServerResponse } from "node:http";
 import { join, resolve as resolvePath } from "node:path";
 import { isAppLocale } from "../i18n/locales.ts";
@@ -31,6 +38,7 @@ import {
 import { piErrorTurnEvents, PROMPT_REJECTED } from "./piErrorTurn.ts";
 import { ProviderStore, ProviderStoreError } from "./providerStore.ts";
 import { sameOriginRequestAllowed } from "./requestOrigin.ts";
+import { ControlAuthError, cloudControlContext, createControlPlaneAuth, type ControlPlaneAuth, type ControlAuthorization } from "./controlPlaneAuth.ts";
 import { createRoutineService, RoutineError, type RoutineService } from "./routines.ts";
 import { requireAgentIsolation } from "./runtime/agentProcess.ts";
 import { VaultError, VaultStore } from "./vault.ts";
@@ -47,6 +55,11 @@ import { approvalDecision, browserInput, channelPatch, permissionMode, stringFie
 
 export function createPiHttpHost(options: {
   cwd: string;
+  /** Host-owned authorization service; tests inject isolated state, never bypass authentication. */
+  controlPlaneAuth?: ControlPlaneAuth;
+  /** Host-only isolated runtime fixtures; never configurable over HTTP or inherited by Agents. */
+  observerService?: ObserverService;
+  observerRuntime?: Pick<Parameters<typeof createObserverService>[0], "explain" | "diagnose" | "repo" | "now" | "idleMs">;
   appRoot?: string;
   sandboxed?: boolean;
   layout?: WorkspaceLayout;
@@ -66,9 +79,12 @@ export function createPiHttpHost(options: {
   const layout = options.layout ?? resolveWorkspaceLayout({ fallbackCwd: options.cwd });
   const sandboxed = options.sandboxed ?? process.env.RAYTONEBOT_SANDBOX === "1";
   const dataDir = options.dataDir ?? defaultDataDir();
+  const controlPlaneAuth = options.controlPlaneAuth ?? createControlPlaneAuth({ dataDir });
+  const observerStore = options.observerService?.store ?? createObserverStore({ dataDir });
+  let observer: ObserverService | undefined = options.observerService;
   const artifactVersions = options.artifactVersions ?? new ArtifactVersionStore(`${dataDir}.artifact-versions`);
   const vaultDir = resolvePath(sandboxed ? `${dataDir}.vault` : options.vaultDir ?? process.env.RAYTONEBOT_VAULT_DIR ?? `${dataDir}.vault`);
-  const privatePaths = [dataDir, `${dataDir}.provider-secrets`, vaultDir, artifactVersions.root];
+  const privatePaths = [controlPlaneAuth.root, dataDir, `${dataDir}.provider-secrets`, vaultDir, artifactVersions.root];
   // Bound below: the setup needs the channel manager, which needs the controller.
   let channelSetup: ReturnType<typeof createChannelSetup> | undefined;
   let routines: RoutineService | undefined;
@@ -80,41 +96,108 @@ export function createPiHttpHost(options: {
   const mcp = createMcpService({ dataDir, log: runtimeLogger(dataDir) });
   const memory = createMemoryService({ dataDir, log: runtimeLogger(dataDir) });
   const browser = options.browser === false ? undefined : options.browser ?? createBrowserService({ dataDir, log: runtimeLogger(dataDir) });
-  const controller = createPiRuntimeController({ ...options, layout, store, bots, providers, vault, vaultDir, artifactVersions, channelSetup: (run) => channelSetup!.run(run),
+  const controller = createPiRuntimeController({ ...options, observerStore, observerHooks: { foregroundStarted: () => observer?.foregroundStarted(), foregroundIdle: () => observer?.foregroundIdle(), completed: (id, version) => observer?.completed(id, version), beforeReuse: async () => observer?.refreshForReuse() }, layout, store, bots, providers, vault, vaultDir, artifactVersions, channelSetup: (run) => channelSetup!.run(run),
     createRoutine: (input) => routines!.create(input), mcpTools: (botId) => mcp.toolkit(botId ? bots.require(botId).mcpServerIds : undefined, serverId => !botId || bots.require(botId).mcpServerIds?.includes(serverId) !== false), memory, skills, browser });
   routines = createRoutineService({ dataDir, bots, runtime: controller, permissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir) });
   const stopClock = options.routineClock === false ? undefined : routines.startClock();
   // Starts the enabled channels; the vite plugin creates this host when its server starts.
   const channels = createChannelManager({ bots, runtime: controller, dataDir, defaultPermissionMode: controller.defaultPermissionMode, log: runtimeLogger(dataDir), factories: options.channelFactories });
   channelSetup = createChannelSetup(channels);
+  observer ??= createObserverService({ ...options.observerRuntime, store: observerStore, appRoot: options.appRoot ?? process.cwd(), allowL2: !sandboxed && !process.env.RAYTONEBOT_PUBLIC_ORIGIN, models: () => controller.observerModels(), resolveModel: (provider, model) => controller.observerModel(provider, model), leaseModel: (model, run, usage) => controller.observerModelLease(model, run, usage), conversations: () => controller.observerProjections(), followUpSources: () => controller.observerFollowUpSources(), logs: () => observerLogRecords(dataDir), routines: () => observerRoutineStats(routines!.list()), config: () => ({ models: controller.observerModels(), bots: bots.view().profiles.map(bot => ({ id: bot.id, presetId: bot.presetId, mcpServerIds: bot.mcpServerIds, skillIds: bot.skillIds })), permissionMode: controller.defaultPermissionMode }), usage: () => ({ runs: controller.usage().runs }),
+    submitLesson(finding, botId, harness) {
+      const bot = bots.require(botId); if (harness !== agentHarness(bot.presetId)) throw new ObserverError("observer_lesson_scope_invalid");
+      controller.learning.addObserverCandidate({ conversationId: finding.scope[0]?.conversationId ?? `observer:${finding.observerRunId}`, runId: finding.observerRunId, botId, harness, title: finding.title.slice(0, 80), trigger: finding.proposedAction.description.slice(0, 200), lesson: finding.inference.slice(0, 1200), origin: { kind: "observer", findingId: finding.id, findingRevision: finding.revision, source: finding.scope[0], sources: finding.scope, buildHash: finding.buildStamp.manifestHash, readScopeHash: finding.readScopeHash }, evidenceRefs: finding.evidenceRefs.map(ref => ref.id) });
+    } });
+  const observerService = observer;
+  const stopObserverAuth = controlPlaneAuth.onRevoked(event => observerService.revokeAuthorization(event.authorizedVia));
   let disposal: Promise<void> | undefined;
 
   return {
     controller,
+    controlPlaneAuth,
+    observer: observerService,
     async handle(req: IncomingMessage, res: ServerResponse): Promise<boolean> {
       const url = new URL(req.url ?? "/", "http://localhost");
       if (!url.pathname.startsWith(PI_API_PREFIX)) return false;
       // Defense in depth: the vite plugin guards first; this keeps the controller safe
       // however it is mounted (a cross-origin page must not drive tools in this cwd).
       if (!sameOriginRequestAllowed(req)) {
-        sendJson(res, 403, { error: "Cross-origin Pi requests are not allowed." });
+        sendJson(res, 403, { error: "Cross-origin Pi requests are not allowed.", code: "control_origin_invalid" });
         return true;
       }
       setLocalHeaders(res);
-      if (req.method === "OPTIONS") {
-        res.statusCode = 204;
-        res.end();
-        return true;
-      }
-
+      if (req.method === "OPTIONS") { res.statusCode = 204; res.end(); return true; }
       try {
+        const authPath = `${PI_API_PREFIX}/auth`;
+        if (url.pathname.startsWith(`${authPath}/`)) {
+          if (url.pathname === `${authPath}/exchange` && req.method === "POST") {
+            let body: Record<string, unknown>;
+            try { body = await readJson(req); } catch { throw new ControlAuthError("control_auth_required"); }
+            sendJson(res, 200, controlPlaneAuth.exchange(req, res, body.secret));
+          } else if (url.pathname === `${authPath}/session` && req.method === "GET") sendJson(res, 200, controlPlaneAuth.session(req));
+          else if (url.pathname === `${authPath}/logout` && req.method === "POST") sendJson(res, 200, controlPlaneAuth.logout(req, res));
+          else if (url.pathname === `${authPath}/developer/grant` && req.method === "POST") sendJson(res, 200, controlPlaneAuth.changeDeveloper(req, true));
+          else if (url.pathname === `${authPath}/developer/revoke` && req.method === "POST") sendJson(res, 200, controlPlaneAuth.changeDeveloper(req, false));
+          else sendJson(res, 405, { error: "Unsupported authorization operation." });
+          return true;
+        }
+        const operationalRead = req.method === "GET" && cloudControlContext(req) && ["health", "routines"].some(path => url.pathname === `${PI_API_PREFIX}/${path}`);
+        if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/health`) {
+          if (operationalRead) { controlPlaneAuth.auditCloudRead(req); sendJson(res, 200, controller.health()); }
+          else {
+            try { controlPlaneAuth.authorize(req, res); sendJson(res, 200, controller.health()); }
+            catch (error) { if (!(error instanceof ControlAuthError) || error.status === 503) throw error; sendJson(res, 200, { status: "ok" }); }
+          }
+          return true;
+        }
+        let authorization: ControlAuthorization | undefined;
+        if (operationalRead) controlPlaneAuth.auditCloudRead(req);
+        else authorization = controlPlaneAuth.authorize(req, res, url.pathname === `${PI_API_PREFIX}/learning` || url.pathname.startsWith(`${PI_API_PREFIX}/observer`));
+        const readAuthorizedJson = async () => {
+          const body = await readJson(req);
+          controlPlaneAuth.recheck(req, authorization?.scope === "developer", authorization);
+          return body;
+        };
+        const needsDeveloper = () => { authorization = controlPlaneAuth.authorize(req, res, true); return authorization; };
+        if (url.pathname === `${PI_API_PREFIX}/observer`) {
+          if (req.method === "GET") sendJson(res, 200, await observerService.view());
+          else if (req.method === "POST") {
+            const body = await readAuthorizedJson();
+            if (body.action === "handoff" || body.action === "lesson") bots.require(stringField(body, "botId") ?? "");
+            const result = await observerService.update(body as ObserverAction, authorization!, () => controlPlaneAuth.recheck(req, true, authorization));
+            sendJson(res, body.action === "analyze" ? 202 : 200, result);
+          } else sendJson(res, 405, { error: "Unsupported Observer operation." });
+          return true;
+        }
+        if (url.pathname === `${PI_API_PREFIX}/observer/follow-up-sources` && req.method === "GET") { sendJson(res, 200, await observerService.followUpSources({ cursor: Number(url.searchParams.get("cursor") ?? 0), limit: Number(url.searchParams.get("limit") ?? 100), query: url.searchParams.get("query") ?? undefined })); return true; }
+        const observerFinding = url.pathname.match(new RegExp(`^${PI_API_PREFIX}/observer/findings/([^/]+)$`));
+        if (observerFinding && req.method === "GET") { sendJson(res, 200, await observerService.finding(decodeURIComponent(observerFinding[1]), Number(url.searchParams.get("revision")))); return true; }
+        if (url.pathname === `${PI_API_PREFIX}/observer/evidence` && req.method === "GET") { sendJson(res, 200, await observerService.evidence(url.searchParams.get("findingId") ?? "", Number(url.searchParams.get("revision")), url.searchParams.get("evidenceId") ?? "")); return true; }
+        const observerConversation = url.pathname.match(new RegExp(`^${PI_API_PREFIX}/conversations/(observer(?::|%3A)[^/]+)(?:/(live|branch))?$`, "i"));
+        if (observerConversation) {
+          needsDeveloper(); const id = decodeURIComponent(observerConversation[1]);
+          if (observerConversation[2] === "branch") throw new ObserverError("observer_native_branch_unavailable", 409);
+          if (observerConversation[2] === "live" && req.method === "GET") {
+            res.setHeader("content-type", "application/x-ndjson; charset=utf-8");
+            const follow = await observerService.follow(id, Math.max(0, Number(url.searchParams.get("after") ?? 0)), event => { if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`); });
+            if (!follow) { sendJson(res, 409, { error: "This conversation has no run in progress." }); return true; }
+            const heartbeat = setInterval(() => { if (!res.destroyed && !res.writableEnded) res.write("\n"); }, 5000);
+            res.once("close", () => { clearInterval(heartbeat); follow.stop(); }); await follow.done; clearInterval(heartbeat); follow.stop(); if (!res.writableEnded) res.end(); return true;
+          }
+          if (req.method === "GET") { const saved = await observerService.conversation(id); if (url.searchParams.get("summary") === "1") { const { events, ...summary } = saved; sendJson(res, 200, { ...summary, eventCount: events.length }); } else sendJson(res, 200, saved); }
+          else if (req.method === "DELETE") { await observerService.deleteConversation(id, () => controlPlaneAuth.recheck(req, true, authorization)); sendJson(res, 200, { ok: true }); }
+          else if (req.method === "PATCH") { const body = await readAuthorizedJson(); sendJson(res, 200, { title: await observerService.renameConversation(id, stringField(body, "title") ?? "", () => controlPlaneAuth.recheck(req, true, authorization)) }); }
+          else sendJson(res, 405, { error: "Unsupported Observer history operation." });
+          return true;
+        }
+        if (["conversationId", "referencedConversationId"].some(key => isObserverId(url.searchParams.get(key)))) needsDeveloper();
         const vaultAnswer = new RegExp(`^${PI_API_PREFIX}/vault/requests/([^/]+)/answer$`).exec(url.pathname);
         if (vaultAnswer) {
           if (req.method !== "POST") { sendJson(res, 405, { error: "Method not allowed." }); return true; }
           if (req.headers["x-raytone-vault"] !== "1" || !req.headers.origin) { sendJson(res, 403, { error: "Confirm Vault use in the RaytoneBot web app." }); return true; }
           if (sandboxed) requireAgentIsolation({ ...process.env, RAYTONEBOT_SANDBOX: "1" });
           let body: Record<string, unknown>;
-          try { body = await readJson(req); } catch { throw new VaultRequestError("Invalid Vault request.", 400); }
+          try { body = await readAuthorizedJson(); } catch (error) { if (error instanceof ControlAuthError) throw error; throw new VaultRequestError("Invalid Vault request.", 400); }
           const conversationId = stringField(body, "conversationId"), runId = stringField(body, "runId");
           if (!conversationId || !runId) throw new VaultRequestError("Invalid Vault request.", 400);
           if (!controller.resolveVaultInput) throw new VaultRequestError("Vault is unavailable.", 503);
@@ -128,7 +211,7 @@ export function createPiHttpHost(options: {
           if (req.method === "GET") sendJson(res, 200, vault.view());
           else if (req.method === "POST" || req.method === "DELETE") {
             let body: Record<string, unknown>;
-            try { body = await readJson(req); } catch { throw new VaultError("Invalid Vault request."); }
+            try { body = await readAuthorizedJson(); } catch (error) { if (error instanceof ControlAuthError) throw error; throw new VaultError("Invalid Vault request."); }
             sendJson(res, 200, req.method === "POST" ? vault.save(body.item, body.revision) : vault.remove(typeof body.id === "string" ? body.id : "", body.revision));
           } else sendJson(res, 405, { error: "Method not allowed." });
           return true;
@@ -139,7 +222,7 @@ export function createPiHttpHost(options: {
             if (controller.health().busy) throw new ProviderStoreError("Stop running tasks before saving model services.", 409);
             if (options.sandboxed ?? process.env.RAYTONEBOT_SANDBOX === "1") requireAgentIsolation({ ...process.env, RAYTONEBOT_SANDBOX: "1" });
             let body: Record<string, unknown>;
-            try { body = await readJson(req); } catch { throw new ProviderStoreError("Invalid provider save request."); }
+            try { body = await readAuthorizedJson(); } catch (error) { if (error instanceof ControlAuthError) throw error; throw new ProviderStoreError("Invalid provider save request."); }
             // A turn may have started while the body was arriving. Keep this guard adjacent
             // to the synchronous save/cache invalidation so no running bridge is disposed.
             if (controller.health().busy) throw new ProviderStoreError("Stop running tasks before saving model services.", 409);
@@ -153,7 +236,7 @@ export function createPiHttpHost(options: {
           try {
             if (req.method === "GET" && url.pathname.endsWith("/bots")) sendJson(res, 200, bots.view());
             else if (req.method === "POST") {
-              const body = await readJson(req);
+              const body = await readAuthorizedJson();
               if (url.pathname.endsWith("/import")) {
                 const view = bots.import(body.profiles);
                 // Older browser-only history bindings become durable without changing an existing identity.
@@ -169,22 +252,18 @@ export function createPiHttpHost(options: {
                 sendJson(res, 200, view);
               } else { const saved = bots.save(body.bot, body.revision); controller.refreshTools(); sendJson(res, 200, saved); }
             } else sendJson(res, 405, { error: "Unsupported Bot operation." });
-          } catch (error) {
+          } catch (error) { if (error instanceof ControlAuthError) throw error;
             if (!(error instanceof BotConfigError)) throw error;
             sendJson(res, error.status, { error: error.message });
           }
           return true;
         }
-        if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/health`) {
-          sendJson(res, 200, controller.health());
-          return true;
-        }
         if (url.pathname === `${PI_API_PREFIX}/learning`) {
           try {
             if (req.method === "GET") sendJson(res, 200, controller.learning.state());
-            else if (req.method === "POST") sendJson(res, 200, controller.learning.update(await readJson(req) as unknown as import("./learning/types.ts").LearningAction));
+            else if (req.method === "POST") sendJson(res, 200, controller.learning.update(await readAuthorizedJson() as unknown as import("./learning/types.ts").LearningAction, authorization));
             else sendJson(res, 405, { error: "Unsupported RSL operation." });
-          } catch (error) { if (!(error instanceof LearningError)) throw error; sendJson(res, error.status, { error: error.message }); }
+          } catch (error) { if (error instanceof ControlAuthError) throw error; if (!(error instanceof LearningError)) throw error; sendJson(res, error.status, { error: error.message }); }
           return true;
         }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/usage`) {
@@ -195,12 +274,12 @@ export function createPiHttpHost(options: {
           try {
             if (req.method === "GET" && url.pathname.endsWith("/skills")) sendJson(res, 200, skills.state());
             else if (req.method === "POST") {
-              const body = await readJson(req);
+              const body = await readAuthorizedJson();
               const saved = url.pathname.endsWith("/remove") ? skills.remove(typeof body.id === "string" ? body.id : "", body.revision) : skills.save(body.input, body.revision);
               controller.refreshTools();
               sendJson(res, 200, saved);
             } else sendJson(res, 405, { error: "Unsupported Skills operation." });
-          } catch (error) { if (!(error instanceof SkillsError)) throw error; sendJson(res, error.status, { error: error.message }); }
+          } catch (error) { if (error instanceof ControlAuthError) throw error; if (!(error instanceof SkillsError)) throw error; sendJson(res, error.status, { error: error.message }); }
           return true;
         }
         if (url.pathname === `${PI_API_PREFIX}/files`) {
@@ -210,7 +289,7 @@ export function createPiHttpHost(options: {
             return true;
           }
           if (req.method === "POST") {
-            sendJson(res, 201, await uploadWorkspaceFile(layout, scope, url.searchParams.get("name"), req, privatePaths));
+            sendJson(res, 201, await uploadWorkspaceFile(layout, scope, url.searchParams.get("name"), req, privatePaths, () => controlPlaneAuth.recheck(req)));
             return true;
           }
         }
@@ -220,7 +299,7 @@ export function createPiHttpHost(options: {
             const source = controller.listConversations().flatMap(c => (c.documents ?? []).filter(d => d.scope === document.scope && d.path === document.path).map(d => ({ conversationId: c.id, title: c.title, artifactId: d.artifactId })))[0];
             sendJson(res, 200, { ...document, source });
           } else if (req.method === "POST" || req.method === "PUT") {
-            const body = await readJson(req);
+            const body = await readAuthorizedJson();
             const saved = await controller.withIdleWrite(async () => {
               const id = stringField(body, "conversationId"), artifactId = stringField(body, "artifactId");
               if (id && !controller.getConversation(id)) throw new WorkspaceFileError(404, "Source conversation is unavailable.");
@@ -260,12 +339,15 @@ export function createPiHttpHost(options: {
           await sendWorkspaceFile(req, res, entry);
           return true;
         }
+        if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/state` && isObserverId(url.searchParams.get("conversationId"))) {
+          needsDeveloper(); const view = await observerService.view(); sendJson(res, 200, { available: true, running: view.runState.running, provider: view.model?.provider, model: view.model?.model, models: view.models, tools: ["observer_repo_read", "observer_sessions_search", "observer_aggregate_runs"], systemRole: "observer" }); return true;
+        }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/state`) {
           sendJson(res, 200, await controller.state(url.searchParams.get("conversationId") ?? undefined));
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/config`) {
-          sendJson(res, 200, await controller.configure(await readJson(req)));
+          sendJson(res, 200, await controller.configure(await readAuthorizedJson()));
           return true;
         }
         if (req.method === "GET" && url.pathname === `${PI_API_PREFIX}/channels`) {
@@ -274,7 +356,7 @@ export function createPiHttpHost(options: {
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/channels/setup`) {
           // Carries the bot token: answered from the channel store, never logged or put in events.
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           const action = body.action;
           const conversationId = stringField(body, "conversationId"), requestId = stringField(body, "requestId");
           if (!conversationId || !requestId || (action !== "submit" && action !== "allow" && action !== "reject" && action !== "skip")) {
@@ -282,7 +364,7 @@ export function createPiHttpHost(options: {
           } else {
             try {
               sendJson(res, 200, { state: await channelSetup.answer(normalizeConversationId(conversationId), requestId, action, channelPatch(body).fields) ?? null });
-            } catch (error) {
+            } catch (error) { if (error instanceof ControlAuthError) throw error;
               if (!(error instanceof ChannelSetupError)) throw error;
               sendJson(res, error.status, { error: error.message });
             }
@@ -293,18 +375,18 @@ export function createPiHttpHost(options: {
         if (req.method === "POST" && channelMatch) {
           const platform = channelMatch[1] as ChannelPlatform;
           if (!CHANNEL_PLATFORMS.includes(platform)) sendJson(res, 404, { error: "Unknown IM channel." });
-          else sendJson(res, 200, { channels: channels.update(platform, channelPatch(await readJson(req))) });
+          else sendJson(res, 200, { channels: channels.update(platform, channelPatch(await readAuthorizedJson())) });
           return true;
         }
         if (url.pathname === `${PI_API_PREFIX}/routines` || url.pathname.startsWith(`${PI_API_PREFIX}/routines/`)) {
           const [id, action] = url.pathname.slice(`${PI_API_PREFIX}/routines`.length).split("/").filter(Boolean).map(decodeURIComponent);
           try {
             if (req.method === "GET" && !id) sendJson(res, 200, { routines: routines.list() });
-            else if (req.method === "POST" && id && action === "run") sendJson(res, 202, await routines.run(id, (await readJson(req)).occurrenceId));
-            else if (req.method === "POST" && id && !action) sendJson(res, 200, routines.update(id, await readJson(req)));
+            else if (req.method === "POST" && id && action === "run") sendJson(res, 202, await routines.run(id, (await readAuthorizedJson()).occurrenceId));
+            else if (req.method === "POST" && id && !action) sendJson(res, 200, routines.update(id, await readAuthorizedJson()));
             else if (req.method === "DELETE" && id && !action) { routines.remove(id); sendJson(res, 200, { ok: true }); }
             else sendJson(res, 404, { error: "Unknown routine request." });
-          } catch (error) {
+          } catch (error) { if (error instanceof ControlAuthError) throw error;
             if (!(error instanceof RoutineError)) throw error;
             sendJson(res, error.status, { error: error.message });
           }
@@ -318,22 +400,22 @@ export function createPiHttpHost(options: {
             // Frames flow only while this stream is open: the Output panel opens it when visible.
             res.writeHead(200, { "content-type": "text/event-stream; charset=utf-8", "cache-control": "no-store", connection: "keep-alive" });
             const stop = browser.watch((event) => {
-              if (res.destroyed) return;
+              if (res.destroyed || res.writableEnded) return;
               // A slow viewer drops frames rather than queueing them.
               if (event.type === "frame" && res.writableLength > 1_000_000) return;
               res.write(`event: ${event.type}\ndata: ${JSON.stringify(event.type === "frame" ? { data: event.data, width: event.width, height: event.height, seq: event.seq, capturedAt: event.capturedAt, pageId: event.pageId, inputId: event.inputId } : event.state)}\n\n`);
             });
-            const heartbeat = setInterval(() => { if (!res.destroyed) res.write(": keep-alive\n\n"); }, 15_000);
+            const heartbeat = setInterval(() => { if (!res.destroyed && !res.writableEnded) res.write(": keep-alive\n\n"); }, 15_000);
             res.once("close", () => { clearInterval(heartbeat); stop(); });
             return true;
           }
           if (req.method === "POST" && action === "control") {
-            const { action: command, site, url: loginAddress, pageId } = await readJson(req);
+            const { action: command, site, url: loginAddress, pageId } = await readAuthorizedJson();
             try {
               if (command === "login") {
                 let destination: string;
                 try { destination = browserLoginUrl(site, loginAddress); }
-                catch (error) { sendJson(res, 400, { error: errorMessage(error) }); return true; }
+                catch (error) { if (error instanceof ControlAuthError) throw error; sendJson(res, 400, { error: errorMessage(error) }); return true; }
                 await browser.takeover(destination);
               }
               else if (command === "takeover") await browser.takeover();
@@ -343,11 +425,11 @@ export function createPiHttpHost(options: {
               else if (command === "select-tab" && typeof pageId === "string" && /^[a-zA-Z0-9-]{1,64}$/.test(pageId)) await browser.selectTab(pageId);
               else { sendJson(res, 400, { error: "action must be login, takeover, release, stop, clear-logins or select-tab (pageId required)." }); return true; }
               sendJson(res, 200, browser.view());
-            } catch (error) { sendJson(res, 409, { error: errorMessage(error) }); }
+            } catch (error) { if (error instanceof ControlAuthError) throw error; sendJson(res, 409, { error: errorMessage(error) }); }
             return true;
           }
           if (req.method === "POST" && action === "input") {
-            const body = await readJson(req);
+            const body = await readAuthorizedJson();
             const values = Array.isArray(body.inputs) ? body.inputs : [body.input];
             const inputs = values.map(browserInput);
             if (!inputs.length || inputs.length > 64 || inputs.some((input) => !input)) { sendJson(res, 400, { error: "Invalid browser input." }); return true; }
@@ -362,7 +444,7 @@ export function createPiHttpHost(options: {
               runtimeLogger(dataDir)("browser.input_batch", { count: inputs.length, durationMs: Date.now() - began });
               sendJson(res, 200, { ok: true });
             }
-            catch (error) { sendJson(res, 409, { error: errorMessage(error) }); }
+            catch (error) { if (error instanceof ControlAuthError) throw error; sendJson(res, 409, { error: errorMessage(error) }); }
             return true;
           }
           sendJson(res, 404, { error: "Unknown browser request." });
@@ -374,12 +456,12 @@ export function createPiHttpHost(options: {
             if (req.method === "GET" && !id) sendJson(res, 200, memory.state());
             else if (req.method === "POST" && id === "settings") {
               const before = memory.enabled;
-              sendJson(res, 200, memory.setEnabled((await readJson(req)).enabled));
+              sendJson(res, 200, memory.setEnabled((await readAuthorizedJson()).enabled));
               // Pi sessions hold their tools: reopen them with or without remember / forget.
               if (memory.enabled !== before) controller.refreshTools();
             }
             else if (req.method === "POST") {
-              const body = await readJson(req);
+              const body = await readAuthorizedJson();
               const scope = body.scope as import("./memoryTypes.ts").MemoryScope | undefined;
               if (scope?.kind === "bot" && !bots.view().profiles.some(bot => bot.id === scope.id)) throw new MemoryError("Memory Bot is unavailable.", 404);
               if (scope?.kind === "group" && (typeof scope.id !== "string" || !/^[a-zA-Z0-9._:-]{1,160}$/.test(scope.id) || scope.id.includes(".m.") || !store.get(scope.id)?.group)) throw new MemoryError("Memory group is unavailable.", 404);
@@ -388,7 +470,7 @@ export function createPiHttpHost(options: {
             }
             else if (req.method === "DELETE" && id) { memory.remove(id); sendJson(res, 200, { ok: true }); }
             else sendJson(res, 404, { error: "Unknown memory request." });
-          } catch (error) {
+          } catch (error) { if (error instanceof ControlAuthError) throw error;
             if (!(error instanceof MemoryError)) throw error;
             sendJson(res, error.status, { error: error.message });
           }
@@ -399,11 +481,11 @@ export function createPiHttpHost(options: {
           const [id, action] = url.pathname.slice(`${PI_API_PREFIX}/mcp`.length).split("/").filter(Boolean).map(decodeURIComponent);
           try {
             if (req.method === "GET" && !id) sendJson(res, 200, { servers: mcp.list() });
-            else if (req.method === "POST" && !action) { sendJson(res, id ? 200 : 201, { server: await mcp.save(id, await readJson(req)) }); controller.refreshTools(); }
+            else if (req.method === "POST" && !action) { sendJson(res, id ? 200 : 201, { server: await mcp.save(id, await readAuthorizedJson()) }); controller.refreshTools(); }
             else if (req.method === "POST" && id && action === "refresh") { sendJson(res, 200, { server: await mcp.refresh(id) }); controller.refreshTools(); }
             else if (req.method === "DELETE" && id && !action) { mcp.remove(id); sendJson(res, 200, { ok: true }); controller.refreshTools(); }
             else sendJson(res, 404, { error: "Unknown MCP request." });
-          } catch (error) {
+          } catch (error) { if (error instanceof ControlAuthError) throw error;
             if (!(error instanceof McpError)) throw error;
             sendJson(res, error.status, { error: error.message });
           }
@@ -411,13 +493,13 @@ export function createPiHttpHost(options: {
         }
         const branchMatch = url.pathname.match(new RegExp(`^${PI_API_PREFIX}/conversations/([^/]+)/branch$`));
         if (req.method === "POST" && branchMatch) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           const result = controller.branchConversation(decodeURIComponent(branchMatch[1]), stringField(body, "beforeRunId") ?? "");
           sendJson(res, 201, { conversationId: result.conversation.id, draft: result.draft });
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/steer`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           const conversationId = stringField(body, "conversationId"), runId = stringField(body, "runId");
           const requestId = stringField(body, "requestId"), text = stringField(body, "text")?.trim();
           if (!conversationId || !runId || !requestId || !/^[a-zA-Z0-9_-]{1,100}$/.test(requestId) || !text || text.length > 16000 || text.startsWith("/")) {
@@ -428,10 +510,11 @@ export function createPiHttpHost(options: {
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/abort`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           const conversationId = stringField(body, "conversationId"), runId = stringField(body, "runId");
           if (body.conversationId !== undefined && !conversationId?.trim() || body.runId !== undefined && (!runId?.trim() || !conversationId?.trim())) {
             sendJson(res, 400, { error: "A targeted stop requires non-empty conversationId and runId strings." });
+          } else if (isObserverId(conversationId)) { needsDeveloper(); sendJson(res, observerService.abort(runId) ? 200 : 409, { stopped: true });
           } else if (!await controller.abort(conversationId, runId)) {
             sendJson(res, 409, { error: "This run is no longer active; no other run was stopped." });
           } else sendJson(res, 200, { ok: true });
@@ -445,7 +528,7 @@ export function createPiHttpHost(options: {
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/approval`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           const toolCallId = stringField(body, "toolCallId");
           const decision = approvalDecision(body.decision);
           if (body.runId !== undefined && !stringField(body, "runId")) {
@@ -460,14 +543,14 @@ export function createPiHttpHost(options: {
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/input`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           const conversationId = stringField(body, "conversationId"), requestId = stringField(body, "requestId");
           if (!conversationId || !requestId) sendJson(res, 400, { error: "conversationId and requestId are required." });
           else {
             try {
               if (!controller.resolveUserInput(conversationId, requestId, body.answers)) sendJson(res, 409, { error: "This question was already answered or is no longer pending." });
               else sendJson(res, 200, { ok: true });
-            } catch (error) { sendJson(res, 400, { error: errorMessage(error) }); }
+            } catch (error) { if (error instanceof ControlAuthError) throw error; sendJson(res, 400, { error: errorMessage(error) }); }
           }
           return true;
         }
@@ -488,7 +571,10 @@ export function createPiHttpHost(options: {
           const query = url.searchParams.get("query") ?? undefined;
           if (query && query.length > 200) sendJson(res, 400, { error: "Search query must be at most 200 characters." });
           else {
-            const conversations = controller.listConversations(query);
+            const userConversations = controller.listConversations(query).filter(item => !isObserverId(item.id));
+            let observerConversations: ReturnType<ObserverService["conversations"]> = [];
+            try { controlPlaneAuth.recheck(req, true); await observerService.view(); controlPlaneAuth.recheck(req, true); observerConversations = observerService.conversations(query); } catch { /* Observer storage/version failures must not hide ordinary conversation history. */ }
+            const conversations = [...userConversations, ...observerConversations].sort((a, b) => b.updatedAt - a.updatedAt);
             const page = url.searchParams.has("limit") || url.searchParams.has("cursor")
               ? conversationSearchPage(conversations, query ?? "", Number(url.searchParams.get("limit") ?? 100), url.searchParams.get("cursor") ?? undefined)
               : { conversations };
@@ -503,7 +589,7 @@ export function createPiHttpHost(options: {
           res.setHeader("content-type", "application/x-ndjson; charset=utf-8");
           res.setHeader("cache-control", "no-store");
           const follow = controller.followRun(id, Number.isFinite(after) ? after : 0, (event) => {
-            if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+            if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
           });
           if (!follow) {
             // Nothing running: the saved conversation is complete; the client reads it instead.
@@ -512,7 +598,7 @@ export function createPiHttpHost(options: {
           }
           res.flushHeaders();
           const heartbeat = setInterval(() => {
-            if (!res.destroyed) res.write("\n");
+            if (!res.destroyed && !res.writableEnded) res.write("\n");
           }, 5_000);
           res.once("close", () => {
             clearInterval(heartbeat);
@@ -521,7 +607,7 @@ export function createPiHttpHost(options: {
           await follow.done;
           clearInterval(heartbeat);
           follow.stop();
-          if (!res.destroyed) res.end();
+          if (!res.destroyed && !res.writableEnded) res.end();
           return true;
         }
         if (url.pathname.startsWith(`${PI_API_PREFIX}/conversations/`)) {
@@ -541,7 +627,7 @@ export function createPiHttpHost(options: {
             return true;
           }
           if (req.method === "PATCH") {
-            const raw = (await readJson(req)).title;
+            const raw = (await readAuthorizedJson()).title;
             const title = typeof raw === "string" ? raw.replace(/\s+/g, " ").trim() : "";
             if (!title || title.length > 80) sendJson(res, 400, { error: "A title of 1-80 characters is required." });
             else {
@@ -553,7 +639,7 @@ export function createPiHttpHost(options: {
           }
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/provider/test`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           const definition = asRecord(body.provider) as unknown as PiProviderDefinition;
           if (typeof definition.id !== "string" || typeof definition.baseUrl !== "string") {
             sendJson(res, 400, { error: "provider.id and provider.baseUrl are required." });
@@ -563,24 +649,24 @@ export function createPiHttpHost(options: {
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/approvals/clear`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           sendJson(res, 200, { alwaysAllowed: controller.clearApprovals(stringField(body, "agentPreset")) });
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/session/new`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           sendJson(res, 200, await controller.newSession(stringField(body, "conversationId")));
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/group/members`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           const id = stringField(body, "conversationId");
           if (!id || !Array.isArray(body.members)) sendJson(res, 400, { error: "conversationId and members are required." });
           else sendJson(res, 200, controller.setGroupMembers(id, body.members as string[], body.availableBots as PiPromptInput["availableBots"], stringField(body, "hostId")));
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/group/prompt`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
           const prompt = stringField(body, "prompt")?.trim();
           const conversationId = stringField(body, "conversationId");
           if (!prompt || !conversationId) {
@@ -592,7 +678,7 @@ export function createPiHttpHost(options: {
           res.setHeader("cache-control", "no-store");
           res.flushHeaders();
           const requestId = stringField(body, "requestId");
-          const heartbeat = setInterval(() => { if (!res.destroyed) res.write("\n"); }, 5_000);
+          const heartbeat = setInterval(() => { if (!res.destroyed && !res.writableEnded) res.write("\n"); }, 5_000);
           res.once("close", () => clearInterval(heartbeat));
           try {
             await controller.runGroupPrompt({
@@ -607,19 +693,31 @@ export function createPiHttpHost(options: {
               claudeCodeModelSource: body.claudeCodeModelSource === "local-login" ? "local-login" : "provider",
               codexModelSource: body.codexModelSource === "local-login" ? "local-login" : "provider",
               locale: isAppLocale(body.locale) ? body.locale : undefined,
-            }, (event) => { if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`); });
-          } catch (error) {
+            }, (event) => { if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`); }, { origin: { kind: "web" }, authorization });
+          } catch (error) { if (error instanceof ControlAuthError) throw error;
             for (const event of piErrorTurnEvents({ prompt, message: errorMessage(error), runId: requestId, code: PROMPT_REJECTED })) {
-              if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+              if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
             }
           } finally {
             clearInterval(heartbeat);
           }
-          if (!res.destroyed) res.end();
+          if (!res.destroyed && !res.writableEnded) res.end();
           return true;
         }
         if (req.method === "POST" && url.pathname === `${PI_API_PREFIX}/prompt`) {
-          const body = await readJson(req);
+          const body = await readAuthorizedJson();
+          if (Array.isArray(body.referencedConversationIds) && body.referencedConversationIds.some(isObserverId)) throw new ObserverError("observer_private_reference", 403);
+          if (body.botId === OBSERVER_ID || isObserverId(body.conversationId)) {
+            const auth = needsDeveloper();
+            if (sandboxed || process.env.RAYTONEBOT_PUBLIC_ORIGIN || cloudControlContext(req)) throw new ObserverError("observer_l2_platform_unverified", 403);
+            if (body.botId !== OBSERVER_ID || typeof body.conversationId !== "string" || !body.conversationId.startsWith("observer:") || typeof body.prompt !== "string" || !body.prompt.trim() || body.attachments !== undefined && Array.isArray(body.attachments) && body.attachments.length || body.referencedConversationIds !== undefined && Array.isArray(body.referencedConversationIds) && body.referencedConversationIds.length) throw new ObserverError("observer_prompt_invalid");
+            res.setHeader("content-type", "application/x-ndjson; charset=utf-8"); res.setHeader("cache-control", "no-store");
+            const heartbeat = setInterval(() => { if (res.headersSent && !res.destroyed && !res.writableEnded) res.write("\n"); }, 5000);
+            res.once("close", () => clearInterval(heartbeat));
+            try { await observerService.run({ question: body.prompt.trim(), conversationId: body.conversationId, clientRequestId: stringField(body, "requestId"), authorization: auth, assertAuthorized: () => controlPlaneAuth.recheck(req, true, auth), onEvent: event => { if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`); } }); }
+            finally { clearInterval(heartbeat); }
+            if (!res.writableEnded) res.end(); return true;
+          }
           const prompt = stringField(body, "prompt")?.trim();
           if (!prompt) {
             sendJson(res, 400, { error: "Pi prompt is required." });
@@ -630,13 +728,13 @@ export function createPiHttpHost(options: {
           res.setHeader("cache-control", "no-store");
           res.flushHeaders();
           const conversationId = stringField(body, "conversationId");
-          const requestId = stringField(body, "requestId");
+          const requestId = stringField(body, "requestId") ?? `run_${randomUUID()}`;
           // A closed tab, reload or dropped connection leaves the run going; the browser can
           // reattach with GET /conversations/:id/live. Only an explicit stop ends it.
           // Proxies in front of the sandbox drop a response that stays silent; a CLI can go quiet
           // for a while (Codex retrying). Blank lines keep it open and are ignored by the client.
           const heartbeat = setInterval(() => {
-            if (!res.destroyed) res.write("\n");
+            if (!res.destroyed && !res.writableEnded) res.write("\n");
           }, 5_000);
           res.once("close", () => clearInterval(heartbeat));
           try {
@@ -657,32 +755,36 @@ export function createPiHttpHost(options: {
               codexModelSource: body.codexModelSource === "local-login" ? "local-login" : "provider",
               locale: isAppLocale(body.locale) ? body.locale : undefined,
             }, (event) => {
-              if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
-            });
-          } catch (error) {
+              if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
+            }, { origin: { kind: "web" }, authorization, ...(typeof body.observerHandoff === "string" ? { extraHostTools: await observerService.handoffTools(body.observerHandoff, stringField(body, "botId") ?? stringField(body, "agentPreset") ?? "assistant", requestId, () => controller.getConversation(stringField(body, "conversationId") ?? "default")?.activeRunId === requestId) } : {}) });
+          } catch (error) { if (error instanceof ControlAuthError) throw error;
             // The 200 headers are already sent. Rejections need a terminal in this stream,
             // but must not be appended to (or stop) the conversation's existing active run.
             for (const event of piErrorTurnEvents({ prompt, message: errorMessage(error), runId: requestId, code: PROMPT_REJECTED })) {
-              if (!res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+              if (!res.destroyed && !res.writableEnded) res.write(`${JSON.stringify(event)}\n`);
             }
           } finally {
             clearInterval(heartbeat);
           }
-          if (!res.destroyed) res.end();
+          if (!res.destroyed && !res.writableEnded) res.end();
           return true;
         }
         sendJson(res, 404, { error: "Unknown Pi endpoint." });
       } catch (error) {
+        if (error instanceof ObserverError) { if (!res.headersSent) sendJson(res, error.status, { error: error.code, code: error.code }); else if (!res.writableEnded) res.end(); return true; }
+        if (error instanceof ControlAuthError) { if (!res.headersSent) sendJson(res, error.status, { error: error.message, code: error.code }); else res.end(); return true; }
         if (!res.headersSent) sendJson(res, error instanceof VaultRequestError ? error.statusCode : error instanceof ConversationRequestError || error instanceof VaultError || error instanceof ProviderStoreError || error instanceof BotConfigError || error instanceof WorkspaceFileError || error instanceof ConversationBranchError || error instanceof SearchPageError || error instanceof ArtifactCatalogError || error instanceof ArtifactVersionError ? error.status : errorMessage(error).includes("already active") ? 409 : 500, { error: errorMessage(error) });
-        else if (!res.destroyed) res.end();
+        else if (!res.destroyed && !res.writableEnded) res.end();
       }
       return true;
     },
     dispose() {
       if (disposal) return disposal;
       stopClock?.();
+      stopObserverAuth();
+      controlPlaneAuth.dispose();
       channels.dispose();
-      disposal = Promise.allSettled([controller.dispose(), browser?.stop()]).then(() => {});
+      disposal = Promise.allSettled([observerService.dispose(), controller.dispose(), browser?.stop()]).then(() => {});
       return disposal;
     },
   };
@@ -716,3 +818,5 @@ function setLocalHeaders(res: ServerResponse) {
   res.setHeader("x-content-type-options", "nosniff");
   res.setHeader("referrer-policy", "no-referrer");
 }
+
+function agentHarness(preset: string): string { return preset === "planner" ? "claude-code" : preset === "builder" ? "codex" : preset === "dsh" ? "dsh" : "pi"; }

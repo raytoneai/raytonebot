@@ -9,6 +9,7 @@ export function createConversationRecorder(input: {
   runId?: string;
   broadcast(event: AgentUXEvent): void;
   stop(): void;
+  now?(): number;
 }) {
   let unflushed = 0;
   let terminalRecorded = false;
@@ -30,6 +31,11 @@ export function createConversationRecorder(input: {
     get ended() { return terminalRecorded || failure !== undefined; },
     record(event: AgentUXEvent) {
       if (terminalRecorded || failure) return;
+      // Adapter timestamps can be synthetic. Observe waits at the host persistence boundary,
+      // overwriting any incoming value before both saving and publishing it.
+      if (event.type === "tool.call.awaiting_approval" || event.type === "run.awaiting_input") {
+        event = { ...event, payload: { ...event.payload, waitObservedAt: (input.now ?? Date.now)() } };
+      }
       runId ??= event.runId;
       const terminal = event.type === "run.finished" || event.type === "run.error";
       input.store.append(input.conversationId, event);

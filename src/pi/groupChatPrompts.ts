@@ -40,7 +40,7 @@ export function memberPrompt(member: string, group: string[], plan: GroupPlan, l
     ? `One round means each member speaks once in order: ${order}. Total rounds: ${total}; current round: ${round}/${total}. Continue from the previous speaker. The host controls rounds; do not announce the start or end of a new round.`
     : `Each member speaks once in order this round: ${order}. It is your turn; continue from the previous speaker.`, partRule(member, opening, false, hostId, names[hostId]),
     ...(said.length ? [total > 1 ? "Earlier rounds:" : "Earlier replies this round:", ...said] : ["You speak first."]));
-  if (plan.mode === "discussion") out.push(`Group discussion, round ${round}/${total}, order: ${order}. Respond to earlier speakers and state your view briefly and concretely. Do not call tools or read or write files. `
+  if (plan.mode === "discussion") out.push(`Group discussion, round ${round}/${total}, order: ${order}. Respond to earlier speakers and state your view briefly and concretely. This turn is read-only: use safe reads only when needed; do not change files, run commands or mutate host state. `
     + (round === total ? "This is the final round; aim to converge." : ""), partRule(member, opening, false, hostId, names[hostId]),
     ...(said.length ? ["Discussion so far:", ...said] : ["Open the discussion."]));
   if ((plan.mode === "single" || plan.mode === "mention") && plan.members.length === 1) {
@@ -90,7 +90,7 @@ export function pmAnnouncePrompt(plan: GroupPlan, lines: GroupLine[], text: stri
 export function pmSummaryPrompt(outputs: { member: string; text: string }[], text: string, discussion = false, names = MEMBER_NAMES, hostId = "assistant"): string {
   return [
     discussion
-      ? `[Group discussion summary] You are ${names[hostId]}. Discussion is finished. Summarize in 3–5 lines: agreement, remaining differences and recommended next steps. Do not call tools or repeat full replies.`
+      ? `[Group discussion summary] You are ${names[hostId]}. Discussion is finished. Summarize in 3–5 lines: agreement, remaining differences and recommended next steps. This turn is read-only: use safe reads only when needed; do not change files, run commands or mutate host state. Do not repeat full replies.`
       : `[Group PM summary] You are ${names[hostId]}. Members have finished. Summarize in 3–5 lines: completed work, output locations, unfinished work and user decisions needed. Do not call tools or repeat full replies.`,
     `Current user request:\n${text}`,
     ...outputs.map((o) => `Output from ${names[o.member]}:\n${o.text.slice(0, 6000)}`),

@@ -1,3 +1,11 @@
+import { conversationModelUnavailable, observerOutputMatchesFinding } from "./runtime/observerPresentation";
+import { conversationHasRequestReceipt } from "./pi/piConversationState";
+import { Button } from "./components/ui";
+import { useObserver } from "./runtime/useObserver";
+import { isObserverConversation, observerHistoryBaseline, OBSERVER_BOT_ID, type ObserverHandoff } from "./runtime/observerClient";
+import { observerText } from "./i18n/copy/observer";
+import { controlPlaneSession } from "./runtime/controlPlaneSession";
+import { controlPlaneCopy, controlPlaneMessage } from "./i18n/copy/controlPlane";
 import { featureText, featureError, groupRosterTitle } from "./i18n/copy/features.ts";
 import { useLearning } from "./runtime/useLearning";
 import { useVault } from "./runtime/useVault";
@@ -8,7 +16,7 @@ import { useCompactDrawer } from "./runtime/useCompactDrawer";
 import { useAutoHiddenRails } from "./runtime/useAutoHiddenRails";
 import { artifactTimestamps } from "./runtime/artifactCatalog";
 import { outputPanelItemFromRenderedArtifact } from "./components/agent-preview/outputframe/artifactPreview";
-import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { AgentUXEvent } from "@agent-ux/protocol";
 import { createAgentUXViewModel, type AgentUXToolTimelineItem } from "@agent-ux/render-core";
 import { replayAgentUXEvents } from "@agent-ux/runtime";
@@ -160,6 +168,7 @@ import { lastRunOutcome, nextQueueStep, queuedPrompt, type QueuedMessage } from 
 import { useComposerDrafts } from "./runtime/useComposerDrafts";
 import { branchReplayEvents, useMessageBranch } from "./runtime/useMessageBranch";
 import { piCancelledTurnEvents } from "./pi/piCancelledTurn";
+import { cancelledTurnsForReplay } from "./runtime/cancelledTurns";
 
 const noop = () => {};
 
@@ -195,6 +204,10 @@ export function AgentApp() {
   useAppViewport();
   const { locale } = useLocale();
   const copy = useCopy();
+  const controlAuth = useSyncExternalStore(controlPlaneSession.subscribe, controlPlaneSession.getSnapshot);
+  const observer = useObserver(controlAuth.enabled && controlAuth.authenticated && controlAuth.developerScope);
+  const observerHandoffs = useRef(new Map<string, ObserverHandoff>());
+  const observerBot = observer.state?.enabled && observer.state.l2Available && observer.state.systemBot?.id === OBSERVER_BOT_ID ? { ...observer.state.systemBot, model: observer.state.model?.available ? { provider: observer.state.model.provider, model: observer.state.model.model } : undefined } : undefined;
   const frameRef = useRef<HTMLDivElement>(null);
   const [leftCollapsed, setLeftCollapsed] = useState(false);
   // Visual-only control beside the existing event fixtures; never drives a real run.
@@ -205,6 +218,14 @@ export function AgentApp() {
   const closeDrawer = useCallback(() => setDrawerOpen(false), []);
   const outputPanel = useOutputPanel(project.output.source);
   const { rightCollapsed, setRightCollapsed } = outputPanel;
+  useEffect(() => {
+    if (!observer.state) return;
+    for (const item of outputPanel.items) {
+      if (!item.observerRef) continue;
+      const finding = observer.state.findings.find(entry => entry.id === item.observerRef!.id);
+      if (!observerOutputMatchesFinding(item, finding)) outputPanel.closeItem(item.id);
+    }
+  }, [observer.state, outputPanel.items, outputPanel.closeItem]);
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
   const [providerSelectionError, setProviderSelectionError] = useState<string>();
   const providerSelectionPending = useRef(false);
@@ -284,7 +305,8 @@ export function AgentApp() {
     [activePiConversationId, piConversations],
   );
   const knownBots = useMemo(() => knownBotsForConversations(bots, piConversations), [bots, piConversations]);
-  const activeBot = knownBots.find(bot => bot.id === (activePiConversation.groupHostId ?? conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
+  const activeObserver = isObserverConversation(activePiConversation);
+  const activeBot = activeObserver && observerBot ? observerBot : knownBots.find(bot => bot.id === (activePiConversation.groupHostId ?? conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
     ?? bots.find(bot => bot.presetId === agentSettings.presetId) ?? bots[0];
   const presetBot = (id: string) => resolveParticipantBot(id, knownBots, bots, activePiConversation.groupParticipants);
   const conversationTitle = (conversation: EphemeralPiConversation) => groupConversationTitle(conversation, locale,
@@ -313,7 +335,7 @@ export function AgentApp() {
   );
   const historyCopy = copy.workspace.sessionSidebar;
   const historyProblem = historyProblems[activePiConversationId];
-  const historyMessage = streamId ? undefined : followProblems[activePiConversationId] ?? (historyProblem === "missing" ? historyCopy.historyMissing
+  const historyMessage = streamId || controlAuth.enabled && !controlAuth.authenticated ? undefined : followProblems[activePiConversationId] ?? (historyProblem === "missing" ? historyCopy.historyMissing
     : historyProblem === "incomplete" ? historyCopy.historyIncomplete
     : historyProblem ? historyCopy.historyFailed : historyListFailed ? historyCopy.listFailed
     : sourceNotice?.conversationId === activePiConversationId ? sourceNotice.message : undefined);
@@ -332,7 +354,7 @@ export function AgentApp() {
     ? events.filter((event) => event.visibility !== "debug") : events, [events, activePiConversationId]);
   // In a group, the member that started working and has produced nothing visible yet.
   const groupTyping = useMemo(() => groupTypingMember(activePiConversation, events), [events, activePiConversationId]);
-  const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(historyFeedbackEvents(visibleEvents, activePiConversationId, historyMessage), questionCopy[locale].skipped))
+  const replayEvents = useMemo(() => branchReplayEvents(userInputEventsForReplay(cancelledTurnsForReplay(historyFeedbackEvents(visibleEvents, activePiConversationId, historyMessage), locale), questionCopy[locale].skipped))
     .map(identityEventForReplay).map(artifactEventForReplay), [visibleEvents, activePiConversationId, historyMessage, locale]);
   const showDevtools = devtoolsRequested();
   // Read-only preview for developers: never feed the normalized result back into replay or storage.
@@ -353,17 +375,18 @@ export function AgentApp() {
   const activeProject = useMemo(
     () => ({ ...configuredProject,
       layout: { ...configuredProject.layout, slots: configuredProject.layout.slots.map((slot) => enabledSlots?.includes(slot.id) || (showDevtools && slot.id === "debug") ? { ...slot, enabled: true } : slot) },
+      composer: activeObserver ? { ...configuredProject.composer, fileUpload: false, modelSwitcher: false, thinkingBudget: false, toolToggle: false } : configuredProject.composer,
       output: { ...configuredProject.output, source: outputPanel.source === "console" ? "console" as const : "artifact" as const },
       conversation: streamId && !activityPreview ? configuredProject.conversation : {
         ...configuredProject.conversation, agentAvatar: false, userAvatar: false, speakerLabels: false,
       },
     }),
-    [configuredProject, outputPanel.source, streamId, activityPreview, enabledSlots, showDevtools],
+    [configuredProject, outputPanel.source, streamId, activityPreview, enabledSlots, showDevtools, activeObserver],
   );
   const modelBot = streamId || isGroupConversation(activePiConversation) ? undefined : activeBot;
   const activeModel = botModelConfiguration(activeProject, agentSettings, modelBot);
-  const modelUnavailable = settingsUseProvider(activeModel.settings) && !activeModel.provider?.enabled
-    ? settingsCopy[locale].agents.modelUnavailable : undefined;
+  const modelUnavailable = conversationModelUnavailable({ observer: activeObserver, observerAvailable: Boolean(observer.state?.model?.available),
+    providerUnavailable: settingsUseProvider(activeModel.settings) && !activeModel.provider?.enabled }, locale, settingsCopy[locale].agents.modelUnavailable);
   /** IM chats inherit this service unless their host-owned Bot overrides it; never save a key here. */
   const channelModel = useMemo(() => {
     const config = piRuntimeConfigurationForProvider(defaultProviderConnection(configuredProject));
@@ -374,7 +397,7 @@ export function AgentApp() {
   const mcpServers = useMcpServers((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
   const memories = useMemories(settingsOpen && Boolean(piRuntimeState));
   const skills = useSkills((settingsOpen || Boolean(botDraft)) && Boolean(piRuntimeState));
-  const learning = useLearning(settingsOpen && Boolean(piRuntimeState));
+  const learning = useLearning(settingsOpen && Boolean(piRuntimeState), !controlAuth.enabled || controlAuth.authenticated && controlAuth.developerScope);
   const usage = useUsage(settingsOpen && Boolean(piRuntimeState));
   const vault = useVault(settingsOpen && Boolean(piRuntimeState));
   /** A routine's conversation opened from settings before this page has listed it. */
@@ -470,7 +493,7 @@ export function AgentApp() {
   const activeStreamIdRef = useRef(streamId);
   activeStreamIdRef.current = streamId;
   const messageSubmissions = useRef(new Map<string, ComposerDraft>());
-  const messageBranch = useMessageBranch({ conversation: activePiConversation, enabled: !streamId, running: piRunning,
+  const messageBranch = useMessageBranch({ conversation: activePiConversation, enabled: !streamId && !activeObserver, running: piRunning,
     submissions: messageSubmissions.current,
     async onResend(draft, sourceId) {
       if (activeConversationIdRef.current !== sourceId || activeStreamIdRef.current) return;
@@ -594,6 +617,7 @@ export function AgentApp() {
   }, []);
 
   useEffect(() => {
+    if (devtoolsRequested() || new URLSearchParams(window.location.search).get("stream")?.trim()) return;
     const provider = defaultProviderConnection(configuredProject);
     void configurePiRuntime({
       ...piRuntimeConfigurationForProvider(provider),
@@ -642,7 +666,13 @@ export function AgentApp() {
     const item = normalized.artifactId && !normalized.conversationId
       ? { ...normalized, conversationId: activePiConversationId }
       : normalized;
-    const path = typeof request === "string" ? request : request.workspacePath;
+    if (activeObserver || item.ephemeral) {
+      if (typeof request === "string") return;
+      item.ephemeral = true;
+      delete item.workspacePath; delete item.downloadUrl; delete item.artifactId; delete item.versionOriginArtifactId;
+      delete item.versionSource; delete item.versions; delete item.selectedVersionId;
+    }
+    const path = item.ephemeral ? undefined : typeof request === "string" ? request : request.workspacePath;
     if (item.kind === "file" && path && !item.downloadUrl) {
       const author = artifactAuthor(item.id);
       item.downloadUrl = workspaceFileUrl(path, author ? presetBot(author).presetId : agentSettings.presetId, piRuntimeState?.workspace);
@@ -804,6 +834,8 @@ export function AgentApp() {
     if (!normalizedPrompt) return false;
     const conversationId = target.id;
     const isGroup = isGroupConversation(target);
+    const diagnostic = isObserverConversation(target);
+    if (diagnostic && (!observerBot || !observer.state?.model?.available || context?.attachments?.length || queued?.artifactSubmission)) return false;
     // Synchronous guard: state updates land later, so a double submit could slip past `piRunning`.
     const fromDraft = !queued && Boolean(context?.draftSnapshot);
     const lease = conversationRuns.acquire(conversationId, { preparing: true, accepting: fromDraft });
@@ -834,7 +866,7 @@ export function AgentApp() {
       context?.onAccepted?.();
     };
     try {
-      const syncedBots = await syncBotProfiles();
+      const syncedBots = diagnostic ? { store: botStore, profiles: bots } : await syncBotProfiles();
       // Reopening and reattaching share this load; a new turn never starts from an empty stub.
       let snapshot = stream.current;
       if (snapshot.stored && snapshot.events.length === 0) {
@@ -843,11 +875,11 @@ export function AgentApp() {
       }
       if (controller.signal.aborted || !lease.isCurrent()) return false;
       stream.replace(snapshot);
-      const botId = stream.current.groupHostId ?? conversationBotId(syncedBots.store, stream.current) ?? presetId;
-      const targetBot = syncedBots.profiles.find(bot => bot.id === botId);
+      const botId = diagnostic ? OBSERVER_BOT_ID : stream.current.groupHostId ?? conversationBotId(syncedBots.store, stream.current) ?? presetId;
+      const targetBot = diagnostic ? observerBot : syncedBots.profiles.find(bot => bot.id === botId);
       const model = botModelConfiguration(activeProject, { ...agentSettings, presetId }, isGroup ? undefined : targetBot);
       // CLI local-login runs bring their own model unless the Bot has a provider override.
-      if (isGroup || settingsUseProvider(model.settings)) await synchronizePiRuntime(activeProject, stream.current.id, controller.signal, isGroup ? undefined : targetBot);
+      if (!diagnostic && (isGroup || settingsUseProvider(model.settings))) await synchronizePiRuntime(activeProject, stream.current.id, controller.signal, isGroup ? undefined : targetBot);
       const attachments: PiPromptAttachment[] = [];
       const referencedConversationIds: string[] = [];
       const attachmentScope = isGroup ? "shared" : presetId;
@@ -873,7 +905,8 @@ export function AgentApp() {
         ...(isGroup ? { members: groupMembersOf(stream.current) } : {}),
         conversationId: stream.current.id,
         botId,
-        availableBots: syncedBots.profiles.map(({ id, name, presetId }) => ({ id, name, presetId })),
+        ...(diagnostic ? {} : { availableBots: syncedBots.profiles.map(({ id, name, presetId }) => ({ id, name, presetId })) }),
+        ...(observerHandoffs.current.get(conversationId) ? { observerHandoff: observerHandoffs.current.get(conversationId)!.token } : {}),
         requestId: runId,
         artifactSubmission: queued?.artifactSubmission,
         prompt: normalizedPrompt,
@@ -882,7 +915,7 @@ export function AgentApp() {
         provider: model.providerId,
         model: model.model,
         thinkingLevel: context?.budgetMode === "fast" ? "low" : context?.budgetMode === "expert" ? "high" : "medium",
-        permissionMode: context?.permissionMode ?? "request",
+        permissionMode: diagnostic ? "request" : context?.permissionMode ?? "request",
         agentPreset: presetId,
         claudeCodeModelSource: model.settings.claudeCodeModelSource,
         codexModelSource: model.settings.codexModelSource,
@@ -892,7 +925,7 @@ export function AgentApp() {
           stream.cancel();
           return false;
         }
-        if (confirmsPromptAccepted(event)) { if (fromDraft) lease.accepted(); onAccepted(); }
+        if (confirmsPromptAccepted(event)) { observerHandoffs.current.delete(conversationId); if (fromDraft) lease.accepted(); onAccepted(); }
         stream.append(event);
       }
       stream.flush();
@@ -947,21 +980,25 @@ export function AgentApp() {
     const { controller } = lease;
     const stream = createShellConversationStream(lease, conversation);
     let retries = 0;
-    let reload = !preloaded;
+    const diagnostic = isObserverConversation(conversation);
+    let reload = diagnostic || !preloaded;
     try {
       while (!controller.signal.aborted) {
         try {
           // A reconnect always reads again: the host may have moved on while the stream was down.
           let snapshot = stream.current;
-          if (reload) snapshot = await loadStoredConversation(snapshot);
+          if (diagnostic) {
+            // A completed Observer turn has a compact projection, not the old tool-event cursor.
+            snapshot = observerHistoryBaseline(snapshot, await getStoredConversation(conversationId, fetch, controller.signal));
+          } else if (reload) snapshot = await loadStoredConversation(snapshot);
           reload = true;
           if (!lease.isCurrent()) { stream.cancel(); return; }
           if (controller.signal.aborted) break;
           stream.replace(snapshot);
           lease.bind(stream.current.activeRunId ?? [...stream.current.events].reverse().find(event => event.type === "run.started")?.runId);
           // Saved and live events are the host's stored transcript; rejected prompts are never saved.
-          if (submission && stream.current.events.some((event) => event.runId === submission.requestId)) { lease.accepted(); submission.onAccepted?.(); }
-          const requestId = submission && !stream.current.events.some((event) => event.runId === submission.requestId)
+          if (submission && conversationHasRequestReceipt(stream.current, submission.requestId)) { lease.accepted(); submission.onAccepted?.(); }
+          const requestId = submission && !conversationHasRequestReceipt(stream.current, submission.requestId)
             ? submission.requestId : undefined;
           for await (const event of followPiTurn(conversationId, stream.current.events.length, { signal: controller.signal, requestId })) {
             if (!lease.isCurrent()) { stream.cancel(); return; }
@@ -974,6 +1011,12 @@ export function AgentApp() {
           }
           if (!lease.isCurrent()) { stream.cancel(); return; }
           stream.flush();
+          if (diagnostic) {
+            const saved = await getStoredConversation(conversationId, fetch, controller.signal);
+            if (!lease.isCurrent()) { stream.cancel(); return; }
+            stream.replace(observerHistoryBaseline(stream.current, saved));
+            if (submission && conversationHasRequestReceipt(stream.current, submission.requestId)) { lease.accepted(); submission.onAccepted?.(); }
+          }
           // A first turn started elsewhere (IM, another tab) is titled by the host as it ends.
           if (stream.current.events.filter((event) => event.type === "run.started").length === 1 || isGroupConversation(stream.current)) refreshConversationTitle(conversationId);
           break;
@@ -1098,6 +1141,7 @@ export function AgentApp() {
     providerSelectionPending.current = true;
     setProviderSelectionError(undefined);
     try {
+      if (activeObserver) return;
       if (modelBot?.model) {
         const bot = { ...modelBot, model: { provider: id, model: selectedModel } };
         await saveBotProfile(bot, botRevision);
@@ -1175,6 +1219,7 @@ export function AgentApp() {
   }
 
   function startNewSession(group = false, members: string[] = ["assistant", "planner", "builder"], bot = activeBot) {
+    if (bot.id === OBSERVER_BOT_ID) return startObserverConversation();
     navigationRequest.current++;
     setPendingOpen(undefined);
     setPendingSource(undefined);
@@ -1221,6 +1266,7 @@ export function AgentApp() {
   /** Clicking an agent is how a new conversation starts (there is no separate "new chat" button).
    *  An empty conversation on screen is reused rather than stacking another blank one. */
   function startConversationWith(presetId: AgentPresetId, bot = presetBot(presetId)) {
+    if (bot.id === OBSERVER_BOT_ID) return startObserverConversation();
     navigationRequest.current++;
     setPendingOpen(undefined);
     setPendingSource(undefined);
@@ -1239,6 +1285,29 @@ export function AgentApp() {
     setAgentSettings(next);
     saveAgentSettings(next);
     return true;
+  }
+
+  function startObserverConversation() {
+    if (!observerBot || !observer.state?.model?.available) return false;
+    const conversation: EphemeralPiConversation = { ...createEphemeralPiConversation(`observer:${crypto.randomUUID()}`), botId: OBSERVER_BOT_ID, systemRole: "observer", agentPreset: "assistant" };
+    navigationRequest.current++; setPendingOpen(undefined); setPendingSource(undefined); navigatedRef.current = true;
+    setPiConversations(current => replacePiConversation(current, conversation));
+    activeConversationIdRef.current = conversation.id; setActivePiConversationId(conversation.id); setPiEvents([]); setStreamId("");
+    setAgentSettings(current => ({ ...current, presetId: "assistant" }));
+    outputPanel.reset(); setRightCollapsed(true); setDrawerOpen(false); setSettingsOpen(false);
+    return true;
+  }
+
+  function prepareObserverHandoff(handoff: ObserverHandoff, draft: string) {
+    const bot = bots.find(item => item.id === handoff.botId);
+    if (!bot || handoff.expiresAt <= Date.now()) return;
+    if (!startNewSession(false, undefined, bot)) return;
+    const id = activeConversationIdRef.current;
+    observerHandoffs.current.set(id, handoff);
+    const conversation = { ...createEphemeralPiConversation(id), botId: bot.id, agentPreset: bot.presetId };
+    void composer.update(conversation, () => ({ prompt: draft, attachments: [] }));
+    setAgentSettings(current => ({ ...current, presetId: bot.presetId }));
+    setSettingsOpen(false);
   }
 
   /** From settings (a routine's conversation): select it, listing it first if it is new here. */
@@ -1294,7 +1363,7 @@ export function AgentApp() {
     else if (conversation.stored || conversation.events.length) void refreshPiConversation(conversation);
     outputPanel.reset();
     const selectedBot = isGroupConversation(conversation) ? undefined : knownBots.find(bot => bot.id === conversationBotId(botStore, conversation));
-    void synchronizePiRuntime(activeProject, conversation.id, undefined, selectedBot).catch(() => undefined);
+    if (!isObserverConversation(conversation)) void synchronizePiRuntime(activeProject, conversation.id, undefined, selectedBot).catch(() => undefined);
   }
 
   const slotContext: SlotRenderContext = {
@@ -1316,8 +1385,8 @@ export function AgentApp() {
     onStop: () => stopPi(),
     onExport: noop,
     onGitCommit: noop,
-    onProviderChange: (id) => void selectProvider(id),
-    onModelChange: (model) => { if (activeModel.provider) void selectProvider(activeModel.provider.id, model); },
+    onProviderChange: activeObserver ? noop : (id) => void selectProvider(id),
+    onModelChange: activeObserver ? noop : (model) => { if (activeModel.provider) void selectProvider(activeModel.provider.id, model); },
     onApprovalDecision: approveLive,
     onCollapseLeft: () => setLeftCollapsed(true),
     onCollapseRight: () => setRightCollapsed(true),
@@ -1363,7 +1432,7 @@ export function AgentApp() {
     permissionMode: composer.drafts[activePiConversationId]?.runOptions?.permissionMode ?? permissionDefault ?? piRuntimeState?.defaultPermissionMode ?? "request",
     budgetMode: composer.drafts[activePiConversationId]?.runOptions?.budgetMode ?? "medium",
   } satisfies ComposerRunOptions;
-  const recovery = useTaskRecovery({ conversation: activePiConversation, enabled: !streamId && !historyMessage, running: piRunning, locale,
+  const recovery = useTaskRecovery({ conversation: activePiConversation, enabled: !streamId && !activeObserver && !historyMessage, running: piRunning, locale,
     submissions: messageSubmissions.current,
     isCurrent: id => activeConversationIdRef.current === id && !activeStreamIdRef.current,
     configure: destination => destination === "browser" ? showBrowser() : openSettings(destination, activeBot.id),
@@ -1396,17 +1465,19 @@ export function AgentApp() {
     taskRecovery: recovery,
     artifactCatalog: streamId ? undefined : { conversationId: activePiConversationId, conversationTitle: activePiConversation.title,
       timestamps: artifactTimes, openSource: entry => openStoredConversation(entry.conversationId, { artifactId: entry.artifactId }) },
-    chatReferences: streamId ? undefined : piConversations.filter(c => c.id !== activePiConversationId && c.stored && !c.id.includes(".m.")).map(c => ({ id: c.id, title: conversationTitle(c) })),
+    chatReferences: streamId || activeObserver ? undefined : piConversations.filter(c => !isObserverConversation(c) && c.id !== activePiConversationId && c.stored && !c.id.includes(".m.")).map(c => ({ id: c.id, title: conversationTitle(c) })),
     providerSelection: { onChange: (id, model) => void selectProvider(id, model), error: providerSelectionError ?? modelUnavailable,
       selected: { providerId: activeModel.providerId, model: activeModel.model } },
     bots: streamId ? undefined : knownBots,
-    sessionBotIds: streamId ? undefined : botStore.conversations,
+    systemBot: streamId ? undefined : observerBot,
+    diagnostic: activeObserver ? { note: observerText(locale, "restrictions") } : undefined,
+    sessionBotIds: streamId ? undefined : { ...botStore.conversations, ...Object.fromEntries(piConversations.filter(isObserverConversation).map(c => [c.id, OBSERVER_BOT_ID])) },
     onCreateBot: streamId ? undefined : () => {
       setBotError(undefined);
       setBotDraft({ creating: true, revision: botRevision, draft: { id: `bot_${crypto.randomUUID()}`, presetId: "assistant", name: "", appearance: { ...DEFAULT_NEW_BOT } } });
     },
     onEditBot: streamId ? undefined : editBot,
-    botError: botDraft ? undefined : botError ?? (botLoadError ? `${featureText(locale, "Bot sync failed: ")}${botLoadError}` : undefined),
+    botError: botDraft || controlAuth.enabled && !controlAuth.authenticated ? undefined : botError ?? (botLoadError ? `${featureText(locale, "Bot sync failed: ")}${botLoadError}` : undefined),
     botEditor,
     composerActivity: activityPreview ? {
       scope: `preview:${activePiConversationId}`,
@@ -1425,13 +1496,13 @@ export function AgentApp() {
     toolLog: streamId ? undefined : { targetId: outputPanel.toolLogTarget?.id, revision: outputPanel.toolLogTarget?.nonce, open: (id) => {
       outputPanel.showConsole(id, rightPanelAvailable);
     } },
-    messageBranch,
+    messageBranch: activeObserver ? undefined : messageBranch,
     composerFocus: activePiConversationId === composerFocus ? composerFocus : undefined,
     transcriptScroll,
     agentSwitcher: (
       <AgentSwitcher
         avatars={PRESET_AVATARS}
-        bots={streamId ? undefined : bots}
+        bots={streamId ? undefined : observerBot ? [...bots, observerBot] : bots}
         activeBotId={activeBot.id}
         onSelectBot={bot => startConversationWith(bot.presetId, bot)}
         onEditBot={streamId ? undefined : editBot}
@@ -1458,7 +1529,7 @@ export function AgentApp() {
         draft={activePiConversation.events.length === 0 && !activePiConversation.stored}
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
     ) : (
-      <HeaderAgent
+      activeObserver ? <span>{observerBot?.name ?? "Observer"} · {observer.state?.model ? `${observer.state.model.provider} / ${observer.state.model.model}` : observerText(locale, "unavailable")}</span> : <HeaderAgent
         avatars={PRESET_AVATARS}
         settings={activeModel.settings}
         bot={streamId ? undefined : activeBot}
@@ -1469,9 +1540,9 @@ export function AgentApp() {
         onChange={changeAgentSettings}
         onManageProviders={() => openSettings("providers")}
       />
-    )}<NewChatMenu avatars={PRESET_AVATARS}
+    )}{!activeObserver ? <NewChatMenu avatars={PRESET_AVATARS}
       members={isGroupConversation(activePiConversation) ? groupMembersOf(activePiConversation) : [activeBot.id]}
-      onNewGroup={(members) => setGroupMembers(activePiConversationId, members)} />
+      onNewGroup={(members) => setGroupMembers(activePiConversationId, members)} /> : null}
     </div>,
     searchConversations: streamId ? undefined : searchConversations,
     onDeleteSession: streamId ? undefined : deletePiConversation,
@@ -1502,10 +1573,10 @@ export function AgentApp() {
     composerQueue: streamId ? undefined : {
       items: (composer.queues[activePiConversationId]?.items ?? []).map((item) => ({ id: item.id, prompt: queuedPrompt(item), attachmentCount: item.attachments.length })),
       paused: composer.queues[activePiConversationId]?.paused,
-      canEnqueue: !acceptingConversationIds.has(activePiConversationId),
+      canEnqueue: !activeObserver && !acceptingConversationIds.has(activePiConversationId),
       canEdit: !hasComposerDraft(composer.drafts[activePiConversationId]),
       inputScope: activePiConversationId,
-      onSteer: piRunning && agentSettings.presetId === "assistant" && !isGroupConversation(activePiConversation) ? async (text, requestId) => {
+      onSteer: !activeObserver && piRunning && agentSettings.presetId === "assistant" && !isGroupConversation(activePiConversation) ? async (text, requestId) => {
         const runId = activePiConversation.activeRunId ?? [...activePiConversation.events].reverse().find(event => event.type === "run.started")?.runId;
         if (!runId) throw new Error("No active run.");
         await steerPiTurn(activePiConversationId, runId, requestId, text);
@@ -1520,17 +1591,17 @@ export function AgentApp() {
       status: composer.statusFor(activePiConversationId),
       onChange: changeComposerDraft,
     },
-    workspaceScope: agentSettings.presetId,
+    workspaceScope: activeObserver ? undefined : agentSettings.presetId,
     workspaceBotName: activeBot.name,
-    outputPanel: streamId ? undefined : { source: outputPanel.source, browserAvailable: outputPanel.browserAvailable, select: outputPanel.selectSource },
+    outputPanel: streamId ? undefined : activeObserver ? { source: "artifact", browserAvailable: false, select: () => outputPanel.selectSource("artifact") } : { source: outputPanel.source, browserAvailable: outputPanel.browserAvailable, select: outputPanel.selectSource },
     workspaceRevision: piRunning,
     workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),
     workspace: piRuntimeState?.workspace,
     onOpenFile: openArtifact,
-    onBrowseWorkspace: streamId ? undefined : () => {
+    onBrowseWorkspace: streamId || activeObserver ? undefined : () => {
       outputPanel.showSource("workspace", rightPanelAvailable);
     },
-    onAttachWorkspaceFile: streamId ? undefined : async (file) => {
+    onAttachWorkspaceFile: streamId || activeObserver ? undefined : async (file) => {
       await composer.update(activePiConversation, (draft) => {
         if (draft.attachments.some(a => a.reference?.scope === file.scope && a.reference.path === file.path)) return draft;
         if (draft.attachments.length >= 10) throw new Error(featureText(locale, "At most 10 attachments"));
@@ -1539,7 +1610,7 @@ export function AgentApp() {
       outputPanel.setOutputModalOpen(false); outputPanel.setWorkspaceModalOpen(false);
       setComposerFocus(activePiConversation.id);
     },
-    artifactForms: streamId ? undefined : {
+    artifactForms: streamId || activeObserver ? undefined : {
       conversationId: activePiConversation.id,
       result: (requestId) => {
         const terminal = [...activePiConversation.events].reverse().find(event => event.runId === requestId && (event.type === "run.finished" || event.type === "run.error"));
@@ -1593,6 +1664,10 @@ export function AgentApp() {
     <AgentPersonaProvider persona={persona}>
     <ShellExtrasProvider value={shellExtras}>
     <div className="exported-shell">
+      {controlAuth.enabled && !controlAuth.authenticated ? <div role="alert" style={{ position: "absolute", top: 8, left: "50%", transform: "translateX(-50%)", zIndex: 40, padding: "8px 12px", maxWidth: "calc(100% - 32px)", background: "var(--surface-raised)", border: "1px solid var(--border-subtle)", borderRadius: 8 }}>
+        {controlPlaneMessage(locale, controlAuth.code)}{" "}
+        <Button size="sm" onClick={() => openSettings("developer")}>{controlPlaneCopy[locale].settings}</Button>
+      </div> : null}
 
       <>
         <div
@@ -1788,6 +1863,11 @@ export function AgentApp() {
             memories={piRuntimeState ? memories : undefined}
             memoryScopes={[{ scope: { kind: "global" }, label: featureText(locale, "Global") }, ...bots.map(bot => ({ scope: { kind: "bot" as const, id: bot.id }, label: bot.name })), ...piConversations.filter(c => c.stored && isGroupConversation(c)).map(c => ({ scope: { kind: "group" as const, id: c.id }, label: conversationTitle(c) }))]}
             learning={piRuntimeState ? learning : undefined}
+            observer={observer}
+            observerBots={bots}
+            onOpenObserverChat={startObserverConversation}
+            onObserverHandoff={prepareObserverHandoff}
+            onOpenObserverOutput={item => { openArtifact(item); setSettingsOpen(false); }}
             skills={piRuntimeState ? skills : undefined}
             usage={piRuntimeState ? usage : undefined}
             vault={piRuntimeState ? vault : undefined}

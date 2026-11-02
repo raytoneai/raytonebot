@@ -72,3 +72,48 @@ test("runtime diagnostics keep bounded metadata and reject caller supplied conte
     rmSync(root, { recursive: true, force: true });
   }
 });
+
+test("tool decision logs whitelist bounded correlation and fixed outcomes while omitting sensitive content", () => {
+  const root = mkdtempSync(join(tmpdir(), "raytone-tool-log-"));
+  try {
+    const log = runtimeLogger(join(root, "data"));
+    log("tool.decision", { conversationId: "conversation-1", runId: "run-1", toolCallId: "call~1", tool: "mcp__raytone__remember",
+      class: "mutating", decision: "refused", reason: "read_only", args: { token: "PRIVATE-TOKEN" },
+      argsDigest: "PRIVATE-DIGEST", prompt: "PRIVATE-PROMPT", path: "/PRIVATE-PATH", url: "https://private.example", error: "PRIVATE-ERROR" });
+    log("tool.decision", { conversationId: "https://private.example", runId: "PRIVATE/RUN", toolCallId: "PRIVATE/CALL",
+      tool: "read PRIVATE-TOOL", class: "PRIVATE-CLASS", decision: "yes", reason: "PRIVATE-REASON" });
+    log("tool.decision", { conversationId: "c".repeat(161), runId: "r".repeat(513), toolCallId: "t".repeat(513), tool: "t".repeat(129) });
+    log("approval.resolved", { conversationId: "conversation-1", decision: "yes", runId: "excluded", tool: "excluded" });
+    log("approval.resolved", { decision: "approved" });
+    const lines = readFileSync(join(root, "logs", "runtime.jsonl"), "utf8").trim().split("\n").map(line => {
+      const { time: _time, ...fields } = JSON.parse(line); return fields;
+    });
+    assert.deepEqual(lines, [
+      { event: "tool.decision", conversationId: "conversation-1", runId: "run-1", toolCallId: "call~1", tool: "mcp__raytone__remember", class: "mutating", decision: "refused", reason: "read_only" },
+      { event: "tool.decision" }, { event: "tool.decision" },
+      { event: "approval.resolved", conversationId: "conversation-1", decision: "yes" }, { event: "approval.resolved" },
+    ]);
+    assert.doesNotMatch(JSON.stringify(lines), /PRIVATE|private\.example|argsDigest/);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});
+
+test("tool decision correlation retains long routine group child and native call IDs without relaxing other diagnostics", () => {
+  const root = mkdtempSync(join(tmpdir(), "raytone-long-tool-log-"));
+  try {
+    const log = runtimeLogger(join(root, "data"));
+    const routineId = "routine_12345678-1234-1234-1234-123456789abc";
+    const occurrenceId = `scheduled_${"20261102T090000_".repeat(4)}`;
+    const runId = `routine_${routineId}_${occurrenceId}.bot_12345678-1234-1234-1234-123456789abc.abcdef`;
+    const toolCallId = `functions.write:${runId}:call_12345678-1234-1234-1234-123456789abc`;
+    assert.ok(runId.length > 128 && toolCallId.length > 128);
+    log("tool.decision", { runId, toolCallId, tool: "write", class: "mutating", decision: "requested" });
+    log("tool.decision", { runId: "r".repeat(512), toolCallId: "c".repeat(512) });
+    log("tool.decision", { runId: "r".repeat(513), toolCallId: "c".repeat(513) });
+    log("group.subscriber_failed", { runId });
+    const records = readFileSync(join(root, "logs", "runtime.jsonl"), "utf8").trim().split("\n").map(line => JSON.parse(line));
+    assert.equal(records[0].runId, runId); assert.equal(records[0].toolCallId, toolCallId);
+    assert.equal(records[1].runId.length, 512); assert.equal(records[1].toolCallId.length, 512);
+    assert.equal(records[2].runId, undefined); assert.equal(records[2].toolCallId, undefined);
+    assert.equal(records[3].runId, undefined);
+  } finally { rmSync(root, { recursive: true, force: true }); }
+});

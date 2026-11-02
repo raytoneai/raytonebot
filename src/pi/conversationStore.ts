@@ -18,6 +18,8 @@ import { createConversationCache } from "./conversationCache.ts";
  * conversation-wide `seq`, matching `appendPiConversationEvents`.
  */
 export type StoredConversation = {
+  /** Durable identity of these source bytes; an ID reused after deletion gets a new generation. */
+  sourceGeneration?: string;
   botId?: string;
   availableBots?: import("./groupParticipants.ts").GroupParticipant[];
   group?: import("./groupChat.ts").GroupMeta;

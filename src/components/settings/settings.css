@@ -643,3 +643,31 @@
 .routine-history time { font-size: var(--text-sm); color: var(--text-secondary); font-variant-numeric: tabular-nums; }
 .routine-history li p { margin: 6px 0 0; overflow-wrap: anywhere; }
 @media (pointer: coarse) { .routine-edit-form input, .routine-edit-form textarea, .routine-edit-form select { font-size: 16px; min-height: 44px; } }
+.routine-run-summary { margin: 0; padding: 0 14px 12px 58px; overflow-wrap: anywhere; }
+.routine-run-report { min-width: 0; }
+.routine-run-report p, .routine-waiting-details p { margin: 0; }
+.routine-run-report p + p, .routine-waiting-details p + p { margin-top: 6px; }
+.routine-run-report ul, .routine-evidence { margin: 6px 0; padding-left: 18px; font-size: var(--text-sm); color: var(--text-secondary); }
+.routine-run-report, .routine-evidence { overflow-wrap: anywhere; white-space: pre-wrap; }
+@media (max-width: 720px) { .routine-run-summary { padding-left: 14px; } }
+.routine-waiting-details .settings-status { display: grid; grid-template-columns: 7px minmax(0, 1fr); align-items: start; }
+.routine-waiting-details .settings-status > .settings-dot { margin-top: 5px; }
+
+[data-observer-settings] .settings-row { flex-wrap: wrap; justify-content: space-between; padding-inline: 0; }
+[data-observer-settings] .settings-row > span { flex: 1 1 160px; min-width: 0; overflow-wrap: anywhere; }
+[data-observer-settings] :is(input[type="number"], select, textarea) { box-sizing: border-box; max-width: 100%; min-width: 0; border: var(--border-width) solid var(--border-subtle); border-radius: 8px; padding: 8px; color: var(--text-primary); background: var(--surface-inset); font: inherit; }
+[data-observer-settings] input[type="number"] { width: 120px; }
+[data-observer-settings] textarea { width: 100%; min-height: 80px; resize: vertical; }
+[data-observer-settings] .settings-provider-card { overflow-wrap: anywhere; }
+[data-observer-settings] .settings-provider-actions { flex-wrap: wrap; }
+[data-observer-settings] .ui-button { max-width: 100%; white-space: normal; height: auto; min-height: 32px; }
+[data-observer-follow-up] > summary { cursor: pointer; margin-block: 12px; font-weight: var(--weight-strong); }
+[data-observer-follow-up] form { border-top: 1px solid var(--border-subtle); margin-block: 16px; padding-top: 4px; }
+[data-observer-follow-up] .settings-row > :is(label, input:not([type="number"])) { flex: 1 1 160px; min-width: 0; max-width: 100%; }
+.observer-follow-up-references { min-width: 0; margin: 12px 0; padding: 10px; border: 1px solid var(--border-subtle); border-radius: 8px; }
+.observer-follow-up-references select { width: 100%; }
+.observer-follow-up-references select[multiple] { height: auto; }
+.observer-follow-up-references ul { padding-left: 18px; }
+.observer-follow-up-references li { margin-block: 8px; overflow-wrap: anywhere; }
+.observer-follow-up-references li .ui-button { margin: 4px; }
+[data-observer-saved-follow-up] pre { white-space: pre-wrap; overflow-wrap: anywhere; font: inherit; padding: 10px; background: var(--surface-inset); border-radius: 8px; }

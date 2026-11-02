@@ -1,5 +1,41 @@
 # 02 架构
 
+## Observer 架构（ADR-059，本机实现）
+
+[Observer 方案](13-observer.md) 在原 Node host 内区分现有无工具 RSL、无工具 L1 统计解释和带受控查询的 L2 诊断。`src/pi/observer/` 管理私有状态、版本、查询、统计、专用 Pi 装配与调度；`src/pi/learning/` 保留经验提议/审核/复用。原设置、侧栏、聊天及 Output 承担界面，系统身份固定为 `system:observer`，私有会话使用 `observer:` 前缀，不写入普通 Bot store 或原生会话。
+
+`controlPlaneAuth.ts` 在原 HTTP host 检查短期 HttpOnly 用户会话；写入使用 `x-raytonebot-csrf`，开发者范围单独授予。`/auth/exchange`、`/auth/session`、`/auth/developer/grant|revoke`、`/auth/logout` 均在 `/__agentcanvas/pi` 下。本机入口只经交互 Vite 主机直接打开的一次性 fragment 提供；云端交换依赖原入口已验证的请求上下文，不信任外部自报身份头。前端凭据不持久化，撤销/退出会清除私有视图并终止读取。元数据审计位于同级 `<dataDir>.control-plane/`；无匿名管理写兼容。完整清单见 [14](14-control-plane-inventory.md)。
+
+`GET /observer` 返回状态、预算与 finding 列表，`POST /observer` 承担设置、L1、停止、审核、删除、交接、经验提议及手动 `record_implementation` / `record_effect`；`GET /observer/findings/:id?revision=` 与 `/observer/evidence?findingId=&revision=&evidenceId=` 提供开发者回查。`GET /observer/follow-up-sources?cursor=&limit=&query=` 在同一开发者授权下返回有界普通会话轮次元数据，供后续记录选择；不返回正文。L2 的 prompt/stop/history/search/live 复用既有路径并检查系统身份及开发者范围；查询仅是绑定运行的内部能力，不存在任意查询执行 HTTP API。
+
+`<dataDir>/observer/state.json`（schema 1）保存有界结构记录，完整构建清单在私有 `manifests/<hash>.json` 去重保存，目录/文件为 0700/0600。来源绑定实例、会话世代与内容版本；先持久化删除标记，再撤销查询及多来源派生记录。工具原文和模型上下文仅在内存，历史/搜索/Output 只投影问题、报告、引用和经过过滤的状态。L2 不加载个人扩展、原生上下文、浏览器或通用工具。后台队列仅内存，重启不补跑且后台关闭。
+
+可选 `finding.followUp` 在同一状态文件原子保存，独立 revision，不改变原审核或有效性；旧记录缺省为未记录。实施/效果为有界用户记录，实际源由主机确认，删除源清理相关段正文。Settings 内草稿仅在内存，Output 报告绑定 follow-up revision，变化后关闭旧副本；不把后续记录写入聊天投影。[完整契约](13-observer.md#follow-up)。
+
+本机工作树使用受跟踪文件清单，部署读取实际包内 `OBSERVER-BUILD.json` 并核对字节；配置/代码/证据失效后不能继续批准、交接或注入旧经验。所有云环境 L2 暂不开放，不以已有隔离环境变量代替逐平台验证。实施与验收状态见 [T6.11](03-roadmap.md#t611) 和 [本机证据](../../output/observer-2026-11-02/README.md)。
+
+## 例行任务等待与业务报告（2026-11-02）
+
+原 `SettingsDialog` 例行任务行、详情与历史展示当前等待原因、数量和时长。服务只检查对应活动 run；审批、提问、Vault 与频道设置分别关联解除事件，终态与其他轮次不能延续等待。`conversationRecorder` 在等待事件落盘/广播前覆盖主机观察时间 `waitObservedAt`，不使用适配器合成的 `event.ts` 计算等待时长。老事件没有观察时间时明确未知；重复事件保留首次等待时间。沿原设置轮询刷新，30 分钟提示打开会话；没有页面关闭后的推送或新增汇总入口。
+
+每场例行执行可通过已有 `extraHostTools` 获得 `routine_report`。主机闭包绑定 routine/occurrence/run，不接受模型自报身份或时间；接受有界的 `changes | no_changes | blocked`、摘要及可选纯文本证据引用。首份报告原子写入原 `routines.json` 后才回执，活动期间相同重试幂等，冲突、取消后、终态后、删除后或旧场次回调拒绝。报告沿历史保留，与主机 success/error/cancelled/interrupted 及失败计数独立；没有报告就保持未报告，不从自然语言推断或隐藏普通回复。界面明确模型自报、证据未核实。
+
+群包装沿 `mergeHostTools` 把场次工具与原委派工具一起交给主持成员的正式轮次；不分发给其他成员、介绍轮次或后台委派。若没有主持成员执行，不为报告新增模型调用。只读闸门仅为 `routine_report` 增加元数据记录例外，其他副作用规则不变；observe、推送与消息预算不在本次范围。
+
+## 轮次来源与工具决定记录（2026-11-02）
+
+原会话 `turns[].provenance` 可保存主机确定的网页、IM（平台与发送者 ID）或例行任务（任务与场次 ID）来源、实际权限模式及只读限制。群父轮记录接受请求时的模式；成员和后台委派继承来源，以父群会话/轮次/任务关联，PM 确认后子轮记录实际 `auto` 与原请求模式。旧记录和没有已知来源的内部调用不补造来源。HTTP 不接受请求体自报的来源，模型工具也不能指定这些字段；数据沿原会话查询和备份保存。
+
+已有 `logs/runtime.jsonl` 增加 `tool.decision`：会话/轮次/工具调用 ID、工具名、分类、固定决定和拒绝原因码。实际工具闸门记录审批请求、允许一次/始终允许、用户拒绝、策略拒绝和等待取消；纯分类查询与自动放行不产生日志。Pi 与三类 CLI 的主机拒绝分支共用这条路径，原 `approval.resolved` 保持兼容。原始参数、命令、路径、URL、自由文本原因及参数摘要不写入日志。
+
+日志仍是原有有界、尽力写入的诊断记录，写入失败不改变工具执行或导致重放；不是防篡改审计账本，也不声称覆盖引擎在进入主机回调前自行拒绝的所有非法协议请求。无新数据库、存储根或界面。
+
+## 停止历史与讨论只读（2026-11-02）
+
+取消仍保存为 `run.finished(cancelled)`。`runtime/cancelledTurns.ts` 仅在显示回放中为该轮添加现有步骤行，保留部分回复并显示本轮已停止；不改原始事件、续接游标或 vendor。主机启动恢复未结束轮次时附加 `interruptionReason: host_restart`，显示明确的重启中断说明；旧取消记录不推断原因。不会自动重放。
+
+普通讨论的成员及汇总沿现有 `PiApprovalGate.setReadOnly` 限制副作用；允许安全读取和原计划记录，拒绝写文件、受闸门控制的命令、主机配置修改和 `group_tasks` 取消。Pi SDK 的频道连接/例行任务创建也经过同一闸门。顺序任务原 PM 确认及本轮工作区授权不变；原生引擎既有安全读取与隔离边界不变。
+
 ## 显式交付版本（2026-11-01）
 
 `publish_artifact({path, preserveVersion: true})` 在现有主机中保存单文件 `.md`、`.txt`、`.pdf` 的交付字节；省略参数仍只登记当前工作文件。`artifactTool.ts` 从 `openWorkspaceFile` 已验证的句柄有界读取，并核对读取前后的文件状态。`artifactVersions.ts` 在 `<dataDir>.artifact-versions/` 保存主机生成身份、会话/轮次/产物关联、时间、大小、SHA-256 与独立字节文件，成功保存后才发原 artifact 事件。上限为单文件 20 MiB、文件字节合计 500 MiB；达到配额拒绝新保存，不淘汰旧版本。存储目录/文件为 0700/0600，加入文件接口与 Agent 工具的私有路径；同 UID 本机进程不是强隔离边界。
@@ -10,7 +46,7 @@
 
 ## RSL 可选学习（2026-10-29）
 
-`src/pi/learning/` 在现有主机内管理独立 `learning/state.json`。`GET/POST /__agentcanvas/pi/learning` 由原鉴权与 Origin 检查保护，设置保存带 revision。SettingsDialog 的开发者分区管理开关、每日预算、候选审核/停用/删除及用量。默认关闭。
+`src/pi/learning/` 在现有主机内管理独立 `learning/state.json`。`GET/POST /__agentcanvas/pi/learning` 执行现有 Origin 检查，云入口另有鉴权；本机无 Origin 请求仍被接受，不具备独立的用户控制面会话授权。该缺口由 [T6.11.0a/0b](03-roadmap.md#t611-0a) 处理，不能宣称已阻止本机 Agent 自批。设置保存带 revision；SettingsDialog 的开发者分区管理开关、每日预算、候选审核/停用/删除及用量，默认关闭。
 
 普通轮次可靠结束后可入有界内存队列，空闲时用原模型服务做一次无工具分析；前台任务到来取消。批准经验可按同 Bot/引擎相关性注入后续轮次，不改变原模型、工具、审批或原生 session。坏存储只停用 RSL；队列不持久化，不重放。范围、预算与限制见 ADR-056；真实效果尚待模型对照评测。
 

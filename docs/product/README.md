@@ -18,10 +18,12 @@ RaytoneBot 是一个支持本机与云端部署的单用户 AI 工作助手。�
 | [10 引擎与权限](10-agents-and-permissions.md) | Bot 身份、Pi/Claude/Codex/DSH、审批与隔离 | 改引擎、Bot 或权限时 |
 | [11 参考项目对齐](11-parity.md) | 固定版本的历史对照与后续补证 | 回查竞品研究依据时 |
 | [12 Provider 配置与凭据](12-provider-credentials-proposal.md) | 已实现的主机密钥持久化、问题记录与恢复边界 | 接续模型服务与凭据保存工作时 |
+| [13 Observer 方案](13-observer.md) | 开发者观察、无工具统计解释、受控诊断、证据与经验闭环；本机实现；部署与真实模型效果另验 | 接续 T6.11、控制面前置及 Observer 开发时 |
 
 ## 功能说明入口
 
 - [Bot、人设、能力、记忆与权限](10-agents-and-permissions.md)：含可选 RSL 任务复盘、记忆来源和更新规则。
+- [Observer（本机实现）](13-observer.md)：最终方案；分批任务见 [T6.11](03-roadmap.md#t611)，决策见 [ADR-059](07-decisions.md#adr-059)，验收见 [OB 组](08-acceptance.md#observer-acceptance)。
 - [任务 Skills](../task-skills/README.md)：研究报告、增量更新、记忆审计与项目交接的安装、分配和验证边界。
 - [显式交付版本](02-architecture.md#显式交付版本2026-11-01)：保存范围、原输出面板入口与备份边界。
 - [记忆导出与恢复](02-architecture.md#主机记忆导出与恢复t610)：主机命令、目标目录要求与恢复限制。

@@ -1,3 +1,4 @@
+import { observerText } from "../../i18n/copy/observer.ts";
 import { featureText, featureError, groupRosterTitle } from "../../i18n/copy/features.ts";
 import * as RadixPopover from "@radix-ui/react-popover";
 import { ChevronDown, Pencil, Plus, Settings } from "lucide-react";
@@ -44,6 +45,8 @@ export type ShellExtras = {
   artifactCatalog?: ArtifactCatalogContext;
   botEditor?: BotEditorState;
   bots?: readonly BotProfile[];
+  systemBot?: BotProfile;
+  diagnostic?: { note: string };
   onCreateBot?: () => void;
   onEditBot?: (bot: BotProfile) => void;
   botError?: string;
@@ -185,10 +188,10 @@ export function AgentSwitcher({
       <h4 className="shell-agents-title">{t.agents}</h4>
       {choices.map((bot) => {
         const preset = agentPreset(bot.presetId);
-        const available = harnesses?.find((entry) => entry.id === preset.harness)?.available !== false;
+        const available = (bot.id !== "system:observer" || Boolean("model" in bot && bot.model)) && harnesses?.find((entry) => entry.id === preset.harness)?.available !== false;
         const active = !groupActive && bot.id === (activeBotId ?? activeId);
         const rowStatus: AgentStatus = !available ? "unavailable" : statuses[bot.id] ?? "idle";
-        const statusLabel = rowStatus === "running" ? t.running : rowStatus === "needs-you" ? t.needsYou : rowStatus === "unavailable" ? t.notInstalled : undefined;
+        const statusLabel = bot.id === "system:observer" && !available ? observerText(locale, "unavailable") : rowStatus === "running" ? t.running : rowStatus === "needs-you" ? t.needsYou : rowStatus === "unavailable" ? t.notInstalled : undefined;
         return (
           <div className="shell-agent-row" key={bot.id}>
           <button
@@ -197,10 +200,10 @@ export function AgentSwitcher({
             data-active={active}
             aria-current={active ? "true" : undefined}
             aria-disabled={disabled || !available || undefined}
-            title={onEditBot ? (featureText(locale, "Click to chat, right-click to edit Bot")) : t.switchHint}
+            title={bot.id === "system:observer" ? observerText(locale, available ? "chat" : "unavailable") : onEditBot ? (featureText(locale, "Click to chat, right-click to edit Bot")) : t.switchHint}
             onClick={() => { if (!disabled && available) { if (onSelectBot && bot.appearance) onSelectBot(bot as BotProfile); else onSelect(preset.id); } }}
-            onContextMenu={event => { if (onEditBot && bot.appearance) { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot as BotProfile); } }}
-            onKeyDown={event => { if (onEditBot && bot.appearance && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) { event.preventDefault(); onEditBot(bot as BotProfile); } }}
+            onContextMenu={event => { if (onEditBot && bot.appearance && bot.id !== "system:observer") { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot as BotProfile); } }}
+            onKeyDown={event => { if (onEditBot && bot.appearance && bot.id !== "system:observer" && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) { event.preventDefault(); onEditBot(bot as BotProfile); } }}
           >
             <span className="shell-agent-face" data-status={rowStatus}>
               <AgentAvatar size={42} kind={avatars[preset.id]} appearance={bot.appearance} />
@@ -218,7 +221,7 @@ export function AgentSwitcher({
               </span>
             </span>
           </button>
-          {onEditBot && bot.appearance ? <button type="button" className="shell-agent-edit" aria-label={`${featureText(locale, "Edit")} ${bot.name}`}
+          {onEditBot && bot.appearance && bot.id !== "system:observer" ? <button type="button" className="shell-agent-edit" aria-label={`${featureText(locale, "Edit")} ${bot.name}`}
             onClick={() => onEditBot(bot as BotProfile)}><Pencil size={14} /></button> : null}
           </div>
         );

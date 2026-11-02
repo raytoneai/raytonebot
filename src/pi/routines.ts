@@ -10,6 +10,8 @@ import type { PiPermissionMode, PiRuntimeController } from "./piHost.ts";
 import { ROUTINE_FAILURE_LIMIT, ROUTINE_HISTORY_LIMIT, type RoutineRun, type RoutineRunStatus, type RoutineView } from "./routineTypes.ts";
 import { cronMatches, cronProblem, nextCronOccurrence, timezoneProblem } from "../runtime/routineSchedule.ts";
 import { readSettingsFile } from "./settingsFile.ts";
+import { routineWaiting } from "../runtime/routineWaiting.ts";
+import { createRoutineReportTools, sameRoutineReport, validRoutineReport } from "./routineReport.ts";
 
 export { cronMatches, cronProblem } from "../runtime/routineSchedule.ts";
 
@@ -42,6 +44,7 @@ export class RoutineError extends Error {
 const validRun = (run: RoutineRun) => run && typeof run.occurrenceId === "string" && Number.isFinite(run.at)
   && ["running", "success", "error", "cancelled", "interrupted"].includes(run.status)
   && (run.error === undefined || typeof run.error === "string") && (run.runId === undefined || typeof run.runId === "string")
+  && (run.report === undefined || validRoutineReport(run.report))
   && (run.textId === undefined || typeof run.textId === "string") && (run.finishedAt === undefined || Number.isFinite(run.finishedAt));
 const withRun = (routine: Routine, run: RoutineRun): Routine => ({ ...routine, lastRun: run,
   history: [run, ...(routine.history ?? (routine.lastRun ? [routine.lastRun] : [])).filter(item => item.occurrenceId !== run.occurrenceId)].slice(0, ROUTINE_HISTORY_LIMIT) });
@@ -125,6 +128,7 @@ export function routinePrompt(routine: Routine, occurrenceId: string, now: Date)
   return [
     `[Routine "${routine.title}" · run ${occurrenceId} · ${now.toISOString()} · schedule ${routine.schedule} ${routine.timezone}]`,
     "This is an unattended scheduled run; the user is not watching now. Fetch fresh data every time and do not rely on earlier runs. If nothing is worth reporting, say so in one line.",
+    "You may optionally call routine_report after your checks with changes, no_changes or blocked and a short summary. This is a model self-report; evidence references are not host-verified. Without a tool report this occurrence remains unreported, regardless of your final wording.",
     `Task:\n${routine.instructions}`,
   ].join("\n\n");
 }
@@ -169,9 +173,23 @@ export function createRoutineService(options: {
       const nextRunAt = nextRuns.get(routine.id)?.at;
       if (nextRunAt !== undefined) view.nextRunAt = nextRunAt;
     }
-    if (view.lastRun?.status === "running" && options.runtime.awaitingUser?.(routine.conversationId)) {
-      view.lastRun = { ...view.lastRun, waiting: true };
-      view.history = view.history?.map(run => run.occurrenceId === view.lastRun!.occurrenceId ? { ...run, waiting: true } : run);
+    // Wait metadata is a live view, never a persisted or inferred execution duration.
+    if (view.lastRun) {
+      view.lastRun = { ...view.lastRun, waiting: undefined, waitingDetails: undefined };
+      view.history = view.history?.map(run => ({ ...run, waiting: undefined, waitingDetails: undefined }));
+      if (view.lastRun.status === "running" && view.lastRun.runId && options.runtime.awaitingUser?.(routine.conversationId)) {
+        try {
+          const conversation = options.runtime.getConversation(routine.conversationId);
+          if (conversation?.activeRunId === view.lastRun.runId) {
+            const waitingDetails = routineWaiting(conversation.events, view.lastRun.runId);
+            const ended = conversation.events.some(event => event.runId === view.lastRun!.runId && (event.type === "run.finished" || event.type === "run.error"));
+            if (waitingDetails || !ended) {
+              view.lastRun = { ...view.lastRun, waiting: true, ...(waitingDetails ? { waitingDetails } : {}) };
+              view.history = view.history?.map(run => run.occurrenceId === view.lastRun!.occurrenceId ? { ...view.lastRun! } : run);
+            }
+          }
+        } catch { /* An unreadable conversation cannot supply a trustworthy wait age. */ }
+      }
     }
     return view;
   };
@@ -332,6 +350,22 @@ export function createRoutineService(options: {
           throw new Error("Routine run was cancelled before it started.");
         }
         let status: RoutineRunStatus = "error", error: string | undefined;
+        let terminal = false;
+        const extraHostTools = createRoutineReportTools(input => {
+          const current = store.get(id), lastRun = current?.lastRun;
+          if (!accepted || !currentStart() || pendingStart.abort.signal.aborted || terminal || !current || !lastRun
+            || lastRun.status !== "running" || lastRun.occurrenceId !== occurrenceId || lastRun.runId !== runId) {
+            throw new RoutineError("This routine occurrence is no longer active; the report was not saved.", 409);
+          }
+          if (lastRun.report) {
+            if (sameRoutineReport(lastRun.report, input)) return lastRun.report;
+            throw new RoutineError("This occurrence already has a different report. Its saved report has not changed.", 409);
+          }
+          const report = { ...input, reportedAt: now().getTime() };
+          // Unlike background lifecycle bookkeeping, a tool receipt requires a successful durable write.
+          store.put(withRun(current, { ...lastRun, report }));
+          return report;
+        });
         await new Promise<void>((resolve, reject) => {
           const onEvent = (event: AgentUXEvent) => {
             if (!accepted) {
@@ -350,6 +384,7 @@ export function createRoutineService(options: {
                 record(withRun(current, { ...current.lastRun, textId: event.payload.textId }));
               }
             }
+            if (event.type === "run.finished" || event.type === "run.error") terminal = true;
             if (event.type === "run.finished") status = String((event.payload as { status?: unknown }).status ?? "success") as RoutineRunStatus;
             if (event.type === "run.error") {
               status = "error";
@@ -359,7 +394,7 @@ export function createRoutineService(options: {
           options.runtime.runPrompt({ conversationId: routine.conversationId, requestId: runId, botId, agentPreset: bot?.presetId ?? "assistant",
             prompt: routinePrompt(routine, occurrenceId, now()), permissionMode: options.permissionMode,
             provider: model.definition.id, model: model.model,
-            ...(routine.locale ? { locale: routine.locale } : {}) }, onEvent, { title: routine.title, signal: pendingStart.abort.signal }).then(
+            ...(routine.locale ? { locale: routine.locale } : {}) }, onEvent, { extraHostTools, title: routine.title, signal: pendingStart.abort.signal, origin: { kind: "routine", routineId: id, occurrenceId } }).then(
             () => { clearStart(); if (accepted) finish(id, occurrenceId, status, error); else reject(new Error("The run ended before it started.")); },
             (failure: unknown) => {
               clearStart();

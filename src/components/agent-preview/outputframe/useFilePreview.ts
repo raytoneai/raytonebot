@@ -1,3 +1,4 @@
+import { controlPlaneFetch } from "../../../runtime/controlPlaneSession";
 import { useEffect, useMemo, useState } from "react";
 import { inlineMediaSource, mediaType, readPreviewBlob } from "../../../runtime/filePreview";
 import { PI_API_PREFIX } from "../../../pi/piClient";
@@ -21,7 +22,7 @@ export function useFilePreview(item: OutputPanelItem, downloadUrl?: string) {
         if (!downloadUrl.startsWith(`${PI_API_PREFIX}/files/download?`)) throw new Error("unavailable");
         if (type?.match(/^(audio|video)\//)) source = `${downloadUrl}&preview=${attempt}`;
         else {
-          blob = await readPreviewBlob(await fetch(downloadUrl, { redirect: "error", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) }), type);
+          blob = await readPreviewBlob(await controlPlaneFetch(downloadUrl, { redirect: "error", signal: AbortSignal.any([controller.signal, AbortSignal.timeout(30_000)]) }), type);
           if (!type) {
             body = await blob.text();
             if (body.includes("\0")) throw new Error("unavailable");

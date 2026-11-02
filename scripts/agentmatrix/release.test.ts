@@ -6,6 +6,7 @@ import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node
 import { test } from "node:test";
 
 import { buildRelease, buildReleaseFromHead, EXCLUDES, manifestFor, releaseName } from "./release.mjs";
+import { verifyManifest } from "../observer-manifest.mjs";
 
 test("releaseName is commit-scoped and marks local edits", () => {
   assert.equal(releaseName("abcdef1234567890", false), "raytonebot-abcdef12.tar.gz");
@@ -57,6 +58,7 @@ function createReleaseFixture({ failingBuild = false } = {}) {
       name: "probe", version: "1.0.0", type: "module", exports: "./index.js",
     }, null, 2)}\n`);
     writeFixtureFile(root, "vendor/probe/index.js", 'export const value = "CLEAN_HEAD";\n');
+    writeFixtureFile(root, "docs/observer-guide.md", "Versioned repository evidence.\n");
     writeFixtureFile(root, "vendor/sdk/package.json", `${JSON.stringify({
       name: "@agentmatrix.pro/sdk", version: "0.0.1", type: "module",
       exports: { ".": { import: "./dist/index.js" } }, main: "./dist/index.js",
@@ -115,6 +117,15 @@ test("worktree release excludes untracked files and nested private files, includ
     assert.match(entries, /vendor\/probe\/index\.js/);
     assert.match(entries, /dist\/index\.html/);
     assert.doesNotMatch(entries, /\.env|id_ed25519|private\.txt/);
+    const snapshot = join(root, "extracted"); mkdirSync(snapshot);
+    execFileSync("tar", ["-xzf", release.file, "-C", snapshot]);
+    const manifest = JSON.parse(archiveEntry(release.file, "OBSERVER-BUILD.json"));
+    assert.ok(manifest.files.some(file => file.path === "docs/observer-guide.md"));
+    assert.ok(manifest.files.some(file => file.path === "dist/index.html"));
+    assert.ok(!manifest.files.some(file => file.path === "OBSERVER-BUILD.json"));
+    verifyManifest(snapshot, manifest);
+    writeFileSync(join(snapshot, "dist/index.html"), "changed after packaging");
+    assert.throws(() => verifyManifest(snapshot, manifest), /observer_source_changed/);
   } finally { rmSync(root, { recursive: true, force: true }); }
 });
 

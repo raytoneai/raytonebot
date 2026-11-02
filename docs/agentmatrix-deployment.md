@@ -7,6 +7,12 @@ Environment，保留 Node HTTP 主机、三引擎和 `dist` 前端，并给出�
 [可行性评估](agentmatrix-platform-research-2026-10-19.md)。本文件描述仓库已实现的部署路径并保留首次部署快照，
 不把未实现的平台能力写成已完成。
 
+## Observer 发布变化（2026-11-02，仅本机验证）
+
+`release.mjs` 在现有发布包内加入 `OBSERVER-BUILD.json`，哈希来自实际归档的源码、测试、文档、vendor、dist 和 release metadata，不依赖远端 Git。只打包已跟踪的允许文件及生成的 dist，拒绝链接；继续执行 20 MiB 附件上限。更新/回滚须以整包为单位，清单不匹配时 Observer 拒绝取证。
+
+新版本私有 API 使用云入口认证后交换的短期控制会话及写入 CSRF，开发者范围单独授予。原 Session 部署过程不能获得这份用户能力。Observer 默认关闭，模型必须显式选择，AgentMatrix 的 L2 入口保持不可用；现有平台执行、UID、网络与持久化缺口没有由本机测试补齐。本轮没有发布、恢复或真实模型评测。数据保留/备份迁移规则见 [通用迁移说明](product/06-deployment-runbook.md#observer-与控制面迁移2026-11-02本机实现)，逐平台验收见 [OB-09](product/08-acceptance.md#obs-09)。
+
 ## 结论先说
 
 AgentMatrix v1 的公开合同**没有 exec / 进程 / SSH 接口**：能创建 Environment、绑定 Workspace、

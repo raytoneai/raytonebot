@@ -28,7 +28,7 @@ function versionIdentity(item: OutputPanelItem): string {
 /** Version metadata belongs to an opened historical tab, never to the artifact list. */
 export function useOpenedArtifactVersions(item: OutputPanelItem) {
   const identity = versionIdentity(item);
-  const versioned = isVersionedArtifactId(identity);
+  const versioned = !item.ephemeral && isVersionedArtifactId(identity);
   const canLoad = versioned && Boolean(item.conversationId && identity);
   const requestKey = item.id + "\n" + (item.conversationId ?? "") + "\n" + identity;
   const [attempt, setAttempt] = useState(0);

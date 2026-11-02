@@ -1,6 +1,13 @@
+import { ObserverSection } from "./ObserverSection";
+import type { ObserverSettingsState } from "../../runtime/useObserver";
+import type { ObserverHandoff } from "../../runtime/observerClient";
+import type { BotProfile } from "../../runtime/botProfiles";
+import type { OutputPanelItem } from "../agent-preview/outputframe/panelItem";
+import { controlPlaneCopy, controlPlaneMessage } from "../../i18n/copy/controlPlane";
+import { controlPlaneSession } from "../../runtime/controlPlaneSession";
 import * as RadixDialog from "@radix-ui/react-dialog";
 import { Brain, CalendarClock, Info, KeyRound, MessagesSquare, Palette, Plug, Server, ShieldCheck, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { featureText } from "../../i18n/copy/features.ts";
 import type { LearningSettings } from "../../runtime/useLearning";
 
@@ -83,6 +90,11 @@ export type SettingsDialogProps = {
   skills?: SkillsState;
   usage?: UsageViewState;
   learning?: LearningSettings;
+  observer?: ObserverSettingsState;
+  observerBots?: readonly BotProfile[];
+  onOpenObserverChat?: () => void;
+  onOpenObserverOutput?: (item: OutputPanelItem) => void;
+  onObserverHandoff?: (handoff: ObserverHandoff, draft: string) => void;
   /** Cross-conversation memory from the host (ADR-038); the section is hidden when absent (fixtures, static previews). */
   memories?: MemoriesState;
   memoryScopes?: { scope: MemoryScope; label: string }[];
@@ -95,6 +107,17 @@ export type SettingsDialogProps = {
 export function SettingsDialog(props: SettingsDialogProps) {
   const { locale } = useLocale();
   const t = settingsCopy[locale];
+  const auth = useSyncExternalStore(controlPlaneSession.subscribe, controlPlaneSession.getSnapshot);
+  const authCopy = controlPlaneCopy[locale];
+  const [authBusy, setAuthBusy] = useState(false);
+  const [authError, setAuthError] = useState<string>();
+  const authorize = async (action: () => Promise<void>) => {
+    if (authBusy) return;
+    setAuthBusy(true); setAuthError(undefined);
+    try { await action(); }
+    catch (error) { setAuthError(controlPlaneMessage(locale, error instanceof Error ? error.message : undefined)); }
+    finally { setAuthBusy(false); }
+  };
   const [section, setSection] = useState<SectionId>(props.initialSection ?? "providers");
   const navigationRef = useSettingsNavigation(props.open, section, locale);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -132,7 +155,7 @@ export function SettingsDialog(props: SettingsDialogProps) {
     ...(props.usage ? [{ id: "usage" as const, label: featureText(locale, "Model usage"), Icon: Info }] : []),
     ...(props.vault ? [{ id: "vault" as const, label: vaultCopy[locale].nav, Icon: KeyRound }] : []),
     { id: "appearance", label: t.nav.appearance, Icon: Palette },
-    ...(props.learning ? [{ id: "developer" as const, label: featureText(locale, "Developer"), Icon: Brain }] : []),
+    ...(props.learning || auth.enabled ? [{ id: "developer" as const, label: featureText(locale, "Developer"), Icon: Brain }] : []),
     { id: "about", label: t.nav.about, Icon: Info },
   ];
 
@@ -179,7 +202,22 @@ export function SettingsDialog(props: SettingsDialogProps) {
               {/* Keep non-secret editors mounted across section changes; hidden removes them from keyboard navigation. */}
               {props.skills ? <div hidden={section !== "mcp"}><SkillsSection state={props.skills} /></div> : null}
               {props.memories ? <div hidden={section !== "memory"}><MemorySection key={props.initialMemoryScope ? memoryScopeKey(props.initialMemoryScope) : "all"} t={t} state={props.memories} scopes={props.memoryScopes} initialScope={props.initialMemoryScope} /></div> : null}
-              {section === "developer" && props.learning ? <LearningSection learning={props.learning} /> : null}
+              {section === "developer" ? <>
+                {auth.enabled ? <section className="settings-section">
+                  <h3>{authCopy.title}</h3>
+                  <p role={auth.authenticated ? "status" : "alert"}>{auth.authenticated ? authCopy.authorized : controlPlaneMessage(locale, auth.code)}</p>
+                  {authError ? <p role="alert">{authError}</p> : null}
+                  {!auth.authenticated ? <>
+                    <p className="settings-note">{authCopy.reopen}</p>
+                    <Button size="sm" disabled={authBusy} onClick={() => void authorize(() => controlPlaneSession.authorizeTrustedEntry())}>{authCopy.trustedEntry}</Button>
+                  </> : <div className="settings-provider-actions">
+                    <Button size="sm" disabled={authBusy} onClick={() => void authorize(() => controlPlaneSession.changeDeveloperScope(!auth.developerScope))}>{auth.developerScope ? authCopy.revoke : authCopy.grant}</Button>
+                    <Button size="sm" disabled={authBusy} onClick={() => void authorize(() => controlPlaneSession.logout())}>{authCopy.logout}</Button>
+                  </div>}
+                </section> : null}
+                {props.observer && auth.authenticated && auth.developerScope && props.onOpenObserverChat && props.onOpenObserverOutput && props.onObserverHandoff ? <ObserverSection observer={props.observer} bots={props.observerBots ?? []} onOpenChat={props.onOpenObserverChat} onOpenOutput={props.onOpenObserverOutput} onHandoff={props.onObserverHandoff} onOpenConversation={props.onOpenConversation} /> : null}
+                {props.learning && (!auth.enabled || auth.authenticated && auth.developerScope) ? <LearningSection learning={props.learning} /> : null}
+              </> : null}
               {section === "usage" && props.usage ? <UsageSection usage={props.usage} /> : null}
               {props.open && section === "vault" && props.vault ? <VaultSection state={props.vault} /> : null}
               {section === "appearance" ? <AppearanceSection t={t} themePreset={props.themePreset} onThemeChange={props.onThemeChange} /> : null}

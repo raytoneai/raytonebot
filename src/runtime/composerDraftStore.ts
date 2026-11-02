@@ -47,6 +47,7 @@ const savedDraft = (draft: ComposerDraft): ComposerDraft => ({
 
 /** Only draft data crosses this boundary: never transcripts, provider settings or session keys. */
 export function savedComposerDraft(conversation: EphemeralPiConversation, draft: ComposerDraft, submission?: SavedComposerDraft["submission"], queue?: readonly QueuedMessage[]): SavedComposerDraft {
+  if (conversation.id.startsWith("observer:") || conversation.systemRole === "observer" || conversation.botId === "system:observer") throw new Error("Observer drafts remain in memory");
   const { id, title, createdAt, agentPreset } = conversation;
   const groupMembers = isGroupConversation(conversation) ? savedGroupMembers(conversation.groupMembers) : undefined;
   return { id, conversation: { id, title, createdAt, agentPreset, ...(groupMembers ? { groupMembers, groupParticipants: conversation.groupParticipants, groupHostId: conversation.groupHostId } : {}) }, draft: savedDraft(draft),
@@ -107,7 +108,7 @@ export function readComposerDrafts(db: IDBDatabase): Promise<SavedComposerDraft[
   return new Promise((resolve, reject) => {
     const request = db.transaction("drafts").objectStore("drafts").getAll();
     request.onsuccess = () => resolve(request.result.filter((record: SavedComposerDraft) =>
-      typeof record?.id === "string" && record.conversation?.id === record.id
+      typeof record?.id === "string" && !record.id.startsWith("observer:") && record.conversation?.id === record.id
       && validDraft(record.draft) && Number.isFinite(record.updatedAt)).map((record: SavedComposerDraft) => {
         // A malformed item is dropped rather than sent with missing files or broader options.
         const queue = Array.isArray(record.queue) ? record.queue.filter((item) => typeof item?.id === "string" && validDraft(item) && (item.artifactSubmission === undefined || validArtifactSubmission(item.artifactSubmission) && item.artifactSubmission.submissionId === item.id))
@@ -120,6 +121,7 @@ export function readComposerDrafts(db: IDBDatabase): Promise<SavedComposerDraft[
 }
 
 export function writeComposerDraft(db: IDBDatabase, record: SavedComposerDraft, previousVersion?: string): Promise<void> {
+  if (record.id.startsWith("observer:")) return Promise.reject(new Error("Observer drafts remain in memory"));
   return new Promise((resolve, reject) => {
     const transaction = db.transaction("drafts", "readwrite");
     const store = transaction.objectStore("drafts");

@@ -31,12 +31,14 @@ test("group write lease serializes members across groups and cancellation remove
   release(); await Promise.all([a, c]); assert.deepEqual(order, ["a", "c"]);
 });
 
-test("parallel assignment read-only guard cannot be bypassed by allow-all or host tools", async () => {
+test("assignment read-only guard cannot be bypassed by allow-all or host tools", async () => {
   const gate = new PiApprovalGate({ cwd: "/tmp", protectedPaths: [], secretPaths: ["/tmp/secrets"] });
   gate.setMode("allow-all"); gate.setReadOnly(true);
   for (const name of ["write", "bash", "browser_open", "browser_tabs", "remember", "create_routine", "mcp__external__call"]) await assert.rejects(gate.wait("id", name, {}), /read-only/);
   await assert.rejects(gate.wait("id", "read", { path: "/tmp/secrets/key" }), /credentials/);
   await gate.wait("id", "read", { path: "brief.md" });
+  await gate.wait("id", "mcp__raytone__group_tasks", { taskId: "task", cancel: false });
+  for (const name of ["group_tasks", "mcp__raytone__group_tasks"]) await assert.rejects(gate.wait("id", name, { taskId: "task", cancel: true }), /read-only/);
   gate.setReadOnly(false); await gate.wait("id", "write", { path: "brief.md" });
 });
 
