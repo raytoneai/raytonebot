@@ -6,9 +6,15 @@
  * styles come later and win. Self-hosted fonts cannot load in the frame (font-src data:), so
  * the font stacks fall back to system fonts.
  */
+import {
+  amber, amberDark, blue, blueDark, green, greenDark,
+  purple, purpleDark, red, redDark, slate, slateDark, teal, tealDark,
+  tomato, tomatoDark,
+} from "@radix-ui/colors";
+
 const SVG_COLORS = {
-  blue: "#3b82f6", teal: "#14b8a6", purple: "#8b5cf6", coral: "#f97362",
-  amber: "#f59e0b", green: "#22c55e", red: "#ef4444", gray: "#8a8f98",
+  blue: ["blue", blue, blueDark], teal: ["teal", teal, tealDark], purple: ["purple", purple, purpleDark], coral: ["tomato", tomato, tomatoDark],
+  amber: ["amber", amber, amberDark], green: ["green", green, greenDark], red: ["red", red, redDark], gray: ["slate", slate, slateDark],
 } as const;
 
 export function artifactThemeCss(read: (variable: string) => string, appearance: "light" | "dark"): string {
@@ -28,9 +34,15 @@ export function artifactThemeCss(read: (variable: string) => string, appearance:
     "--border-radius-md": "8px",
   };
   const root = Object.entries(vars).map(([name, v]) => `${name}:${v}`).join(";");
-  const svg = Object.entries(SVG_COLORS).map(([name, color]) => (
-    `.c-${name}{--c:${color};fill:color-mix(in srgb,var(--c) 16%,transparent);stroke:var(--c);color:var(--c)}`
-  )).join("");
+  const dark = appearance === "dark";
+  const svg = Object.entries(SVG_COLORS).map(([name, [paletteName, lightScale, darkScale]]) => {
+    const scale = (dark ? darkScale : lightScale) as Record<string, string>;
+    // Radix 3/8 provide a quiet node surface and a visible edge; 12 is the high-contrast text role.
+    // Keep --c as the legacy accent token, while the new roles separate node and label colors.
+    return `.c-${name}{--c:${scale[`${paletteName}9`]};--c-bg:${scale[`${paletteName}3`]};--c-stroke:${scale[`${paletteName}8`]};--c-label:${scale[`${paletteName}12`]};color:var(--c-label)}` +
+      `:where(.c-${name}:not(text):not([fill])){fill:var(--c-bg)}:where(.c-${name}:not(text):not([stroke])){stroke:var(--c-stroke)}` +
+      `:where(.c-${name} text:not([fill]):not(.t):not(.ts):not(.th)){fill:var(--c-label)}:where(.c-${name} text:not([stroke])){stroke:none}`;
+  }).join("");
   return [
     `:root{${root};color-scheme:${appearance}}`,
     "body{margin:0;padding:16px;background:var(--color-background-primary);color:var(--color-text-primary);font:14px/1.5 var(--font-sans)}",
@@ -42,7 +54,8 @@ export function artifactThemeCss(read: (variable: string) => string, appearance:
     ":focus-visible{outline:2px solid var(--color-accent);outline-offset:2px}",
     "table{border-collapse:collapse}th,td{padding:6px 10px;border-bottom:1px solid var(--color-border-primary);text-align:left}",
     "code,pre{font-family:var(--font-mono)}",
-    `${svg}[class^="c-"] text,[class*=" c-"] text{fill:var(--c);stroke:none}`,
+    ":where(text.t:not([fill])){fill:var(--c-label,var(--color-text-primary))}:where(text.ts:not([fill])){fill:var(--c-label,var(--color-text-secondary))}:where(text.th:not([fill])){fill:var(--c-label,var(--color-text-primary))}:where(text.th){font-weight:700}:where(text:is(.t,.ts,.th):not([stroke])){stroke:none}",
+    svg,
     "@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important}}",
   ].join("\n");
 }
