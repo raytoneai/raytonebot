@@ -1,5 +1,7 @@
 # Observer 本机补齐记录
 
+2026-11-02 PR #2 整理：大体积证据见[验收附件](../observer-evidence-2026-11-02.md)。下文“归档内”路径相对于本记录所在目录，解压附件后可按原路径查阅；以下验收结论保持历史快照。
+
 2026-11-02。基线 `b97d55b` 加本轮改动，以下记录提交前的验收快照；未推送或部署。用户范围为优化本机遗留，subagent 实施、主代理 review；真实模型效果和逐平台部署另算。
 
 ## 完成内容
@@ -39,11 +41,11 @@
 | 内置 devtools 场景 | 桌面与 390px 各 20 个，40/40，启动及场景无错误 |
 | 文档与补丁 | 27 个新增/变更本地链接及锚点通过；`git diff --check` 通过 |
 
-- [构建日志](build.log)、[完整 Node 测试日志](npm-test.log)、[云入口自检](cloud-check.log)。
+- 构建日志（归档内 `build.log`）、完整 Node 测试日志（归档内 `npm-test.log`）、云入口自检（归档内 `cloud-check.log`）。
 - [独立问答与 BrowserView HTTP smoke](script-checks.md)。
 - [真实授权设置与 check:local](auth-ui-results.json)、[40 个开发场景](fixture-results.json)。
 - [实际完整 App follow-up 结果](followup-ui-results.json) 和 [可复跑脚本](check-followup-ui.mjs)；仅受控 owner 的异步/三语回归：`src/runtime/observerFollowUpUi.test.ts`，截图在 `controlled-owner-ui/`，两种证据不混称。
-- 主代理查看了实际中文桌面、日文 390px、删除后的 Output 及 owner 截图；[两项来源可见](followup-zh-desktop.png)、[日文窄屏](followup-ja-mobile.png)、[删除后的报告](followup-output-after-delete.png)。
+- 主代理查看了实际中文桌面、日文 390px、删除后的 Output 及 owner 截图；两项来源可见（归档内 `followup-zh-desktop.png`）、日文窄屏（归档内 `followup-ja-mobile.png`）、删除后的报告（归档内 `followup-output-after-delete.png`）。
 
 验证脚本最初照搬 SSR 的 `ws: false`，导致真实 Vite client 的 WebSocket console error；40 个场景本身正常。恢复正常 WS 后重新检查启动与场景，不把脚本配置错误隐去或计作产品失败。流程脚本另修正嵌套 summary 选择器及 Output 遮罩操作；删源测试明确保持 Observer 为当前会话，排除删除活跃普通会话导致面板顺带关闭的假阳性。
 

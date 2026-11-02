@@ -14,3 +14,13 @@ __pycache__/
 
 # Local Vault integration test data (ciphertext and master key stay private)
 .local/vault-test/
+
+# Generated Observer review evidence is archived in the linked GitHub release asset.
+/output/dsh-review-fixes-2026-11-02/**/*.log
+/output/dsh-review-fixes-2026-11-02/**/*.png
+/output/observer-2026-11-02/**/*.log
+/output/observer-2026-11-02/**/*.png
+/output/observer-2026-11-02/agentmatrix-manifest.json
+/output/observer-2026-11-02/agentsphere-manifest.json
+/output/observer-followup-2026-11-02/**/*.log
+/output/observer-followup-2026-11-02/**/*.png

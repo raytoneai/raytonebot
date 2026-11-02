@@ -6,6 +6,8 @@
 
 ## 入口与边界
 
+Observer L2 由主机执行 `!sandboxed && !process.env.RAYTONEBOT_PUBLIC_ORIGIN` 检查。本 VPS 配置的 `RAYTONEBOT_PUBLIC_ORIGIN` 非空，所以 L2 自动禁用，即使 `RAYTONEBOT_SANDBOX=0` 或已授予 developer 权限也是如此；应保留云入口所需的公开地址配置。具体条件与后续开放要求见 [迁移说明](product/06-deployment-runbook.md#observer-与控制面迁移2026-11-02本机实现)。
+
 `https://BOT_HOSTNAME/` → Cloudflare Access 邮箱一次性验证码 → Worker → Workers VPC Service → Cloudflare Tunnel → VPS 的 `127.0.0.1:5188`。Access 按账户邮箱限制；Worker 核对 Access 身份后，以单独的内部密码访问原有 Basic Auth 入口，并重写受信任的代理 Host。只有通过身份验证的首页顶层 GET 导航可消除 Cloudflare 登录跳转带来的跨站导航标记；接口的 Origin / Fetch-Site 检查保留。Worker 禁用预览 URL。
 
 更新 Worker 前，在 Cloudflare 配置 `PUBLIC_ORIGIN=https://BOT_HOSTNAME`、`ACCESS_AUD` 和 `ACCESS_EMAIL`；缺失或无效时 Worker 返回 403。`ORIGIN_PASSWORD` 是 Cloudflare secret；相同密码保存在 VPS 的 `/home/user/.raytonebot/env`，不要写入仓库或终端记录。Tunnel 使用 `/etc/raytonebot-cloudflared/token`，root 所有、0600。Worker VPC 测试期内免费，正式价格可能改变；Cloudflare 是入口的信任与可用性依赖。

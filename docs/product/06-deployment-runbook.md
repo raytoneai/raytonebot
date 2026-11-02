@@ -18,6 +18,8 @@
 
 L1/L2、后台与 RSL 默认关闭，Observer 模型须显式选择。本轮 sandbox/VPS 的新版本 UID、网络、取消、更新回滚及恢复均未实测；所有云环境 L2 由主机保持关闭，既有 `ISOLATION_READY` 变量不自动放行。平台验证清单见 [OB-09](08-acceptance.md#obs-09)，本机证据见 [验收记录](../../output/observer-2026-11-02/README.md)。
 
+L2 的实际开放条件是 `!sandboxed && !process.env.RAYTONEBOT_PUBLIC_ORIGIN`，见 [HTTP host](../../src/pi/piHttpHost.ts)。因此只要 `RAYTONEBOT_PUBLIC_ORIGIN` 为非空值，VPS 上即使未设 sandbox 模式也会禁用 L2；授予 developer 权限或设置 `ISOLATION_READY` 不会覆盖该限制。该变量同时供云入口的公开地址、Host/Origin 和认证校验使用，应保留正确配置。L2 的逐平台开放需另行完成权限与部署验收，不能通过删除云入口配置来启用。
+
 ## 必须记住的平台事实
 
 | 事实 | 后果 |
