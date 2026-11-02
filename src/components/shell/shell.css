@@ -11,7 +11,7 @@
   padding: 0 var(--session-row-bleed, 12px) 4px;
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 650;
+  font-weight: var(--weight-eyebrow);
   letter-spacing: 0.02em;
 }
 
@@ -81,7 +81,7 @@
 
 
 .shell-agent-text { display: grid; min-width: 0; line-height: 1.25; }
-.shell-agent-name { color: var(--text-primary); font-size: var(--text-md); font-weight: 600; }
+.shell-agent-name { color: var(--text-primary); font-size: var(--text-md); font-weight: var(--weight-strong); }
 .shell-agent[data-active="true"] .shell-agent-name { color: var(--accent-text); }
 .shell-agent-sub { overflow: hidden; color: var(--text-muted); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
 /* Engine logo before its name; optically centred on the small label. */
@@ -110,7 +110,7 @@
   color: var(--text-secondary);
   font: inherit;
   font-size: var(--text-md);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   cursor: pointer;
 }
 
@@ -145,7 +145,7 @@
 
 .shell-header-agent:hover, .shell-header-agent[data-state="open"] { background: var(--surface-hover, var(--surface-inset)); }
 .shell-header-text { display: grid; min-width: 0; line-height: 1.2; }
-.shell-header-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-size: var(--text-lg); font-weight: 700; }
+.shell-header-text strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text-primary); font-size: var(--text-lg); font-weight: var(--weight-title); }
 .shell-header-text span { overflow: hidden; color: var(--text-muted); font-size: var(--text-sm); text-overflow: ellipsis; white-space: nowrap; }
 
 .shell-header-compact {
@@ -157,7 +157,7 @@
   border-radius: var(--radius-full);
   background: var(--surface-inset);
 }
-.shell-header-name { overflow: hidden; color: var(--text-primary); font-size: var(--text-lg); font-weight: 600; line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
+.shell-header-name { overflow: hidden; color: var(--text-primary); font-size: var(--text-lg); font-weight: var(--weight-title); line-height: 1.2; text-overflow: ellipsis; white-space: nowrap; }
 /* The header face stays still, including the avatar's CSS idle breathing. */
 .shell-header-compact .raytone-avatar * { animation: none !important; transition: none !important; }
 .shell-header-engine { display: inline-flex; flex: none; color: var(--text-secondary); }
@@ -184,9 +184,9 @@
 
 .shell-popover-lead { margin: 0; color: var(--text-secondary); line-height: 1.45; }
 .shell-popover-field { display: grid; gap: 6px; }
-.shell-popover-field > span { color: var(--text-muted); font-size: var(--text-sm); font-weight: 600; }
+.shell-popover-field > span { color: var(--text-muted); font-size: var(--text-sm); font-weight: var(--weight-strong); }
 .shell-popover-note { margin: 0; color: var(--text-muted); font-size: var(--text-sm); line-height: 1.45; }
-.shell-popover-link { justify-self: start; border: 0; background: transparent; color: var(--accent-text); padding: 0; font: inherit; font-size: var(--text-sm); font-weight: 600; cursor: pointer; }
+.shell-popover-link { justify-self: start; border: 0; background: transparent; color: var(--accent-text); padding: 0; font: inherit; font-size: var(--text-sm); font-weight: var(--weight-strong); cursor: pointer; }
 .shell-model-popover { width: max-content; max-width: calc(100vw - 24px); padding: 10px 14px; }
 .shell-header-model { margin: 0; color: var(--text-primary); font-size: var(--text-md); line-height: 1.5; overflow-wrap: anywhere; }
 

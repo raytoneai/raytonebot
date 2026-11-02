@@ -31,7 +31,7 @@
   --radius: 12px;
   --shadow: var(--shadow-md);
 
-  /* Structural tokens (theme-independent) — see docs/COMPONENT_SYSTEM.md §2.2 */
+  /* Structural tokens (theme-independent) — see .impeccable.md design context. */
   --space-1: 4px;
   --space-2: 8px;
   --space-3: 12px;
@@ -199,7 +199,7 @@ textarea:focus-visible {
   color: var(--text-primary);
   background: var(--surface-raised);
   font-size: var(--text-md);
-  font-weight: 560;
+  font-weight: var(--weight-body);
   transition: background var(--motion-fast) var(--ease-out),
     border-color var(--motion-fast) var(--ease-out),
     color var(--motion-fast) var(--ease-out);
@@ -984,7 +984,7 @@ textarea:focus-visible {
 .session-search-popover :is(.session-group) h4 {
   padding: 0 10px 3px;
   font-size: var(--text-sm);
-  font-weight: 650;
+  font-weight: var(--weight-eyebrow);
 }
 
 .session-search-popover :is(.session-item-shell) {
@@ -1024,7 +1024,7 @@ textarea:focus-visible {
 .session-search-snippet mark {
   background: color-mix(in srgb, var(--text-primary) 12%, transparent);
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .session-list {
@@ -1355,7 +1355,7 @@ textarea:focus-visible {
   background: var(--surface-inset);
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 620;
+  font-weight: var(--weight-strong);
 }
 
 .status-pill[data-status="running"] {
@@ -1915,7 +1915,7 @@ textarea:focus-visible {
   padding: 0 2px;
   color: var(--text-muted);
   font-size: var(--text-xs);
-  font-weight: 620;
+  font-weight: var(--weight-body);
   letter-spacing: 0.02em;
   text-transform: none;
 }
@@ -1943,7 +1943,7 @@ textarea:focus-visible {
   padding: 2px 2px 0;
   color: var(--text-muted);
   font-size: var(--text-xs);
-  font-weight: 620;
+  font-weight: var(--weight-body);
   letter-spacing: 0.03em;
   text-transform: none;
 }
@@ -1982,7 +1982,7 @@ textarea:focus-visible {
   background: var(--surface-raised);
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  font-weight: 560;
+  font-weight: var(--weight-body);
   transition: background var(--motion-fast) var(--ease-out),
     border-color var(--motion-fast) var(--ease-out),
     color var(--motion-fast) var(--ease-out);
@@ -2157,7 +2157,7 @@ textarea:focus-visible {
   overflow: hidden;
   color: var(--text-primary);
   font-size: var(--text-md);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -2652,7 +2652,7 @@ textarea:focus-visible {
 .display-block span {
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 650;
+  font-weight: var(--weight-strong);
   text-transform: none;
 }
 
@@ -2662,7 +2662,7 @@ textarea:focus-visible {
   background: var(--surface-inset);
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 620;
+  font-weight: var(--weight-body);
 }
 
 .tool-card[data-style="inline"],
@@ -2809,7 +2809,7 @@ pre {
 .external-approval-head strong {
   color: var(--text-primary);
   font-size: var(--text-md);
-  font-weight: 700;
+  font-weight: var(--weight-strong);
 }
 
 .external-approval-head span,
@@ -2819,7 +2819,7 @@ pre {
   gap: 5px;
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 560;
+  font-weight: var(--weight-body);
   line-height: 1.45;
 }
 
@@ -2931,7 +2931,7 @@ pre {
 .external-approval-index {
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 720;
+  font-weight: var(--weight-strong);
   text-align: right;
 }
 
@@ -2946,7 +2946,7 @@ pre {
   flex: none;
   color: inherit;
   font-size: var(--text-md);
-  font-weight: 700;
+  font-weight: var(--weight-strong);
 }
 
 .external-approval-option-copy span {
@@ -3212,7 +3212,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   gap: var(--space-2);
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 560;
+  font-weight: var(--weight-body);
 }
 
 .inline-approval-info {
@@ -3225,7 +3225,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   color: var(--text-secondary);
   font-size: var(--text-xs);
   font-style: normal;
-  font-weight: 760;
+  font-weight: var(--weight-strong);
   line-height: 1;
 }
 
@@ -3241,7 +3241,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   min-height: 30px;
   border-radius: 10px;
   font-size: var(--text-sm);
-  font-weight: 760;
+  font-weight: var(--weight-strong);
   padding: 0 var(--space-3);
   cursor: pointer;
 }
@@ -3308,7 +3308,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .step-item span {
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 650;
+  font-weight: var(--weight-strong);
   text-transform: none;
 }
 
@@ -3383,7 +3383,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .composer-activity-bubbles i:nth-child(2) { left: 6px; animation-delay: -0.6s; }
 .composer-activity-bubbles i:nth-child(3) { left: 2px; animation-delay: -1.2s; }
 .composer-activity-caption { display: flex; align-items: baseline; gap: 8px; font-size: var(--text-sm); color: var(--text-muted); }
-.composer-activity-name { color: var(--text-secondary); font-weight: 500; }
+.composer-activity-name { color: var(--text-secondary); font-weight: var(--weight-body); }
 .composer-activity:is([data-state="asking"], [data-state="stopping"]) .composer-activity-bubbles { visibility: hidden; }
 .composer-activity:is([data-state="asking"], [data-state="stopping"]) .composer-activity-bubbles i { animation: none; }
 @keyframes composer-work-bubble {
@@ -4259,7 +4259,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   min-width: 0;
   overflow: hidden;
   font-size: var(--text-md);
-  font-weight: 650;
+  font-weight: var(--weight-title);
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -4404,7 +4404,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .debug-header span {
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 620;
+  font-weight: var(--weight-eyebrow);
 }
 
 .debug-grid {
@@ -4514,7 +4514,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   background: var(--surface-inset);
   color: var(--text-secondary);
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: var(--weight-body);
   padding: 6px 10px;
 }
 
@@ -4660,7 +4660,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   color: var(--text-muted);
   font: inherit;
   font-size: var(--text-sm);
-  font-weight: 650;
+  font-weight: var(--weight-body);
   line-height: 1;
   cursor: pointer;
   transition: background var(--motion-fast) var(--ease-out), color var(--motion-fast) var(--ease-out);
@@ -4744,7 +4744,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   background: color-mix(in srgb, var(--success) 13%, var(--surface-panel));
   color: var(--success);
   font-size: var(--text-md);
-  font-weight: 700;
+  font-weight: var(--weight-strong);
 }
 
 .preview-frame .chat-frame {
@@ -5296,7 +5296,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   color: var(--text-muted);
   font-family: var(--font-ui);
   font-size: var(--preview-meta-size);
-  font-weight: 500;
+  font-weight: var(--weight-body);
 }
 
 .preview-frame .reasoning-header:hover .reasoning-title,
@@ -5330,7 +5330,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .preview-frame .step-item span {
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: var(--weight-strong);
   letter-spacing: 0.02em;
 }
 
@@ -5377,7 +5377,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 }
 .preview-frame .artifact-inline .artifact-inline-kind {
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   letter-spacing: 0.04em;
   text-transform: uppercase;
   color: var(--text-muted);
@@ -5389,7 +5389,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   padding: 3px 9px;
   border-radius: 999px;
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   font-style: normal;
   color: var(--text-muted);
   background: var(--preview-soft-fill);
@@ -5435,14 +5435,14 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 
 .preview-frame .artifact-launch-card .artifact-inline-body strong {
   font-size: var(--text-lg);
-  font-weight: 640;
+  font-weight: var(--weight-strong);
   letter-spacing: 0;
 }
 
 .preview-frame .artifact-launch-kind {
   color: var(--text-muted);
   font-size: var(--text-md);
-  font-weight: 650;
+  font-weight: var(--weight-strong);
   line-height: 1.25;
 }
 
@@ -5523,7 +5523,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   color: var(--text-primary);
   font: inherit;
   font-size: var(--text-lg);
-  font-weight: 700;
+  font-weight: var(--weight-strong);
   cursor: pointer;
   transition:
     background var(--motion-fast) var(--ease-out),
@@ -5861,7 +5861,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .preview-frame .artifact-title span {
   color: var(--text-primary);
   font-size: var(--text-lg);
-  font-weight: 700;
+  font-weight: var(--weight-title);
 }
 
 .preview-frame .artifact-title code,
@@ -5870,7 +5870,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   background: var(--preview-soft-fill);
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
 }
 
 .preview-frame .code-output pre {
@@ -7583,7 +7583,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   padding: 7px 8px;
   color: var(--text-muted);
   font-size: var(--text-sm);
-  font-weight: 700;
+  font-weight: var(--weight-eyebrow);
   text-transform: uppercase;
 }
 
@@ -8525,7 +8525,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 
 .error-boundary-title {
   margin: 0;
-  font-weight: 700;
+  font-weight: var(--weight-title);
 }
 
 .error-boundary-detail {
@@ -8543,7 +8543,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   border-radius: var(--radius-full);
   background: var(--surface-raised);
   color: var(--text-primary);
-  font-weight: 600;
+  font-weight: var(--weight-strong);
   cursor: pointer;
 }
 
@@ -8771,7 +8771,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 
 .preview-frame .media-reveal-label {
   font-size: var(--text-sm);
-  font-weight: 550;
+  font-weight: var(--weight-body);
   letter-spacing: 0.01em;
   color: color-mix(in srgb, var(--accent) 62%, var(--text-primary));
 }
@@ -9389,7 +9389,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
    squeezing the transcript on narrow screens. */
 .composer-queue { display: grid; gap: 4px; min-width: 0; border: var(--border-width) solid var(--border-subtle, var(--border-strong)); border-radius: var(--radius-md); background: var(--surface-inset); padding: 6px 8px; }
 .composer-queue-header { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 8px; min-height: 26px; color: var(--text-secondary); font-size: var(--text-sm); }
-.composer-queue-header strong { color: var(--text-primary); font-weight: 600; }
+.composer-queue-header strong { color: var(--text-primary); font-weight: var(--weight-strong); }
 .composer-queue-header [role="status"] { flex: 1 1 auto; min-width: 0; color: var(--text-muted); }
 .composer-queue-list { display: grid; gap: 2px; min-width: 0; max-height: min(30vh, 168px); margin: 0; padding: 0; overflow-y: auto; overscroll-behavior: contain; list-style: none; }
 .composer-queue-item { display: flex; min-width: 0; align-items: center; gap: 6px; min-height: 30px; padding: 0 2px 0 4px; border-radius: var(--radius-sm); font-size: var(--text-md); color: var(--text-secondary); }
@@ -9420,7 +9420,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   animation: composer-mentions-in 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 .composer-mention { display: flex; align-items: center; gap: 8px; min-height: 32px; padding: 0 8px 0 4px; border-radius: var(--radius-sm); cursor: pointer; font-size: var(--text-md); color: var(--text-primary); }
 .composer-mention[aria-selected="true"] { background: var(--surface-hover); }
-.composer-mention-name { font-weight: 600; }
+.composer-mention-name { font-weight: var(--weight-strong); }
 .composer-mention-role { margin-left: auto; color: var(--text-muted); font-size: var(--text-sm); }
 @keyframes composer-mentions-in { from { opacity: 0; transform: translateY(4px); } }
 @media (prefers-reduced-motion: reduce) { .composer-mentions { animation: none; } }
@@ -9429,7 +9429,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 /* A finished turn's quiet steps folded into one line (chatframe/ToolRunSummary). */
 /* Child selectors only: the steps inside are ordinary tool cards and keep their own layout. */
 .tool-run-summary > .tool-card-header { grid-template-columns: auto auto minmax(0, 1fr); cursor: pointer; font: inherit; }
-.tool-run-summary > .tool-card-header > .tool-title { color: var(--text-secondary); font-weight: 500; }
+.tool-run-summary > .tool-card-header > .tool-title { color: var(--text-secondary); font-weight: var(--weight-body); }
 .tool-run-summary > .tool-card-header > .chevron { color: var(--text-muted); transition: transform 160ms cubic-bezier(0.2, 0.8, 0.2, 1); }
 .tool-run-summary > .tool-card-header > .chevron[data-open="true"] { transform: rotate(180deg); }
 .tool-run-steps { display: grid; gap: 2px; padding: 0 0 4px 12px; }
@@ -9608,7 +9608,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .session-bot-toggle[data-active="true"] .session-bot-name { color: var(--text-primary); }
 .session-bot-face { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 20px; height: 20px; }
 .session-bot-face .raytone-avatar * { animation: none !important; transition: none !important; }
-.session-bot-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600; }
+.session-bot-name { min-width: 0; flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: var(--weight-strong); }
 .session-bot-count { color: var(--text-muted); font-size: var(--text-xs); font-variant-numeric: tabular-nums; }
 .session-bot-chevron { flex: none; color: var(--text-muted); }
 .session-bot-toggle[aria-expanded="false"] .session-bot-chevron { transform: rotate(-90deg); }
@@ -9629,7 +9629,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
   overflow-y: auto;
 }
 .browser-auth-heading { text-align: center; }
-.browser-auth-heading h2 { margin: 0 0 12px; font-size: var(--text-xl); font-weight: 650; letter-spacing: -0.6px; line-height: 1.2; color: var(--text-primary); }
+.browser-auth-heading h2 { margin: 0 0 12px; font-size: var(--text-xl); font-weight: var(--weight-title); letter-spacing: -0.6px; line-height: 1.2; color: var(--text-primary); }
 .browser-auth-heading p { margin: 0; color: var(--text-secondary); font-size: var(--text-sm); line-height: 1.7; }
 .browser-auth-providers { display: grid; gap: 12px; }
 .browser-auth-provider {
@@ -9650,7 +9650,7 @@ button.inline-approval-choice:not(:disabled):hover { background: var(--surface-h
 .browser-auth-provider > svg, .browser-auth-provider > img { flex-shrink: 0; }
 .browser-auth-provider > svg:last-child { margin-left: auto; color: var(--text-muted); }
 .browser-auth-provider span { display: grid; gap: 4px; }
-.browser-auth-provider strong { font-size: var(--text-sm); font-weight: 600; }
+.browser-auth-provider strong { font-size: var(--text-sm); font-weight: var(--weight-strong); }
 .browser-auth-provider small { color: var(--text-muted); font-size: var(--text-xs); }
 .browser-auth-provider[data-site="google"] > svg:first-child { color: #4285f4; }
 .browser-auth-provider[data-site="reddit"] > svg:first-child { color: #f54b00; }
