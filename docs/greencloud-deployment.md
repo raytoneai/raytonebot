@@ -4,6 +4,13 @@
 
 2026-11-02 Observer 改动仅在本机实现，尚未发布到此 VPS。更新包必须包含匹配的 `OBSERVER-BUILD.json`、源码、文档及 dist；`apply_release.py` 已允许这些包内项目。新版本私有接口需经既有 Access/Basic 入口交换控制会话，开发者权限另行授予。L2 在云环境保持关闭，现有隔离标志不替代新版本实测。备份恢复的 Observer 私有状态、删除标记、0700/0600 和后台关闭规则见 [迁移说明](product/06-deployment-runbook.md#observer-与控制面迁移2026-11-02本机实现)。本段不改变下文旧部署快照或宣称 VPS 已完成 [OB-09](product/08-acceptance.md#obs-09)。
 
+## 2026-11-03 浏览器启动修复
+
+- Chromium 已安装；实际启动却因 Ubuntu AppArmor 的 `unprivileged_userns` 限制退出，空白临时 profile 同样报 `No usable sandbox!`，内核日志有对应 capability 拒绝。版本检查成功不能证明浏览器能够启动。
+- 在 `/etc/apparmor.d/raytonebot-chromium` 为当前 `/opt/pw-browsers/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell` 添加精确路径的 `flags=(unconfined)` / `userns,` profile，按 [Chromium 官方定向配置说明](https://chromium.googlesource.com/chromium/src/+/main/docs/security/apparmor-userns-restrictions.md) 加载。全局 `kernel.apparmor_restrict_unprivileged_userns=1` 保持；没有使用 `--no-sandbox`。可执行文件及其所有父目录经检查均为 root 所有、非其他账号可写且无符号链接。
+- `scripts/vps/apply_release.py` 现在在确认 Playwright 匹配版本后配置该 profile；版本升级时同步精确路径，不放行通配目录。先校验语法再原子替换，加载失败恢复原 profile；不启用该限制的主机跳过。现有实例可将此脚本复制到 root 私有目录后执行 `python3 -I /root/apply_release.py --browser-apparmor /opt/pw-browsers/chromium_headless_shell-1248/chrome-headless-shell-linux64/chrome-headless-shell`，实际 revision 应与当前应用匹配。
+- 本次仅应用主机 profile，未重新发布应用或重启三个服务；它们保持 active。原启动探针由 409 变为 200，GitHub 登录页导航、1280×800 SSE JPEG 实际画面及远程鼠标移动通过；已检查截图。浏览器独立 UID、no-new-privs、renderer seccomp 与 user namespace 及原双栈防火墙检查通过，四个私密文件哈希不变，未清理 profile 或登录数据。VPS 脚本 12 项测试通过；未验证真实账号登录和整机重启。
+
 ## 入口与边界
 
 Observer L2 由主机执行 `!sandboxed && !process.env.RAYTONEBOT_PUBLIC_ORIGIN` 检查。本 VPS 配置的 `RAYTONEBOT_PUBLIC_ORIGIN` 非空，所以 L2 自动禁用，即使 `RAYTONEBOT_SANDBOX=0` 或已授予 developer 权限也是如此；应保留云入口所需的公开地址配置。具体条件与后续开放要求见 [迁移说明](product/06-deployment-runbook.md#observer-与控制面迁移2026-11-02本机实现)。

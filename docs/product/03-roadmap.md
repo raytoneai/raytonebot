@@ -1,5 +1,7 @@
 # 03 路线图与进度
 
+- 2026-11-03 VPS 浏览器启动修复：定位 Chromium 已安装但被 AppArmor user namespace 限制终止；按 root 只读二进制精确路径加载 profile，并在现有 VPS 发布脚本同步维护。原启动失败探针恢复、GitHub 登录页、SSE 1280×800 实际画面、远程输入及隔离复验通过；VPS Python 12 项通过。没有重新发布应用、清除登录或重启服务；真实账号登录与整机重启未验。详见 [VPS 记录](../greencloud-deployment.md#2026-11-03-浏览器启动修复)。
+
 ### 2026-11-02 设计评审优化（三批本机完成）
 
 - 用户授权：按[微件设计评审](../claude-widget-design-review-2026-11-02.md) 派快速子代理实施，主代理逐批 review、验证并独立 commit；不包含推送、部署或真实模型调用。

@@ -1,5 +1,13 @@
 # 08 验收清单
 
+## VPS Chromium 启动修复（2026-11-03）
+
+- [x] 原 VPS 实际浏览器登录请求复现 409，空白临时 profile 捕获 `No usable sandbox!`；内核 AppArmor `unprivileged_userns` 拒绝记录一致。精确路径 profile 加载后，同一路径请求 200、GitHub 登录页成功，实际 SSE JPEG 为 1280×800，远程鼠标移动 200；截图已查看。
+- [x] 全局 user namespace 限制保持 1，无 `--no-sandbox`；实际 renderer UID 1002、no-new-privs=1、seccomp=2、独立 user namespace。既有双栈防火墙检查及三个服务 active，四个私密文件哈希不变；没有清理用户 profile。
+- [x] `python3 -m unittest discover -s scripts/vps -p 'test_*.py'`：12 项通过。覆盖精确路径、root/权限/符号链接边界、无该限制的主机跳过、语法与加载失败保留旧配置及既有发布回退。`git diff --check` 通过。
+- 边界：本次只上线主机 AppArmor 配置，发布脚本与记录在工作树；没有重新发布应用。未调用模型、验证真实账号登录或整机重启，未运行前端构建/完整 npm 测试（无应用运行时代码修改）。详见 [VPS 记录](../greencloud-deployment.md#2026-11-03-浏览器启动修复)。
+
+
 ## 设计评审分批优化（2026-11-02）
 
 - [x] 第一批：真实 Chromium 检查八种 SVG 节点的浅深色文字对比、普通/次要/标题与旧标签、作者 fill/inline/CSS/描边保留；流式静态内容可读，脚本和事件属性保存前不执行，完成后交互可用。24 项定向、完整 984 项（983 通过、1 项既有 DSH 跳过）、build、隔离本机/云入口和桌面/390px 的 40 个开发场景通过。主代理已查看浅深 SVG 与代表界面截图；真实模型生成遵循度、真机和部署未验。详见[记录](../../output/design-optimizations-2026-11-02/README.md)。

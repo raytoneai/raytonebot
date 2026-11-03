@@ -8,8 +8,10 @@ import json
 import os
 from pathlib import Path, PurePosixPath
 import pwd
+import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tarfile
@@ -20,12 +22,52 @@ from urllib.parse import urlsplit
 APP = Path('/home/user/raytonebot')
 CONFIG = Path('/home/user/.raytonebot')
 BACKUPS = Path('/root/raytonebot-backups')
+USERNS_RESTRICTION = Path('/proc/sys/kernel/apparmor_restrict_unprivileged_userns')
+APPARMOR_DIR = Path('/etc/apparmor.d')
 ALLOWED = {'dist', 'src', 'scripts', 'vendor', 'public', 'docs', 'README.md', 'AGENTS.md', 'OBSERVER-BUILD.json', 'index.html', 'package.json',
            'package-lock.json', 'tsconfig.json', 'tsconfig.control.json', 'vite.config.ts', 'LICENSE', 'THIRD_PARTY_NOTICES.md'}
 
 
 def run(*args, cwd=None):
     subprocess.run(args, cwd=cwd, check=True, stdin=subprocess.DEVNULL)
+
+
+def configure_browser_apparmor(browser: Path):
+    if not USERNS_RESTRICTION.exists() or USERNS_RESTRICTION.read_text().strip() != '1':
+        return
+    if os.geteuid() != 0:
+        raise RuntimeError('browser AppArmor setup requires root')
+    if not re.fullmatch(r'/opt/pw-browsers/chromium_headless_shell-[0-9]+/chrome-headless-shell-linux64/chrome-headless-shell', str(browser)):
+        raise RuntimeError('unsupported browser path for AppArmor')
+    # An allowlisted executable must not be replaceable by the bot or either sandbox UID.
+    for path in (browser, *browser.parents):
+        info = path.lstat()
+        if stat.S_ISLNK(info.st_mode) or info.st_uid != 0 or info.st_mode & 0o022:
+            raise RuntimeError('browser and its parents must be root-owned and not writable by other users')
+    target = APPARMOR_DIR / 'raytonebot-chromium'
+    if target.is_symlink():
+        raise RuntimeError('AppArmor profile must not be a symlink')
+    previous = target.read_bytes() if target.exists() else None
+    profile = ('abi <abi/4.0>,\ninclude <tunables/global>\n\n'
+               f'profile raytonebot-chromium "{browser}" flags=(unconfined) {{\n  userns,\n}}\n')
+    with tempfile.NamedTemporaryFile(mode='w', dir=APPARMOR_DIR, prefix='.raytonebot-', delete=False) as output:
+        temporary = Path(output.name)
+        output.write(profile)
+    try:
+        temporary.chmod(0o644)
+        run('/usr/sbin/apparmor_parser', '-Q', str(temporary))
+        temporary.replace(target)
+        try:
+            run('/usr/sbin/apparmor_parser', '-r', str(target))
+        except BaseException:
+            if previous is None:
+                target.unlink()
+            else:
+                target.write_bytes(previous)
+                run('/usr/sbin/apparmor_parser', '-r', str(target))
+            raise
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def extract_release(archive: Path, stage: Path):
@@ -108,6 +150,7 @@ def apply(archive: Path):
         browser = Path(f'/opt/pw-browsers/chromium_headless_shell-{revision}/chrome-headless-shell-linux64/chrome-headless-shell')
         if not os.access(browser, os.X_OK):
             raise RuntimeError('matching Playwright Chromium is missing; install it before updating')
+        configure_browser_apparmor(browser)
         run('chown', '-R', 'root:root', str(stage))
         run('chmod', '-R', 'go-w', str(stage))
         stage.chmod(0o755)  # mkdtemp starts at 0700; the bot must be able to traverse the app.
@@ -154,6 +197,9 @@ def apply(archive: Path):
 
 if __name__ == '__main__':
     try:
+        if len(sys.argv) == 3 and sys.argv[1] == '--browser-apparmor':
+            configure_browser_apparmor(Path(sys.argv[2]))
+            sys.exit(0)
         if len(sys.argv) != 2:
             raise ValueError('usage: sudo python3 apply_release.py /root/release.tgz')
         apply(Path(sys.argv[1]))

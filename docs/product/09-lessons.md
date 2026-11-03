@@ -1,5 +1,7 @@
 # 09 踩坑记录
 
+- **Chromium 版本可读不代表浏览器可启动**（2026-11-03）→ VPS 上 headless shell 已安装，实际渲染仍被 Ubuntu AppArmor user namespace 限制终止，界面只报浏览器未运行。以实际受限 UID、no-new-privs 和空白临时 profile 捕获 `No usable sandbox!`，对照内核拒绝记录定位；仅为 root 只读精确可执行路径增加 `userns` profile，保持全局限制与 Chromium 沙箱。验收须覆盖真实导航、实时帧、输入和 renderer 的 seccomp/user namespace；不能只做 `--version` 或健康检查，也不应靠 `--no-sandbox` 绕过。
+
 - **Cloudflare Access 登录后首页报 Cross-origin requests are not allowed**（2026-11-01）→ 浏览器在登录跳转后的顶层导航携带 `Sec-Fetch-Site: cross-site`，即使 Access 已认证，云入口仍会拒绝 → Worker 只对已认证、无 Origin、`GET /` 的文档导航归一化此标记；API、写请求和其他路径仍保留原值并经原校验。详见 [Greencloud VPS 试用记录](../greencloud-deployment.md)。
 - **VPS 中 Pi 命令报工作目录不存在，实际目录存在**（2026-11-01）→ 首次隔离设置只准备了工作区根目录，随后应用在 077 umask 下创建角色目录和人设文件，独立 Agent UID 无权限遍历 → 按共享组修复目录和人设文件权限，启动前先建立并规范化工作区；必须通过真实隔离 Pi 工具验证，不能只检查文件存在或 root 运行命令。
 
