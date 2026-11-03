@@ -1,9 +1,10 @@
 import { featureText } from "../../i18n/copy/features.ts";
 import * as Dialog from "@radix-ui/react-dialog";
 import { CircleSlash, X } from "lucide-react";
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import { AgentAvatar, AgentPersonaProvider } from "../../avatars/AgentPersona";
 import { botPartSVG } from "../../avatars/botAvatar";
+import { agentPreset } from "../../pi/harnessCatalog";
 import { useLocale } from "../../i18n/LocaleContext";
 import { BOT_OPTIONS, BOT_PALETTE, DEFAULT_BOTS, DEFAULT_NEW_BOT } from "../../runtime/botAppearance";
 import { BOT_KINDS, BOT_NAME_LIMIT, BOT_PERSONA_LIMITS, type BotProfile } from "../../runtime/botProfiles";
@@ -25,6 +26,7 @@ export type BotEditorState = {
 export function BotEditor({ draft, creating, error, saving = false, ready = true, models = [], mcpServers = [], skills = [], onChange, onSave, onClose }: BotEditorState) {
   const { locale } = useLocale();
   const kind = BOT_KINDS[draft.presetId];
+  const previewId = useId().replace(/[^a-zA-Z0-9_-]/g, '');
   const opener = useRef(document.activeElement as HTMLElement | null);
   const nameInput = useRef<HTMLInputElement>(null);
   const [template, setTemplate] = useState<BotRoleTemplate>();
@@ -32,7 +34,7 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
     face: featureText(locale, "Face"), hair: featureText(locale, "Hair"), accessory: featureText(locale, "Accessory"),
     faceColor: featureText(locale, "Face colour"), eyeColor: featureText(locale, "Eye colour"), hairColor: featureText(locale, "Hair colour"), accessoryColor: featureText(locale, "Accessory colour"),
   };
-  const optionNames = {"round": "Round", "oval": "Oval", "soft-square": "Soft square", "none": "None", "quiff": "Quiff", "bob": "Bob", "pixie": "Pixie", "buns": "Buns", "long": "Long", "clip": "Clip", "bow": "Bow", "star": "Star", "glasses": "Glasses", "headphones": "Headphones", "headset": "Headset", "cap": "Cap", "beanie": "Beanie"} as const;
+  const optionNames = {"round": "Round", "oval": "Oval", "soft-square": "Soft square", "wide": "Wide round", "heart": "Heart shape", "pear": "Pear shape", "angular": "Soft angular", "none": "None", "quiff": "Quiff", "bob": "Bob", "pixie": "Pixie", "buns": "Buns", "long": "Long", "crew-cut": "Crew cut", "crop": "Textured crop", "curly": "Curly hair", "curtains": "Curtain part", "ponytail": "High ponytail", "wavy": "Wavy long hair", "clip": "Clip", "bow": "Bow", "star": "Star", "glasses": "Glasses", "headphones": "Headphones", "headset": "Headset", "cap": "Cap", "beanie": "Beanie", "scarf": "Long scarf", "neckerchief": "Neckerchief", "bowtie": "Bow tie", "flower": "Flower clip", "sunglasses": "Harness sunglasses"} as const;
   const title = creating ? (featureText(locale, "Create Bot")) : (featureText(locale, "Edit Bot"));
   return <Dialog.Root open onOpenChange={open => { if (!open && !saving) onClose(); }}>
     <Dialog.Portal>
@@ -50,7 +52,7 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
             <div className="bot-creator">
               <div className="bot-creator-preview">
                 <AgentPersonaProvider persona={{ kind, name: draft.name, state: "idle" }}>
-                  <AgentAvatar size={160} kind={kind} appearance={draft.appearance} live interactive />
+                  <AgentAvatar size={160} kind={kind} presetId={draft.presetId} appearance={draft.appearance} live interactive />
                 </AgentPersonaProvider>
                 <strong>{draft.name.trim() || (featureText(locale, "New Bot"))}</strong>
               </div>
@@ -100,11 +102,11 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
                 </details>
                 <details className="bot-editor-capabilities"><summary>{featureText(locale, "Avatar and appearance")}</summary>
                 <Button type="button" variant="ghost" disabled={saving} onClick={() => onChange({ ...draft, appearance: { ...(draft.id === draft.presetId ? DEFAULT_BOTS[kind] : DEFAULT_NEW_BOT) } })}>{featureText(locale, "Default avatar")}</Button>
-                {(Object.keys(BOT_OPTIONS) as (keyof typeof BOT_OPTIONS)[]).map(key => <fieldset key={key} className={`bot-options${key === "face" ? "" : " bot-part-options"}`} data-part={key}><legend>{labels[key]}</legend><div>
-                  {BOT_OPTIONS[key].map(value => <button key={value} type="button" aria-label={featureText(locale, optionNames[value])} aria-pressed={draft.appearance[key] === value}
+                {(Object.keys(BOT_OPTIONS) as (keyof typeof BOT_OPTIONS)[]).map(key => <fieldset key={key} className="bot-options bot-part-options" data-part={key}><legend>{labels[key]}</legend><div>
+                  {BOT_OPTIONS[key].map(value => <button key={value} type="button" aria-label={featureText(locale, optionNames[value])} title={featureText(locale, optionNames[value])} aria-pressed={draft.appearance[key] === value}
                     onClick={() => onChange({ ...draft, appearance: { ...draft.appearance, [key]: value } })}>
-                    {key === "face" ? (featureText(locale, optionNames[value])) : value === "none" ? <CircleSlash size={20} aria-hidden="true" />
-                      : <span className="bot-part-preview" aria-hidden="true" dangerouslySetInnerHTML={{ __html: botPartSVG(key, { ...draft.appearance, [key]: value }) }} />}
+                    {value === "none" ? <CircleSlash size={20} aria-hidden="true" />
+                      : <span className="bot-part-preview" aria-hidden="true" dangerouslySetInnerHTML={{ __html: botPartSVG(key, { ...draft.appearance, [key]: value }, `${previewId}-${key}-${value}`, agentPreset(draft.presetId).harness) }} />}
                   </button>)}
                 </div></fieldset>)}
                 <div className="bot-colours">{(["faceColor", "eyeColor", "hairColor", "accessoryColor"] as const).map(key => <label key={key}>{labels[key]}<input type="color" value={draft.appearance[key]}

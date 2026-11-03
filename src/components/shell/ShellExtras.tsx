@@ -206,7 +206,7 @@ export function AgentSwitcher({
             onKeyDown={event => { if (onEditBot && bot.appearance && bot.id !== "system:observer" && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) { event.preventDefault(); onEditBot(bot as BotProfile); } }}
           >
             <span className="shell-agent-face" data-status={rowStatus}>
-              <AgentAvatar size={42} kind={avatars[preset.id]} appearance={bot.appearance} />
+              <AgentAvatar size={42} kind={avatars[preset.id]} presetId={bot.presetId} appearance={bot.appearance} />
               <span className="shell-agent-dot" data-status={rowStatus} aria-hidden="true" />
             </span>
             <span className="shell-agent-text">
@@ -292,7 +292,7 @@ export function HeaderAgent({
       <RadixPopover.Trigger asChild>
         <button ref={trigger} type="button" className="shell-header-agent shell-header-compact" aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}
           onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot); } }}>
-          <AgentAvatar size={28} kind={avatars[preset.id]} appearance={bot?.appearance} live={false} />
+          <AgentAvatar size={28} kind={avatars[preset.id]} presetId={bot?.presetId ?? preset.id} appearance={bot?.appearance} live={false} />
           <strong className="shell-header-name">{name}</strong>
           <span className="shell-header-engine" title={HARNESS_LABELS[preset.harness]}>
             <HarnessMark harness={preset.harness} size={14} />
@@ -403,7 +403,7 @@ export function NewChatMenu({ avatars, members, onNewGroup }: {
             return (
               <button type="button" key={preset.id} className="shell-member-row"
                 aria-pressed={on} disabled={present} onClick={() => toggle(preset.id)}>
-                <AgentAvatar size={24} kind={avatars[preset.presetId]} appearance={preset.appearance} />
+                <AgentAvatar size={24} kind={avatars[preset.presetId]} presetId={preset.presetId} appearance={preset.appearance} />
                 <span>{botNames[preset.id]}</span>
                 <span className="shell-member-meta shell-member-role">{present ? featureText(locale, "Joined") : featureText(locale, GROUP_ROLE[preset.presetId])}</span>
                 <span aria-hidden="true" className="shell-member-check">{on ? "✓" : ""}</span>
@@ -451,7 +451,7 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
         <span className="shell-member-meta">{featureText(locale, "Members")}</span>
         {candidates.map((preset) => (
           <button key={preset.id} type="button" className="shell-member-chip" aria-pressed={members.includes(preset.id)} disabled={pending || preset.id === hostId} onClick={() => void toggle(preset.id)}>
-            <AgentAvatar size={20} kind={avatars[preset.presetId]} appearance={preset.appearance} />{botNames[preset.id]}
+            <AgentAvatar size={20} kind={avatars[preset.presetId]} presetId={preset.presetId} appearance={preset.appearance} />{botNames[preset.id]}
           </button>
         ))}
       </div>
@@ -480,7 +480,7 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
             const on = members.includes(preset.id);
             return (
               <button key={preset.id} type="button" className="shell-member-row" aria-pressed={on} disabled={pending || preset.id === hostId} onClick={() => void toggle(preset.id)}>
-                <AgentAvatar size={24} kind={avatars[preset.presetId]} appearance={preset.appearance} />
+                <AgentAvatar size={24} kind={avatars[preset.presetId]} presetId={preset.presetId} appearance={preset.appearance} />
                 <span>{botNames[preset.id]} <span className="shell-member-meta">{featureText(locale, GROUP_ROLE[preset.presetId])}</span></span>
                 <span className="shell-member-meta shell-member-role">
                   <HarnessMark harness={agentPreset(preset.presetId).harness} />{on ? featureText(locale, "In the group") : featureText(locale, "Removed")}

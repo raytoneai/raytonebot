@@ -14,11 +14,15 @@
 .bot-options > div { display: flex; flex-wrap: wrap; gap: 8px; }
 .bot-options button { border: var(--border-width) solid var(--border-subtle); border-radius: 8px; background: transparent; color: inherit; padding: 8px 12px; font: inherit; font-size: var(--text-sm); min-height: 36px; cursor: pointer; }
 .bot-part-options > div { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); max-width: 360px; }
+.bot-part-options[data-part="face"] > div { grid-template-columns: repeat(4, minmax(0, 1fr)); }
 .bot-part-options[data-part="accessory"] > div { grid-template-columns: repeat(5, minmax(0, 1fr)); }
 .bot-part-options button { display: grid; place-items: center; min-width: 0; height: 56px; padding: 6px; color: var(--text-primary); }
 .bot-part-options button:hover, .bot-part-options button[aria-pressed="true"] { background: var(--surface-inset); }
 .bot-part-preview { display: block; width: 100%; max-width: 42px; height: 40px; pointer-events: none; }
 .bot-part-preview svg { display: block; width: 100%; height: 100%; }
+@media (max-width: 400px) {
+  .bot-part-options[data-part="hair"] > div { grid-template-columns: repeat(5, minmax(0, 1fr)); }
+}
 .bot-colours { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
 .bot-colours label { display: flex; align-items: center; justify-content: space-between; gap: 8px; font-size: var(--text-sm); }
 .bot-colours input { width: 40px; height: 32px; padding: 2px; border: var(--border-width) solid var(--border-subtle); border-radius: 6px; cursor: pointer; background: transparent; }

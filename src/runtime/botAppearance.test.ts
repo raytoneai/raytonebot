@@ -2,6 +2,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { BOT_OPTIONS, DEFAULT_BOT, parseBotAppearance, parseBotAppearances } from './botAppearance.ts';
 import { botAvatarSVG, botPartSVG } from '../avatars/botAvatar.ts';
+import { harnessMarkSVG } from '../avatars/harnessArtwork.ts';
 
 test('saved bot appearances round trip independently and reject damaged data', () => {
   const bob = { ...DEFAULT_BOT, hair: 'bob' as const, hairColor: '#9B91A8' };
@@ -22,10 +23,31 @@ test('SVG rejects injected colours and unknown options, strips surplus data', ()
 test('every combination retains existing motion layers and two eyes', () => {
   for (const face of BOT_OPTIONS.face) for (const hair of BOT_OPTIONS.hair) for (const accessory of BOT_OPTIONS.accessory) {
     const svg = botAvatarSVG({ ...DEFAULT_BOT, face, hair, accessory });
+    assert.deepEqual(parseBotAppearance({ ...DEFAULT_BOT, face, hair, accessory }), { ...DEFAULT_BOT, face, hair, accessory });
     for (const layer of ['drag-group', 'follow-group', 'action-group', 'gesture-group', 'breath', 'gaze', 'thinking-gaze']) assert.ok(svg.includes(`class="${layer}"`));
     assert.equal(svg.match(/class="blink"/g)?.length, 2);
     assert.equal(svg.match(/<rect class="open-eye"/g)?.length, 2);
     assert.ok(!svg.includes('undefined'));
+  }
+});
+
+test('face thumbnails show the chosen shaded shape without hair, accessories or animated eyes', () => {
+  for (const face of BOT_OPTIONS.face) {
+    const svg = botPartSVG('face', { ...DEFAULT_BOT, face, faceColor: '#E5CFAA' });
+    assert.ok(svg.includes('radialGradient') && svg.includes('#E5CFAA'));
+    assert.ok(!svg.includes('open-eye') && !svg.includes('blink') && !svg.includes('drag-group'));
+    assert.match(svg, /<(ellipse|rect|path)\b/);
+    assert.ok(!svg.includes('undefined') && !svg.includes('NaN'));
+  }
+});
+
+test('hats clip every hair crown while keeping the face and eye motion intact', () => {
+  for (const hair of BOT_OPTIONS.hair) for (const accessory of ['cap', 'beanie'] as const) {
+    const svg = botAvatarSVG({ ...DEFAULT_BOT, hair, accessory }, { id: 'hat-preview' });
+    assert.ok(svg.includes('clip-path="url(#hat-preview-under-hat)"'));
+    assert.ok(svg.includes('<clipPath id="hat-preview-under-hat">'));
+    assert.equal(svg.match(/class="open-eye"/g)?.length, 2);
+    assert.ok(svg.includes('class="gaze"') && svg.includes('class="thinking-gaze"'));
   }
 });
 
@@ -62,4 +84,56 @@ test('universal accessories persist, render their colour and keep eyes unobstruc
     assert.equal(svg.match(/class="open-eye"/g)?.length, 2);
     assert.equal(svg.includes('M17 37Q19 15'), accessory === 'headphones' || accessory === 'headset');
   }
+});
+
+test('retired flag settings are ignored without losing the saved 3D avatar or head accessory', () => {
+  for (const harnessFlag of [true, false]) {
+    const appearance = { ...DEFAULT_BOT, hair: 'quiff' as const, accessory: 'cap' as const, faceColor: '#E9D4AA' };
+    const legacy = { ...appearance, harnessFlag };
+    assert.deepEqual(parseBotAppearance(legacy), appearance);
+    assert.deepEqual(parseBotAppearances(JSON.stringify({ boy: legacy })).boy, appearance);
+    const svg = botAvatarSVG(legacy);
+    assert.ok(!svg.includes('harness-flag') && !svg.includes('/brand/harness/'));
+    assert.match(svg, /viewBox="0 0 400 400"/);
+    assert.ok(svg.includes('radialGradient') && svg.includes('fill="#E9D4AA"'));
+    assert.equal(svg.match(/class="open-eye"/g)?.length, 2);
+  }
+});
+
+test('each instance owns its material IDs and every paint reference resolves locally', () => {
+  const drawings = ['first', 'second'].map(id => botAvatarSVG({ ...DEFAULT_BOT, accessory: 'sunglasses' }, { id, harness: 'codex' }));
+  const ids = drawings.map(svg => [...svg.matchAll(/\bid="([^"]+)"/g)].map(m => m[1]));
+  assert.equal(ids[0].some(id => ids[1].includes(id)), false);
+  for (let i = 0; i < drawings.length; i++) {
+    for (const reference of drawings[i].matchAll(/url\(#([^)]+)\)/g)) assert.ok(ids[i].includes(reference[1]), reference[1]);
+    assert.ok(!drawings[i].includes('NaN') && !drawings[i].includes('undefined'));
+  }
+});
+
+test('standalone Harness marks retain official artwork on the 3D tile', () => {
+  for (const [harness, file] of [['pi', 'pi.svg'], ['claude-code', 'claude-code.svg'], ['codex', 'codex.png'], ['dsh', 'dsh.svg']] as const) {
+    const svg = harnessMarkSVG(harness, `mark-${harness}`);
+    assert.ok(svg.includes(`/brand/harness/${file}`));
+    assert.ok(svg.includes('radialGradient') && svg.includes('feDropShadow'));
+    assert.ok(!svg.includes('harness-flag'));
+  }
+});
+
+test('oversized sunglasses use only the current engine artwork on one lens in avatars and thumbnails', () => {
+  const appearance = { ...DEFAULT_BOT, accessory: 'sunglasses' as const, accessoryColor: '#7799AA' };
+  for (const [harness, file] of [['pi', 'pi.svg'], ['claude-code', 'claude-code.svg'], ['codex', 'codex-lens.svg'], ['dsh', 'dsh-lens.svg']] as const) {
+    for (const svg of [botAvatarSVG(appearance, { harness }), botPartSVG('accessory', appearance, undefined, harness)]) {
+      assert.equal(svg.match(/<image /g)?.length, 1);
+      assert.ok(svg.includes(`/brand/harness/${file}`));
+      assert.ok(svg.includes(`data-harness="${harness}"`) && svg.includes('#7799AA'));
+      assert.ok(svg.includes('x="55.5" y="45.5" width="24" height="20"'));
+      assert.match(svg, /clip-path="url\(#[^)]+-lens\)"/);
+      assert.ok(!svg.includes('#f5efdf') && !svg.includes('translate(62 48)'));
+    }
+    for (const accessory of BOT_OPTIONS.accessory.filter(value => value !== 'sunglasses')) {
+      assert.ok(!botAvatarSVG({ ...appearance, accessory }, { harness }).includes('<image '));
+    }
+  }
+  assert.ok(!botAvatarSVG(appearance).includes('<image '));
+  assert.ok(!botAvatarSVG(appearance, { harness: 'x" onload="alert(1)' as 'pi' }).includes('onload'));
 });

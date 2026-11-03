@@ -1003,6 +1003,46 @@ export const featureCopy = {
     "zh": "失败或已停止，请先核对结果",
     "ja": "失敗または停止しました。先に結果を確認してください"
   },
+  "Wide round": {
+    "zh": "宽圆脸",
+    "ja": "幅広の丸顔"
+  },
+  "Heart shape": {
+    "zh": "心形脸",
+    "ja": "ハート形"
+  },
+  "Pear shape": {
+    "zh": "梨形脸",
+    "ja": "洋梨形"
+  },
+  "Soft angular": {
+    "zh": "柔和棱角脸",
+    "ja": "やわらかな角形"
+  },
+  "Crew cut": {
+    "zh": "寸头",
+    "ja": "ベリーショート"
+  },
+  "Textured crop": {
+    "zh": "齐刘海短发",
+    "ja": "前髪ショート"
+  },
+  "Curly hair": {
+    "zh": "蓬松卷发",
+    "ja": "ふんわりカール"
+  },
+  "Curtain part": {
+    "zh": "中分短发",
+    "ja": "センターパート"
+  },
+  "High ponytail": {
+    "zh": "高马尾",
+    "ja": "ハイポニーテール"
+  },
+  "Wavy long hair": {
+    "zh": "波浪长发",
+    "ja": "ウェーブロング"
+  },
   "Round": {
     "zh": "圆形",
     "ja": "丸形"
@@ -1067,6 +1107,11 @@ export const featureCopy = {
     "zh": "棒球帽",
     "ja": "キャップ"
   },
+  "Long scarf": { "zh": "垂尾围巾", "ja": "ロングマフラー" },
+  "Neckerchief": { "zh": "三角巾", "ja": "ネッカチーフ" },
+  "Bow tie": { "zh": "小领结", "ja": "蝶ネクタイ" },
+  "Flower clip": { "zh": "花朵发饰", "ja": "フラワーピン" },
+  "Harness sunglasses": { "zh": "Harness 大墨镜", "ja": "Harness サングラス" },
   "Beanie": {
     "zh": "针织帽",
     "ja": "ニット帽"

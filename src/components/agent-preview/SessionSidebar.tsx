@@ -338,7 +338,7 @@ export function SessionSidebar({
                 icon: group.id === "group" ? <GroupFace size={20} kinds={["woman", "man", "boy"]} />
                   : group.id === "other" ? <MessagesSquare size={18} />
                   : <span onContextMenu={event => { if (bot && bot.id !== "system:observer" && extras.onEditBot) { event.preventDefault(); event.stopPropagation(); extras.onEditBot(bot); } }}><AgentAvatar size={20}
-                    appearance={bot?.appearance} kind={bot ? BOT_KINDS[bot.presetId] : extras.sessionAvatars?.[group.items[0].id] ?? "woman"} /></span> }} />
+                    appearance={bot?.appearance} presetId={bot?.presetId} kind={bot ? BOT_KINDS[bot.presetId] : extras.sessionAvatars?.[group.items[0].id] ?? "woman"} /></span> }} />
           ); }) : grouping ? (
             <>
               {today.length > 0 ? (
@@ -594,7 +594,7 @@ function SessionGroup({
               {disclosure ? null : groupFaces?.[id] ? (
                 <span className="session-item-avatar" data-group="true" aria-hidden="true"><GroupFace size={20} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
               ) : avatars?.[id] ? (
-                <span className="session-item-avatar" aria-hidden="true" onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.stopPropagation(); onEditBot(bot); } }}><AgentAvatar size={18} kind={avatars[id]} appearance={bot?.appearance} /></span>
+                <span className="session-item-avatar" aria-hidden="true" onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.stopPropagation(); onEditBot(bot); } }}><AgentAvatar size={18} kind={avatars[id]} presetId={bot?.presetId} appearance={bot?.appearance} /></span>
               ) : null}
               <span className="session-item-label">{preview || title}{role ? <span className="session-search-author"> {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
                 match ? <>{snippet.slice(0, match.index)}<mark>{match[0]}</mark>{snippet.slice(match.index + match[0].length)}</> : snippet

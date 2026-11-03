@@ -1,12 +1,12 @@
 import { useLocale } from "../../i18n/LocaleContext";
 import { featureText } from "../../i18n/copy/features";
-import { DEFAULT_BOT_NAMES } from "../../pi/harnessCatalog";
+import { DEFAULT_BOT_NAMES, type AgentPresetId } from "../../pi/harnessCatalog";
 import type { AgentUXTimelineItem, AgentUXToolTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
 import { AgentAvatar, AgentPersonaProvider, avatarBusy, useAgentPersona, type AvatarKind } from "../../avatars/AgentPersona";
 
 // Group member identity is prefixed in item ids.
-const GROUP_AUTHORS: Record<string, { kind: AvatarKind; name: string }> = {
-  assistant: { kind: "woman", name: DEFAULT_BOT_NAMES.assistant }, planner: { kind: "man", name: DEFAULT_BOT_NAMES.planner }, builder: { kind: "boy", name: DEFAULT_BOT_NAMES.builder }, dsh: { kind: "woman", name: DEFAULT_BOT_NAMES.dsh },
+const GROUP_AUTHORS: Record<string, { kind: AvatarKind; name: string; presetId: AgentPresetId }> = {
+  assistant: { kind: "woman", name: DEFAULT_BOT_NAMES.assistant, presetId: "assistant" }, planner: { kind: "man", name: DEFAULT_BOT_NAMES.planner, presetId: "planner" }, builder: { kind: "boy", name: DEFAULT_BOT_NAMES.builder, presetId: "builder" }, dsh: { kind: "woman", name: DEFAULT_BOT_NAMES.dsh, presetId: "dsh" },
 };
 // replayIdentity wraps tool/artifact ids as JSON [runId, field, id]; match inside that wrapper too.
 const itemAuthor = (item: AgentUXTimelineItem) => /(?:^|")(assistant|planner|builder|dsh|bot_[a-f0-9-]{36})~/.exec(String(item.id))?.[1];

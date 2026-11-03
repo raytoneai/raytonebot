@@ -388,6 +388,12 @@ Linux 文件 API 用逐级 `O_NOFOLLOW` 的目录 fd 锚定访问；macOS 开发
 
 ### Bot 头像定制（2026-10-17）
 
+2026-11-03 配饰扩展：14 种配饰包含围巾、三角巾、领结、花饰与大墨镜。`AgentPersona` / `AgentAvatar` 的可选 `presetId` 将实际引擎传给 SVG；墨镜右侧单片透明满版 Logo 与部件预览复用官方素材；镜片裁切 ID 随头像/缩略图实例隔离，Codex/DSH 使用去底板/浅色的镜片衍生 SVG，独立 HarnessMark 仍用原素材，Pi 与 DSH 共享脸型时仍显示各自 Logo。此信息来自原 Bot 身份，不额外存储；原调用缺省时仍按角色渲染。
+
+2026-11-03 造型扩展：脸型/发型枚举沿 `botAppearance.ts` 统一校验与持久化，现为 7 种脸型和 12 种发型（含无头发）；`botAvatar.ts` 的脸型与部件缩略图复用同一几何，所有帽子共用发冠遮罩。没有新配置字段、HTTP 接口或默认值迁移。
+
+现行 3D 呈现（2026-11-03）：`AgentAvatar` / `botAvatarSVG` 共用可编辑颜色的 SVG 材质，`avatarMaterials.ts` 提供体积与浮雕；`harnessArtwork.ts` 复用 `public/brand/harness/` 官方素材绘制原位置的 HarnessMark。按用户最终反馈，背旗及其选项、配置字段和动画已移除；旧记录中的 `harnessFlag` 作为多余字段忽略，其他头像定制继续保留，不需要迁移。头像保持完整取景，每个 SVG 使用独立 ID，原眨眼、视线、状态运动层与 reduced-motion / 屏外暂停继续生效。以下 2026-10-17 段落为最初浏览器本地配置记录，现行持久化以「服务端 Bot 配置」为准。
+
 现有 `SettingsDialog` 的「Bot 头像」分区为三个固定角色分别保存外观；不新增助手或 HTTP 接口。`src/runtime/botAppearance.ts` 校验枚举选项与六位十六进制颜色，`useBotAppearances.ts` 通过 `useSyncExternalStore` 订阅本页更新及跨标签页 storage 事件，存于 `raytone.bot-appearances.v1`。保存失败不应用草稿；删除某一角色配置恢复旧头像。配置只属于当前 origin / 浏览器，不随沙箱备份或跨设备同步。
 
 `AgentAvatar` 优先使用已保存配置并调用 `botAvatarSVG`，其他入口与动画层保持共用；编辑器显式传入草稿。Shell 使用当前 `streamId` 隔离示例回放，不能使用 `isFixtureMode`：产品 `runtime.transport` 按规定保持 replay，真实对话仍通过 Pi client。

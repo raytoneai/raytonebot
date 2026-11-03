@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useMemo, useRef, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useMemo, useRef, type ReactNode } from "react";
 
 import { mountAvatarMotion, type AvatarMotion, type AvatarState } from "./avatarMotion";
 import type { AvatarKind } from "./raytoneAvatars";
@@ -7,6 +7,7 @@ import { botAvatarSVG } from "./botAvatar";
 import { DEFAULT_BOTS, type BotAppearance } from "../runtime/botAppearance";
 import { useBotProfiles } from "../runtime/useBotProfiles";
 import { BOT_KINDS } from "../runtime/botProfiles";
+import { agentPreset, type AgentPresetId } from "../pi/harnessCatalog";
 const CustomAvatarsContext = createContext(false);
 export const CustomAvatarsProvider = CustomAvatarsContext.Provider;
 
@@ -19,6 +20,7 @@ export type AgentPersona = {
   name: string;
   state: AvatarState;
   appearance?: BotAppearance;
+  presetId?: AgentPresetId;
 };
 
 const AgentPersonaContext = createContext<AgentPersona | undefined>(undefined);
@@ -46,10 +48,13 @@ export function AgentAvatar({
   fallback,
   kind: kindOverride,
   appearance,
+  presetId,
 }: {
   size: number;
   /** Explicit draft; null shows the role's default Bot. */
   appearance?: BotAppearance | null;
+  /** Actual engine identity, including DSH which shares Pi's default face. */
+  presetId?: AgentPresetId;
   /** Draw this character instead of the current persona's (settings, pickers). */
   kind?: AvatarKind;
   live?: boolean;
@@ -63,12 +68,15 @@ export function AgentAvatar({
   const rootRef = useRef<HTMLSpanElement>(null);
   const motionRef = useRef<AvatarMotion | undefined>(undefined);
   const kind = kindOverride ?? persona?.kind;
+  const drawingId = useId();
   const custom = appearance === undefined ? (customEnabled && kind
     ? (!kindOverride ? persona?.appearance : undefined) ?? profiles.find(bot => bot.id === bot.presetId && BOT_KINDS[bot.presetId] === kind)?.appearance
     : undefined) : appearance;
   const customKey = JSON.stringify(custom);
+  const engine = presetId ?? (!kindOverride ? persona?.presetId : undefined)
+    ?? (kind === "man" ? "planner" : kind === "boy" ? "builder" : "assistant");
   // Defaults and saved customisations share the same simple geometry and motion layers.
-  const markup = useMemo(() => kind ? botAvatarSVG(custom ?? DEFAULT_BOTS[kind]) : "", [kind, customKey]);
+  const markup = useMemo(() => kind ? botAvatarSVG(custom ?? DEFAULT_BOTS[kind], { id: drawingId, harness: agentPreset(engine).harness }) : "", [kind, customKey, drawingId, engine]);
   const animated = Boolean(persona && live);
 
   useEffect(() => {

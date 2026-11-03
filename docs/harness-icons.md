@@ -1,6 +1,6 @@
 # Harness product marks
 
-`src/components/shell/HarnessMark.tsx` renders the client identity, independently of the selected model. The sidebar, conversation header and member menu share it. The DSH whale path lives in `src/avatars/brandMarks.ts`.
+`src/components/shell/HarnessMark.tsx` renders the client identity, independently of the selected model. The sidebar, conversation header and member menu share it. Since 2026-11-03, the shared artwork in `src/avatars/harnessArtwork.ts` uses original local publisher assets for the enamel tiles (the experimental Bot back flags were removed at the user’s request); current provenance is in [public/brand/harness/README.md](../public/brand/harness/README.md). Earlier inline import sources and their licence remain below. The historical DSH whale path remains in `src/avatars/brandMarks.ts`.
 
 - Pi: existing mark from https://pi.dev/.
 - Claude Code: orange pixel Clawd, from [Lobe Icons](https://github.com/lobehub/lobe-icons/blob/master/packages/static-svg/icons/claudecode-color.svg).

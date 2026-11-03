@@ -432,6 +432,7 @@ export function AgentApp() {
     kind: PRESET_AVATARS[agentSettings.presetId],
     name: activeBot.name,
     appearance: activeBot.appearance,
+    presetId: activeBot.presetId,
     state: avatarActivity({
       running: piRunning,
       awaitingUser: Boolean(liveApprovalTool || pendingQuestion),
@@ -1486,7 +1487,7 @@ export function AgentApp() {
       scope: activePiConversationId,
       persona: piRunning ? {
         ...persona,
-        ...(workingMember ? { kind: PRESET_AVATARS[presetBot(workingMember).presetId], name: presetBot(workingMember).name, appearance: presetBot(workingMember).appearance } : {}),
+        ...(workingMember ? { kind: PRESET_AVATARS[presetBot(workingMember).presetId], name: presetBot(workingMember).name, appearance: presetBot(workingMember).appearance, presetId: presetBot(workingMember).presetId } : {}),
         state: groupTyping && persona.state !== "asking" ? "thinking" : persona.state,
       } : undefined,
     },

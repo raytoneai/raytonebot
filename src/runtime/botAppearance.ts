@@ -1,8 +1,8 @@
 /** Only typed options and hex colours enter SVG markup; never store arbitrary SVG. */
 export const BOT_OPTIONS = {
-  face: ['round', 'oval', 'soft-square'],
-  hair: ['none', 'quiff', 'bob', 'pixie', 'buns', 'long'],
-  accessory: ['none', 'clip', 'bow', 'star', 'glasses', 'headphones', 'headset', 'cap', 'beanie'],
+  face: ['round', 'oval', 'soft-square', 'wide', 'heart', 'pear', 'angular'],
+  hair: ['none', 'quiff', 'bob', 'pixie', 'buns', 'long', 'crew-cut', 'crop', 'curly', 'curtains', 'ponytail', 'wavy'],
+  accessory: ['none', 'clip', 'bow', 'star', 'glasses', 'headphones', 'headset', 'cap', 'beanie', 'scarf', 'neckerchief', 'bowtie', 'flower', 'sunglasses'],
 } as const;
 export type BotAppearance = { [K in keyof typeof BOT_OPTIONS]: (typeof BOT_OPTIONS)[K][number] } & {
   eyes: 'capsule';
@@ -43,7 +43,8 @@ export function parseBotAppearance(value: unknown): BotAppearance | undefined {
   for (const key of ['faceColor', 'eyeColor', 'hairColor', 'accessoryColor']) {
     if (typeof data[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(data[key] as string)) return undefined;
   }
-  return { ...Object.fromEntries([...Object.keys(BOT_OPTIONS), 'faceColor', 'eyeColor', 'hairColor', 'accessoryColor'].map(key => [key, data[key]])), eyes: 'capsule' } as BotAppearance;
+  return { ...Object.fromEntries([...Object.keys(BOT_OPTIONS), 'faceColor', 'eyeColor', 'hairColor', 'accessoryColor'].map(key => [key, data[key]])),
+    eyes: 'capsule' } as BotAppearance;
 }
 export function parseBotAppearances(raw: string | null): BotAppearances {
   try {
