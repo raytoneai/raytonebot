@@ -1,6 +1,6 @@
 import { HTML_LANG } from "../../i18n/locales";
 import { featureText } from "../../i18n/copy/features.ts";
-import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, ListPlus, MessageSquareText, Mic, Paperclip, Pencil, Plus, Rocket, Search, Send, ShieldCheck, ShieldHalf, ShieldOff, Sparkles, Square, X } from "lucide-react";
+import { Brain, Bug, ChevronRight, FileText, Gauge, Image as ImageIcon, ListPlus, MessageSquareText, Mic, Paperclip, Pencil, Plus, SquarePen, Rocket, Search, Send, ShieldCheck, ShieldHalf, ShieldOff, Sparkles, Square, X } from "lucide-react";
 import { AgentAvatar, AgentPersonaProvider } from "../../avatars/AgentPersona";
 import { AnimatePresence, motion, useReducedMotion } from "motion/react";
 import { composerActivityCopy } from "../../i18n/copy/composerActivity";
@@ -138,7 +138,7 @@ export function ComposerFrame({
   const copy = useCopy();
   const { locale } = useLocale();
   const steerLabel = locale === "zh" ? "调整当前任务" : locale === "ja" ? "現在のタスクを調整" : "Adjust current task";
-  const { diagnostic, composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity, onBrowseWorkspace, providerSelection, chatReferences } = useShellExtras();
+  const { diagnostic, composerPlaceholder, composerDraft, composerOptions, composerFocus, stopStatus, composerQueue, welcomeGroup, composerMentions, composerActivity, onBrowseWorkspace, providerSelection, chatReferences, navigation } = useShellExtras();
   const reduceMotion = useReducedMotion();
   const workingPersona = composerActivity?.persona;
   const activityCopy = composerActivityCopy[locale];
@@ -406,6 +406,18 @@ export function ComposerFrame({
     speechRecognitionRef.current?.abort();
   }, []);
 
+  const chatReferenceItems = chatReferences ? (chatReferences.length ? chatReferences.map(chat => <DropdownMenuItem key={chat.id}
+                disabled={attachedChats.has(chat.id) || attachedChats.size >= 5} textValue={chat.title || chat.id}
+                onSelect={() => setAttachedFiles(current => {
+                  const references = current.filter(attachment => attachment.chatReference);
+                  if (references.length >= 5 || references.some(attachment => attachment.chatReference?.conversationId === chat.id)) return current;
+                  return [...current, { id: crypto.randomUUID(), name: chat.title || chat.id, isImage: false, chatReference: { conversationId: chat.id, title: chat.title || chat.id } }];
+                })}>
+                <MessageSquareText size={14} aria-hidden="true" />
+                <span className="ui-dropdown-menu__item-label" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.title || chat.id}</span>
+                {attachedChats.has(chat.id) ? <span aria-hidden="true">✓</span> : null}
+              </DropdownMenuItem>) : <DropdownMenuItem disabled>{featureText(locale, "No saved chats to reference")}</DropdownMenuItem>) : null;
+
   return (
     <form
       className="composer-frame"
@@ -581,6 +593,9 @@ export function ComposerFrame({
         </div>
         <div className="composer-actions">
           <div className="composer-tools">
+          {navigation ? <IconButton type="button" label={copy.workspace.sessionSidebar.newSession} onClick={navigation.onNew} disabled={restoringDrafts}>
+            <SquarePen size={18} />
+          </IconButton> : null}
           {project.composer.fileUpload ? (
             <>
               <input
@@ -608,42 +623,37 @@ export function ComposerFrame({
                   input.value = "";
                 }}
               />
-              <IconButton
+              {navigation ? <DropdownMenu>
+                <DropdownMenuTrigger asChild><IconButton type="button" label={copy.composer.frame.attachFiles} disabled={restoringDrafts}><Paperclip size={18} /></IconButton></DropdownMenuTrigger>
+                <DropdownMenuContent align="start" sideOffset={10}>
+                  <DropdownMenuItem onSelect={() => fileInputRef.current?.click()}><Paperclip size={16} />{copy.composer.frame.attachFiles}</DropdownMenuItem>
+                  {chatReferences ? <DropdownMenuSub><DropdownMenuSubTrigger><MessageSquareText size={16} />{chatReferenceLabel}</DropdownMenuSubTrigger>
+                    <DropdownMenuSubContent style={{ maxHeight: "min(360px, var(--radix-dropdown-menu-content-available-height))", overflowY: "auto", maxWidth: "min(320px, calc(100vw - 32px))" }}>
+                      <DropdownMenuLabel>{chatReferenceLabel} · {attachedChats.size}/5</DropdownMenuLabel>
+              {chatReferenceItems}
+                    </DropdownMenuSubContent></DropdownMenuSub> : null}
+                </DropdownMenuContent>
+              </DropdownMenu> : <IconButton
                 className="icon-button composer-upload"
                 label={copy.composer.frame.attachFiles}
                 disabled={restoringDrafts}
                 type="button"
                 onClick={() => fileInputRef.current?.click()}
               >
-                <span className="composer-upload-icon composer-upload-icon-clip" aria-hidden="true">
-                  <Paperclip size={16} />
-                </span>
-                <span className="composer-upload-icon composer-upload-icon-plus" aria-hidden="true">
-                  <Plus size={20} />
-                </span>
-              </IconButton>
+                <><span className="composer-upload-icon composer-upload-icon-clip" aria-hidden="true"><Paperclip size={16} /></span><span className="composer-upload-icon composer-upload-icon-plus" aria-hidden="true"><Plus size={20} /></span></>
+              </IconButton>}
             </>
           ) : null}
-          {chatReferences ? <DropdownMenu>
+          {!navigation && chatReferences ? <DropdownMenu>
             <DropdownMenuTrigger asChild>
               <IconButton type="button" label={chatReferenceLabel} disabled={restoringDrafts}><MessageSquareText size={16} /></IconButton>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="start" sideOffset={10} style={{ maxHeight: "min(360px, var(--radix-dropdown-menu-content-available-height))", overflowY: "auto", maxWidth: "min(360px, calc(100vw - 32px))" }}>
               <DropdownMenuLabel>{chatReferenceLabel} · {attachedChats.size}/5</DropdownMenuLabel>
-              {chatReferences.length ? chatReferences.map(chat => <DropdownMenuItem key={chat.id}
-                disabled={attachedChats.has(chat.id) || attachedChats.size >= 5} textValue={chat.title || chat.id}
-                onSelect={() => setAttachedFiles(current => {
-                  const references = current.filter(attachment => attachment.chatReference);
-                  if (references.length >= 5 || references.some(attachment => attachment.chatReference?.conversationId === chat.id)) return current;
-                  return [...current, { id: crypto.randomUUID(), name: chat.title || chat.id, isImage: false, chatReference: { conversationId: chat.id, title: chat.title || chat.id } }];
-                })}>
-                <MessageSquareText size={14} aria-hidden="true" />
-                <span className="ui-dropdown-menu__item-label" style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.title || chat.id}</span>
-                {attachedChats.has(chat.id) ? <span aria-hidden="true">✓</span> : null}
-              </DropdownMenuItem>) : <DropdownMenuItem disabled>{featureText(locale, "No saved chats to reference")}</DropdownMenuItem>}
+              {chatReferenceItems}
             </DropdownMenuContent>
           </DropdownMenu> : null}
-          {!isWelcome && onBrowseWorkspace ? <IconButton type="button" label={copy.workspace.outputFrame.files} disabled={restoringDrafts} onClick={onBrowseWorkspace}><FileText size={16} /></IconButton> : null}
+          {!navigation && !isWelcome && onBrowseWorkspace ? <IconButton type="button" label={copy.workspace.outputFrame.files} disabled={restoringDrafts} onClick={onBrowseWorkspace}><FileText size={16} /></IconButton> : null}
           {project.composer.toolToggle && !diagnostic ? (
             <DropdownMenu>
               <DropdownMenuTrigger asChild>

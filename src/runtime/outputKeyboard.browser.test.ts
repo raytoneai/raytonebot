@@ -31,21 +31,29 @@ test("expanded Output keeps keyboard access to sandbox HTML and native forms", {
           <script type="module">
             import { createElement as h, useState } from 'react';
             import { createRoot } from 'react-dom/client';
+            import { AnimatePresence } from 'motion/react';
             import { OutputFrame } from '/src/components/agent-preview/OutputFrame.tsx';
             import { ShellExtrasProvider } from '/src/components/shell/ShellExtras.tsx';
             import { LocaleProvider } from '/src/i18n/LocaleContext.tsx';
             import { project } from '/src/exported-project.ts';
+            import { useConversationNavigation } from '/src/runtime/useConversationNavigation.ts';
             import '/src/styles/app.css';
             import '/src/styles/agentmatrix.css';
             const fullscreen = new URLSearchParams(location.search).has('fullscreen');
+            const navigation = new URLSearchParams(location.search).has('navigation');
             const config = { ...project, output: { ...project.output, source: 'workspace' } };
             function Probe() {
               const [open, setOpen] = useState(!fullscreen);
-              return h(ShellExtrasProvider, { value: { workspaceScope: 'assistant', workspaceBotName: 'Assistant', workspaceSharedAvailable: false } },
-                h('main', { className: 'preview-frame', style: { height: '100vh', display: 'block' } },
+              const nav = useConversationNavigation('group_fixture', 'assistant', true);
+              return h(ShellExtrasProvider, { value: { workspaceScope: 'assistant', workspaceBotName: 'Assistant', workspaceSharedAvailable: false,
+                ...(navigation ? {navigation:{...nav, activeBotId:'assistant',activeSessionId:'group_fixture',groupActive:true,
+                  sessions:[{id:'group_fixture',title:'Group chat fixture',groupMembers:['assistant','planner']}],
+                  onSelect:()=>setOpen(false),onNew(){},onNewGroup(){},openHistory:()=>setOpen(true)},
+                  panelProfile:h('div',null,'Group members'),outputPanel:{source:'history',select(){},browserAvailable:false}} : {})} },
+                h('main', { className: 'preview-frame', style: { height: '100vh', display: navigation ? 'flex' : 'block' } },
                   h('button', { id: 'opener', onClick: () => setOpen(true) }, 'Open output'),
-                  open ? h(OutputFrame, { project: config, viewModel: { timeline: [] }, fullscreen,
-                    onSourceChange() {}, onCollapse: () => setOpen(false) }) : null,
+                  h(AnimatePresence, null, open ? h(OutputFrame, { project: config, viewModel: { timeline: [] }, fullscreen,
+                    onSourceChange() {}, onCollapse: () => setOpen(false) }) : null),
                   h('button', { id: 'background', onClick: () => setOpen(false) }, 'Background action')));
             }
             createRoot(document.getElementById('root')).render(h(LocaleProvider, { initialLocale: 'en' }, h(Probe)));
@@ -146,5 +154,59 @@ test("expanded Output keeps keyboard access to sandbox HTML and native forms", {
         } finally { await page.close(); }
       });
     }
+    for (const width of [390, 660, 682, 860, 1280]) {
+      await t.test(`${width}px navigation: group history opens inside the viewport and remains clickable`, async () => {
+        const page = await browser.newPage({ viewport: { width, height: 925 }, reducedMotion: "reduce" });
+        page.setDefaultTimeout(5_000);
+        try {
+          await page.goto(`${base}output-keyboard-test?fullscreen&navigation`, { waitUntil: "domcontentloaded" });
+          await page.getByRole("button", { name: "Open output", exact: true }).click();
+          const panel = page.locator('.artifact-frame[data-expanded="true"]');
+          await panel.waitFor();
+          const bounds = await panel.evaluate(element => {
+            const rect = element.getBoundingClientRect();
+            return { x: rect.x, y: rect.y, width: rect.width, height: rect.height, right: rect.right, bottom: rect.bottom };
+          });
+          assert.ok(bounds.width >= width * 0.6, `history must have usable width: ${JSON.stringify(bounds)}`);
+          assert.ok(bounds.x >= -1 && bounds.right <= width + 1, `history must be on screen: ${JSON.stringify(bounds)}`);
+          assert.ok(bounds.y >= -1 && bounds.bottom <= 926, `history must fit vertically: ${JSON.stringify(bounds)}`);
+          const collapse = panel.getByRole("button", { name: "Collapse output", exact: true });
+          assert.equal(await collapse.locator(".lucide-x").count(), 0, "the sidebar collapses instead of using a modal close glyph");
+          assert.equal(await collapse.locator(".native-rail-icon svg rect").count(), 2, "the collapse glyph matches the sidebar entry");
+          await collapse.click();
+          await panel.waitFor({ state: "detached" });
+          assert.equal(await focused(page, "#opener"), true, "clicking collapse returns focus to the entry");
+          await page.getByRole("button", { name: "Open output", exact: true }).click();
+          await panel.waitFor();
+          await panel.getByRole("button", { name: /Group chat fixture/ }).click();
+          await panel.waitFor({ state: "detached" });
+          await page.getByRole("button", { name: "Open output", exact: true }).click();
+          await panel.waitFor();
+          await page.keyboard.press("Escape");
+          await panel.waitFor({ state: "detached" });
+          assert.equal(await focused(page, "#opener"), true);
+        } finally { await page.close(); }
+      });
+    }
+    await t.test("the mobile drawer slides in and can reopen while exiting", async () => {
+      const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
+      try {
+        await page.goto(`${base}output-keyboard-test?fullscreen&navigation`);
+        const panel = page.locator(".artifact-frame[data-workspace-drawer]");
+        await page.locator("#opener").click();
+        await page.waitForFunction(() => {
+          const x = document.querySelector(".artifact-frame[data-workspace-drawer]")?.getBoundingClientRect().x;
+          return x !== undefined && x > 0 && x < 390;
+        });
+        await panel.getByRole("button", { name: "Collapse output" }).click();
+        await page.waitForFunction(() => document.querySelector(".artifact-frame[data-workspace-drawer][inert]"));
+        assert.equal(await focused(page, "#opener"), true);
+        await page.keyboard.press("Enter");
+        await panel.getByRole("button", { name: "Collapse output" }).waitFor();
+        assert.equal(await panel.count(), 1);
+        await page.keyboard.press("Escape");
+        await panel.waitFor({ state: "detached" });
+      } finally { await page.close(); }
+    });
   } finally { await browser.close(); await server.close(); rmSync(cacheDir, { recursive: true, force: true }); }
 });

@@ -519,3 +519,10 @@ Provider 原编辑卡可为已列出的模型配置 `modelOptions`：contextWind
 单聊的顶栏、可选 Composer 模型菜单与提交共用 `botModelConfiguration`：Bot 覆盖优先，否则继承全局服务或 CLI 本机登录偏好；覆盖不存在/停用时明确报错，不静默回退。有覆盖时菜单保存 Bot 配置及 revision，不改变全局默认；修改 CLI 来源需先在 Bot 编辑器清除覆盖。发送使用本次主机 Bot 同步返回的配置，避免 React 旧闭包继续显示/提交上一版本。群路由使用入口全局服务，各成员执行时应用自己的覆盖。
 
 `src/pi/providerStore.ts` 在 `<dataDir>.provider-secrets/` 持有加密的配置与 endpoint 绑定凭据；主机 GET/POST `/__agentcanvas/pi/providers` 返回 revision 与非秘密状态，POST 显式更新/删除，运行中拒绝保存。主机持久化先于页面应用，所有引擎共享解析。IM/例行任务通过 `credentialSource: "host"` 排除网页临时 key。此目录位于 data 备份之外，同时加入 Agent 工具与工作区读取排除；本地 master.key 或外部 RAYTONEBOT_CREDENTIAL_MASTER_KEY 的恢复边界见 [12](12-provider-credentials-proposal.md)。
+
+
+## 会话导航呈现（2026-11-03，T6.14）
+
+实时页面的左栏收成 Bot 头像和位于 Bot 下方的群聊组合缩略入口。历史仍由 `SessionSidebar` 负责，以可选 `history` 呈现在原 `OutputFrame` 内；来源为 `history`，与原产物／控制台／浏览器／工作区共享一个面板。`ShellExtras` 的可选上下文传入导航和原 Bot／群成员资料菜单，没有上下文的独立开发场景维持缺省布局。配置中的 `runtime.transport`、slot 及输出来源配置格式不变。
+
+`useConversationNavigation` 保存本页最后访问、历史范围和搜索词；Bot 点击优先恢复上次会话，没有匹配历史才新建。群聊入口复用同一恢复规则，直接选中群聊，而非仅打开历史筛选；没有历史时进入群成员选择。草稿仍归原 Composer 持久化机制，阅读位置按会话保留；新话题按钮位于输入框，群聊新话题继承成员和主持 Bot。欢迎页沿原规则隐藏 ChatFrame 顶部身份栏，实际聊天保留；群聊草稿在 Composer 的原成员选择器配置成员。手机复用左抽屉及原 Output 全屏模式，进入群聊或选中历史后显示正文。没有新增服务、持久化接口或模型选择规则。[实现与验收](../../output/navigation-2026-11-03/README.md)。

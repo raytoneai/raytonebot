@@ -2,6 +2,13 @@ import type { AppLocale } from "../locales.ts";
 
 /** Copy for product surfaces added after the original shell. English text is the typed key. */
 export const featureCopy = {
+  "Manage members": { "zh": "管理成员", "ja": "メンバー管理" },
+  "Yesterday": { "zh": "昨天", "ja": "昨日" },
+  "Sessions": { "zh": "会话", "ja": "会話" },
+  "This Bot": { "zh": "此 Bot", "ja": "この Bot" },
+  "Conversation scope": { "zh": "会话范围", "ja": "会話の範囲" },
+  "New group chat": { "zh": "新建群聊", "ja": "グループ会話を作成" },
+  "Clear search": { "zh": "清除搜索", "ja": "検索をクリア" },
   "Source details (optional)": {
     "zh": "来源信息（可选）",
     "ja": "出典の詳細（任意）"

@@ -1,5 +1,7 @@
+import { featureText } from "../../../i18n/copy/features";
+import { useLocale } from "../../../i18n/LocaleContext";
 import { motion, useReducedMotion } from "motion/react";
-import { FileCode2, FolderOpen, Globe, PanelRight, TerminalSquare } from "lucide-react";
+import { FileCode2, FolderOpen, Globe, PanelRight, TerminalSquare, MessagesSquare } from "lucide-react";
 
 import type { OutputFrameCopy, OutputPanelSource } from "./types";
 
@@ -9,17 +11,25 @@ export function OutputSourceSwitch({
   onChange,
   browser,
   workspace,
+  history,
 }: {
   source: OutputPanelSource;
   copy: OutputFrameCopy;
   onChange: (source: OutputPanelSource) => void;
   browser?: boolean;
   workspace?: boolean;
+  history?: boolean;
 }) {
+  const { locale } = useLocale();
   const reducedMotion = useReducedMotion();
   const current = source;
   return (
     <div className="output-source-switch" role="group" aria-label={copy.sourceLabel}>
+      {history ? <button type="button" aria-label={featureText(locale, "Sessions")} aria-pressed={current === "history"}
+        data-active={current === "history"} onClick={() => onChange("history")}>
+        {current === "history" ? <SourcePill reduced={reducedMotion} /> : null}
+        <MessagesSquare size={15} /><span className="output-source-label">{featureText(locale, "Sessions")}</span>
+      </button> : null}
       <button
         type="button"
         aria-label={copy.sourceArtifact}
@@ -44,10 +54,11 @@ export function OutputSourceSwitch({
         <TerminalSquare size={15} />
         <span className="output-source-label">{copy.sourceConsole}</span>
       </button>
-      {browser ? (
+      {browser || history ? (
         <button
           type="button"
           aria-label={copy.sourceBrowser}
+          disabled={!browser}
           aria-pressed={current === "browser"}
           data-active={current === "browser"}
           title={copy.browser.view}

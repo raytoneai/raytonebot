@@ -50,8 +50,11 @@ function approvalSnapshot() {
 function groupSnapshot() {
   return [
     event("run.started", "first-run", {}, 1),
-    event("run.finished", "first-run", { status: "success" }, 2),
-    event("run.started", "second-run", {}, 3),
+    event("text.started", "first-run", { role: "user", textId: "group-request" }, 2),
+    event("text.delta", "first-run", { textId: "group-request", delta: "Discuss the project" }, 3),
+    event("text.completed", "first-run", { textId: "group-request" }, 4),
+    event("run.finished", "first-run", { status: "success" }, 5),
+    event("run.started", "second-run", {}, 6),
   ];
 }
 
@@ -327,15 +330,49 @@ test("AgentApp restores off-screen waits, settles run.error, and retitles later 
         const liveDeadline = Date.now() + 5_000;
         while (!live.response && Date.now() < liveDeadline) await new Promise(resolve => setTimeout(resolve, 10));
         assert.ok(live.response, "group follow opened its live stream");
-        await groupPage.locator(".session-bot-toggle").first().click();
-        await groupPage.getByText("Old group title", { exact: true }).waitFor();
+        await groupPage.locator(".shell-group-rail").click();
+        await groupPage.waitForFunction(() => document.querySelector(".preview-frame")?.getAttribute("data-conversation-id") === "group_reconnect", undefined, { timeout: 3_000 });
+        assert.equal(await groupPage.locator(".shell-group-rail").getAttribute("data-active"), "true", "one group click changes the active conversation, not only the history filter");
+        await groupPage.locator(".shell-chat-participants .shell-header-agent").getByText("Old group title", { exact: true }).waitFor();
+        await groupPage.locator(".session-history-panel").getByText("Old group title", { exact: true }).waitFor();
         live.title = "New group title";
-        sendLive(event("run.finished", "second-run", { status: "success" }, 4), true);
+        sendLive(event("run.finished", "second-run", { status: "success" }, 7), true);
         const summaryDeadline = Date.now() + 5_000;
         while (live.summaryRequests < 1 && Date.now() < summaryDeadline) await new Promise(resolve => setTimeout(resolve, 10));
         assert.ok(live.summaryRequests >= 1, "a later group turn asks the host for its summary title");
-        await groupPage.getByText("New group title", { exact: true }).waitFor();
+        await groupPage.locator(".session-history-panel").getByText("New group title", { exact: true }).waitFor();
       } finally { await groupPage.close(); }
+    });
+    for (const width of [1280, 682, 390]) {
+      await t.test(`${width}px: one group-rail click enters the group conversation`, async () => {
+        scenario = "group"; live.response = undefined;
+        const page = await browser!.newPage({ viewport: { width, height: 925 }, reducedMotion: "reduce" });
+        try {
+          await page.goto(`${base}agent-shell-reconnect`);
+          const deadline = Date.now() + 5_000;
+          while (!live.response && Date.now() < deadline) await new Promise(resolve => setTimeout(resolve, 10));
+          assert.ok(live.response, "saved group metadata has loaded");
+          if (!await page.locator(".shell-group-rail").isVisible()) await page.locator('.preview-rail-float[data-side="left"]').click();
+          await page.locator(".shell-group-rail").click();
+          await page.waitForFunction(() => document.querySelector(".preview-frame")?.getAttribute("data-conversation-id") === "group_reconnect", undefined, { timeout: 3_000 });
+          assert.equal(await page.locator(".shell-group-rail").getAttribute("data-active"), "true");
+          await page.locator(".shell-chat-participants .shell-header-agent").getByText(live.title, { exact: true }).waitFor();
+          if (width < 860) assert.equal(await page.locator('.artifact-frame[role="dialog"]').count(), 0, "group entry shows the chat without a second selection behind a modal");
+        } finally { await page.close(); }
+      });
+    }
+    await t.test("without group history, the group rail opens member selection instead of a single-Bot chat", async () => {
+      scenario = "approval"; snapshotEvents = approvalSnapshot(); live.response = undefined;
+      const page = await browser!.newPage();
+      try {
+        await page.goto(`${base}agent-shell-reconnect`);
+        await page.locator('.shell-agent-face[data-status="needs-you"]').waitFor();
+        assert.equal(await page.locator('.chat-frame .shell-header-agent').isVisible(), false, "a fresh Bot welcome has no repeated header avatar");
+        await page.locator(".shell-group-rail").click();
+        await page.waitForFunction(() => document.querySelector(".preview-frame")?.getAttribute("data-conversation-id")?.startsWith("group_"));
+        await page.locator(".composer-greeting .shell-member-picker").waitFor();
+        assert.equal(await page.locator(".shell-group-rail").getAttribute("data-active"), "true");
+      } finally { await page.close(); }
     });
   } finally {
     await browser?.close();

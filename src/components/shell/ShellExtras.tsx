@@ -1,8 +1,9 @@
 import { observerText } from "../../i18n/copy/observer.ts";
 import { featureText, featureError, groupRosterTitle } from "../../i18n/copy/features.ts";
 import * as RadixPopover from "@radix-ui/react-popover";
-import { ChevronDown, Pencil, Plus, Settings } from "lucide-react";
+import { ChevronDown, Pencil, Settings } from "lucide-react";
 import { createContext, useContext, useRef, useState, type ReactNode, type RefObject } from "react";
+import type { useConversationNavigation } from "../../runtime/useConversationNavigation";
 import type { TranscriptScroll } from "../../runtime/useTranscriptScroll";
 import type { BranchAction } from "../../runtime/useMessageBranch";
 import type { ConversationSearch, SearchSession } from "../../runtime/useConversationSearch";
@@ -32,6 +33,7 @@ import {
 import { HarnessMark } from "./HarnessMark";
 import { Button } from "../ui/button";
 import "./shell.css";
+import "./workspaceNavigation.css";
 import { BotEditor, type BotEditorState } from "./BotEditor";
 import { BOT_NAMES, type BotProfile } from "../../runtime/botProfiles";
 
@@ -41,6 +43,19 @@ import { BOT_NAMES, type BotProfile } from "../../runtime/botProfiles";
  * retain their existing rendering.
  */
 export type ShellExtras = {
+  navigation?: ReturnType<typeof useConversationNavigation> & {
+    activeBotId: string;
+    activeSessionId: string;
+    sessions: readonly SearchSession[];
+    onSelect: (id: string) => void;
+    onNew: () => void;
+    openHistory: (groups?: boolean) => void;
+    onSelectGroup?: () => void;
+    onNewGroup: () => void;
+    groupActive: boolean;
+  };
+  panelProfile?: ReactNode;
+  memberModels?: Record<string, string>;
   taskRecovery?: TaskRecoveryActions;
   artifactCatalog?: ArtifactCatalogContext;
   botEditor?: BotEditorState;
@@ -180,6 +195,7 @@ export function AgentSwitcher({
   onSelect: (id: AgentPresetId) => void;
 }) {
   const { locale } = useLocale();
+  const { navigation } = useShellExtras();
   const t = settingsCopy[locale].shell;
   const roles = useCopy().composer.agentSettings.presets;
   const choices = bots ?? AGENT_PRESETS.filter(preset => preset.id !== "dsh").map(preset => ({ ...preset, presetId: preset.id, name: roles[preset.id].name, appearance: undefined }));
@@ -199,8 +215,9 @@ export function AgentSwitcher({
             className="shell-agent"
             data-active={active}
             aria-current={active ? "true" : undefined}
+            aria-label={`${bot.name}${statusLabel ? ` · ${statusLabel}` : ""}`}
             aria-disabled={disabled || !available || undefined}
-            title={bot.id === "system:observer" ? observerText(locale, available ? "chat" : "unavailable") : onEditBot ? (featureText(locale, "Click to chat, right-click to edit Bot")) : t.switchHint}
+            title={navigation ? `${bot.name} · ${statusLabel ?? HARNESS_LABELS[preset.harness]}` : bot.id === "system:observer" ? observerText(locale, available ? "chat" : "unavailable") : onEditBot ? (featureText(locale, "Click to chat, right-click to edit Bot")) : t.switchHint}
             onClick={() => { if (!disabled && available) { if (onSelectBot && bot.appearance) onSelectBot(bot as BotProfile); else onSelect(preset.id); } }}
             onContextMenu={event => { if (onEditBot && bot.appearance && bot.id !== "system:observer") { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot as BotProfile); } }}
             onKeyDown={event => { if (onEditBot && bot.appearance && bot.id !== "system:observer" && (event.key === "ContextMenu" || (event.shiftKey && event.key === "F10"))) { event.preventDefault(); onEditBot(bot as BotProfile); } }}
@@ -235,7 +252,7 @@ export function SidebarFooter({ onOpenSettings }: { onOpenSettings: () => void }
   const t = settingsCopy[locale].shell;
   return (
     <footer className="shell-sidebar-footer">
-      <button type="button" className="shell-footer-button" onClick={onOpenSettings}>
+      <button type="button" className="shell-footer-button" onClick={onOpenSettings} aria-label={t.settings} title={t.settings}>
         <Settings size={16} aria-hidden="true" />
         <span>{t.settings}</span>
       </button>
@@ -256,10 +273,16 @@ export function HeaderAgent({
   bot,
   onEditBot,
   onManageBot,
+  inviteMenu,
+  profile = false,
+  onOpenHistory,
 }: {
+  profile?: boolean;
+  onOpenHistory?: () => void;
   bot?: BotProfile;
   onEditBot?: (bot: BotProfile) => void;
   onManageBot?: (section: "memory" | "routines") => void;
+  inviteMenu?: ReactNode;
   avatars: Record<AgentPresetId, AvatarKind>;
   settings: AgentSettings;
   /** Display label; never parse UI punctuation to obtain the provider name. */
@@ -288,22 +311,23 @@ export function HeaderAgent({
   const model = !sourceKey || source === "provider" ? providerLabel : sourceKey === "claudeCodeModelSource" ? t.agents.sourceLocal : t.agents.sourceLocalCodex;
 
   return (
-    <RadixPopover.Root open={menuOpen} onOpenChange={setMenuOpen}>
+    <RadixPopover.Root open={menuOpen} onOpenChange={next => { if (next && onOpenHistory) onOpenHistory(); else setMenuOpen(next); }}>
       <RadixPopover.Trigger asChild>
-        <button ref={trigger} type="button" className="shell-header-agent shell-header-compact" aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}
+        <button ref={trigger} type="button" className={profile ? "shell-profile-agent" : "shell-header-agent shell-header-compact"} aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}
           onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot); } }}>
-          <AgentAvatar size={28} kind={avatars[preset.id]} presetId={bot?.presetId ?? preset.id} appearance={bot?.appearance} live={false} />
-          <strong className="shell-header-name">{name}</strong>
-          <span className="shell-header-engine" title={HARNESS_LABELS[preset.harness]}>
+          <AgentAvatar size={profile ? 80 : 28} kind={avatars[preset.id]} presetId={bot?.presetId ?? preset.id} appearance={bot?.appearance} live={false} />
+          {profile ? <span className="shell-profile-model"><HarnessMark harness={preset.harness} size={14} />{HARNESS_LABELS[preset.harness]} · {model}</span> : <strong className="shell-header-name">{name}</strong>}
+          <span className="shell-header-engine" hidden={profile} title={HARNESS_LABELS[preset.harness]}>
             <HarnessMark harness={preset.harness} size={14} />
           </span>
-          <ChevronDown className="shell-header-chevron" size={12} aria-hidden="true" />
+          {profile ? <Pencil className="shell-profile-edit" size={15} /> : <ChevronDown className="shell-header-chevron" size={12} aria-hidden="true" />}
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
         <RadixPopover.Content className={`shell-popover${sourceKey ? "" : " shell-model-popover"}`} align="center" sideOffset={8} collisionPadding={12}
           onCloseAutoFocus={event => { if (openingSettings.current) { event.preventDefault(); openingSettings.current = false; } }}>
           {bot && onEditBot ? <button type="button" className="shell-popover-link" onClick={() => manage(() => onEditBot(bot))}>{featureText(locale, "Edit this Bot")}</button> : null}
+          {inviteMenu}
           {onManageBot ? <>
             <button type="button" className="shell-popover-link" onClick={() => manage(() => onManageBot("memory"))}>{featureText(locale, "This Bot’s memories")}</button>
             <button type="button" className="shell-popover-link" onClick={() => manage(() => onManageBot("routines"))}>{featureText(locale, "This Bot’s routines")}</button>
@@ -360,7 +384,7 @@ function groupMemberAvatarKinds(
   });
 }
 
-/** Invite from the conversation header; the existing participants stay selected. */
+/** Invite from the Bot menu; the existing participants stay selected. */
 export function NewChatMenu({ avatars, members, onNewGroup }: {
   avatars: Record<AgentPresetId, AvatarKind>;
   members: readonly string[];
@@ -385,9 +409,7 @@ export function NewChatMenu({ avatars, members, onNewGroup }: {
   return (
     <RadixPopover.Root open={open} onOpenChange={(next) => { setOpen(next); if (!next) setPicked([]); }}>
       <RadixPopover.Trigger asChild>
-        <button type="button" className="rail-icon-btn shell-invite-agent" aria-label={featureText(locale, "Add agent")} title={featureText(locale, "Add an agent to the chat")}>
-          <Plus size={16} />
-        </button>
+        <button type="button" className="shell-popover-link">{featureText(locale, "Add agent")}</button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
         <RadixPopover.Content className="shell-popover shell-member-popover" align="start" sideOffset={6} collisionPadding={12}>
@@ -425,15 +447,19 @@ export function NewChatMenu({ avatars, members, onNewGroup }: {
  * The group's top bar. Before the first message it is a "To:" picker; afterwards the group's face and
  * names, which open a member panel (roles, engines, add/remove for the next message).
  */
-export function GroupHeader({ avatars, members, draft, onChange, hostId = members[0] }: {
+export function GroupHeader({ avatars, members, draft, onChange, hostId = members[0], profile = false, onOpenHistory, title }: {
   avatars: Record<AgentPresetId, AvatarKind>;
   members: readonly string[];
   draft: boolean;
+  profile?: boolean;
+  onOpenHistory?: () => void;
+  title?: string;
   hostId?: string;
   onChange: (members: string[]) => void | Promise<void>;
 }) {
   const { locale } = useLocale();
   const candidates = useGroupBots();
+  const { memberModels } = useShellExtras();
   const botNames = useBotNames();
   const [error, setError] = useState<string>();
   const [pending, setPending] = useState(false);
@@ -445,7 +471,7 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
     try { await onChange(next); } catch (error) { setError(featureError(locale, error)); } finally { setPending(false); }
   };
   const names = groupRosterTitle(members.map(m => botNames[m] ?? m), locale);
-  if (draft) {
+  if (draft && !profile) {
     return (
       <div className="shell-member-picker">
         <span className="shell-member-meta">{featureText(locale, "Members")}</span>
@@ -458,15 +484,18 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
     );
   }
   return (
-    <RadixPopover.Root>
+    <RadixPopover.Root onOpenChange={next => { if (next && onOpenHistory) onOpenHistory(); }} open={onOpenHistory ? false : undefined}>
       <RadixPopover.Trigger asChild>
-        <button type="button" className="shell-header-agent shell-header-compact" title={names}>
-          <GroupFace size={34} kinds={groupMemberAvatarKinds(members, candidates, avatars)} />
+        <button type="button" className={profile ? "shell-profile-agent shell-profile-group" : "shell-header-agent shell-header-compact"} title={names}>
+          {profile ? <span className="shell-profile-stack">{members.slice(0, 3).map(id => {
+            const bot = candidates.find(candidate => candidate.id === id);
+            return <span key={id}><AgentAvatar size={64} kind={bot ? avatars[bot.presetId] : "woman"} presetId={bot?.presetId} appearance={bot?.appearance} /></span>;
+          })}{members.length > 3 ? <span className="shell-profile-overflow">{members.length - 3}+</span> : null}</span> : <GroupFace size={34} kinds={groupMemberAvatarKinds(members, candidates, avatars)} />}
           <span className="shell-header-text">
-            <strong>{names}</strong>
-            <span>{featureText(locale, "Members: {count}", { count: members.length + 1 })}</span>
+            <strong>{profile ? members.map(id => botNames[id] ?? id).join(" · ") : title ?? names}</strong>
+            <span>{featureText(locale, "Members: {count}", { count: members.length + 1 })}{profile ? ` · ${featureText(locale, "Manage members")}` : ""}</span>
           </span>
-          <ChevronDown size={14} aria-hidden="true" />
+          {!profile ? <ChevronDown size={14} aria-hidden="true" /> : null}
         </button>
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
@@ -483,7 +512,7 @@ export function GroupHeader({ avatars, members, draft, onChange, hostId = member
                 <AgentAvatar size={24} kind={avatars[preset.presetId]} presetId={preset.presetId} appearance={preset.appearance} />
                 <span>{botNames[preset.id]} <span className="shell-member-meta">{featureText(locale, GROUP_ROLE[preset.presetId])}</span></span>
                 <span className="shell-member-meta shell-member-role">
-                  <HarnessMark harness={agentPreset(preset.presetId).harness} />{on ? featureText(locale, "In the group") : featureText(locale, "Removed")}
+                  <HarnessMark harness={agentPreset(preset.presetId).harness} />{HARNESS_LABELS[agentPreset(preset.presetId).harness]}{memberModels?.[preset.id] ? <small className="shell-member-model">{memberModels[preset.id]}</small> : "model" in preset && preset.model ? <small className="shell-member-model">{preset.model.model}</small> : null} · {on ? featureText(locale, "In the group") : featureText(locale, "Removed")}
                 </span>
               </button>
             );

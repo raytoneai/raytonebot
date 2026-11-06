@@ -8,6 +8,8 @@ import { useEffect, useId, useRef, useState, type ReactNode, type RefObject } fr
 import { searchResultKey, useConversationSearch, type SearchSession } from "../../runtime/useConversationSearch";
 import { useSearchWindow } from "../../runtime/useSearchWindow";
 import { useSearchShortcut } from "../../runtime/useSearchShortcut";
+import { scopedConversations, type ConversationScope } from "../../runtime/useConversationNavigation";
+import { SelectMenu } from "../ui";
 import { conversationHistoryGroup, groupSessionHistory } from "../../runtime/useSessionHistoryGroups";
 import { conversationSearchPattern } from "../../pi/conversationSearch";
 
@@ -32,7 +34,9 @@ export function SessionSidebar({
   sessionItems,
   onSelectSession,
   onNewSession,
+  history = false,
 }: {
+  history?: boolean;
   project: AgentFrontendProject;
   onCollapse?: () => void;
   /** The prompt currently shown as the "我" bubble; its session row is highlighted. */
@@ -57,7 +61,9 @@ export function SessionSidebar({
   const [searchOpen, setSearchOpen] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [searchOverlayRoot, setSearchOverlayRoot] = useState<HTMLElement | null>(null);
-  const [query, setQuery] = useState("");
+  const [localQuery, setLocalQuery] = useState("");
+  const query = history && extras.navigation ? extras.navigation.query : localQuery;
+  const setQuery = history && extras.navigation ? extras.navigation.setQuery : setLocalQuery;
   const deletion = useSessionDeletion(sidebarRef);
   const renaming = useSessionRename(sidebarRef);
   const sessions: readonly SessionSidebarItem[] = onSelectSession
@@ -73,8 +79,8 @@ export function SessionSidebar({
   const effectiveActive = sessions.some((session) => session.id === requestedActiveId) || activeSessionId !== undefined
     ? requestedActiveId
     : sessions[0]?.id;
-  const result = useConversationSearch(query, searchOpen, sessions, extras.searchConversations);
-  const filteredSessions = result.sessions;
+  const result = useConversationSearch(query, history || searchOpen, sessions, extras.searchConversations);
+  const filteredSessions = history && extras.navigation ? scopedConversations(result.sessions, extras.navigation.scope, extras.navigation.activeBotId, extras.sessionBotIds) : result.sessions;
   // Real sessions carry a createdAt; group them by the actual day. Rows without one
   // (legacy prompt rows, demo filler) keep the positional fallback so a populated
   // preview still reads naturally.
@@ -89,9 +95,12 @@ export function SessionSidebar({
     : sessions.slice(3);
   const searchToday = filteredSessions.filter((session) => session.createdAt === undefined
     ? today.some((entry) => entry.id === session.id) : session.createdAt >= dayStart.getTime());
+  const yesterdayStart = new Date(dayStart); yesterdayStart.setDate(yesterdayStart.getDate() - 1);
   const todayIds = new Set(searchToday.map(searchResultKey));
   const searchEarlier = filteredSessions.filter((session) => !todayIds.has(searchResultKey(session)));
-  const searchWindow = useSearchWindow([searchToday, searchEarlier], query);
+  const searchYesterday = searchEarlier.filter(session => (session.createdAt ?? 0) >= yesterdayStart.getTime());
+  const searchOlder = searchEarlier.filter(session => (session.createdAt ?? 0) < yesterdayStart.getTime());
+  const searchWindow = useSearchWindow(history ? [searchToday, searchYesterday, searchOlder] : [searchToday, searchEarlier], `${history && extras.navigation ? `${extras.navigation.scope}:${extras.navigation.activeBotId}:` : ""}${query}`, history ? { heading: 28, rowGap: 4, groupGap: 16, rowHeight: 48 } : undefined);
   const botGroups = extras.historyGroups ? groupSessionHistory(sessions, extras.sessionBotIds) : undefined;
   const historyWindow = useSearchWindow(botGroups
     ? botGroups.map(group => extras.historyGroups!.expanded[group.id] ? group.items : [])
@@ -100,7 +109,12 @@ export function SessionSidebar({
     : { heading: grouping ? 20 : 0, rowGap: 3, groupGap: 16, rowHeight: 34 });
   // A modal covers the whole frame, including sidebar controls and the compact drawer.
   const resolveSearchOverlayRoot = () => sidebarRef.current?.closest<HTMLElement>(".preview-frame") ?? null;
-  useSearchShortcut(sidebarRef, search, () => {
+  useSearchShortcut(sidebarRef, search && !history, () => {
+    if (extras.navigation) {
+      extras.navigation.openHistory(); extras.navigation.setScope("all");
+      requestAnimationFrame(() => sidebarRef.current?.closest(".preview-frame")?.querySelector<HTMLInputElement>(".session-history-search input")?.focus());
+      return;
+    }
     searchReturnFocus.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     setSearchOverlayRoot(resolveSearchOverlayRoot());
     setSearchOpen(true);
@@ -226,6 +240,76 @@ export function SessionSidebar({
     }
   }, [searchOpen]);
 
+  useEffect(() => {
+    if (!history || !extras.navigation) return;
+    const saved = extras.navigation.scrollTop.current;
+    const frame = requestAnimationFrame(() => {
+      const list = sidebarRef.current?.querySelector<HTMLElement>(".session-history-list");
+      if (list) { list.scrollTop = saved; searchWindow.onScroll(); }
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [history]);
+
+  if (history && extras.navigation) {
+    const nav = extras.navigation;
+    const select = (session: SearchSession) => {
+      if (extras.onSelectSearchResult) extras.onSelectSearchResult(session);
+      else onSelectSession?.(session.id);
+    };
+    return <section ref={sidebarRef} className="session-history-panel" aria-label={c.history}>
+      <div className="session-history-toolbar">
+        <SelectMenu size="sm" value={nav.scope} ariaLabel={featureText(locale, "Conversation scope")}
+          options={[{ value: "current", label: featureText(locale, "This Bot") }, { value: "group", label: c.groupChats }, { value: "all", label: featureText(locale, "All chats") }]}
+          onValueChange={value => { nav.scrollTop.current = 0; nav.setScope(value as ConversationScope); }} />
+        <label className="workspace-search-field session-history-search"><Search size={15} aria-hidden="true" />
+          <input type="search" maxLength={200} value={query} placeholder={c.searchPlaceholder} aria-label={c.searchPlaceholder}
+            onChange={event => { nav.scrollTop.current = 0; setQuery(event.target.value); }} />
+          {query ? <button className="rail-icon-btn" type="button" aria-label={featureText(locale, "Clear search")}
+            onClick={() => setQuery("")}><span aria-hidden="true">×</span></button> : null}
+        </label>
+      </div>
+      {nav.scope === "group" ? <button type="button" className="session-new-group" onClick={nav.onNewGroup}><MessagesSquare size={16} />{featureText(locale, "New group chat")}</button> : null}
+      <nav className="session-list session-history-list" ref={searchWindow.ref} aria-busy={result.status === "loading" || result.more === "loading"}
+        onScroll={event => { searchWindow.onScroll(); nav.scrollTop.current = event.currentTarget.scrollTop;
+          if (event.currentTarget.scrollHeight - event.currentTarget.scrollTop - event.currentTarget.clientHeight < 180) void result.loadMore(); }}
+        onFocusCapture={event => searchWindow.onFocus(event.target.dataset.sessionKey)}
+        onBlurCapture={event => { if (!event.currentTarget.contains(event.relatedTarget)) searchWindow.onFocus(); }}
+        onKeyDown={event => {
+          if (event.nativeEvent.isComposing) return;
+          const target = event.target as HTMLElement;
+          if (event.key === "Delete" && target.dataset.sessionId && deletion.available) { event.preventDefault(); deletion.ask(target.dataset.sessionId); }
+          else if (event.key === "F2" && target.dataset.sessionId) { event.preventDefault(); renaming.start(target.dataset.sessionId); }
+          else if (target.matches(".session-item") && ["ArrowDown", "ArrowUp", "Home", "End"].includes(event.key)) {
+            event.preventDefault(); const index = Number(target.dataset.searchIndex);
+            searchWindow.focus(event.key === "Home" ? 0 : event.key === "End" ? searchWindow.items.length - 1 : Math.max(0, Math.min(searchWindow.items.length - 1, index + (event.key === "ArrowDown" ? 1 : -1))));
+          }
+        }}>
+        {searchToday.length ? <SessionGroup label={c.groupToday} items={searchToday} window={searchWindow.groups[0]} activeId={effectiveActive} query={query}
+          onSelect={onSelectSession} onSelectResult={query ? select : undefined} deletion={query ? undefined : deletion} renaming={query ? undefined : renaming} /> : null}
+        {searchYesterday.length ? <SessionGroup label={featureText(locale, "Yesterday")} items={searchYesterday} window={searchWindow.groups[1]} activeId={effectiveActive} query={query}
+          onSelect={onSelectSession} onSelectResult={query ? select : undefined} deletion={query ? undefined : deletion} renaming={query ? undefined : renaming} /> : null}
+        {searchOlder.length ? <SessionGroup label={c.groupEarlier} items={searchOlder} window={searchWindow.groups[2]} activeId={effectiveActive} query={query}
+          onSelect={onSelectSession} onSelectResult={query ? select : undefined} deletion={query ? undefined : deletion} renaming={query ? undefined : renaming} /> : null}
+        {!filteredSessions.length && result.status !== "loading" ? <p className="session-history-empty">{c.noResults}</p> : null}
+        {result.status !== "ready" || result.more === "failed" ? <p role="status">{result.status === "loading" ? c.searchLoading : result.status === "failed" ? c.searchFailed : result.more === "failed" ? c.searchMoreFailed : c.searchPartial}</p> : null}
+        {result.hasMore ? <button type="button" className="session-new-group" disabled={result.more === "loading"} onClick={() => void result.loadMore()}>{result.more === "loading" ? c.searchMoreLoading : featureText(locale, "Load more")}</button> : null}
+      </nav>
+    </section>;
+  }
+  if (extras.navigation) {
+    const currentGroup = extras.groupFaces?.[activeSessionId ?? ""] ?? Object.values(extras.groupFaces ?? {})[0] ?? ["woman", "man", "boy"];
+    return <aside ref={sidebarRef} className="session-sidebar session-bot-rail" aria-label={c.ariaLabel}>
+      <button type="button" className="session-rail-brand" onClick={extras.onCreateBot} aria-label={featureText(locale, "Create Bot")} title={featureText(locale, "Create Bot")}>
+        <svg viewBox="2 11 52 52" role="img" aria-label="RaytoneBot"><use href="/brand/raytone-bot.svg?v=unified-gold-v8#raytone-logo" /></svg>
+      </button>
+      <div className="session-rail-bots">{extras.agentSwitcher}
+        <button type="button" className="shell-group-rail" aria-label={c.groupChats} title={c.groupChats} data-active={extras.navigation.groupActive || undefined}
+          onClick={extras.navigation.onSelectGroup ?? (() => extras.navigation!.openHistory(true))}><GroupFace size={36} kinds={currentGroup} /><span>{c.groupChats}</span></button>
+      </div>
+      {extras.botError ? <p className="shell-bot-error" role="alert">{extras.botError}</p> : null}
+      {extras.sidebarFooter}
+    </aside>;
+  }
   return (
     <aside ref={sidebarRef} className="session-sidebar" data-preview-anchor="sidebar" aria-label={c.ariaLabel}>
       <header className="session-brand">
@@ -518,8 +602,9 @@ function SessionGroup({
   const avatars = useShellExtras().sessionAvatars;
   const groupFaces = useShellExtras().groupFaces;
   const groupPreviews = useShellExtras().groupPreviews;
-  const { bots, sessionBotIds, onEditBot } = useShellExtras();
+  const { bots, sessionBotIds, onEditBot, navigation } = useShellExtras();
   const c = useCopy().workspace.sessionSidebar;
+  const { locale } = useLocale();
   const pattern = conversationSearchPattern(query ?? "");
   return (
     <section className="session-group" data-bot-group={disclosure ? "true" : undefined} data-windowed={window ? "true" : undefined} style={window ? { height: window.height } : undefined}>
@@ -592,13 +677,14 @@ function SessionGroup({
               onClick={() => onSelectResult ? onSelectResult(session) : onSelect?.(id)}
             >
               {disclosure ? null : groupFaces?.[id] ? (
-                <span className="session-item-avatar" data-group="true" aria-hidden="true"><GroupFace size={20} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
-              ) : avatars?.[id] ? (
+                <span className="session-item-avatar" data-group="true" aria-hidden="true"><GroupFace size={navigation ? 28 : 20} kinds={groupFaces?.[id] ?? ["woman", "man", "boy"]} /></span>
+              ) : avatars?.[id] && !navigation ? (
                 <span className="session-item-avatar" aria-hidden="true" onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.stopPropagation(); onEditBot(bot); } }}><AgentAvatar size={18} kind={avatars[id]} presetId={bot?.presetId} appearance={bot?.appearance} /></span>
               ) : null}
               <span className="session-item-label">{preview || title}{role ? <span className="session-search-author"> {role === "user" ? c.searchUser : c.searchAgent}</span> : null}{snippet ? <span className="session-search-snippet">{
                 match ? <>{snippet.slice(0, match.index)}<mark>{match[0]}</mark>{snippet.slice(match.index + match[0].length)}</> : snippet
               }</span> : null}</span>
+              {navigation && !snippet && session.createdAt ? <time className="session-item-time">{new Date(session.createdAt).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit", hour12: false })}</time> : null}
             </button>
             {deletion?.available ? (
               <button type="button" className="session-item-delete" tabIndex={-1} disabled={running}

@@ -11,6 +11,7 @@ import { useLearning } from "./runtime/useLearning";
 import { useVault } from "./runtime/useVault";
 import { useTaskRecovery } from "./runtime/useTaskRecovery";
 import { useAppViewport } from "./runtime/useAppViewport";
+import { useConversationNavigation, conversationToResume } from "./runtime/useConversationNavigation";
 import { useOutputPanel } from "./runtime/useOutputPanel";
 import { useCompactDrawer } from "./runtime/useCompactDrawer";
 import { useAutoHiddenRails } from "./runtime/useAutoHiddenRails";
@@ -21,6 +22,7 @@ import type { AgentUXEvent } from "@agent-ux/protocol";
 import { createAgentUXViewModel, type AgentUXToolTimelineItem } from "@agent-ux/render-core";
 import { replayAgentUXEvents } from "@agent-ux/runtime";
 import { PanelLeft, PanelRight } from "lucide-react";
+import { AnimatePresence } from "motion/react";
 
 import {
   normalizeOutputPanelRequest,
@@ -81,7 +83,7 @@ import {
 } from "./pi/piClient";
 import { piRuntimeConfigurationForProvider } from "./pi/piProviderSync";
 import { isGroupConversation } from "./pi/piConversationState";
-import { isAgentPresetId, loadAgentSettings, saveAgentSettings, settingsUseProvider, type AgentPresetId, type AgentSettings } from "./pi/harnessCatalog";
+import { agentPreset, isAgentPresetId, loadAgentSettings, saveAgentSettings, settingsUseProvider, type AgentPresetId, type AgentSettings } from "./pi/harnessCatalog";
 import { CustomAvatarsProvider, AgentPersonaProvider, type AgentPersona, type AvatarKind } from "./avatars/AgentPersona";
 import type { TranscriptScroll } from "./runtime/useTranscriptScroll";
 import { InlineApprovalPrompt } from "./components/agent-preview/chatframe/approval";
@@ -308,6 +310,7 @@ export function AgentApp() {
   const activeObserver = isObserverConversation(activePiConversation);
   const activeBot = activeObserver && observerBot ? observerBot : knownBots.find(bot => bot.id === (activePiConversation.groupHostId ?? conversationBotId(botStore, activePiConversation) ?? agentSettings.presetId))
     ?? bots.find(bot => bot.presetId === agentSettings.presetId) ?? bots[0];
+  const conversationNavigation = useConversationNavigation(activePiConversationId, activeBot.id, isGroupConversation(activePiConversation));
   const presetBot = (id: string) => resolveParticipantBot(id, knownBots, bots, activePiConversation.groupParticipants);
   const conversationTitle = (conversation: EphemeralPiConversation) => groupConversationTitle(conversation, locale,
     bots, id => BOT_NAMES[presetBot(id).presetId]);
@@ -488,7 +491,11 @@ export function AgentApp() {
   ) : null;
 
   const activeConversationIdRef = useRef(activePiConversationId);
-  const transcriptScroll = useRef<TranscriptScroll | undefined>(undefined);
+  const transcriptPositions = useRef(new Map<string, { current: TranscriptScroll | undefined }>());
+  const transcriptScroll = useMemo(() => {
+    if (!transcriptPositions.current.has(activePiConversationId)) transcriptPositions.current.set(activePiConversationId, { current: undefined });
+    return transcriptPositions.current.get(activePiConversationId)!;
+  }, [activePiConversationId]);
   const [searchTarget, setSearchTarget] = useState<{ conversationId: string; textId: string; nonce: string }>();
   activeConversationIdRef.current = activePiConversationId;
   const activeStreamIdRef = useRef(streamId);
@@ -656,8 +663,42 @@ export function AgentApp() {
   const leftSidebarVisible = leftSidebarMounted && !leftCollapsed;
   // Available = it could be shown. Visible = the reader has opened it. Clicking an artifact
   // keys on the former, so a collapsed panel reopens instead of being bypassed for a modal.
-  const rightPanelAvailable = hasRightPanel && !autoHiddenRails.right && !isWelcome;
+  const rightPanelAvailable = hasRightPanel && !autoHiddenRails.right;
   const rightPanelVisible = rightPanelAvailable && !rightCollapsed;
+
+  function openConversationHistory(groups = false) {
+    const scope = groups || isGroupConversation(activePiConversation) ? "group" : "current";
+    if (conversationNavigation.scope !== scope) { conversationNavigation.setQuery(""); conversationNavigation.scrollTop.current = 0; }
+    conversationNavigation.setScope(scope);
+    setDrawerOpen(false);
+    outputPanel.showSource("history", rightPanelAvailable);
+  }
+
+  function resumeGroupConversation() {
+    const id = conversationToResume(piConversations, "group", conversationNavigation.lastVisited.current.get("group"), botStore.conversations);
+    if (id) selectPiConversation(id);
+    else {
+      const host = activeObserver ? bots[0] : activeBot;
+      startNewSession(true, [host.id], host);
+    }
+    conversationNavigation.setScope("group");
+    conversationNavigation.setQuery("");
+    conversationNavigation.scrollTop.current = 0;
+    setDrawerOpen(false);
+    outputPanel.selectSource("history");
+    outputPanel.setWorkspaceModalOpen(false);
+    if (rightPanelAvailable) setRightCollapsed(false);
+  }
+
+  function resumeBotConversation(bot: BotProfile) {
+    if (streamId) return startConversationWith(bot.presetId, bot);
+    conversationNavigation.setScope("current");
+    if (!isGroupConversation(activePiConversation) && activeBot.id === bot.id) { setDrawerOpen(false); return; }
+    conversationNavigation.setQuery(""); conversationNavigation.scrollTop.current = 0;
+    const id = conversationToResume(piConversations, bot.id, conversationNavigation.lastVisited.current.get(bot.id), botStore.conversations);
+    if (id) selectPiConversation(id);
+    else startConversationWith(bot.presetId, bot);
+  }
 
   function openArtifact(request: OutputPanelOpenRequest) {
     const normalized = normalizeOutputPanelRequest(request);
@@ -1228,7 +1269,7 @@ export function AgentApp() {
     // A run in flight keeps going in its own conversation; it only draws while on screen.
     const conversation = group
       ? { ...createEphemeralPiConversation(`group_${crypto.randomUUID().slice(0, 12)}`),
-        title: groupRosterTitle(members.map(m => presetBot(m).name), locale), groupMembers: members, groupHostId: "assistant", groupParticipants: bots.map(({ id, name, presetId }) => ({ id, name, presetId })) }
+        title: groupRosterTitle(members.map(m => presetBot(m).name), locale), groupMembers: members, groupHostId: bot.id, groupParticipants: bots.map(({ id, name, presetId }) => ({ id, name, presetId })) }
       : { ...createEphemeralPiConversation(), agentPreset: bot.presetId };
     if (!group) {
       try { bindBotConversation(conversation.id, bot.id); setBotError(undefined); }
@@ -1351,6 +1392,7 @@ export function AgentApp() {
     activeConversationIdRef.current = conversation.id;
     setActivePiConversationId(conversation.id);
     setPiEvents([...conversation.events]);
+    if (autoHiddenRails.right) outputPanel.setWorkspaceModalOpen(false);
     // A conversation belongs to the role that answered it; reopening it brings that role back.
     if (isAgentPresetId(conversation.agentPreset) && conversation.agentPreset !== agentSettings.presetId) {
       const next = { ...agentSettings, presetId: conversation.agentPreset };
@@ -1366,6 +1408,11 @@ export function AgentApp() {
     const selectedBot = isGroupConversation(conversation) ? undefined : knownBots.find(bot => bot.id === conversationBotId(botStore, conversation));
     if (!isObserverConversation(conversation)) void synchronizePiRuntime(activeProject, conversation.id, undefined, selectedBot).catch(() => undefined);
   }
+
+  const newChat = () => {
+    const group = isGroupConversation(activePiConversation);
+    startNewSession(group, group ? [...groupMembersOf(activePiConversation)] : undefined);
+  };
 
   const slotContext: SlotRenderContext = {
     project: activeProject,
@@ -1505,14 +1552,39 @@ export function AgentApp() {
         avatars={PRESET_AVATARS}
         bots={streamId ? undefined : observerBot ? [...bots, observerBot] : bots}
         activeBotId={activeBot.id}
-        onSelectBot={bot => startConversationWith(bot.presetId, bot)}
+        onSelectBot={resumeBotConversation}
         onEditBot={streamId ? undefined : editBot}
         activeId={agentSettings.presetId}
         statuses={agentStatuses}
         harnesses={piRuntimeState?.harnesses}
-        onSelect={startConversationWith}
+        onSelect={id => resumeBotConversation(presetBot(id))}
         groupActive={isGroupConversation(activePiConversation)}
       />
+    ),
+    navigation: streamId ? undefined : {
+      ...conversationNavigation, activeBotId: activeBot.id, activeSessionId: activePiConversationId,
+      sessions: piSessionItems, onSelect: selectPiConversation, onNew: newChat,
+      openHistory: openConversationHistory,
+      onSelectGroup: resumeGroupConversation,
+      onNewGroup: () => { const host = activeObserver ? bots[0] : activeBot; startNewSession(true, [host.id], host); conversationNavigation.setScope("group"); if (autoHiddenRails.right) outputPanel.setWorkspaceModalOpen(false); },
+      groupActive: isGroupConversation(activePiConversation),
+    },
+    memberModels: Object.fromEntries(knownBots.map(bot => {
+      const config = botModelConfiguration(activeProject, { ...agentSettings, presetId: bot.presetId }, bot);
+      const harness = agentPreset(bot.presetId).harness;
+      const local = harness === "claude-code" && config.settings.claudeCodeModelSource !== "provider" ? settingsCopy[locale].agents.sourceLocal
+        : harness === "codex" && config.settings.codexModelSource !== "provider" ? settingsCopy[locale].agents.sourceLocalCodex : undefined;
+      return [bot.id, local ?? config.model];
+    })),
+    panelProfile: streamId ? undefined : isGroupConversation(activePiConversation) ? (
+      <GroupHeader profile avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)} hostId={activePiConversation.groupHostId}
+        draft={false} onChange={members => setGroupMembers(activePiConversationId, members)} />
+    ) : activeObserver ? <div className="shell-profile-agent"><span>{observerBot?.name ?? "Observer"}</span><small>{observer.state?.model?.model}</small></div> : (
+      <HeaderAgent profile avatars={PRESET_AVATARS} settings={activeModel.settings} bot={activeBot}
+        providerLabel={activeModel.model} providerName={activeModel.provider?.label ?? activeModel.providerId}
+        onEditBot={editBot} onManageBot={section => openSettings(section, activeBot.id)}
+        inviteMenu={<NewChatMenu avatars={PRESET_AVATARS} members={[activeBot.id]} onNewGroup={members => setGroupMembers(activePiConversationId, members)} />}
+        onChange={changeAgentSettings} onManageProviders={() => openSettings("providers")} />
     ),
     groupHostId: streamId ? undefined : isGroupConversation(activePiConversation) ? activePiConversation.groupHostId ?? "assistant" : undefined,
     groupTyping: !streamId && runningConversationIds.has(activePiConversationId) ? groupTyping : undefined,
@@ -1527,11 +1599,13 @@ export function AgentApp() {
     sidebarFooter: <SidebarFooter onOpenSettings={() => openSettings("providers")} />,
     headerAgent: streamId ? undefined : <div className="shell-chat-participants">{isGroupConversation(activePiConversation) ? (
       <GroupHeader avatars={PRESET_AVATARS} members={groupMembersOf(activePiConversation)} hostId={activePiConversation.groupHostId}
+        onOpenHistory={() => openConversationHistory(true)} title={conversationTitle(activePiConversation)}
         draft={activePiConversation.events.length === 0 && !activePiConversation.stored}
         onChange={(members) => setGroupMembers(activePiConversationId, members)} />
     ) : (
       activeObserver ? <span>{observerBot?.name ?? "Observer"} · {observer.state?.model ? `${observer.state.model.provider} / ${observer.state.model.model}` : observerText(locale, "unavailable")}</span> : <HeaderAgent
         avatars={PRESET_AVATARS}
+        onOpenHistory={() => openConversationHistory()}
         settings={activeModel.settings}
         bot={streamId ? undefined : activeBot}
         onEditBot={streamId ? undefined : editBot}
@@ -1541,10 +1615,7 @@ export function AgentApp() {
         onChange={changeAgentSettings}
         onManageProviders={() => openSettings("providers")}
       />
-    )}{!activeObserver ? <NewChatMenu avatars={PRESET_AVATARS}
-      members={isGroupConversation(activePiConversation) ? groupMembersOf(activePiConversation) : [activeBot.id]}
-      onNewGroup={(members) => setGroupMembers(activePiConversationId, members)} /> : null}
-    </div>,
+    )}</div>,
     searchConversations: streamId ? undefined : searchConversations,
     onDeleteSession: streamId ? undefined : deletePiConversation,
     onRenameSession: streamId ? undefined : renamePiConversation,
@@ -1594,7 +1665,7 @@ export function AgentApp() {
     },
     workspaceScope: activeObserver ? undefined : agentSettings.presetId,
     workspaceBotName: activeBot.name,
-    outputPanel: streamId ? undefined : activeObserver ? { source: "artifact", browserAvailable: false, select: () => outputPanel.selectSource("artifact") } : { source: outputPanel.source, browserAvailable: outputPanel.browserAvailable, select: outputPanel.selectSource },
+    outputPanel: streamId ? undefined : activeObserver ? { source: outputPanel.source === "history" ? "history" : "artifact", browserAvailable: false, select: source => outputPanel.selectSource(source === "history" ? "history" : "artifact") } : { source: outputPanel.source, browserAvailable: outputPanel.browserAvailable, select: outputPanel.selectSource },
     workspaceRevision: piRunning,
     workspaceSharedAvailable: Boolean(piRuntimeState?.workspace?.shared),
     workspace: piRuntimeState?.workspace,
@@ -1655,8 +1726,8 @@ export function AgentApp() {
       {renderSlots(visibleLayoutSlots, "composer", slotContext)}
     </section>
   );
-  const mainSize = activeProject.layout.mainSize + "%";
-  const rightSize = activeProject.layout.rightPanelSize + "%";
+  const mainSize = streamId ? activeProject.layout.mainSize + "%" : "68%";
+  const rightSize = streamId ? activeProject.layout.rightPanelSize + "%" : "32%";
 
   return (
     // Keep wrapper sizing in app.css's shared `.builder-surface` / `.exported-shell` rule:
@@ -1675,6 +1746,7 @@ export function AgentApp() {
           className="preview-frame"
           data-conversation-id={activePiConversationId}
           data-has-sidebar={hasSidebar}
+          data-workspace-navigation={!streamId || undefined}
           data-has-right-panel={rightPanelVisible}
           data-left-collapsed={leftCollapsed}
           data-right-collapsed={rightCollapsed}
@@ -1749,11 +1821,13 @@ export function AgentApp() {
               <span className="legacy-rail-icon"><PanelRight size={15} /></span>
             </button>
           ) : null}
-          {outputPanel.workspaceModalOpen ? (
-            <Suspense fallback={null}>
-              <OutputFrame project={activeProject} viewModel={displayViewModel} fullscreen openItems={liveOutputPanelItems} activeOpenItemId={outputPanel.activeItemId} onSelectOpenItem={outputPanel.setActiveItemId} onCloseOpenItem={closeOutputPanelItem} onSourceChange={(source) => { outputPanel.selectSource(source); }} onCollapse={() => outputPanel.setWorkspaceModalOpen(false)} />
-            </Suspense>
-          ) : null}
+          <Suspense fallback={null}>
+            <AnimatePresence>
+              {outputPanel.workspaceModalOpen ? (
+                <OutputFrame key="workspace-drawer" project={activeProject} viewModel={displayViewModel} fullscreen openItems={liveOutputPanelItems} activeOpenItemId={outputPanel.activeItemId} onSelectOpenItem={outputPanel.setActiveItemId} onCloseOpenItem={closeOutputPanelItem} onSourceChange={(source) => { outputPanel.selectSource(source); }} onCollapse={() => outputPanel.setWorkspaceModalOpen(false)} />
+              ) : null}
+            </AnimatePresence>
+          </Suspense>
           {outputPanel.outputModalOpen ? (
             <Suspense fallback={null}>
               <OutputPanelModal

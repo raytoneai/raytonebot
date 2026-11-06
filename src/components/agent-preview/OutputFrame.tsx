@@ -1,6 +1,7 @@
 import { featureText } from "../../i18n/copy/features.ts";
 import { ArrowLeft, Download, File, Folder, Maximize2, Minimize2, PanelRight, RefreshCw, Search, X } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { motion, useIsPresent, useReducedMotion, type Transition } from "motion/react";
 import type { AgentUXArtifactTimelineItem, AgentUXViewModel } from "@agent-ux/render-core";
 
 import type { AgentFrontendProject, OutputSource } from "../../schema/agentuxConfig";
@@ -11,6 +12,7 @@ import { useShellExtras } from "../shell/ShellExtras";
 import { SelectMenu } from "../ui";
 import { workArtifacts } from "../../runtime/workArtifacts";
 import { outputPanelItemFromRenderedArtifact } from "./outputframe/artifactPreview";
+import { SessionSidebar } from "./SessionSidebar";
 import { OutputContent } from "./outputframe/OutputContent";
 import { OpenedOutputItem } from "./outputframe/OutputTabs";
 import type { OutputPanelSource } from "./outputframe/types";
@@ -28,6 +30,8 @@ import { liveHtmlWrite, type LiveHtmlWrite } from "../../runtime/liveHtmlWrite";
 export type { OutputPanelItem, OutputPanelOpenRequest } from "./outputframe/panelItem";
 export { languageFromFileName, fallbackOutputPanelBody, normalizeOutputPanelRequest } from "./outputframe/panelItem";
 export { OutputPanelModal } from "./outputframe/OutputPanelModal";
+
+const drawerTransition: Transition = { duration: 0.22, ease: [0.16, 1, 0.3, 1] };
 
 export function OutputFrame({
   project,
@@ -55,7 +59,12 @@ export function OutputFrame({
   const [query, setQuery] = useState("");
   const [truncated, setTruncated] = useState(false);
   const c = copy.workspace.outputFrame;
-  const { workspaceScope, workspaceBotName, workspaceRevision, workspaceSharedAvailable, onOpenFile, outputPanel, toolLog, artifactCatalog } = useShellExtras();
+  const { workspaceScope, workspaceBotName, workspaceRevision, workspaceSharedAvailable, onOpenFile, outputPanel, toolLog, artifactCatalog, navigation, panelProfile } = useShellExtras();
+  const drawer = fullscreen && Boolean(navigation);
+  const isPresent = useIsPresent();
+  const reduceMotion = useReducedMotion();
+  const drawerOpen = { opacity: 1, transform: "translateX(0%)" };
+  const drawerClosed = { opacity: 0, transform: reduceMotion ? "translateX(0%)" : "translateX(110%)" };
   const [expandedState, setExpanded] = useState(false);
   const expanded = fullscreen || expandedState;
   const [localSource, setLocalSource] = useState<OutputPanelSource>(project.output.source);
@@ -102,7 +111,7 @@ export function OutputFrame({
   }, [showFiles, workspaceScope, scope, path, revision, workspaceRevision, query, workspacePreview]);
   useEffect(() => {
     const panel = panelRef.current;
-    if (!expanded || !panel) return;
+    if (!expanded || !isPresent || !panel) return;
     const previouslyFocused = document.activeElement as HTMLElement | null;
     focusEdge();
     const close = (event: KeyboardEvent) => {
@@ -117,7 +126,7 @@ export function OutputFrame({
       window.removeEventListener("keydown", close);
       if (previouslyFocused?.isConnected && (panel.contains(document.activeElement) || document.activeElement === document.body)) previouslyFocused.focus({ preventScroll: true });
     };
-  }, [expanded, fullscreen]);
+  }, [expanded, fullscreen, isPresent]);
   const artifacts = toolLog ? workArtifacts(viewModel.timeline) : [];
   const artifact: AgentUXArtifactTimelineItem | undefined = toolLog ? artifacts.at(-1)
     : [...viewModel.timeline].reverse().find((item): item is AgentUXArtifactTimelineItem => item.kind === "artifact");
@@ -142,28 +151,39 @@ export function OutputFrame({
   return (
     <>
       {expanded ? (
-        <div className="artifact-expand-backdrop" aria-hidden="true" onClick={closeExpanded} />
+        <motion.div className="artifact-expand-backdrop" data-workspace-drawer={drawer || undefined}
+          aria-hidden="true" inert={!isPresent} onClick={closeExpanded}
+          initial={drawer ? { opacity: 0 } : false} animate={drawer ? { opacity: 1 } : undefined}
+          exit={drawer ? { opacity: 0 } : undefined} transition={drawerTransition} />
       ) : null}
-      <section
+      <motion.section
         ref={panelRef}
         className="utility-card artifact-frame"
+        data-workspace-drawer={drawer || undefined}
+        inert={!isPresent}
+        initial={drawer ? drawerClosed : false}
+        animate={drawer ? drawerOpen : undefined}
+        exit={drawer ? drawerClosed : undefined}
+        transition={drawerTransition}
         data-preview-anchor="output"
         data-expanded={expanded}
         data-output-source={source}
+        data-workspace-navigation={Boolean(navigation)}
         data-artifact-renderer={project.output.artifactRenderer}
         data-output-surface={project.output.surface}
         data-view={`${source}:${artifactRenderer}`}
         role={fullscreen ? "dialog" : undefined}
-        aria-modal={fullscreen || undefined}
+        aria-modal={fullscreen && isPresent || undefined}
         aria-label={fullscreen ? c.sourceLabel : undefined}
       >
         {/* Native Tab traversal can leave an opaque iframe without a parent keydown event. */}
         {expanded ? <span data-output-focus-guard tabIndex={0} style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} onFocus={() => focusEdge(true)} /> : null}
-        <header className="utility-header output-header" aria-label={source === "workspace" ? c.files : source === "browser" ? c.sourceBrowser : toolLog && source === "artifact" ? c.sourceArtifact : outputTitle(source, artifactRenderer, c)}>
+        {navigation ? <div className="output-profile">{panelProfile}</div> : null}
+        <header className="utility-header output-header" aria-label={source === "history" ? featureText(locale, "Sessions") : source === "workspace" ? c.files : source === "browser" ? c.sourceBrowser : toolLog && source === "artifact" ? c.sourceArtifact : outputTitle(source, artifactRenderer, c)}>
           <div className="utility-header-leading">
             {onSourceChange || outputPanel ? (
               <OutputSourceSwitch source={source} copy={c} onChange={selectSource}
-                browser={outputPanel?.browserAvailable} workspace={Boolean(workspaceScope)} />
+                browser={outputPanel?.browserAvailable} workspace={Boolean(workspaceScope)} history={Boolean(navigation)} />
             ) : null}
           </div>
           <div className="utility-header-actions">
@@ -174,7 +194,10 @@ export function OutputFrame({
               aria-expanded={expanded}
               onClick={() => expanded ? closeExpanded() : setExpanded(true)}
             >
-              {fullscreen ? <X size={15} /> : expanded ? (
+              {fullscreen ? <>
+                <span className="native-rail-icon"><RightSidebarIcon size={15} /></span>
+                <span className="legacy-rail-icon"><PanelRight size={15} /></span>
+              </> : expanded ? (
                 <Minimize2 size={15} />
               ) : (
                 <>
@@ -196,7 +219,11 @@ export function OutputFrame({
             ) : null}
           </div>
         </header>
-        {source === "browser" ? <BrowserView copy={c} onLoginOpen={() => setExpanded(true)} /> : showFiles && workspaceScope ? workspacePreview ? (
+        {navigation ? <div className="output-history-surface" hidden={source !== "history"}>
+          <SessionSidebar project={project} history activeSessionId={navigation.activeSessionId} sessionItems={navigation.sessions}
+            onSelectSession={navigation.onSelect} onNewSession={navigation.onNew} />
+        </div> : null}
+        {source === "history" ? null : source === "browser" ? <BrowserView copy={c} onLoginOpen={() => setExpanded(true)} /> : showFiles && workspaceScope ? workspacePreview ? (
           <div className="artifact-content opened-output">
             <button type="button" className="workspace-preview-back" onClick={() => setWorkspacePreview(undefined)}><ArrowLeft size={15} />{c.files}</button>
             <OpenedOutputItem item={workspacePreview} copy={c} />
@@ -254,7 +281,7 @@ export function OutputFrame({
           liveHtml={liveHtml}
         />}
         {expanded ? <span data-output-focus-guard tabIndex={0} style={{ position: "fixed", width: 1, height: 1, opacity: 0, pointerEvents: "none" }} onFocus={() => focusEdge()} /> : null}
-      </section>
+      </motion.section>
     </>
   );
 }
