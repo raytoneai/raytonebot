@@ -1,0 +1,32 @@
+✔ provider sync preserves per-model capabilities without changing selection or sending a key by default (0.793708ms)
+✔ old providers omit metadata and orphaned metadata cannot silently enter the runtime (0.072208ms)
+✔ models URL: path joins, plain HTTP only on loopback (0.448917ms)
+✔ probe: models, auth header per protocol, HTTP errors (9.521417ms)
+✔ probe rejects malformed model responses instead of reporting a successful connection (0.773167ms)
+✔ probe normalizes and deduplicates model IDs to the settings storage limits (0.377417ms)
+✔ probe disables credential-bearing redirects and accepts IPv6 loopback (0.18125ms)
+✔ older provider settings gain new disabled presets while preserving selection, endpoints and bound keys (1.634458ms)
+✔ disabling a saved provider blocks Bot overrides and stale runtime configurations before engine execution (84.5065ms)
+✔ provider save rejects a run started while its request body is still arriving (36.013ms)
+✔ provider save survives restart without exposing secrets and binds credentials to endpoint (20.964833ms)
+✔ invalid model metadata cannot advance the provider revision or overwrite a saved profile (0.3815ms)
+✔ HTTP save reloads configuration and key into fresh turns after restart; deleting clears old engine credentials (27.207791ms)
+✔ master key is stripped from agent environments; env credentials cannot be redirected (0.128791ms)
+✔ damaged credentials fail closed and symlinks are rejected without overwriting (9.948584ms)
+✔ provider catalog is available in the shipped project with local brand assets and unchanged defaults (0.919792ms)
+✔ service search matches names, domains and models without resurfacing configured or disabled services (0.273625ms)
+✔ model service edits survive restore without persisting untouched deployment defaults or session keys (0.369166ms)
+✔ disabling an added service retains its configuration and list membership across reload (0.126542ms)
+✔ old edited disabled providers remain discoverable and new added state is validated (0.126167ms)
+✔ draft validation identifies the exact invalid field without resetting the user's text (0.130917ms)
+✔ invalid saved settings cannot introduce services, change protocols/authentication, or retain credential-bearing addresses (0.290583ms)
+✔ model metadata survives draft update, normalization, save and reload for each model (0.230125ms)
+✔ metadata validation rejects invalid saved values and clearing metadata survives reload (0.260875ms)
+ℹ tests 24
+ℹ suites 0
+ℹ pass 24
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 635.283583

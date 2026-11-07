@@ -33,6 +33,12 @@ export type BuiltinProviderId =
   | "anthropic"
   | "gemini"
   | "openrouter"
+  | "raytone"
+  | "qwen"
+  | "xai"
+  | "mistral"
+  | "groq"
+  | "siliconflow"
   | "deepseek"
   | "z-ai"
   | "moonshot"
@@ -61,6 +67,8 @@ export type ProviderOption = {
   baseUrl: string;
   auth: ProviderAuth;
   modelOptions: readonly [string, ...string[]];
+  group: "official" | "platform" | "other";
+  logo?: string;
 };
 
 export type ProviderConnection = {
@@ -83,6 +91,8 @@ export type ProviderConnection = {
 export const providerCatalog = [
   {
     id: "openai",
+    group: "official",
+    logo: "brand/providers/openai.svg",
     connectionId: "openai",
     kind: "builtin",
     label: "OpenAI",
@@ -94,6 +104,8 @@ export const providerCatalog = [
   },
   {
     id: "anthropic",
+    group: "official",
+    logo: "brand/providers/anthropic.svg",
     connectionId: "anthropic",
     kind: "builtin",
     label: "Anthropic",
@@ -105,6 +117,8 @@ export const providerCatalog = [
   },
   {
     id: "gemini",
+    group: "official",
+    logo: "brand/providers/gemini.png",
     connectionId: "gemini",
     kind: "builtin",
     label: "Gemini",
@@ -116,6 +130,8 @@ export const providerCatalog = [
   },
   {
     id: "openrouter",
+    group: "platform",
+    logo: "brand/providers/openrouter.png",
     connectionId: "openrouter",
     kind: "builtin",
     label: "OpenRouter",
@@ -127,6 +143,8 @@ export const providerCatalog = [
   },
   {
     id: "deepseek",
+    group: "official",
+    logo: "brand/harness/dsh.svg",
     connectionId: "deepseek",
     kind: "builtin",
     label: "DeepSeek",
@@ -138,6 +156,8 @@ export const providerCatalog = [
   },
   {
     id: "z-ai",
+    group: "official",
+    logo: "brand/providers/z-ai.svg",
     connectionId: "z-ai",
     kind: "builtin",
     label: "Z.ai",
@@ -149,6 +169,8 @@ export const providerCatalog = [
   },
   {
     id: "moonshot",
+    group: "official",
+    logo: "brand/providers/moonshot.ico",
     connectionId: "moonshot",
     kind: "builtin",
     label: "MoonShot",
@@ -159,7 +181,86 @@ export const providerCatalog = [
     modelOptions: ["kimi-k2", "moonshot-v1-128k"],
   },
   {
+    id: "raytone",
+    connectionId: "raytone",
+    kind: "builtin",
+    label: "Raytone",
+    description: "Unified model access through Raytone.",
+    protocol: "openai-compatible",
+    baseUrl: "https://iruidong.com/v1",
+    auth: { mode: "env", envVar: "RAYTONE_API_KEY" },
+    modelOptions: ["deepseek-v4-pro"],
+    group: "platform",
+    logo: "brand/providers/raytone.png",
+  },
+  {
+    id: "qwen",
+    connectionId: "qwen",
+    kind: "builtin",
+    label: "Qwen",
+    description: "Qwen through Alibaba Cloud DashScope (Beijing).",
+    protocol: "openai-compatible",
+    baseUrl: "https://dashscope.aliyuncs.com/compatible-mode/v1",
+    auth: { mode: "env", envVar: "DASHSCOPE_API_KEY" },
+    modelOptions: ["qwen-plus", "qwen-max"],
+    group: "official",
+    logo: "brand/providers/qwen.png",
+  },
+  {
+    id: "xai",
+    connectionId: "xai",
+    kind: "builtin",
+    label: "xAI",
+    description: "Grok models from xAI.",
+    protocol: "openai-compatible",
+    baseUrl: "https://api.x.ai/v1",
+    auth: { mode: "env", envVar: "XAI_API_KEY" },
+    modelOptions: ["grok-4.7"],
+    group: "official",
+    logo: "brand/providers/xai.png",
+  },
+  {
+    id: "mistral",
+    connectionId: "mistral",
+    kind: "builtin",
+    label: "Mistral AI",
+    description: "Mistral chat and coding models.",
+    protocol: "openai-compatible",
+    baseUrl: "https://api.mistral.ai/v1",
+    auth: { mode: "env", envVar: "MISTRAL_API_KEY" },
+    modelOptions: ["mistral-large-latest", "mistral-small-latest"],
+    group: "official",
+    logo: "brand/providers/mistral.svg",
+  },
+  {
+    id: "groq",
+    connectionId: "groq",
+    kind: "builtin",
+    label: "Groq",
+    description: "Fast hosted inference for open models.",
+    protocol: "openai-compatible",
+    baseUrl: "https://api.groq.com/openai/v1",
+    auth: { mode: "env", envVar: "GROQ_API_KEY" },
+    modelOptions: ["openai/gpt-oss-120b", "openai/gpt-oss-20b"],
+    group: "platform",
+    logo: "brand/providers/groq.svg",
+  },
+  {
+    id: "siliconflow",
+    connectionId: "siliconflow",
+    kind: "builtin",
+    label: "SiliconFlow",
+    description: "Open model inference through SiliconFlow (China).",
+    protocol: "openai-compatible",
+    baseUrl: "https://api.siliconflow.cn/v1",
+    auth: { mode: "env", envVar: "SILICONFLOW_API_KEY" },
+    modelOptions: ["deepseek-ai/DeepSeek-V4-Flash"],
+    group: "platform",
+    logo: "brand/providers/siliconflow.svg",
+  },
+  {
     id: "local",
+    group: "other",
     connectionId: "local",
     kind: "builtin",
     label: "Local models",
@@ -171,6 +272,7 @@ export const providerCatalog = [
   },
   {
     id: "custom",
+    group: "other",
     connectionId: "custom-provider",
     kind: "custom",
     label: "Custom provider",

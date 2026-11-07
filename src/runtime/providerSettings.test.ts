@@ -1,10 +1,42 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { createProviderConnection } from "../schema/agentuxConfig.ts";
-import { restoreProviderSettings, serializeProviderSettings, updateProviderSettings, providerIsAdded, providerValidationIssue, normalizeProviderSettings } from "./providerSettings.ts";
+import { createProviderConnection, providerCatalog } from "../schema/agentuxConfig.ts";
+import { availableProviderGroups, restoreProviderSettings, serializeProviderSettings, updateProviderSettings, providerIsAdded, providerValidationIssue, normalizeProviderSettings } from "./providerSettings.ts";
+import { project } from "../exported-project.ts";
+import { existsSync } from "node:fs";
 
 const base = () => ({ defaultProviderId: "deepseek", settingsLauncher: true,
   connections: [createProviderConnection("deepseek", true), createProviderConnection("openai", false)] });
+
+test("provider catalog is available in the shipped project with local brand assets and unchanged defaults", () => {
+  assert.equal(new Set(providerCatalog.map(p => p.connectionId)).size, providerCatalog.length);
+  assert.deepEqual(project.providers.connections.map(p => p.id), providerCatalog.map(p => p.connectionId));
+  assert.equal(project.providers.defaultProviderId, "deepseek");
+  assert.deepEqual(project.providers.connections.filter(p => p.enabled).map(p => [p.id, p.defaultModel]), [["deepseek", "deepseek-flash"]]);
+  for (const option of providerCatalog) {
+    const provider = createProviderConnection(option.id);
+    assert.equal(providerValidationIssue(provider), undefined, option.id);
+    if (option.group !== "other") {
+      assert.ok("logo" in option && existsSync(new URL(`../../public/${option.logo}`, import.meta.url)), option.id);
+      assert.ok(provider.baseUrl.startsWith("https://"), option.id);
+    }
+  }
+  assert.equal(createProviderConnection("raytone").baseUrl, "https://iruidong.com/v1");
+  assert.equal(createProviderConnection("raytone").auth.envVar, "RAYTONE_API_KEY");
+});
+
+test("service search matches names, domains and models without resurfacing configured or disabled services", () => {
+  const connections = structuredClone(project.providers.connections);
+  const search = (text: string) => availableProviderGroups(connections, text).flatMap(group => group.providers.map(p => p.id));
+  assert.deepEqual(search("  RAYTONE "), ["raytone"]);
+  assert.deepEqual(search("iruidong.com"), ["raytone"]);
+  assert.ok(search("claude").includes("anthropic"));
+  assert.deepEqual(search("no-such-service"), []);
+  connections.find(p => p.id === "raytone")!.added = true;
+  assert.deepEqual(search("raytone"), []);
+  assert.ok(!search("").includes("deepseek"));
+  assert.deepEqual(availableProviderGroups(connections, "").map(group => group.id), ["platform", "official", "other"]);
+});
 
 test("model service edits survive restore without persisting untouched deployment defaults or session keys", () => {
   const source = base(), changed = structuredClone(source);

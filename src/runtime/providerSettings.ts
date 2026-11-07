@@ -1,4 +1,4 @@
-import { isSafeProviderEnvVarName, type AgentFrontendProject, type ProviderConnection } from "../schema/agentuxConfig.ts";
+import { isSafeProviderEnvVarName, providerCatalog, type AgentFrontendProject, type ProviderConnection } from "../schema/agentuxConfig.ts";
 import { normalizeModelOptions } from "../pi/modelMetadata.ts";
 
 type Providers = AgentFrontendProject["providers"];
@@ -70,6 +70,16 @@ export function serializeProviderSettings(base: Providers, current: Providers): 
 }
 
 export const providerIsAdded = (provider: ProviderConnection): boolean => provider.enabled || provider.added === true;
+
+export function availableProviderGroups(connections: ProviderConnection[], query: string) {
+  const search = query.trim().toLowerCase();
+  const available = connections.filter(provider => !providerIsAdded(provider)
+    && [provider.label, provider.id, provider.baseUrl, provider.description, ...provider.models].join(" ").toLowerCase().includes(search));
+  return (["platform", "official", "other"] as const).map(id => ({
+    id,
+    providers: available.filter(provider => (providerCatalog.find(option => option.connectionId === provider.id)?.group ?? "other") === id),
+  })).filter(group => group.providers.length > 0);
+}
 
 /** Trim committed identifiers so runtime selection checks compare the same values. */
 export function normalizeProviderSettings(providers: Providers): Providers {

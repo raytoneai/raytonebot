@@ -1,0 +1,5 @@
+
+> raytonebot@0.1.0 check:local
+> node scripts/check-local.mjs --session-file /var/folders/3d/nffh48y943x9sv_7v6xx_tqc0000gn/T/raytone-provider-check-VTWyHj/session.json
+
+PASS: UI, Pi SDK, 12 tools, empty-prompt validation, cross-origin rejection. No model request made.

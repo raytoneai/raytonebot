@@ -1,8 +1,9 @@
-import { Check, CircleAlert, Copy } from "lucide-react";
+import { Check, CircleAlert, Copy, Monitor, Plug } from "lucide-react";
 import type { ReactNode } from "react";
 import { useCopy } from "../../i18n/LocaleContext";
 import { useClipboardFeedback } from "../../runtime/useClipboardFeedback";
 import { handleSettingsRadioKeyDown } from "../../runtime/settingsRadio";
+import { providerCatalog, type ProviderOption } from "../../schema/agentuxConfig";
 
 export function Field({ label, hint, children }: { label: string; hint?: string; children: ReactNode }) {
   return (
@@ -60,8 +61,13 @@ export function CopyButton({ t, value }: { t: { copy: string; copied: string }; 
   );
 }
 
-export function ProviderMark({ label }: { label: string }) {
-  return <span className="settings-mark" aria-hidden="true">{label.slice(0, 1).toUpperCase()}</span>;
+export function ProviderMark({ label, providerId }: { label: string; providerId?: string }) {
+  const option: ProviderOption | undefined = providerCatalog.find(provider => provider.connectionId === providerId);
+  return <span className="settings-mark" data-brand={Boolean(option?.logo)} aria-hidden="true">
+    {option?.logo ? <img src={`${import.meta.env.BASE_URL}${option.logo}`} alt="" />
+      : providerId === "local" ? <Monitor size={18} />
+      : providerId === "custom-provider" ? <Plug size={18} /> : label.slice(0, 1).toUpperCase()}
+  </span>;
 }
 
 export function Dot() {

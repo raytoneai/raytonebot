@@ -13,6 +13,32 @@ import { DEFAULT_NEW_BOT } from '../runtime/botAppearance.ts';
 import { createServer, type IncomingMessage, type ServerResponse } from 'node:http';
 import { scrubSecretEnv } from './runtime/childEnv.ts';
 
+test('older provider settings gain new disabled presets while preserving selection, endpoints and bound keys', () => {
+  const store = new ProviderStore();
+  const legacyIds = ['openai', 'anthropic', 'gemini', 'openrouter', 'deepseek', 'z-ai', 'moonshot', 'local', 'custom-provider'];
+  const providers = structuredClone(project.providers);
+  providers.connections = providers.connections.filter(p => legacyIds.includes(p.id));
+  const deepseek = providers.connections.find(p => p.id === 'deepseek')!;
+  deepseek.baseUrl = 'https://existing.example/v1';
+  deepseek.defaultModel = 'my-existing-model';
+  const saved = store.save(providers, { deepseek: 'dummy-legacy-key' }, [], 0);
+  assert.equal(saved.providers!.defaultProviderId, 'deepseek');
+  assert.equal(saved.providers!.connections.find(p => p.id === 'deepseek')!.defaultModel, 'my-existing-model');
+  assert.equal(store.resolve(piRuntimeConfigurationForProvider(deepseek).providerDefinition!), 'dummy-legacy-key');
+  for (const id of ['raytone', 'qwen', 'xai', 'mistral', 'groq', 'siliconflow']) {
+    const provider = saved.providers!.connections.find(p => p.id === id)!;
+    assert.equal(provider.enabled, false, id);
+    assert.equal(provider.added, undefined, id);
+  }
+  const raytone = saved.providers!.connections.find(p => p.id === 'raytone')!;
+  raytone.enabled = true;
+  raytone.added = true;
+  const next = store.save(saved.providers, { raytone: 'dummy-raytone-key' }, [], saved.revision);
+  assert.equal(next.credentials.raytone, true);
+  assert.equal(store.resolve(piRuntimeConfigurationForProvider(raytone).providerDefinition!), 'dummy-raytone-key');
+  assert.equal(store.resolve({ ...piRuntimeConfigurationForProvider(raytone).providerDefinition!, baseUrl: 'https://other.example/v1' }), undefined);
+});
+
 test('disabling a saved provider blocks Bot overrides and stale runtime configurations before engine execution', async () => {
   const dir = mkdtempSync(join(tmpdir(), 'rtb-disabled-provider-'));
   const providers = structuredClone(project.providers);

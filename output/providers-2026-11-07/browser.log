@@ -1,0 +1,22 @@
+▶ provider picker supports search, local logos, keyboard adding and draft save/discard in both themes and mobile
+  ✔ en / 1280px / soft-glass (2697.65725ms)
+  ✔ en / 1280px / warm-graphite (1856.749583ms)
+  ✔ en / 390px / soft-glass (1722.290709ms)
+  ✔ en / 390px / warm-graphite (1743.679709ms)
+  ✔ zh / 1280px / soft-glass (1804.9485ms)
+  ✔ zh / 1280px / warm-graphite (1836.623125ms)
+  ✔ zh / 390px / soft-glass (1704.714666ms)
+  ✔ zh / 390px / warm-graphite (1740.149292ms)
+  ✔ ja / 1280px / soft-glass (1781.539792ms)
+  ✔ ja / 1280px / warm-graphite (1788.124708ms)
+  ✔ ja / 390px / soft-glass (1720.626583ms)
+  ✔ ja / 390px / warm-graphite (1770.259292ms)
+✔ provider picker supports search, local logos, keyboard adding and draft save/discard in both themes and mobile (22342.345209ms)
+ℹ tests 13
+ℹ suites 0
+ℹ pass 13
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 22597.733209

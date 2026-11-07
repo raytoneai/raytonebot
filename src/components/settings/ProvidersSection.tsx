@@ -1,9 +1,9 @@
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { ChevronDown, Plus, Search } from "lucide-react";
 import { useState } from "react";
 
 import { type SettingsCopy } from "../../i18n/copy/settings";
 import { type PiRuntimeState } from "../../pi/piClient";
-import { providerIsAdded, providerValidationIssue, type ProviderPatch } from "../../runtime/providerSettings";
+import { availableProviderGroups, providerIsAdded, providerValidationIssue, type ProviderPatch } from "../../runtime/providerSettings";
 import { useProviderProbe } from "../../runtime/useProviderProbe";
 import type { ProviderSettingsStatus } from "../../runtime/useProviderSettings";
 import { defaultProviderConnection, type AgentFrontendProject, type ProviderConnection, type ProviderConnectionId, } from "../../schema/agentuxConfig";
@@ -32,9 +32,10 @@ export function ProvidersSection({
 }: ProvidersSectionProps) {
   const [expanded, setExpanded] = useState<string | undefined>();
   const [adding, setAdding] = useState(false);
+  const [search, setSearch] = useState("");
   const enabled = project.providers.connections.filter((provider) => provider.enabled);
   const added = project.providers.connections.filter(providerIsAdded);
-  const available = project.providers.connections.filter((provider) => !providerIsAdded(provider));
+  const groups = availableProviderGroups(project.providers.connections, search);
   const defaultId = defaultProviderConnection(project).id;
 
   return (
@@ -66,7 +67,7 @@ export function ProvidersSection({
         ))}
       </div>
       {adding ? (
-        <div className="settings-add" ref={(node) => node?.scrollIntoView({ block: "nearest", behavior: "smooth" })}>
+        <div className="settings-add settings-provider-catalog">
           <div className="settings-add-head">
             <div>
               <strong>{t.providers.addTitle}</strong>
@@ -74,29 +75,40 @@ export function ProvidersSection({
             </div>
             <Button size="sm" variant="ghost" onClick={() => setAdding(false)}>{t.providers.cancel}</Button>
           </div>
-          <div className="settings-tiles">
-            {available.map((provider) => (
-              <button
-                type="button"
-                key={provider.id}
-                className="settings-tile"
-                disabled={provider.enabled}
-                onClick={() => {
-                  onUpdateProvider(provider.id, { enabled: true, added: true });
-                  setExpanded(provider.id);
-                  setAdding(false);
-                }}
-              >
-                <ProviderMark label={provider.label} />
-                <span className="settings-tile-name">{provider.label}</span>
-                <span className="settings-tile-sub">{provider.enabled ? t.providers.added : hostOf(provider.baseUrl)}</span>
-                {provider.enabled ? <Check className="settings-tile-check" size={14} aria-hidden="true" /> : null}
-              </button>
-            ))}
+          <div className="settings-provider-search">
+            <Search size={16} aria-hidden="true" />
+            <Input type="search" autoFocus value={search} aria-label={t.providers.search} placeholder={t.providers.search}
+              onChange={event => setSearch(event.target.value)} />
           </div>
+          {groups.map(group => <section className="settings-provider-group" key={group.id} aria-label={t.providers.groups[group.id]}>
+            <h3>{t.providers.groups[group.id]}</h3>
+            <div className="settings-tiles">
+              {group.providers.map((provider) => (
+                <button
+                  type="button"
+                  key={provider.id}
+                  className="settings-tile"
+                  aria-label={`${t.providers.add} ${provider.label}`}
+                  onClick={() => {
+                    onUpdateProvider(provider.id, { enabled: true, added: true });
+                    setExpanded(provider.id);
+                    setAdding(false);
+                  }}
+                >
+                  <ProviderMark label={provider.label} providerId={provider.id} />
+                  <span className="settings-tile-copy">
+                    <span className="settings-tile-name">{provider.label}</span>
+                    <span className="settings-tile-sub" title={provider.baseUrl}>{hostOf(provider.baseUrl)}</span>
+                  </span>
+                  <Plus size={14} className="settings-tile-add" aria-hidden="true" />
+                </button>
+              ))}
+            </div>
+          </section>)}
+          {groups.length === 0 ? <p className="settings-note" role="status">{t.providers.noResults}</p> : null}
         </div>
-      ) : available.length > 0 ? (
-        <button type="button" className="settings-text-button" onClick={() => setAdding(true)}>
+      ) : added.length < project.providers.connections.length ? (
+        <button type="button" className="settings-text-button" onClick={() => { setSearch(""); setAdding(true); }}>
           <Plus size={14} aria-hidden="true" />{t.providers.add}
         </button>
       ) : null}
@@ -146,7 +158,7 @@ function ProviderRow({
   return (
     <div className="settings-provider" data-open={open}>
       <div className="settings-row settings-model-row">
-        <ProviderMark label={provider.label} />
+        <ProviderMark label={provider.label} providerId={provider.id} />
         <button type="button" className="settings-row-main settings-row-button" aria-expanded={open} onClick={onToggleOpen}>
           <span className="settings-row-title">
             <strong>{provider.label}</strong>
@@ -172,8 +184,8 @@ function ProviderRow({
       </div>
       {open ? (
         <div className="settings-provider-editor">
-          <Field label={t.providers.baseUrl}>
-            <Input value={provider.baseUrl} invalid={invalid === "baseUrl"} spellCheck={false} autoComplete="off" onChange={(event) => onUpdate({ baseUrl: event.target.value })} />
+          <Field label={t.providers.baseUrl} hint={provider.id === "qwen" ? t.providers.qwenEndpointHint : undefined}>
+            <Input autoFocus value={provider.baseUrl} invalid={invalid === "baseUrl"} spellCheck={false} autoComplete="off" onChange={(event) => onUpdate({ baseUrl: event.target.value })} />
           </Field>
           {provider.auth.mode !== "none" ? (
             <>
