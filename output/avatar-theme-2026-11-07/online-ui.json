@@ -1,0 +1,10 @@
+{
+  "remoteBuild": "3494456",
+  "theme": true,
+  "characters": 6,
+  "motionStates": 3,
+  "mobileWidth": 390,
+  "botConfigurationUnchanged": true,
+  "errors": [],
+  "access": "existing trusted origin credentials over an SSH tunnel; Cloudflare login not exercised"
+}
