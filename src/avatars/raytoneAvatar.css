@@ -173,6 +173,15 @@
 .raytone-avatar[data-dragging="true"] .follow-group { transition: none; }
 .raytone-avatar[data-hidden="true"] * { animation-play-state: paused !important; }
 
+/* Provider accents share the existing state clock, visibility pause and reduced-motion gate. */
+.raytone-avatar .mascot-limb { transform-box: fill-box; transform-origin: 70% 40%; }
+.raytone-avatar .mascot-limb-right { transform-origin: 20% 60%; }
+.raytone-avatar .mascot-signal { transition: opacity 200ms ease; }
+.raytone-avatar:is([data-state="thinking"], [data-state="writing"]) .mascot-signal { animation: raytone-signal 1.4s ease-in-out infinite; }
+.raytone-avatar:is([data-state="working"], [data-state="editing"]) .mascot-limb { animation: raytone-flutter .9s ease-in-out infinite; }
+.raytone-avatar:is([data-state="working"], [data-state="editing"]) .mascot-limb-right { animation-delay: -.45s; }
+.raytone-avatar:is([data-state="error"], [data-state="fault"], [data-state="sleep"]) .mascot-signal { opacity: .35; }
+
 @keyframes raytone-ponder {
   0%, 40% { transform: rotate(-10deg) translateY(-8px); }
   50%, 90% { transform: rotate(10deg) translateY(-8px); }

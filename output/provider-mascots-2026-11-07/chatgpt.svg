@@ -1,0 +1,39 @@
+<svg viewBox="-40 -40 480 480" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" data-mascot="chatgpt"><defs><radialGradient id="sheet-chatgpt-face" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#ffffff"/><stop offset=".48" stop-color="#FFFFFF"/>
+    <stop offset=".86" stop-color="#e0e0e0"/><stop offset="1" stop-color="#b3b3b3"/>
+  </radialGradient><radialGradient id="sheet-chatgpt-hair" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#637394"/><stop offset=".48" stop-color="#0C2458"/>
+    <stop offset=".86" stop-color="#0b204d"/><stop offset="1" stop-color="#08193e"/>
+  </radialGradient>
+    <radialGradient id="sheet-chatgpt-eyes" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#676767"/><stop offset=".48" stop-color="#111111"/>
+    <stop offset=".86" stop-color="#0f0f0f"/><stop offset="1" stop-color="#0c0c0c"/>
+  </radialGradient><radialGradient id="sheet-chatgpt-accessory" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#f0ca74"/><stop offset=".48" stop-color="#E7AC26"/>
+    <stop offset=".86" stop-color="#cb9721"/><stop offset="1" stop-color="#a2781b"/>
+  </radialGradient>
+    <filter id="sheet-chatgpt-relief" x="-25%" y="-25%" width="160%" height="170%" color-interpolation-filters="sRGB">
+    <feDropShadow dx="0" dy="1.1" stdDeviation=".65" flood-color="#071632" flood-opacity=".24"/>
+    <feDropShadow dx="-.25" dy="-.35" stdDeviation=".18" flood-color="#fff4dd" flood-opacity=".42"/>
+  </filter>
+
+  </defs>
+    <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group"><g class="breath">
+    <g transform="scale(4)">
+
+      <g transform="translate(0 1.6)" fill="#c2c2c2"><path d="M50 15C61 9 74 16 78 27C91 30 96 44 89 55C94 69 83 82 70 82C62 94 45 96 35 86C20 89 9 76 13 62C3 51 9 35 21 31C23 18 38 10 50 15Z"/></g>
+      <g fill="#FFFFFF"><g fill="url(#sheet-chatgpt-face)" stroke="#ffffff" stroke-width=".4"><path d="M50 15C61 9 74 16 78 27C91 30 96 44 89 55C94 69 83 82 70 82C62 94 45 96 35 86C20 89 9 76 13 62C3 51 9 35 21 31C23 18 38 10 50 15Z"/></g></g>
+      <g>
+        <g transform="translate(0 1.5)" fill="#08183c"></g>
+        <g fill="#0C2458"><g fill="url(#sheet-chatgpt-hair)" filter="url(#sheet-chatgpt-relief)"></g></g>
+      </g>
+    </g>
+    <g class="gaze"><g class="thinking-gaze"><g transform="scale(4)" fill="url(#sheet-chatgpt-eyes)" color="#111111"><g transform="translate(36 56)"><g class="blink"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-9.5" width="7.2" height="19" rx="3.6"/>
+    <path class="happy-eye" d="M-5 1Q0-7 5 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  </g></g></g><g transform="translate(64 56)"><g class="blink"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-9.5" width="7.2" height="19" rx="3.6"/>
+    <path class="happy-eye" d="M-5 1Q0-7 5 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  </g></g></g></g></g></g>
+    <g transform="scale(4)" fill="#E7AC26" color="#E7AC26"><g fill="url(#sheet-chatgpt-accessory)" filter="url(#sheet-chatgpt-relief)"></g><g class="mascot-signal" fill="none" stroke="#111111" stroke-width="3.5" stroke-linecap="round"><path d="M29 29Q41 20 52 28L66 37M65 24Q78 32 74 43M82 54Q84 68 72 73M59 83Q45 88 35 78M22 71Q13 60 21 49M17 39Q20 29 29 29"/></g></g>
+  </g></g></g></g></g><style>.happy-eye{opacity:0}</style></svg>

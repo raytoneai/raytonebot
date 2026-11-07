@@ -47,6 +47,9 @@
 .bot-editor-footer p { margin: 0 0 8px; color: var(--danger); font-size: var(--text-sm); }
 .bot-options button[aria-pressed="true"] { border-color: var(--text-primary); box-shadow: inset 0 0 0 1px var(--text-primary); }
 .bot-options button:focus-visible, .bot-colours input:focus-visible, .bot-editor-field select:focus-visible { outline: 2px solid var(--text-primary); outline-offset: 3px; }
+.bot-character-options > div { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.bot-character-options button { display: flex; flex-direction: column; align-items: center; gap: 4px; min-width: 0; padding: 8px 4px; }
+.bot-motion-preview { width: 180px; text-align: center; font-weight: 400; }
 .bot-creator-preview > strong { max-width: 200px; overflow-wrap: anywhere; text-align: center; }
 @media (max-width: 600px) {
   .bot-editor-dialog .bot-creator-preview { padding: 0; gap: 4px; }

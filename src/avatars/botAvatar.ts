@@ -2,6 +2,7 @@ import { DEFAULT_BOT, parseBotAppearance, type BotAppearance } from '../runtime/
 import { material, relief, tint } from './avatarMaterials.ts';
 import { isAgentHarnessId, type AgentHarnessId } from '../pi/harnessCatalog.ts';
 import { harnessLogo } from './harnessArtwork.ts';
+import { providerArtwork } from './providerArtwork.ts';
 
 let serial = 0;
 function drawingId(id?: string): string { return (id ?? `bot-${++serial}`).replace(/[^a-zA-Z0-9_-]/g, ''); }
@@ -71,29 +72,33 @@ function botParts(detailColor: string, id: string, harness?: AgentHarnessId) {
 
 /** Preserve the existing gaze, blink, drag and state poses with shaded materials. */
 export function botAvatarSVG(value: BotAppearance, options: { id?: string; harness?: AgentHarnessId } = {}): string {
-  const b = parseBotAppearance(value) ?? DEFAULT_BOT;
+  const saved = parseBotAppearance(value) ?? DEFAULT_BOT;
   const id = drawingId(options.id);
+  const mascot = saved.mascot ? providerArtwork(saved.mascot, id) : undefined;
+  const b = mascot ? { ...saved, faceColor: mascot.faceColor, eyeColor: mascot.eyeColor, hair: 'none' as const, accessory: 'none' as const } : saved;
   const { hair, accessories } = botParts(b.faceColor, id, options.harness);
   const visibleHair = b.hair === 'quiff' && (b.accessory === 'cap' || b.accessory === 'beanie') ? '' : hair[b.hair];
-  const head = faceShape(b.face);
+  const head = mascot?.head ?? faceShape(b.face);
   const hairClip = b.accessory === 'cap' || b.accessory === 'beanie' ? ` clip-path="url(#${id}-under-hat)"` : '';
   const eyes = [36, 64].map(x => `<g transform="translate(${x} 56)"><g class="blink"><g class="expression">
     <rect class="open-eye" x="-3.6" y="-9.5" width="7.2" height="19" rx="3.6"/>
     <path class="happy-eye" d="M-5 1Q0-7 5 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
   </g></g></g>`).join('');
   const accessory = accessories[b.accessory].replaceAll('stroke="currentColor"', `stroke="url(#${id}-accessory)"`);
-  return `<svg viewBox="0 0 400 400" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">${materials(id, b)}
+  // Keep fins and star points inside the frame throughout the existing head turns.
+  return `<svg viewBox="${b.mascot ? '-40 -40 480 480' : '0 0 400 400'}" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true"${b.mascot ? ` data-mascot="${b.mascot}"` : ''}>${materials(id, b)}
     <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group"><g class="breath">
     <g transform="scale(4)">
+      ${mascot?.back ?? ''}
       <g transform="translate(0 1.6)" fill="${tint(b.faceColor, -.24)}">${head}</g>
-      <g fill="${b.faceColor}"><g fill="url(#${id}-face)" stroke="${tint(b.faceColor, .23)}" stroke-width=".4">${head}</g></g>
+      <g fill="${b.faceColor}"><g fill="${mascot?.faceFill ?? `url(#${id}-face)`}" stroke="${tint(b.faceColor, .23)}" stroke-width=".4">${head}</g></g>
       <g${hairClip}>
         <g transform="translate(0 1.5)" fill="${tint(b.hairColor, -.32)}">${visibleHair}</g>
         <g fill="${b.hairColor}"><g fill="url(#${id}-hair)" filter="url(#${id}-relief)">${visibleHair}</g></g>
       </g>
     </g>
     <g class="gaze"><g class="thinking-gaze"><g transform="scale(4)" fill="url(#${id}-eyes)" color="${b.eyeColor}">${eyes}</g></g></g>
-    <g transform="scale(4)" fill="${b.accessoryColor}" color="${b.accessoryColor}"><g fill="url(#${id}-accessory)" filter="url(#${id}-relief)">${accessory}</g></g>
+    <g transform="scale(4)" fill="${b.accessoryColor}" color="${b.accessoryColor}"><g fill="url(#${id}-accessory)" filter="url(#${id}-relief)">${accessory}</g>${mascot?.front ?? ''}</g>
   </g></g></g></g></g></svg>`;
 }
 

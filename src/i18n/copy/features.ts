@@ -2,6 +2,16 @@ import type { AppLocale } from "../locales.ts";
 
 /** Copy for product surfaces added after the original shell. English text is the typed key. */
 export const featureCopy = {
+  "Character": { "zh": "角色形象", "ja": "キャラクター" },
+  "Custom Bot": { "zh": "自定义 Bot", "ja": "カスタム Bot" },
+  "Avatar theme": { "zh": "头像主题", "ja": "アバターのテーマ" },
+  "Model companions": { "zh": "模型伙伴", "ja": "モデルの仲間" },
+  "Preview motion": { "zh": "预览动作", "ja": "動きをプレビュー" },
+  "At rest": { "zh": "待机", "ja": "待機" },
+  "Listening": { "zh": "倾听", "ja": "聞いています" },
+  "Task failed": { "zh": "任务失败", "ja": "タスク失敗" },
+  "Disconnected": { "zh": "连接中断", "ja": "接続切断" },
+  "Sleeping": { "zh": "休息", "ja": "休憩" },
   "Manage members": { "zh": "管理成员", "ja": "メンバー管理" },
   "Yesterday": { "zh": "昨天", "ja": "昨日" },
   "Sessions": { "zh": "会话", "ja": "会話" },

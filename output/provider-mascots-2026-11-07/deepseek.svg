@@ -1,0 +1,39 @@
+<svg viewBox="-40 -40 480 480" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" data-mascot="deepseek"><defs><radialGradient id="sheet-deepseek-face" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#8da0fe"/><stop offset=".48" stop-color="#4D6BFE"/>
+    <stop offset=".86" stop-color="#445ee0"/><stop offset="1" stop-color="#364bb2"/>
+  </radialGradient><radialGradient id="sheet-deepseek-hair" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#637394"/><stop offset=".48" stop-color="#0C2458"/>
+    <stop offset=".86" stop-color="#0b204d"/><stop offset="1" stop-color="#08193e"/>
+  </radialGradient>
+    <radialGradient id="sheet-deepseek-eyes" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#ffffff"/><stop offset=".48" stop-color="#FFFFFF"/>
+    <stop offset=".86" stop-color="#e0e0e0"/><stop offset="1" stop-color="#b3b3b3"/>
+  </radialGradient><radialGradient id="sheet-deepseek-accessory" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#f0ca74"/><stop offset=".48" stop-color="#E7AC26"/>
+    <stop offset=".86" stop-color="#cb9721"/><stop offset="1" stop-color="#a2781b"/>
+  </radialGradient>
+    <filter id="sheet-deepseek-relief" x="-25%" y="-25%" width="160%" height="170%" color-interpolation-filters="sRGB">
+    <feDropShadow dx="0" dy="1.1" stdDeviation=".65" flood-color="#071632" flood-opacity=".24"/>
+    <feDropShadow dx="-.25" dy="-.35" stdDeviation=".18" flood-color="#fff4dd" flood-opacity=".42"/>
+  </filter>
+
+  </defs>
+    <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group"><g class="breath">
+    <g transform="scale(4)">
+      <g fill="#415BDA"><g class="mascot-limb mascot-limb-right"><path d="M72 60Q89 53 84 38Q72 32 78 18Q88 22 90 29Q92 20 99 19Q101 34 91 39Q98 61 78 72Z"/></g><g class="mascot-limb"><path d="M24 63Q8 62 6 78Q18 80 29 71Z"/></g></g>
+      <g transform="translate(0 1.6)" fill="#3b51c1"><path d="M14 54C14 36 28 26 47 26C68 26 82 39 82 59C82 77 66 86 46 86C27 86 14 75 14 54Z"/></g>
+      <g fill="#4D6BFE"><g fill="url(#sheet-deepseek-face)" stroke="#768dfe" stroke-width=".4"><path d="M14 54C14 36 28 26 47 26C68 26 82 39 82 59C82 77 66 86 46 86C27 86 14 75 14 54Z"/></g></g>
+      <g>
+        <g transform="translate(0 1.5)" fill="#08183c"></g>
+        <g fill="#0C2458"><g fill="url(#sheet-deepseek-hair)" filter="url(#sheet-deepseek-relief)"></g></g>
+      </g>
+    </g>
+    <g class="gaze"><g class="thinking-gaze"><g transform="scale(4)" fill="url(#sheet-deepseek-eyes)" color="#FFFFFF"><g transform="translate(36 56)"><g class="blink"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-9.5" width="7.2" height="19" rx="3.6"/>
+    <path class="happy-eye" d="M-5 1Q0-7 5 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  </g></g></g><g transform="translate(64 56)"><g class="blink"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-9.5" width="7.2" height="19" rx="3.6"/>
+    <path class="happy-eye" d="M-5 1Q0-7 5 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  </g></g></g></g></g></g>
+    <g transform="scale(4)" fill="#E7AC26" color="#E7AC26"><g fill="url(#sheet-deepseek-accessory)" filter="url(#sheet-deepseek-relief)"></g><path d="M25 73Q48 85 70 73Q65 85 46 85Q32 85 25 73Z" fill="#DDE4FF"/><g class="mascot-signal" fill="#9CADFF"><path d="M46 23C39 18 39 10 44 7C48 13 49 18 46 23Z"/><path d="M51 22C50 15 55 10 61 12C61 18 57 22 51 22Z"/></g></g>
+  </g></g></g></g></g><style>.happy-eye{opacity:0}</style></svg>

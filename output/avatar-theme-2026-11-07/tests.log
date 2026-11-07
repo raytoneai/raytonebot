@@ -1,0 +1,39 @@
+✔ the work indicator keeps the current group member through output and clears at turn boundaries (0.418333ms)
+✔ a run shows what it is busy with (0.293667ms)
+✔ the user's turn wins over the run, and a finished run shows its outcome (0.055875ms)
+✔ a lost connection outranks the run and the user's turn (0.048166ms)
+✔ a failed task and a failing engine end with different faces (0.073292ms)
+✔ saved bot appearances round trip independently and reject damaged data (0.815417ms)
+✔ provider characters survive host save and restart without changing model, engine or custom parts (2.916584ms)
+✔ unknown and injected character identities are rejected at the appearance boundary (0.226667ms)
+✔ SVG rejects injected colours and unknown options, strips surplus data (0.186708ms)
+✔ every combination retains existing motion layers and two eyes (14.242333ms)
+✔ face thumbnails show the chosen shaded shape without hair, accessories or animated eyes (0.26825ms)
+✔ hats clip every hair crown while keeping the face and eye motion intact (0.36325ms)
+✔ legacy eye choices use the same animated capsule eyes without losing other customisations (0.104292ms)
+✔ hair and accessory previews omit faces, eyes and motion layers, retaining only the chosen piece (0.268459ms)
+✔ universal accessories persist, render their colour and keep eyes unobstructed by quiff (0.152125ms)
+✔ retired flag settings are ignored without losing the saved 3D avatar or head accessory (0.102417ms)
+✔ each instance owns its material IDs and every paint reference resolves locally (0.153833ms)
+✔ standalone Harness marks retain official artwork on the 3D tile (0.060875ms)
+✔ oversized sunglasses use only the current engine artwork on one lens in avatars and thumbnails (0.580292ms)
+✔ known Bot profiles prefer current configuration and the first historical participant for duplicate IDs (0.743167ms)
+✔ known Bot profiles preserve conversation and available/group participant ordering by engine (0.099042ms)
+✔ participant Bot resolution keeps known references and inherits the original preset fallback appearance (0.127791ms)
+✔ role starting points preserve manual text, identity, model and capability choices (0.163959ms)
+✔ display and submission use the Bot override without changing defaults or falling back from disabled services (0.17675ms)
+✔ independent persona, model and capabilities survive save/restore without changing legacy defaults (0.505417ms)
+✔ Bot profiles preserve legacy avatars until explicitly saved and keep identities separate from engines (0.177417ms)
+✔ Stored profiles reject unsafe avatars, blank names, invalid engines and orphan associations (0.12975ms)
+✔ Two Bots sharing Pi retain distinct history ownership through reload, rename and branches (0.188417ms)
+✔ Renamed group members still insert the host's stable routing handle (0.124834ms)
+✔ server display caches are never reimported as legacy Bot edits (0.207458ms)
+✔ provider avatars use the existing editor, interruptible live states and reduced motion (4100.978542ms)
+ℹ tests 31
+ℹ suites 0
+ℹ pass 31
+ℹ fail 0
+ℹ cancelled 0
+ℹ skipped 0
+ℹ todo 0
+ℹ duration_ms 4385.427292

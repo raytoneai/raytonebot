@@ -459,6 +459,8 @@ Codex 的动态工具 schema 随 thread/start 保存；已存在的旧线程可�
 
 ### 服务端 Bot 配置（ADR-049/055，2026-10-26 更新）
 
+头像的可选 `appearance.mascot`（2026-11-07）接受 `chatgpt | claude | deepseek | grok | gemini | qwen`，沿同一个 Bot 配置校验、保存和同步。仅选择原生 SVG 角色外观，不改变引擎或模型；省略字段沿用原自定义部件。`BotEditor` 将六款归为一个「模型伙伴」主题，与「自定义 Bot」并列；主题由该字段推导，不另存主题字段。原 `AgentAvatar` 共用 `avatarActivity` → `avatarMotion` 状态链路，`BotEditor` 的动作预览仅为本地显示状态。
+
 `src/pi/botConfig.ts` 在现有主机内读写数据目录 `bots.json`（0600），保存 `{revision,profiles}`；profile 的 `id/presetId/name/appearance` 之外，可选 `role`（300 字符）、`personality`（1000）、`instructions`（4000）、`model:{provider,model}`、`mcpServerIds`、`skillIds`。`runtime/botProfiles.ts` 共用校验，缺失新字段保持旧配置有效。`GET /__agentcanvas/pi/bots` 返回完整名单，`POST` 接收 `{bot,revision}`，冲突返回 409；不可改变 ID 对应的引擎，头像仍是结构化枚举/颜色，最多 100 个 Bot。
 
 `POST /__agentcanvas/pi/bots/import` 接收旧 `{profiles,conversations}`，只补缺失配置和未绑定且引擎一致的旧对话；不覆盖服务器保存的改名或已有 botId。`useBotProfiles` 首次导入旧名字/头像，之后读服务器，localStorage 仅为带 `source:server` 的显示缓存和未提交对话归属缓存。发送前完成同步，保存失败保留草稿；一页所有头像共享一个轮询器，前台 3 秒、聚焦及跨标签页通知刷新，未变化不重新发布状态。

@@ -1,6 +1,10 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { BOT_OPTIONS, DEFAULT_BOT, parseBotAppearance, parseBotAppearances } from './botAppearance.ts';
+import { BOT_OPTIONS, DEFAULT_BOT, PROVIDER_MASCOTS, parseBotAppearance, parseBotAppearances } from './botAppearance.ts';
+import { BotConfigStore } from '../pi/botConfig.ts';
+import { mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { botAvatarSVG, botPartSVG } from '../avatars/botAvatar.ts';
 import { harnessMarkSVG } from '../avatars/harnessArtwork.ts';
 
@@ -10,6 +14,37 @@ test('saved bot appearances round trip independently and reject damaged data', (
   assert.deepEqual(parseBotAppearances('{broken'), {});
   assert.deepEqual(parseBotAppearances('null'), {});
   assert.deepEqual(parseBotAppearances(JSON.stringify({ woman: { ...bob, hair: 'unknown' }, boy: bob })), { boy: bob });
+});
+test('provider characters survive host save and restart without changing model, engine or custom parts', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rtb-mascot-'));
+  try {
+    const file = join(dir, 'bots.json');
+    for (const mascot of PROVIDER_MASCOTS) {
+      const store = new BotConfigStore(file);
+      const original = { ...store.require('assistant'), model: { provider: 'chosen-provider', model: 'chosen-model' } };
+      const appearance = { ...original.appearance, mascot };
+      store.save({ ...original, appearance }, store.view().revision);
+      const reloaded = new BotConfigStore(file).require(original.id);
+      assert.deepEqual(reloaded, { ...original, appearance });
+      const { mascot: _mascot, ...custom } = reloaded.appearance;
+      const { mascot: _previous, ...expected } = original.appearance;
+      assert.deepEqual(parseBotAppearance(custom), expected);
+      const svg = botAvatarSVG(reloaded.appearance, { id: mascot });
+      assert.ok(svg.includes(`data-mascot="${mascot}"`));
+      assert.equal(svg.match(/class="open-eye"/g)?.length, 2);
+      for (const layer of ['drag-group', 'follow-group', 'action-group', 'gesture-group', 'breath', 'gaze', 'thinking-gaze']) assert.ok(svg.includes(`class="${layer}"`));
+      const ids = [...svg.matchAll(/\bid="([^"]+)"/g)].map(match => match[1]);
+      for (const reference of svg.matchAll(/url\(#([^)]+)\)/g)) assert.ok(ids.includes(reference[1]));
+      assert.ok(!svg.includes('<image') && !svg.includes('undefined') && !svg.includes('NaN'));
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }); }
+});
+test('unknown and injected character identities are rejected at the appearance boundary', () => {
+  for (const mascot of ['__proto__', 'unknown', '<svg onload="alert(1)">', null, 1, {}]) {
+    const value = { ...DEFAULT_BOT, mascot };
+    assert.equal(parseBotAppearance(value), undefined);
+    assert.ok(!botAvatarSVG(value as typeof DEFAULT_BOT).includes('data-mascot'));
+  }
 });
 test('SVG rejects injected colours and unknown options, strips surplus data', () => {
   for (const key of ['faceColor', 'eyeColor', 'hairColor', 'accessoryColor']) {

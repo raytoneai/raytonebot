@@ -1,0 +1,39 @@
+<svg viewBox="-40 -40 480 480" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" data-mascot="qwen"><defs><radialGradient id="sheet-qwen-face" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#6179ff"/><stop offset=".48" stop-color="#082DFF"/>
+    <stop offset=".86" stop-color="#0728e0"/><stop offset="1" stop-color="#0620b3"/>
+  </radialGradient><radialGradient id="sheet-qwen-hair" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#637394"/><stop offset=".48" stop-color="#0C2458"/>
+    <stop offset=".86" stop-color="#0b204d"/><stop offset="1" stop-color="#08193e"/>
+  </radialGradient>
+    <radialGradient id="sheet-qwen-eyes" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#ffffff"/><stop offset=".48" stop-color="#FFFFFF"/>
+    <stop offset=".86" stop-color="#e0e0e0"/><stop offset="1" stop-color="#b3b3b3"/>
+  </radialGradient><radialGradient id="sheet-qwen-accessory" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#f0ca74"/><stop offset=".48" stop-color="#E7AC26"/>
+    <stop offset=".86" stop-color="#cb9721"/><stop offset="1" stop-color="#a2781b"/>
+  </radialGradient>
+    <filter id="sheet-qwen-relief" x="-25%" y="-25%" width="160%" height="170%" color-interpolation-filters="sRGB">
+    <feDropShadow dx="0" dy="1.1" stdDeviation=".65" flood-color="#071632" flood-opacity=".24"/>
+    <feDropShadow dx="-.25" dy="-.35" stdDeviation=".18" flood-color="#fff4dd" flood-opacity=".42"/>
+  </filter>
+
+  </defs>
+    <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group"><g class="breath">
+    <g transform="scale(4)">
+
+      <g transform="translate(0 1.6)" fill="#0622c2"><path d="M30 31C27 11 50 5 61 18C72 11 90 20 86 35C101 45 95 67 81 70C79 89 54 97 42 85C23 92 7 76 14 60C1 45 12 27 30 31Z"/></g>
+      <g fill="#082DFF"><g fill="url(#sheet-qwen-face)" stroke="#415dff" stroke-width=".4"><path d="M30 31C27 11 50 5 61 18C72 11 90 20 86 35C101 45 95 67 81 70C79 89 54 97 42 85C23 92 7 76 14 60C1 45 12 27 30 31Z"/></g></g>
+      <g>
+        <g transform="translate(0 1.5)" fill="#08183c"></g>
+        <g fill="#0C2458"><g fill="url(#sheet-qwen-hair)" filter="url(#sheet-qwen-relief)"></g></g>
+      </g>
+    </g>
+    <g class="gaze"><g class="thinking-gaze"><g transform="scale(4)" fill="url(#sheet-qwen-eyes)" color="#FFFFFF"><g transform="translate(36 56)"><g class="blink"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-9.5" width="7.2" height="19" rx="3.6"/>
+    <path class="happy-eye" d="M-5 1Q0-7 5 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  </g></g></g><g transform="translate(64 56)"><g class="blink"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-9.5" width="7.2" height="19" rx="3.6"/>
+    <path class="happy-eye" d="M-5 1Q0-7 5 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  </g></g></g></g></g></g>
+    <g transform="scale(4)" fill="#E7AC26" color="#E7AC26"><g fill="url(#sheet-qwen-accessory)" filter="url(#sheet-qwen-relief)"></g><g class="mascot-signal" fill="none" stroke="#FFFFFF" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round"><path d="M36 28Q42 20 49 26L57 35L67 27Q74 23 78 30M27 39Q18 43 23 50M75 72Q64 83 54 78"/></g></g>
+  </g></g></g></g></g><style>.happy-eye{opacity:0}</style></svg>

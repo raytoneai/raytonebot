@@ -1,0 +1,242 @@
+[
+  {
+    "state": "idle",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "idle",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "idle",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "idle",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "listening",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "listening",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "listening",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "listening",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "thinking",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "thinking",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "thinking",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "thinking",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "writing",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "writing",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "writing",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "writing",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "working",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "working",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "working",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "working",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "reading",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "reading",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "reading",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "reading",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "editing",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "editing",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "editing",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "editing",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "asking",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "asking",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "asking",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "asking",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "success",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "success",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "success",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "success",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "error",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "error",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "error",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "error",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "fault",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "fault",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "fault",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "fault",
+    "time": 3000,
+    "clipped": []
+  },
+  {
+    "state": "sleep",
+    "time": 500,
+    "clipped": []
+  },
+  {
+    "state": "sleep",
+    "time": 1200,
+    "clipped": []
+  },
+  {
+    "state": "sleep",
+    "time": 2100,
+    "clipped": []
+  },
+  {
+    "state": "sleep",
+    "time": 3000,
+    "clipped": []
+  }
+]

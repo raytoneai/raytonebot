@@ -1,0 +1,39 @@
+<svg viewBox="-40 -40 480 480" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true" data-mascot="claude"><defs><radialGradient id="sheet-claude-face" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#e7a893"/><stop offset=".48" stop-color="#D97757"/>
+    <stop offset=".86" stop-color="#bf694d"/><stop offset="1" stop-color="#98533d"/>
+  </radialGradient><radialGradient id="sheet-claude-hair" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#637394"/><stop offset=".48" stop-color="#0C2458"/>
+    <stop offset=".86" stop-color="#0b204d"/><stop offset="1" stop-color="#08193e"/>
+  </radialGradient>
+    <radialGradient id="sheet-claude-eyes" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#696968"/><stop offset=".48" stop-color="#141413"/>
+    <stop offset=".86" stop-color="#121211"/><stop offset="1" stop-color="#0e0e0d"/>
+  </radialGradient><radialGradient id="sheet-claude-accessory" cx="32%" cy="22%" r="86%">
+    <stop stop-color="#f0ca74"/><stop offset=".48" stop-color="#E7AC26"/>
+    <stop offset=".86" stop-color="#cb9721"/><stop offset="1" stop-color="#a2781b"/>
+  </radialGradient>
+    <filter id="sheet-claude-relief" x="-25%" y="-25%" width="160%" height="170%" color-interpolation-filters="sRGB">
+    <feDropShadow dx="0" dy="1.1" stdDeviation=".65" flood-color="#071632" flood-opacity=".24"/>
+    <feDropShadow dx="-.25" dy="-.35" stdDeviation=".18" flood-color="#fff4dd" flood-opacity=".42"/>
+  </filter>
+
+  </defs>
+    <g class="drag-group"><g class="follow-group"><g class="action-group"><g class="gesture-group"><g class="breath">
+    <g transform="scale(4)">
+      <g fill="#B85A3D"><g class="mascot-limb"><path d="M24 48H15V40H8V59H24Z"/><rect x="28" y="70" width="8" height="18" rx="4"/><rect x="41" y="72" width="7" height="15" rx="3.5"/></g><g class="mascot-limb mascot-limb-right"><path d="M76 48H85V40H92V59H76Z"/><rect x="64" y="70" width="8" height="18" rx="4"/><rect x="52" y="72" width="7" height="15" rx="3.5"/></g></g>
+      <g transform="translate(0 1.6)" fill="#a55a42"><rect x="20" y="27" width="60" height="51" rx="12"/></g>
+      <g fill="#D97757"><g fill="url(#sheet-claude-face)" stroke="#e2967e" stroke-width=".4"><rect x="20" y="27" width="60" height="51" rx="12"/></g></g>
+      <g>
+        <g transform="translate(0 1.5)" fill="#08183c"></g>
+        <g fill="#0C2458"><g fill="url(#sheet-claude-hair)" filter="url(#sheet-claude-relief)"></g></g>
+      </g>
+    </g>
+    <g class="gaze"><g class="thinking-gaze"><g transform="scale(4)" fill="url(#sheet-claude-eyes)" color="#141413"><g transform="translate(36 56)"><g class="blink"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-9.5" width="7.2" height="19" rx="3.6"/>
+    <path class="happy-eye" d="M-5 1Q0-7 5 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  </g></g></g><g transform="translate(64 56)"><g class="blink"><g class="expression">
+    <rect class="open-eye" x="-3.6" y="-9.5" width="7.2" height="19" rx="3.6"/>
+    <path class="happy-eye" d="M-5 1Q0-7 5 1" fill="none" stroke="currentColor" stroke-width="3.5" stroke-linecap="round"/>
+  </g></g></g></g></g></g>
+    <g transform="scale(4)" fill="#E7AC26" color="#E7AC26"><g fill="url(#sheet-claude-accessory)" filter="url(#sheet-claude-relief)"></g><g class="mascot-signal" fill="none" stroke="#FAF9F5" stroke-width="2.6" stroke-linecap="round"><path d="M50 33V42M45.5 37.5H54.5M46.8 34.3L53.2 40.7M46.8 40.7L53.2 34.3"/></g></g>
+  </g></g></g></g></g><style>.happy-eye{opacity:0}</style></svg>

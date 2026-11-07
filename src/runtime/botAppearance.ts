@@ -4,9 +4,16 @@ export const BOT_OPTIONS = {
   hair: ['none', 'quiff', 'bob', 'pixie', 'buns', 'long', 'crew-cut', 'crop', 'curly', 'curtains', 'ponytail', 'wavy'],
   accessory: ['none', 'clip', 'bow', 'star', 'glasses', 'headphones', 'headset', 'cap', 'beanie', 'scarf', 'neckerchief', 'bowtie', 'flower', 'sunglasses'],
 } as const;
+export const PROVIDER_MASCOTS = ['chatgpt', 'claude', 'deepseek', 'grok', 'gemini', 'qwen'] as const;
+export type ProviderMascot = (typeof PROVIDER_MASCOTS)[number];
+export const PROVIDER_MASCOT_NAMES: Record<ProviderMascot, string> = {
+  chatgpt: 'ChatGPT', claude: 'Claude', deepseek: 'DeepSeek', grok: 'Grok', gemini: 'Gemini', qwen: 'Qwen',
+};
 export type BotAppearance = { [K in keyof typeof BOT_OPTIONS]: (typeof BOT_OPTIONS)[K][number] } & {
   eyes: 'capsule';
   faceColor: string; eyeColor: string; hairColor: string; accessoryColor: string;
+  /** Visual identity only; omitting it restores the saved custom Bot parts. */
+  mascot?: ProviderMascot;
 };
 export type BotKind = 'woman' | 'man' | 'boy';
 /** Shared face sampled from Rae's saved appearance; role colours belong to accessories. */
@@ -35,6 +42,7 @@ export const BOT_STORAGE_KEY = 'raytone.bot-appearances.v1';
 export function parseBotAppearance(value: unknown): BotAppearance | undefined {
   if (!value || typeof value !== 'object') return undefined;
   const data = value as Record<string, unknown>;
+  if (data.mascot !== undefined && !(PROVIDER_MASCOTS as readonly unknown[]).includes(data.mascot)) return undefined;
   // Keep saved round/smile configurations, normalising only the eye shape for the shared animation.
   if (!['capsule', 'round', 'smile'].includes(data.eyes as string)) return undefined;
   for (const key of Object.keys(BOT_OPTIONS) as (keyof typeof BOT_OPTIONS)[]) {
@@ -44,7 +52,7 @@ export function parseBotAppearance(value: unknown): BotAppearance | undefined {
     if (typeof data[key] !== 'string' || !/^#[0-9a-f]{6}$/i.test(data[key] as string)) return undefined;
   }
   return { ...Object.fromEntries([...Object.keys(BOT_OPTIONS), 'faceColor', 'eyeColor', 'hairColor', 'accessoryColor'].map(key => [key, data[key]])),
-    eyes: 'capsule' } as BotAppearance;
+    eyes: 'capsule', ...(data.mascot === undefined ? {} : { mascot: data.mascot }) } as BotAppearance;
 }
 export function parseBotAppearances(raw: string | null): BotAppearances {
   try {

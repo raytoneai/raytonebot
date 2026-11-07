@@ -2,11 +2,12 @@ import { featureText } from "../../i18n/copy/features.ts";
 import * as Dialog from "@radix-ui/react-dialog";
 import { CircleSlash, X } from "lucide-react";
 import { useId, useRef, useState } from "react";
-import { AgentAvatar, AgentPersonaProvider } from "../../avatars/AgentPersona";
+import { AgentAvatar, AgentPersonaProvider, type AvatarState } from "../../avatars/AgentPersona";
+import { composerActivityCopy } from "../../i18n/copy/composerActivity";
 import { botPartSVG } from "../../avatars/botAvatar";
 import { agentPreset } from "../../pi/harnessCatalog";
 import { useLocale } from "../../i18n/LocaleContext";
-import { BOT_OPTIONS, BOT_PALETTE, DEFAULT_BOTS, DEFAULT_NEW_BOT } from "../../runtime/botAppearance";
+import { BOT_OPTIONS, BOT_PALETTE, DEFAULT_BOTS, DEFAULT_NEW_BOT, PROVIDER_MASCOTS, PROVIDER_MASCOT_NAMES } from "../../runtime/botAppearance";
 import { BOT_KINDS, BOT_NAME_LIMIT, BOT_PERSONA_LIMITS, type BotProfile } from "../../runtime/botProfiles";
 import { applyBotRoleTemplate, botRoleTemplates, type BotRoleTemplate } from "../../runtime/botRoleTemplates";
 import { Button, Input } from "../ui";
@@ -30,6 +31,13 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
   const opener = useRef(document.activeElement as HTMLElement | null);
   const nameInput = useRef<HTMLInputElement>(null);
   const [template, setTemplate] = useState<BotRoleTemplate>();
+  const [previewState, setPreviewState] = useState<AvatarState>('idle');
+  const lastMascot = useRef(draft.appearance.mascot ?? PROVIDER_MASCOTS[0]);
+  const motionLabels: Record<AvatarState, string> = {
+    ...composerActivityCopy[locale], idle: featureText(locale, 'At rest'), listening: featureText(locale, 'Listening'),
+    success: featureText(locale, 'Completed'), error: featureText(locale, 'Task failed'),
+    fault: featureText(locale, 'Disconnected'), sleep: featureText(locale, 'Sleeping'),
+  };
   const labels = {
     face: featureText(locale, "Face"), hair: featureText(locale, "Hair"), accessory: featureText(locale, "Accessory"),
     faceColor: featureText(locale, "Face colour"), eyeColor: featureText(locale, "Eye colour"), hairColor: featureText(locale, "Hair colour"), accessoryColor: featureText(locale, "Accessory colour"),
@@ -51,10 +59,15 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
             <Dialog.Description className="settings-intro">{featureText(locale, "Set its role and communication style. Leave fields blank to keep the defaults. Changes apply from the next turn.")}</Dialog.Description>
             <div className="bot-creator">
               <div className="bot-creator-preview">
-                <AgentPersonaProvider persona={{ kind, name: draft.name, state: "idle" }}>
-                  <AgentAvatar size={160} kind={kind} presetId={draft.presetId} appearance={draft.appearance} live interactive />
+                <AgentPersonaProvider persona={{ kind, name: draft.name, state: previewState }}>
+                  <AgentAvatar size={160} kind={kind} presetId={draft.presetId} appearance={draft.appearance} live interactive={previewState === 'idle'} />
                 </AgentPersonaProvider>
                 <strong>{draft.name.trim() || (featureText(locale, "New Bot"))}</strong>
+                <label className="bot-editor-field bot-motion-preview">{featureText(locale, 'Preview motion')}
+                  <select value={previewState} onChange={event => setPreviewState(event.target.value as AvatarState)}>
+                    {(['idle', 'listening', 'thinking', 'writing', 'working', 'reading', 'editing', 'asking', 'success', 'error', 'fault', 'sleep'] as const).map(state => <option key={state} value={state}>{motionLabels[state]}</option>)}
+                  </select>
+                </label>
               </div>
               <div className="bot-creator-controls">
                 <label className="bot-editor-field">{featureText(locale, "Name")}<Input ref={nameInput} value={draft.name} required maxLength={BOT_NAME_LIMIT}
@@ -102,6 +115,24 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
                 </details>
                 <details className="bot-editor-capabilities"><summary>{featureText(locale, "Avatar and appearance")}</summary>
                 <Button type="button" variant="ghost" disabled={saving} onClick={() => onChange({ ...draft, appearance: { ...(draft.id === draft.presetId ? DEFAULT_BOTS[kind] : DEFAULT_NEW_BOT) } })}>{featureText(locale, "Default avatar")}</Button>
+                <label className="bot-editor-field">{featureText(locale, 'Avatar theme')}
+                  <select value={draft.appearance.mascot ? 'model-companions' : 'custom'} disabled={saving}
+                    onChange={event => {
+                      if (draft.appearance.mascot) lastMascot.current = draft.appearance.mascot;
+                      onChange({ ...draft, appearance: { ...draft.appearance, mascot: event.target.value === 'model-companions' ? lastMascot.current : undefined } });
+                    }}>
+                    <option value="custom">{featureText(locale, 'Custom Bot')}</option>
+                    <option value="model-companions">{featureText(locale, 'Model companions')}</option>
+                  </select>
+                </label>
+                {draft.appearance.mascot ? <fieldset className="bot-options bot-character-options" disabled={saving}><legend>{featureText(locale, 'Character')}</legend><div>
+                  {PROVIDER_MASCOTS.map(mascot => <button key={mascot} type="button" aria-pressed={draft.appearance.mascot === mascot}
+                    onClick={() => onChange({ ...draft, appearance: { ...draft.appearance, mascot } })}>
+                    <AgentAvatar size={44} kind={kind} appearance={{ ...draft.appearance, mascot }} presetId={draft.presetId} />
+                    <span>{PROVIDER_MASCOT_NAMES[mascot]}</span>
+                  </button>)}
+                </div></fieldset> : null}
+                {!draft.appearance.mascot ? <>
                 {(Object.keys(BOT_OPTIONS) as (keyof typeof BOT_OPTIONS)[]).map(key => <fieldset key={key} className="bot-options bot-part-options" data-part={key}><legend>{labels[key]}</legend><div>
                   {BOT_OPTIONS[key].map(value => <button key={value} type="button" aria-label={featureText(locale, optionNames[value])} title={featureText(locale, optionNames[value])} aria-pressed={draft.appearance[key] === value}
                     onClick={() => onChange({ ...draft, appearance: { ...draft.appearance, [key]: value } })}>
@@ -114,6 +145,7 @@ export function BotEditor({ draft, creating, error, saving = false, ready = true
                 <fieldset className="bot-options"><legend>{featureText(locale, "Hair palette")}</legend><div>{[BOT_PALETTE.ink, BOT_PALETTE.claudeOrange, "#71869B", "#A9917E", "#D9D5C9"].map((color, i) => <button type="button" className="bot-swatch" key={color} style={{ background: color }}
                   aria-label={featureText(locale, (["Raytone navy", "Claude orange", "Slate", "Taupe", "Ivory"] as const)[i])}
                   aria-pressed={draft.appearance.hairColor.toLowerCase() === color.toLowerCase()} onClick={() => onChange({ ...draft, appearance: { ...draft.appearance, hairColor: color } })} />)}</div></fieldset>
+                </> : null}
                 </details>
               </div>
             </div>
