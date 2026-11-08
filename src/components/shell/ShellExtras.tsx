@@ -310,18 +310,25 @@ export function HeaderAgent({
   const source: CliModelSource | undefined = sourceKey ? settings[sourceKey] : undefined;
   const model = !sourceKey || source === "provider" ? providerLabel : sourceKey === "claudeCodeModelSource" ? t.agents.sourceLocal : t.agents.sourceLocalCodex;
 
+  const triggerButton = (
+    <button ref={trigger} type="button" className={profile ? "shell-profile-agent" : "shell-header-agent shell-header-compact"} aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}
+      onClick={onOpenHistory}
+      onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot); } }}>
+      <AgentAvatar size={profile ? 80 : 28} kind={avatars[preset.id]} presetId={bot?.presetId ?? preset.id} appearance={bot?.appearance} live={false} />
+      {profile ? <span className="shell-profile-model"><HarnessMark harness={preset.harness} size={14} />{HARNESS_LABELS[preset.harness]} · {model}</span> : <strong className="shell-header-name">{name}</strong>}
+      <span className="shell-header-engine" hidden={profile} title={HARNESS_LABELS[preset.harness]}>
+        <HarnessMark harness={preset.harness} size={14} />
+      </span>
+      {profile ? <Pencil className="shell-profile-edit" size={15} /> : <ChevronDown className="shell-header-chevron" size={12} aria-hidden="true" />}
+    </button>
+  );
+
+  if (onOpenHistory) return triggerButton;
+
   return (
-    <RadixPopover.Root open={menuOpen} onOpenChange={next => { if (next && onOpenHistory) onOpenHistory(); else setMenuOpen(next); }}>
+    <RadixPopover.Root open={menuOpen} onOpenChange={setMenuOpen}>
       <RadixPopover.Trigger asChild>
-        <button ref={trigger} type="button" className={profile ? "shell-profile-agent" : "shell-header-agent shell-header-compact"} aria-label={`${name}, ${HARNESS_LABELS[preset.harness]}`}
-          onContextMenu={event => { if (bot && onEditBot) { event.preventDefault(); event.currentTarget.focus(); onEditBot(bot); } }}>
-          <AgentAvatar size={profile ? 80 : 28} kind={avatars[preset.id]} presetId={bot?.presetId ?? preset.id} appearance={bot?.appearance} live={false} />
-          {profile ? <span className="shell-profile-model"><HarnessMark harness={preset.harness} size={14} />{HARNESS_LABELS[preset.harness]} · {model}</span> : <strong className="shell-header-name">{name}</strong>}
-          <span className="shell-header-engine" hidden={profile} title={HARNESS_LABELS[preset.harness]}>
-            <HarnessMark harness={preset.harness} size={14} />
-          </span>
-          {profile ? <Pencil className="shell-profile-edit" size={15} /> : <ChevronDown className="shell-header-chevron" size={12} aria-hidden="true" />}
-        </button>
+        {triggerButton}
       </RadixPopover.Trigger>
       <RadixPopover.Portal>
         <RadixPopover.Content className={`shell-popover${sourceKey ? "" : " shell-model-popover"}`} align="center" sideOffset={8} collisionPadding={12}
