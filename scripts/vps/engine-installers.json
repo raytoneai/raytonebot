@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "engines": [
+    { "id": "claude-code", "packageName": "@anthropic-ai/claude-code", "version": "2.1.267", "command": "claude", "sourceUrl": "https://code.claude.com/docs/en/setup#install-with-npm" },
+    { "id": "codex", "packageName": "@openai/codex", "version": "0.154.0", "command": "codex", "sourceUrl": "https://learn.chatgpt.com/docs/codex/cli" },
+    { "id": "dsh", "packageName": "@deepseek-ai/dsh", "version": "0.2.1-rc.2", "command": "dsh", "sourceUrl": "https://github.com/deepseek-ai/deepseek-harness" }
+  ]
+}

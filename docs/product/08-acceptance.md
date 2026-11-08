@@ -1,5 +1,10 @@
 # 08 验收清单
 
+### 2026-11-08 安装失败的新目录清理
+
+- `python3 -B -m unittest discover -s scripts/vps -p 'test_*.py'`：17 项通过，含安装器 9 项；新回归在修改前有 3 项因目录残留失败。覆盖成功保留新旧版本、有／无旧入口的取消、切换失败、回滚失败保留当前目录、rename 失败保留已有目录及 staging 清理。
+- 提交中的安装器、固定目录和测试单独导出后，9 项检查通过；主代理 review 与 `git diff --check` 通过。只模拟进程和权限并使用临时文件，未执行 Linux root 安装、实际 npm 下载、前端全量检查或部署；成功安装的 previous 链接和旧版本按运维要求保留。
+
 ### 2026-11-08 顶栏历史入口与两项修复整体验证
 
 - `src/runtime/headerAgent.browser.test.ts`：修复前历史按钮残留 `aria-expanded=false`，修复后无 Popover ARIA；鼠标、Enter、Space 均打开历史，右键编辑保留。资料区的编辑、记忆、模型服务菜单可操作，Escape 关闭并返回入口焦点；主代理查看实际资料区菜单截图。
