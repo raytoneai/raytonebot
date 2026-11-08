@@ -50,3 +50,11 @@ ssh -i "$VPS_SSH_KEY" "root@$VPS_IP" 'python3 -I /root/apply_release.py /root/ra
 更新脚本先准备依赖，在没有正在运行任务时短暂停止 Tunnel、再次检查空闲、停止应用并创建已校验的数据备份，然后替换应用、重新安装隔离并验证健康和角色目录。失败时尝试恢复旧应用和服务；成功后旧应用保留在 `/home/user/.rtb-release-*-previous`，数据备份在 root 私有的 `/root/raytonebot-backups/`。更新不覆盖 `/home/user/.raytonebot/env` 或 Provider/Vault 私密目录；普通数据备份也**不包含**这些私密目录和环境文件，需要另做安全的异地备份。备份没有自动轮换，需监控磁盘。应用和 Cloudflare 配置不等于数据恢复演练。
 
 新隔离脚本会安装 root 所有的固定检查器，供应用通过受限 sudo 校验当前双栈 Agent 和浏览器防火墙规则；规则缺失或与预期不符时，新的隔离操作拒绝启动。已在该 VPS 的 root 私有临时目录验证检查器安装及现有规则，组合更新后以 bot 账号验证检查器成功；规则篡改和失败回滚仅使用自动测试验证，未在线上实际破坏规则或演练回滚。它在操作开始时检查，不能保证启动后规则永不被管理员更改，也不等同于独立虚拟机或逐 Bot 隔离。
+
+## 2026-11-08 安装器残留清理修复发布
+
+- `f49675d`、`fc34110` 已随当前 `main` 推送到 `origin/main`。本次仅将两项修复部署至 `/usr/local/sbin/raytonebot-install-engine`；应用包仍保持原 `3494456`、`dirty=true` 清单，未重新发布前端或其他应用代码。
+- 线上 helper 的原哈希与修复前源码一致；固定安装计划也一致。持有安装锁后备份旧文件并原子替换，root 所有及 `0755` 权限保持；更新后以应用账号读取固定安装计划成功。
+- VPS 上以应用账号运行安装器 11 项隔离回归通过（模拟进程／权限、临时目录）；三个服务保持 active 且 PID 未变，健康检查 activeRuns/activeInstalls 均为 0。4 个私密文件、安装计划、sudoers、应用清单及三种 CLI 入口未变；没有重装 CLI、调用模型或清理成功备份／旧版本。
+- 新 helper SHA-256：`bf27613147e7ed42a10fa8ded13e5e432b0084e76ac7267eacb17b1e6831994b`；旧 helper：`4871d67bc69ad9b13e9bfcc951e36948a6ec42b2bb84cc84314e1c8e6a2d0337`。
+- 旧文件及远端验证记录保存在 root 私有目录 `/root/raytone-installer-fc34110-GqvYVNT4/`，回退源为 `previous-engine-installer.py`。需要回退时先确认无运行／安装任务并持有原安装锁，再以 root 原子恢复 helper 并复查权限、安装计划读取与健康；未在线上故意触发故障或演练回退。
