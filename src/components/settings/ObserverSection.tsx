@@ -11,6 +11,7 @@ import { observerEvidenceOutput, observerFindingOutput } from "../../runtime/obs
 import type { OutputPanelItem } from "../agent-preview/outputframe/panelItem";
 import { Button, Switch } from "../ui";
 const budgetKeys = ["dailyRequests", "maxRequests", "maxDurationMs", "maxQueries", "maxBytes", "pageBytes", "pageSize"] as const;
+type ObserverHandoffDraft = { botId: string; scope: string };
 
 /** The existing SettingsDialog owns this developer section and its review controls. */
 export function ObserverSection({ observer, bots, onOpenChat, onOpenOutput, onHandoff, onOpenConversation }: {
@@ -25,8 +26,7 @@ export function ObserverSection({ observer, bots, onOpenChat, onOpenOutput, onHa
   const [enabled, setEnabled] = useState(false), [background, setBackground] = useState(false), [model, setModel] = useState("");
   const [windowDays, setWindowDays] = useState(7);
   const [budget, setBudget] = useState<ObserverBudget>();
-  const [botId, setBotId] = useState(bots[0]?.id ?? "");
-  const [scope, setScope] = useState("");
+  const [handoffDrafts, setHandoffDrafts] = useState<Record<string, ObserverHandoffDraft>>({});
   const [notice, setNotice] = useState<"sent" | "failed">();
   const [opening, setOpening] = useState(false);
   const mounted = useRef(true);
@@ -47,8 +47,12 @@ export function ObserverSection({ observer, bots, onOpenChat, onOpenOutput, onHa
     finally { if (mounted.current) setOpening(false); }
   };
   const selected = state?.models.find(item => JSON.stringify([item.provider, item.model]) === model);
-  const targetBot = bots.find(bot => bot.id === botId);
   const runAllowed = Boolean(state?.enabled && state.model?.available);
+  const defaultBotId = bots[0]?.id ?? "";
+  const updateHandoffDraft = (findingId: string, update: Partial<ObserverHandoffDraft>) => setHandoffDrafts(current => {
+    const draft = current[findingId] ?? { botId: defaultBotId, scope: "" };
+    return { ...current, [findingId]: { ...draft, ...update } };
+  });
   return <section className="settings-section settings-learning" data-observer-settings>
     <h3>{t("title")}</h3>
     <p className="settings-note">{t("explanation")}</p>
@@ -84,7 +88,10 @@ export function ObserverSection({ observer, bots, onOpenChat, onOpenOutput, onHa
       <h4>{t("findings")}</h4>
       <p className="settings-note">{t("acceptedNote")}</p>
       {state.findings.length === 0 ? <p>{t("none")}</p> : null}
-      {state.findings.map(finding => <article className="settings-provider-card" data-observer-finding={finding.id} key={finding.id}>
+      {state.findings.map(finding => {
+        const draft = handoffDrafts[finding.id] ?? { botId: defaultBotId, scope: "" };
+        const targetBot = bots.find(bot => bot.id === draft.botId);
+        return <article className="settings-provider-card" data-observer-finding={finding.id} key={finding.id}>
         <h4>{finding.title}</h4><p>{t(finding.reviewStatus)} · {t(finding.validity)} · #{finding.revision}</p>
         <p><strong>{t("action")}</strong>: {t(finding.proposedAction.kind)} · {finding.proposedAction.description}</p>
         <p>{t("target")}: {t(finding.proposedAction.target.kind)} / {finding.proposedAction.target.id}</p>
@@ -99,14 +106,15 @@ export function ObserverSection({ observer, bots, onOpenChat, onOpenOutput, onHa
         </div>
         <ObserverFollowUp finding={finding} onOpenConversation={onOpenConversation} refresh={observer.refresh} />
         <details><summary>{t("handoff")}</summary>
-          <label className="settings-row"><span>{t("bot")}</span><select aria-label={`${t("bot")} · ${finding.title}`} value={botId} onChange={event => setBotId(event.target.value)}>{bots.map(bot => <option key={bot.id} value={bot.id}>{bot.name}</option>)}</select></label>
-          <label className="settings-row"><span>{t("handoffScope")}</span><textarea aria-label={`${t("handoffScope")} · ${finding.title}`} value={scope} onChange={event => setScope(event.target.value)} maxLength={1000} /></label>
-          <Button size="sm" disabled={busy || finding.validity !== "current" || finding.reviewStatus !== "accepted" || !scope.trim() || !targetBot} onClick={() => void observer.update({ action: "handoff", id: finding.id, revision: finding.revision, botId, scope: scope.trim() }).then(result => {
+          <label className="settings-row"><span>{t("bot")}</span><select aria-label={`${t("bot")} · ${finding.title}`} value={draft.botId} onChange={event => updateHandoffDraft(finding.id, { botId: event.target.value })}>{bots.map(bot => <option key={bot.id} value={bot.id}>{bot.name}</option>)}</select></label>
+          <label className="settings-row"><span>{t("handoffScope")}</span><textarea aria-label={`${t("handoffScope")} · ${finding.title}`} value={draft.scope} onChange={event => updateHandoffDraft(finding.id, { scope: event.target.value })} maxLength={1000} /></label>
+          <Button size="sm" disabled={busy || finding.validity !== "current" || finding.reviewStatus !== "accepted" || !draft.scope.trim() || !targetBot} onClick={() => void observer.update({ action: "handoff", id: finding.id, revision: finding.revision, botId: draft.botId, scope: draft.scope.trim() }).then(result => {
             if (mounted.current && result?.handoff && result.draft) onHandoff(result.handoff, result.draft);
           })}>{t("handoff")}</Button>
-          {finding.kind === "experience_candidate" ? <Button size="sm" disabled={busy || finding.validity !== "current" || finding.reviewStatus !== "accepted" || !targetBot} onClick={() => void observer.update({ action: "lesson", id: finding.id, revision: finding.revision, botId, harness: agentPreset(targetBot!.presetId).harness }).then(result => { if (mounted.current && result) setNotice("sent"); })}>{t("lesson")}</Button> : null}
+          {finding.kind === "experience_candidate" ? <Button size="sm" disabled={busy || finding.validity !== "current" || finding.reviewStatus !== "accepted" || !targetBot} onClick={() => void observer.update({ action: "lesson", id: finding.id, revision: finding.revision, botId: draft.botId, harness: agentPreset(targetBot!.presetId).harness }).then(result => { if (mounted.current && result) setNotice("sent"); })}>{t("lesson")}</Button> : null}
         </details>
-      </article>)}
+        </article>;
+      })}
     </>}
   </section>;
 }

@@ -1,5 +1,10 @@
 # 03 路线图与进度
 
+### 2026-11-08 Observer 接手表单隔离
+
+- 原 ObserverSection 按 finding ID 保存接手 Bot 与任务范围；切换一张卡片不再改变其他卡片，经验提交使用该卡片所选 Bot 的引擎。审批、有效性与版本校验保持。
+- 两卡片浏览器回归先复现范围串用，修复后独立选择、空范围禁用、handoff 参数及 lesson 引擎通过；构建、桌面/390px 共 40 个开发场景、本机与云入口自检通过。仅隔离数据与模拟接手响应，未部署或调用模型。
+
 ### 2026-11-07 Provider 目录与选择体验
 
 - 沿原 SettingsDialog / ProvidersSection 补充 Raytone（`https://iruidong.com/v1`）、Qwen、xAI、Mistral AI、Groq、SiliconFlow，共 13 个品牌服务及本地/自定义入口；原 OpenRouter 与各原厂统一使用本地官方 Logo。
