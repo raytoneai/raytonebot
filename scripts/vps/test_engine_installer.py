@@ -78,7 +78,7 @@ class InstallerTest(unittest.TestCase):
 
 class ActivationTest(unittest.TestCase):
     def _install_fixture(self, root, plan, target_path=None, cancelled=None, emit_hook=None, replace=None):
-        binary = root/'bin'; binary.mkdir()
+        binary = root/'bin'; binary.mkdir(exist_ok=True)
         installs = root/'engines'; installs.mkdir(exist_ok=True)
         if target_path is not None:
             (binary/plan['command']).symlink_to(target_path)
@@ -121,6 +121,7 @@ class ActivationTest(unittest.TestCase):
                 self._install_fixture(root, plan, old, cancelled, emit_hook)
             self.assertEqual(os.readlink(binary/'dsh'),str(old))
             self.assertEqual(phases,['downloading','verifying','activating'])
+            self.assertEqual(list(binary.glob('.raytonebot-dsh-previous-*')),[])
             self.assertEqual(list(installs.glob('dsh-*')),[])
             self.assertEqual(list(installs.glob('.stage-*')),[])
 
@@ -136,6 +137,10 @@ class ActivationTest(unittest.TestCase):
             self.assertEqual(new_entry.resolve().read_text(),'fixture')
             self.assertTrue(new_root.is_dir())
             self.assertEqual(old.read_text(),'old')
+            previous_links = list(binary.glob('.raytonebot-dsh-previous-*'))
+            self.assertEqual(len(previous_links),1)
+            self.assertTrue(previous_links[0].is_symlink())
+            self.assertEqual(os.readlink(previous_links[0]),str(old))
             self.assertEqual(list(installs.glob('.stage-*')),[])
 
     def test_cancellation_without_existing_entry_removes_new_entry_and_directory(self):
@@ -164,6 +169,7 @@ class ActivationTest(unittest.TestCase):
                 self._install_fixture(root, plan, old, replace=fail_switch)
             self.assertEqual(os.readlink(binary/'dsh'),str(old))
             self.assertEqual(old.read_text(),'old')
+            self.assertEqual(list(binary.glob('.raytonebot-dsh-previous-*')),[])
             self.assertEqual(list(installs.glob('dsh-*')),[])
             self.assertEqual(list(installs.glob('.stage-*')),[])
 
@@ -186,7 +192,36 @@ class ActivationTest(unittest.TestCase):
             self.assertTrue(new_entry.resolve().is_file())
             self.assertTrue(new_entry.parents[2].is_dir())
             self.assertEqual(old.read_text(),'old')
+            self.assertEqual(len(list(binary.glob('.raytonebot-dsh-previous-*'))),1)
+            self.assertEqual(list(binary.glob('.raytonebot-rollback-*')),[])
             self.assertEqual(list(installs.glob('.stage-*')),[])
+
+    def test_failed_activation_keeps_existing_previous_backup(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); binary=root/'bin'; binary.mkdir()
+            old=root/'old'/'dsh'; old.parent.mkdir(parents=True); old.write_text('old')
+            (binary/'dsh').symlink_to(old)
+            existing=binary/'.raytonebot-dsh-previous-existing'; existing.symlink_to(old)
+            plan=json.loads(Path(__file__).with_name('engine-installers.json').read_text())['engines'][2]
+            cancelled=threading.Event()
+            def emit_hook(phase):
+                if phase=='activating': cancelled.set()
+            with self.assertRaisesRegex(installer.InstallError,'interrupted'):
+                self._install_fixture(root, plan, cancelled=cancelled, emit_hook=emit_hook)
+            self.assertEqual(list(binary.glob('.raytonebot-dsh-previous-*')),[existing])
+            self.assertEqual(os.readlink(existing),str(old))
+            self.assertEqual(list(root.joinpath('engines').glob('.stage-*')),[])
+
+    def test_backup_creation_collision_does_not_remove_existing_link(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp); binary=root/'bin'; binary.mkdir()
+            old=root/'old'/'dsh'; old.parent.mkdir(parents=True); old.write_text('old')
+            existing=binary/'.raytonebot-dsh-previous-fixed'; existing.symlink_to(old)
+            plan=json.loads(Path(__file__).with_name('engine-installers.json').read_text())['engines'][2]
+            with patch.object(installer.uuid,'uuid4',return_value=SimpleNamespace(hex='fixed')):
+                with self.assertRaises(FileExistsError):
+                    self._install_fixture(root, plan, target_path=old)
+            self.assertEqual(os.readlink(existing),str(old))
 
     def test_rename_failure_does_not_remove_existing_destination(self):
         with tempfile.TemporaryDirectory() as temp:

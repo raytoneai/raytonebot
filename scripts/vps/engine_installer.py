@@ -146,6 +146,7 @@ def install(plan, cancelled):
     previous = os.readlink(target) if target.is_symlink() else None
     activated = False
     moved = False
+    backup = None
     if target.exists() and not target.is_symlink():
         shutil.rmtree(container); os.close(lock); raise InstallError('activation_failed')
 
@@ -189,7 +190,9 @@ def install(plan, cancelled):
         payload.rename(destination)
         moved = True
         if previous is not None:
-            (BIN / f".raytonebot-{plan['command']}-previous-{uuid.uuid4().hex}").symlink_to(previous)
+            backup_path = BIN / f".raytonebot-{plan['command']}-previous-{uuid.uuid4().hex}"
+            backup_path.symlink_to(previous)
+            backup = backup_path
         pending = BIN / f".raytonebot-{plan['command']}-{uuid.uuid4().hex}"
         try:
             pending.symlink_to(destination / 'node_modules/.bin' / plan['command'])
@@ -203,7 +206,12 @@ def install(plan, cancelled):
             if previous is None: target.unlink()
             else:
                 rollback = BIN / f'.raytonebot-rollback-{uuid.uuid4().hex}'
-                rollback.symlink_to(previous); os.replace(rollback, target)
+                rollback.symlink_to(previous)
+                try:
+                    os.replace(rollback, target)
+                finally:
+                    rollback.unlink(missing_ok=True)
+        if backup is not None: backup.unlink(missing_ok=True)
         if moved: shutil.rmtree(destination)
         raise
     finally:
