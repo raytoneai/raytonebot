@@ -76,7 +76,7 @@
 
 创建 Bot 的现有表单可选择 `dsh`（DeepSeek Harness），原三个内置 Bot 与默认模型不变。`piRuntimeController.ts` 的 `runCliPrompt` → `dshHarness.ts` 启动已安装的固定版本 `@deepseek-ai/dsh@0.2.1-rc.2`；`dshProtocol.ts` 将 ACP 的文本、思考、工具、审批转换成 Pi wire events，继续使用 `piAdapter` 和现有界面。ACP 此版本只推送已提交文本。
 
-每轮创建临时 HOME / DSH_HOME / DSH_AGENTS_HOME 与受控 profile，launcher 直接调用已安装包导出的 `runProfile`，避免 CLI 自动加载个人 `.env`。真实模型 key 留在主机，子进程仅持本轮 Anthropic 兼容网关租约。关闭账号凭据、会话日志上传、PTC、子 Agent、自主后台任务与个人配置发现；所有工具经过插件的异步授权和同步 guard。
+每轮创建临时 HOME / DSH_HOME / DSH_AGENTS_HOME 与受控 profile，launcher 直接调用已安装包导出的 `runProfile`，避免 CLI 自动加载个人 `.env`。真实模型 key 留在主机，子进程仅持本轮固定 provider/model 的 OpenAI-compatible 或 Anthropic 网关租约。DSH 复用安装包自带的 `llm-pi-ai` 访问通用服务，原官方 DeepSeek 路径保留原适配器；ACP 恢复历史后显式选择本轮模型并核对回执，再发任务。原生会话绑定保留历次选择的模型 ID，供恢复阶段解析旧请求头，不能据此执行旧模型。关闭账号凭据、会话日志上传、PTC、子 Agent、自主后台任务与个人配置发现；所有工具经过插件的异步授权和同步 guard。
 
 宿主 web/MCP/记忆/浏览器/计划/提问等工具通过本轮私有 Unix socket（本机 0600、隔离模式 0660 且父目录由主机持有） 回到现有执行函数。主机核对原生 session、tool call id、名称和原参数，授权只消费一次。native read/write/edit/bash 由 DSH 执行，参数先归一化供既有权限规则检查。停止先发 `session/cancel`，给 DSH 清理独立进程组的命令，再由通用进程管理兜底终止。
 
@@ -516,7 +516,7 @@ Provider 原编辑卡可为已列出的模型配置 `modelOptions`：contextWind
 
 保存接口在读取请求体后、同步落盘与缓存失效前再次检查活跃任务，避免请求期间启动的新任务被销毁 bridge。Composer 的可选模型菜单经 `ShellExtras.providerSelection` 一次提交 Provider ID 和模型；原 slot registry 和独立预览回调保持兼容。
 
-主机在配置、执行（应用 Bot 覆盖后）和凭据解析时复核已保存的启用状态，旧快照不能重新启用服务；停用保留密钥，显式模型列表探测仍允许。Claude/DSH 的 Anthropic 地址转换只适用于官方 DeepSeek 根地址或 `/v1`，自定义 OpenAI-compatible 地址拒绝推断；显式 Anthropic 服务保留自定义地址，避免凭据跨 endpoint。
+主机在配置、执行（应用 Bot 覆盖后）和凭据解析时复核已保存的启用状态，旧快照不能重新启用服务；停用保留密钥，显式模型列表探测仍允许。Claude Code 与 DSH 原生 DeepSeek 路径的 Anthropic 地址转换只适用于官方 DeepSeek 根地址或 `/v1`；DSH 的其他服务按声明的 OpenAI-compatible / Anthropic 协议访问。自定义地址不按品牌推断其他端点，避免凭据跨 endpoint。
 
 单聊的顶栏、可选 Composer 模型菜单与提交共用 `botModelConfiguration`：Bot 覆盖优先，否则继承全局服务或 CLI 本机登录偏好；覆盖不存在/停用时明确报错，不静默回退。有覆盖时菜单保存 Bot 配置及 revision，不改变全局默认；修改 CLI 来源需先在 Bot 编辑器清除覆盖。发送使用本次主机 Bot 同步返回的配置，避免 React 旧闭包继续显示/提交上一版本。群路由使用入口全局服务，各成员执行时应用自己的覆盖。
 

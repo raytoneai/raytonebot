@@ -31,7 +31,7 @@ export type StoredConversation = {
   updatedAt: number;
   agentPreset: AgentPresetId;
   /** The CLI harness's own session, so a follow-up turn resumes it after a restart. */
-  cliSession?: { harness: AgentHarnessId; id: string };
+  cliSession?: { harness: AgentHarnessId; id: string; models?: string[] };
   /** Exact Pi context; null before SDK acceptance, absent in legacy records. */
   piSessionId?: string | null;
   turns?: StoredTurn[];

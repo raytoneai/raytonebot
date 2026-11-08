@@ -5,6 +5,9 @@ import { mkdtempSync, readFileSync, rmSync, statSync, writeFileSync, symlinkSync
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { project } from '../exported-project.ts';
+import { createProviderConnection, providerCatalog } from '../schema/agentuxConfig.ts';
+import { botModelConfiguration } from '../runtime/botProfiles.ts';
+import { DEFAULT_AGENT_SETTINGS } from './harnessCatalog.ts';
 import { piRuntimeConfigurationForProvider } from './piProviderSync.ts';
 import { ProviderStore } from './providerStore.ts';
 import { createPiHttpHost, createPiRuntimeController } from './piHost.ts';
@@ -78,6 +81,52 @@ test('disabling a saved provider blocks Bot overrides and stale runtime configur
     assert.deepEqual(prompted, [], 'an SDK-selected default cannot bypass the saved switch either');
     assert.match(JSON.stringify(events), /OpenAI.*disabled/i);
   } finally { controller.dispose(); rmSync(dir, { recursive: true, force: true }); }
+});
+
+test('every settings provider uses its selected model and credentials, including switches in an existing conversation', async (t) => {
+ for (const option of providerCatalog) await t.test(option.id, async () => {
+  const dir = mkdtempSync(join(tmpdir(), 'rtb-selected-provider-'));
+  const providers = structuredClone(project.providers);
+  const selected = createProviderConnection(option.id, true);
+  selected.defaultModel = `configured-${option.id}`;
+  selected.models = [selected.defaultModel, `manual-${option.id}`];
+  providers.connections = [...providers.connections.filter(p => p.id !== selected.id), selected];
+  assert.equal(providers.defaultProviderId, 'deepseek');
+  const store = new ProviderStore();
+  const apiKey = selected.auth.mode === 'none' ? undefined : `dummy-${option.id}-key`;
+  store.save(providers, apiKey ? { [selected.id]: apiKey } : {}, [], 0);
+  let configured: any = { provider: 'deepseek', model: 'deepseek-flash' };
+  const prompted: any[] = [];
+  const controller = createPiRuntimeController({ cwd: dir, dataDir: join(dir, 'data'), providers: store,
+    bridgeFactory: async () => ({
+      configure: async value => { configured = value; }, state: async () => ({ ...configured, models: [], tools: [] }),
+      prompt: async () => { prompted.push(configured); },
+      abort: async () => {}, dispose() {}, newSession: async () => {}, subscribe: () => () => {},
+    }),
+  });
+  try {
+    // The display/submission resolver must agree for both a saved default and a Bot override.
+    for (const model of selected.models) {
+      const current = { ...project, providers: { ...providers, defaultProviderId: selected.id } };
+      const inherited = botModelConfiguration(current, DEFAULT_AGENT_SETTINGS);
+      assert.equal(inherited.providerId, selected.id);
+      assert.equal(inherited.model, selected.defaultModel);
+      const explicit = botModelConfiguration({ ...project, providers }, DEFAULT_AGENT_SETTINGS, { model: { provider: selected.id, model } });
+      const configuration = piRuntimeConfigurationForProvider(explicit.provider!);
+      assert.equal(configuration.provider, selected.id);
+      assert.equal(configuration.model, model);
+      await controller.runPrompt({ conversationId: 'selection', provider: explicit.providerId, model: explicit.model, prompt: 'hello' }, () => {}, { title: 'Provider routing test' });
+    }
+    assert.equal(prompted.length, 2);
+    assert.deepEqual(prompted.map(value => value.model), selected.models);
+    for (const value of prompted) {
+      assert.equal(value.provider, selected.id);
+      assert.equal(value.apiKey, apiKey);
+      assert.equal(value.providerDefinition.baseUrl, selected.baseUrl);
+      assert.equal(value.providerDefinition.protocol, selected.protocol);
+    }
+  } finally { controller.dispose(); rmSync(dir, { recursive: true, force: true }); }
+ });
 });
 
 test('provider save rejects a run started while its request body is still arriving', async () => {

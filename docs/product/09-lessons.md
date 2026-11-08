@@ -1,5 +1,7 @@
 # 09 踩坑记录
 
+- **引擎名称不等于模型供应商**（2026-11-08）→ DSH 接入误用 Claude 的 Anthropic 端点检查，并关闭原生 `llm-pi-ai`，导致已配置 Raytone 等服务无法执行；ACP 续聊还会优先恢复历史模型。按配置协议复用引擎原有适配器，每轮显式选择 provider/model，确认成功后才发送任务；回归必须覆盖自定义地址、手填模型、切换模型续聊和旧原生会话。不能靠换回 DeepSeek 或猜代理的 Anthropic 地址解决。历史列表也要保留主机 `botId` 并优先于旧浏览器绑定，否则自定义 Bot 的会话会被归到引擎预设，无法从当前 Bot 恢复。
+
 - **Chromium 版本可读不代表浏览器可启动**（2026-11-03）→ VPS 上 headless shell 已安装，实际渲染仍被 Ubuntu AppArmor user namespace 限制终止，界面只报浏览器未运行。以实际受限 UID、no-new-privs 和空白临时 profile 捕获 `No usable sandbox!`，对照内核拒绝记录定位；仅为 root 只读精确可执行路径增加 `userns` profile，保持全局限制与 Chromium 沙箱。验收须覆盖真实导航、实时帧、输入和 renderer 的 seccomp/user namespace；不能只做 `--version` 或健康检查，也不应靠 `--no-sandbox` 绕过。
 
 - **Cloudflare Access 登录后首页报 Cross-origin requests are not allowed**（2026-11-01）→ 浏览器在登录跳转后的顶层导航携带 `Sec-Fetch-Site: cross-site`，即使 Access 已认证，云入口仍会拒绝 → Worker 只对已认证、无 Origin、`GET /` 的文档导航归一化此标记；API、写请求和其他路径仍保留原值并经原校验。详见 [Greencloud VPS 试用记录](../greencloud-deployment.md)。
@@ -480,6 +482,9 @@
 
 - 用户配置 Gemini 后仍报 DeepSeek 缺 key，实际页面的默认标记仍在 DeepSeek；启用/获取模型/保存某个服务不会自动切换默认。先看用户真实页面的默认标记和发送选项，不能凭报错猜测旧会话缓存或 SDK 路由异常。
 - 验证密钥可用性只读状态：页面输入是否为空、主机 sessionKeyProviders 和环境变量名称是否存在，不读取秘密值。页面与主机都无 key 时，明确告知尚不能验证真实调用；修正默认服务不能当作凭据已恢复。
+- 2026-11-08 用户纠正：执行必须沿用所选 provider/model，覆盖设置中全部服务和自定义模型，不能把修复写成 DeepSeek/Raytone 特例。回归应检查显示、提交、主机凭据绑定与同一会话后续轮次；真实调用只证明被实测的服务。
+- 已保存主机密钥时，环境变量为空不是“服务器未配置”。环境变量状态应明确表示无需设置，并在待删除密钥时恢复未设置提示；不要改写实际的环境变量状态。
+- 冷启动时可点击发送不代表主机 Provider 已加载。初始化、新建/恢复会话及发送须使用读取完成后返回的主机配置，不能继续用导出默认值或异步前的 React 闭包；读取失败应保留草稿并报错，迟到的旧修订不能覆盖较新的配置。
 
 
 ### 持久化必须交付到运行链路，不能只交方案（2026-10-23）

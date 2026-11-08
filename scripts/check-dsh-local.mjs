@@ -1,4 +1,4 @@
-// Runs the installed, pinned DSH against a deterministic local Messages endpoint.
+// Runs pinned DSH against a local Messages endpoint; --openai / --anthropic check its generic adapter.
 // No provider key or real model is used; files and DSH state stay in a temporary directory.
 import assert from "node:assert/strict";
 import { mkdtempSync, readFileSync, existsSync, rmSync, chmodSync } from "node:fs";
@@ -11,6 +11,9 @@ import { createModelGateway } from "../src/pi/runtime/modelGateway.ts";
 
 const dir = mkdtempSync(join(tmpdir(), "rtb-dsh-check-"));
 const isolated = process.env.RAYTONEBOT_SANDBOX === "1";
+let openai = process.argv.includes('--openai');
+let api = openai ? 'openai-completions' : process.argv.includes('--anthropic') ? 'anthropic-messages' : undefined;
+let model = api ? 'configured-test-model' : 'deepseek-flash';
 if (isolated) chmodSync(dir, 0o2770);
 const home = join(dir, dir.split("/").at(-1));
 const events = [], requests = [];
@@ -19,11 +22,17 @@ let nextCall = { type: 'tool_use', id: 'write-test', name: 'write', input: { fil
 const server = createServer(async (req, res) => {
   const chunks = []; for await (const chunk of req) chunks.push(chunk);
   const body = JSON.parse(Buffer.concat(chunks).toString()); requests.push(body);
-  assert.equal(req.headers['x-api-key'], 'test-lease');
-  assert.equal(body.model, 'deepseek-flash');
+  assert.equal(req.headers[openai ? 'authorization' : 'x-api-key'], openai ? 'Bearer test-lease' : 'test-lease');
+  assert.equal(body.model, model);
   assert.equal(body.dsh_session_log, undefined);
   const call = nextCall; nextCall = afterCall; afterCall = undefined; step++;
   res.writeHead(200, { 'content-type': 'text/event-stream' });
+  if (openai) {
+    const send = (delta, finish_reason = null) => res.write(`data: ${JSON.stringify({ id: `chat-${step}`, object: 'chat.completion.chunk', created: 1, model, choices: [{ index: 0, delta, finish_reason }] })}\n\n`);
+    send({ role: 'assistant', ...(call ? { tool_calls: [{ index: 0, id: call.id, type: 'function', function: { name: call.name, arguments: JSON.stringify(call.input) } }] } : { content: 'Completed local DSH check.' }) });
+    send({}, call ? 'tool_calls' : 'stop');
+    res.end('data: [DONE]\n\n'); return;
+  }
   const send = (type, data) => res.write(`event: ${type}\ndata: ${JSON.stringify({type,...data})}\n\n`);
   send('message_start', { message: { id: `msg-${step}`, type: 'message', role: 'assistant', model: body.model, content: [], stop_reason: null, usage: {input_tokens:10,output_tokens:0} } });
   send('content_block_start', { index: 0, content_block: call ? {...call,input:{}} : { type:'text',text:'' } });
@@ -38,11 +47,11 @@ try {
   if (isolated) {
     gateway = await createModelGateway({ port: Number(process.env.RAYTONEBOT_GATEWAY_PORT ?? 5190),
       fetcher: (_url, init) => fetch(`http://127.0.0.1:${server.address().port}/v1/messages`, init) });
-    lease = gateway.issue({ baseUrl: "https://example.com", apiKey: "test-lease", model: "deepseek-flash", protocol: "anthropic" });
+    lease = gateway.issue({ baseUrl: "https://example.com", apiKey: "test-lease", model, protocol: openai ? "openai" : "anthropic" });
     assert.notEqual(lease.apiKey, "test-lease");
   }
   const options = {cwd:dir,home,prompt:'Write the approved file, then reply.',systemPrompt:'Use tools when requested.',permissionMode:'request',signal:AbortSignal.timeout(90_000),
-    provider:{baseUrl:lease?.baseUrl ?? `http://127.0.0.1:${server.address().port}`,apiKey:lease?.apiKey ?? 'test-lease',model:'deepseek-flash'},
+    provider:{baseUrl:lease?.baseUrl ?? `http://127.0.0.1:${server.address().port}`,apiKey:lease?.apiKey ?? 'test-lease',model,api},
     emit:event=>events.push(event),onSessionId:id=>{sessionId=id;},
     onPermission:async request=>{request.startExecution();return true;}};
   await runDsh(options);
@@ -51,10 +60,24 @@ try {
   assert.ok(events.some(event=>event.type==='tool_execution_end'&&!event.isError));
   await runDsh({...options,resumeId:sessionId,prompt:'Continue the same conversation.',signal:AbortSignal.timeout(90_000)});
   assert.ok(requests.at(-1).messages.some(message=>JSON.stringify(message).includes('approved exactly once')),'native context survives process restart');
+  for (const selection of api ? [{ model: 'changed-test-model', api }, ...process.argv.includes('--switch-adapter')
+    ? [{ model: 'deepseek-flash', api: undefined }, { model: 'changed-test-model', api }] : []] : []) {
+    options.previousModels = [...(options.previousModels ?? []), model];
+    ({ model, api } = selection); openai = api === 'openai-completions';
+    if (gateway) {
+      lease.revoke();
+      lease = gateway.issue({ baseUrl: 'https://example.com', apiKey: 'test-lease', model, protocol: openai ? 'openai' : 'anthropic' });
+      Object.assign(options.provider, lease);
+    }
+    options.provider.model = model;
+    options.provider.api = api;
+    await runDsh({...options,resumeId:sessionId,prompt:'Continue using the newly selected model.',signal:AbortSignal.timeout(90_000)});
+    assert.ok(requests.at(-1).messages.some(message=>JSON.stringify(message).includes('approved exactly once')),'changing model retains native context');
+  }
   nextCall = {type:'tool_use',id:'read-before-rewrite',name:'read',input:{file_path:join(dir,'approved.txt')}};
   afterCall = {type:'tool_use',id:'rewrite-test',name:'write',input:{file_path:join(dir,'approved.txt'),content:'updated file'}};
   await runDsh({...options,resumeId:sessionId,signal:AbortSignal.timeout(90_000)});
-  assert.equal(readFileSync(join(dir,'approved.txt'),'utf8'),'updated file', 'rewritten file remains accessible to host');
+  assert.equal(readFileSync(join(dir,'approved.txt'),'utf8'),'updated file', 'rewritten file remains accessible to host: ' + JSON.stringify(events.slice(-12)));
   nextCall = {type:'tool_use',id:'read-before-edit',name:'read',input:{file_path:join(dir,'approved.txt')}};
   afterCall = {type:'tool_use',id:'edit-test',name:'edit',input:{file_path:join(dir,'approved.txt'),old_string:'updated',new_string:'edited'}};
   await runDsh({...options,resumeId:sessionId,signal:AbortSignal.timeout(90_000)});

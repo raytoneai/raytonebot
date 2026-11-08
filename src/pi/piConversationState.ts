@@ -24,7 +24,7 @@ export type EphemeralPiConversation = {
   groupPreview?: { author: string; text: string };
 };
 
-export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt" | "agentPreset" | "groupMembers" | "systemRole">;
+export type PiConversationSidebarItem = Pick<EphemeralPiConversation, "id" | "title" | "createdAt" | "agentPreset" | "groupMembers" | "systemRole" | "botId">;
 
 export function isGroupConversation(conversation: { id: string; groupMembers?: readonly string[]; group?: { members: readonly string[] } }): boolean {
   return Boolean(conversation.groupMembers?.length || conversation.group?.members.length || conversation.id.startsWith("group_"));
@@ -86,7 +86,7 @@ export function replacePiConversation(
 export function piConversationSidebarItems(
   conversations: readonly EphemeralPiConversation[],
 ): readonly PiConversationSidebarItem[] {
-  return conversations.map(({ id, title, createdAt, agentPreset, groupMembers, systemRole }) => ({ id, title, createdAt, agentPreset, groupMembers, systemRole }));
+  return conversations.map(({ id, title, createdAt, agentPreset, groupMembers, systemRole, botId }) => ({ id, title, createdAt, agentPreset, groupMembers, systemRole, ...(botId ? { botId } : {}) }));
 }
 
 function createConversationId(): string {

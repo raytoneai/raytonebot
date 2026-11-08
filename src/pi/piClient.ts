@@ -357,8 +357,8 @@ export async function deleteMcpServer(id: string, fetcher: typeof fetch = fetch)
   if (!response.ok) throw new PiRequestError(response.status, await responseError(response, "Delete failed"));
 }
 
-export async function getPiRuntimeState(fetcher: typeof fetch = fetch): Promise<PiRuntimeState> {
-  return requestJson<PiRuntimeState>(fetcher, `${PI_API_PREFIX}/state`);
+export async function getPiRuntimeState(fetcher: typeof fetch = fetch, options: { signal?: AbortSignal } = {}): Promise<PiRuntimeState> {
+  return requestJson<PiRuntimeState>(fetcher, `${PI_API_PREFIX}/state`, undefined, options.signal);
 }
 
 /** Creates a saved prefix and returns the original submission; never starts the draft. */

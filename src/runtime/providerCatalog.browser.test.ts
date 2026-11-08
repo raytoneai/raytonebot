@@ -33,10 +33,12 @@ test("provider picker supports search, local logos, keyboard adding and draft sa
           applyTheme(themeTokens[theme]);
           function Probe() {
             const [current, setCurrent] = useState(project);
-            return h(SettingsDialog, { open: true, onOpenChange() {}, project: current, isRunning: false, sessionKeys: {},
+            const [saved, setSaved] = useState();
+            return h(SettingsDialog, { open: true, onOpenChange() {}, project: current, isRunning: false, sessionKeys: {}, savedProviderSettings: saved,
               onSessionKeyChange() {}, onUpdateProvider() {}, onSetDefaultProvider() {}, onPermissionDefaultChange() {},
               themePreset: theme, onThemeChange() {}, onSaveProviders(providers, keys) {
                 window.savedProviderDraft = { providers, keys };
+                setSaved({ revision: 1, providers, credentials: Object.fromEntries(Object.keys(keys).map(id => [id, true])) });
                 setCurrent({ ...current, providers });
               } });
           }
@@ -96,6 +98,11 @@ test("provider picker supports search, local logos, keyboard adding and draft sa
           assert.equal(saved.providers.connections.find((p: any) => p.id === "raytone").enabled, true);
           assert.equal(saved.keys.raytone, "dummy-provider-key");
           assert.equal(await page.locator('input[type="password"]').inputValue(), "");
+          await editor.getByText(copy.envNotNeeded, { exact: true }).waitFor();
+          await page.getByRole("button", { name: copy.keyRemove, exact: true }).click();
+          await editor.getByText(copy.envMissing, { exact: true }).waitFor();
+          await page.getByRole("button", { name: copy.keyUndoRemove, exact: true }).click();
+          await editor.getByText(copy.envNotNeeded, { exact: true }).waitFor();
           assert.deepEqual(errors, []);
         } finally { await page.close(); }
       });

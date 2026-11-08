@@ -41,7 +41,7 @@ import {
   type StoredConversation,
 } from "./conversationStore.ts";
 import { summarizeConversationTitle } from "./conversationTitle.ts";
-import { runDsh } from "./dshHarness.ts";
+import { dshProviderConnection, runDsh } from "./dshHarness.ts";
 import { attachGroupChat, isChildConversationId, type GroupController } from "./groupChat.ts";
 import { resolveBotIdentity } from "./groupParticipants.ts";
 import {
@@ -515,7 +515,7 @@ export function createPiRuntimeController(options: {
   const resolveProviderKey = (definition: PiProviderDefinition, conversationId?: string) => definition.authMode === "none" ? undefined
     : (conversationId && hostCredentialConversations.has(conversationId) ? undefined : providerKeys.get(providerBinding(definition))) ?? providerStore.resolve(definition) ?? providerStore.environmentKey(definition);
   /** Product conversation → the CLI's own session id, so follow-up turns resume it. */
-  const cliSessions = new Map<string, { harness: AgentHarnessId; id: string }>();
+  const cliSessions = new Map<string, { harness: AgentHarnessId; id: string; models?: string[] }>();
   /**
    * Earlier prompts of this conversation that no engine received: every saved turn lacks a native
    * checkpoint and the engine has no session to resume, so the next turn starts fresh without them.
@@ -811,12 +811,20 @@ export function createPiRuntimeController(options: {
       adapter.startUserMessage(prompt);
       if (sandboxed) requireAgentIsolation();
       if (harness === "dsh") {
-        const provider = await modelLease(claudeProvider(input.provider, input.model, "DeepSeek Harness", conversationId), "anthropic", conversationId, input.thinkingLevel);
+        const credentials = providerCredentials(input.provider, conversationId);
+        if (!credentials) throw new Error("DeepSeek Harness has no model service configured. Save the model service in settings.");
+        const connection = dshProviderConnection(credentials.definition, credentials.apiKey, input.model);
+        const provider = { ...connection, ...await modelLease(connection, connection.protocol, conversationId, input.thinkingLevel) };
         lease = provider;
         await runDsh({
           cwd: runCwd, home: join(dataDir, "dsh", encodeURIComponent(conversationId)), prompt: modelPrompt,
           systemPrompt: rolePrompt(role, layout, { sandboxed, locale: input.locale, botId: input.botId, availableBots: input.availableBots, profile: botConfig?.require(input.botId ?? input.agentPreset ?? "assistant") }),
-          permissionMode, resumeId, signal: run.signal, emit, onSessionId, onUserInput,
+          permissionMode, resumeId, previousModels: binding?.models, signal: run.signal, emit, onUserInput,
+          onSessionId(id) {
+            const session = { harness, id, models: [...new Set([...(binding?.models ?? []), provider.model])] };
+            store.setCliSession(conversationId, session);
+            cliSessions.set(conversationId, session);
+          },
           onAccepted: () => slot.memoryDelivered?.(),
           provider, webTools, mcpTools: runs.get(conversationId)?.delegated ? undefined : options.mcpTools?.(input.botId ?? role), hostTools: hostToolsFor(conversationId, role),
           async onPermission(request) {

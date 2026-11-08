@@ -13,34 +13,41 @@ export function useProviderSettings(base: AgentFrontendProject) {
   const [status, setStatus] = useState<ProviderSettingsStatus>("idle");
   const [saved, setSaved] = useState<ProviderSettingsView>();
   const host = useRef<ProviderSettingsView>(undefined);
+  function accept(view: ProviderSettingsView) {
+    // An earlier read must not undo a configuration saved while it was in flight.
+    if (host.current && view.revision < host.current.revision) return host.current.providers ?? project.providers;
+    host.current = view; setSaved(view);
+    if (view.providers) { setProject(current => ({ ...current, providers: view.providers! })); setStatus("saved"); }
+    return view.providers ?? project.providers;
+  }
+  async function syncProviders() {
+    try { return accept(await getProviderSettings()); }
+    catch (error) { setStatus("load-failed"); throw error; }
+  }
   useEffect(() => {
     let active = true;
     void getProviderSettings().then(view => {
       if (!active) return;
-      host.current = view; setSaved(view);
       // Legacy browser preferences are imported only by the user's explicit Save.
-      if (view.providers) { setProject(current => ({ ...current, providers: view.providers! })); setStatus("saved"); }
-    }).catch(() => { if (active) setStatus("load-failed"); });
+      accept(view);
+    }).catch(() => { if (active && !host.current) setStatus("load-failed"); });
     return () => { active = false; };
   }, []);
   async function saveProviders(providers: AgentFrontendProject["providers"], keys: Record<string, string> = {}, removeKeys: string[] = []) {
     try {
       if (!host.current) throw new Error("Provider settings have not loaded. Reload before saving.");
       const view = await saveProviderSettings({ providers, keys, removeKeys, revision: host.current.revision });
-      host.current = view; setSaved(view);
-      setProject(current => ({ ...current, providers: view.providers! }));
-      setStatus("saved");
+      accept(view);
       try { window.localStorage.removeItem(PROVIDER_SETTINGS_KEY); } catch { /* Host is authoritative. */ }
     } catch (error) {
-      setStatus("save-failed");
       if (error instanceof PiRequestError && error.status === 409) {
         try {
-          const view = await getProviderSettings(); host.current = view; setSaved(view);
-          if (view.providers) setProject(current => ({ ...current, providers: view.providers! }));
+          await syncProviders();
         } catch { /* Preserve the draft and report the original conflict. */ }
       }
+      setStatus("save-failed");
       throw error;
     }
   }
-  return { project, setProject, status, saveProviders, saved };
+  return { project, setProject, status, saveProviders, syncProviders, saved };
 }

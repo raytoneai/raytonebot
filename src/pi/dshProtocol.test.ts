@@ -5,9 +5,11 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createDshProtocol, normalizeDshTool } from "./dshProtocol.ts";
-import { dshPatch, isolatedDshHome, runDsh } from "./dshHarness.ts";
+import { dshPatch, dshProviderConnection, isolatedDshHome, runDsh } from "./dshHarness.ts";
 import { BotConfigStore } from "./botConfig.ts";
 import { DEFAULT_NEW_BOT } from "../runtime/botAppearance.ts";
+import { project } from "../exported-project.ts";
+import { piRuntimeConfigurationForProvider } from "./piProviderSync.ts";
 
 function fixture(overrides: Partial<Parameters<typeof createDshProtocol>[0]> = {}) {
   const sent: any[] = [], events: any[] = [], permissions: any[] = [];
@@ -171,6 +173,19 @@ test("DSH never starts a fresh turn when the native resume fails or changes sess
   assert.equal(f.sent.some(item => item.method === "session/prompt"), false);
 });
 
+test("DSH selects this turn's model before prompting and fails closed on a mismatch or cancellation", () => {
+  const model = { provider: "raytone-configured", model: "chosen-model" };
+  for (const outcome of ["success", "mismatch", "cancel"] as const) {
+    const f = fixture({ resumeId: "session-1", model });
+    assert.equal(f.sent.at(-1).method, "session/set_config_option");
+    assert.equal(f.sent.some(item => item.method === "session/prompt"), false);
+    if (outcome === "cancel") f.abort.abort();
+    f.push({ id: "model", result: { configOptions: [{ id: "model", currentValue: outcome === "mismatch" ? '["deepseek-official","old-model"]' : JSON.stringify([model.provider, model.model]) }] } });
+    assert.equal(f.sent.some(item => item.method === "session/prompt"), outcome === "success");
+    if (outcome === "mismatch") assert.match(f.protocol.failure!, /configured model/);
+  }
+});
+
 test("DSH is an opt-in Bot and keeps the three built-in Bots unchanged", () => {
   const store = new BotConfigStore();
   assert.deepEqual(store.view().profiles.map(bot => bot.id), ["assistant", "planner", "builder"]);
@@ -190,6 +205,31 @@ test("DSH controlled profile disables autonomous tools and session uploads, and 
   assert.ok(JSON.stringify(patch).includes("/data/dsh/session/sessions"));
 });
 
+
+test("DSH routes configured providers and manual models through their own protocol", () => {
+  for (const configured of project.providers.connections) {
+    const definition = piRuntimeConfigurationForProvider(configured).providerDefinition!;
+    assert.equal(dshProviderConnection(definition, "dummy-key", "manual-model").model, "manual-model", configured.id);
+  }
+  for (const id of ["raytone", "custom-gateway", "deepseek"]) {
+    for (const protocol of ["openai-compatible", "anthropic"] as const) {
+      const connection = dshProviderConnection({ id, name: id, protocol, baseUrl: "https://gateway.example/v1", models: ["first"], authMode: "required",
+        modelOptions: { "chosen-model": { contextWindow: 32000, maxTokens: 2048, input: ["text"] } } }, "secret-not-in-patch", "chosen-model");
+      assert.equal(connection.baseUrl, protocol === "anthropic" ? "https://gateway.example" : "https://gateway.example/v1");
+      assert.equal(connection.protocol, protocol === "anthropic" ? "anthropic" : "openai");
+      const patch = dshPatch({ cwd: "/work", home: "/data/session", provider: connection }, "/tmp/host.sock", []);
+      const configured = patch.find(item => "id" in item && item.id === "llm-pi-ai") as any;
+      assert.notEqual(configured.disabled, true);
+      assert.equal(configured.config.providers["raytone-configured"].api, protocol === "anthropic" ? "anthropic-messages" : "openai-completions");
+      assert.deepEqual(configured.config.providers["raytone-configured"].models, [{ id: "chosen-model", contextWindow: 32000, maxTokens: 2048, input: ["text"] }]);
+      assert.equal((patch.find(item => "id" in item && item.id === "acp") as any).config.provider, "raytone-configured");
+      assert.equal(JSON.stringify(patch).includes("secret-not-in-patch"), false);
+    }
+  }
+  const official = dshProviderConnection({ id: "deepseek", name: "DeepSeek", protocol: "openai-compatible", baseUrl: "https://api.deepseek.com/v1", models: ["deepseek-flash"], authMode: "required" }, "key");
+  assert.equal(official.baseUrl, "https://api.deepseek.com/anthropic");
+  assert.equal(official.api, undefined, "existing native DeepSeek sessions keep their adapter");
+});
 
 test("isolated DSH sessions are stable across deployment data paths and separated by conversation", () => {
   const a = isolatedDshHome("/data/one/dsh/session-1", "/home/raytone-agent");

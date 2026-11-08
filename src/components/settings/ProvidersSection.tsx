@@ -198,7 +198,7 @@ function ProviderRow({
                     onChange={(event) => onUpdate({ authEnvVar: event.target.value })}
                   />
                   <span className="settings-status" data-tone={envSet ? "ok" : "muted"}>
-                    <Dot />{envSet ? t.providers.envFound : t.providers.envMissing}
+                    <Dot />{envSet ? t.providers.envFound : savedKey && !removingKey ? t.providers.envNotNeeded : t.providers.envMissing}
                   </span>
                 </div>
               </Field>

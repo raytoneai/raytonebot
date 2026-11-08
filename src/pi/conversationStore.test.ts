@@ -18,6 +18,7 @@ test("conversations survive a new store instance (a server restart)", () => {
     first.flush("c1");
     first.setCliSession("c1", { harness: "claude-code", id: "sess-1" });
     first.begin("c2", "assistant", "hi");
+    first.setCliSession("c2", { harness: "dsh", id: "dsh-2", models: ["chosen-model"] });
 
     const second = createConversationStore(dir);
     const restored = second.get("c1");
@@ -25,6 +26,7 @@ test("conversations survive a new store instance (a server restart)", () => {
     assert.equal(restored?.agentPreset, "planner");
     assert.deepEqual(restored?.events.map((entry) => (entry as { seq: number }).seq), [1, 2], "seq is conversation-wide");
     assert.deepEqual(restored?.cliSession, { harness: "claude-code", id: "sess-1" });
+    assert.deepEqual(second.get("c2")?.cliSession, { harness: "dsh", id: "dsh-2", models: ["chosen-model"] });
     assert.deepEqual(second.list().map((entry) => entry.id).sort(), ["c1", "c2"]);
     assert.equal(second.list().find((entry) => entry.id === "c1")?.eventCount, 2);
     assert.ok(!readdirSync(join(dir, "conversations")).some((name) => name.endsWith(".tmp")), "no half-written files");

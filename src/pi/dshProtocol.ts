@@ -25,6 +25,7 @@ export function normalizeDshTool(name: string, args: unknown, cwd: string): Norm
 /** Fixed ACP v1 contract from DSH 0.2.1-rc.2; only committed text is rendered. */
 export function createDshProtocol(options: {
   cwd: string; prompt: string; resumeId?: string; signal: AbortSignal;
+  model?: { provider: string; model: string };
   emit(event: PiWireEvent): void; onSessionId(id: string): void; onAccepted?(): void;
   onPermission(request: ClaudePermissionRequest): Promise<true | string>;
   userInputTools?: readonly string[];
@@ -104,8 +105,20 @@ export function createDshProtocol(options: {
           // ACP resume can omit the id: its request already identified the exact native session.
           sessionId = typeof id === "string" ? id : options.resumeId;
           if (!sessionId || (options.resumeId && sessionId !== options.resumeId)) { failure = "DSH returned an unexpected session."; close(send); return; }
-          options.onSessionId(sessionId);
           if (options.signal.aborted) { close(send); return; }
+          if (options.model) {
+            send({ jsonrpc: "2.0", id: "model", method: "session/set_config_option", params: { sessionId, configId: "model", value: JSON.stringify([options.model.provider, options.model.model]) } });
+            return;
+          }
+          options.onSessionId(sessionId);
+          options.emit({ type: "agent_start" });
+          send({ jsonrpc: "2.0", id: "prompt", method: "session/prompt", params: { sessionId,
+            prompt: [{ type: "text", text: options.prompt }] } });
+        } else if (line.id === "model") {
+          const selected = line.result?.configOptions?.find((item: Json) => item.id === "model")?.currentValue;
+          if (selected !== JSON.stringify([options.model?.provider, options.model?.model])) { failure = "DSH did not select the configured model."; close(send); return; }
+          if (options.signal.aborted) { close(send); return; }
+          options.onSessionId(sessionId!);
           options.emit({ type: "agent_start" });
           send({ jsonrpc: "2.0", id: "prompt", method: "session/prompt", params: { sessionId,
             prompt: [{ type: "text", text: options.prompt }] } });

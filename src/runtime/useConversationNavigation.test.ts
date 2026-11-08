@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import { conversationToResume, scopedConversations } from "./useConversationNavigation.ts";
+import { piConversationSidebarItems } from "../pi/piConversationState.ts";
 
 const sessions = [
   { id: "first", title: "First", agentPreset: "assistant", createdAt: 1 },
@@ -10,6 +11,12 @@ const sessions = [
   { id: "observer:one", title: "Observer", systemRole: "observer" as const, createdAt: 6 },
 ];
 const botIds = { custom: "bot_custom" };
+test("restored host Bot identity owns navigation even without the old browser binding", () => {
+  const restored = piConversationSidebarItems([{ id: "saved", title: "Saved", createdAt: 1, events: [], agentPreset: "dsh", botId: "bot_saved" }]);
+  assert.equal(conversationToResume(restored, "bot_saved"), "saved");
+  assert.deepEqual(scopedConversations(restored, "current", "bot_saved", { saved: "dsh" }), restored);
+  assert.deepEqual(scopedConversations(restored, "current", "dsh"), []);
+});
 test("Bot navigation resumes the last visit ahead of newer activity and ignores deleted or foreign visits", () => {
   assert.equal(conversationToResume(sessions, "assistant", "first", botIds), "first");
   assert.equal(conversationToResume(sessions, "assistant", "deleted", botIds), "latest");

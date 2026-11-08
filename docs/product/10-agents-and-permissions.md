@@ -2,7 +2,7 @@
 
 ## 可选 DeepSeek Harness
 
-点击 Logo → 创建 Bot → 引擎选择 **DeepSeek Harness**。名字/头像由已有 Bot 配置保存；不会自动新增第四个内置 Bot。使用设置里的 DeepSeek 模型服务（或明确配置的 Anthropic 兼容服务），不读取 DSH 桌面客户端登录，不改变其他 Bot 的模型。
+点击 Logo → 创建 Bot → 引擎选择 **DeepSeek Harness**。名字/头像由已有 Bot 配置保存；不会自动新增第四个内置 Bot。使用该 Bot 选定的模型服务，支持设置中的 OpenAI-compatible 与 Anthropic 服务（包括自定义地址和手填模型），不读取 DSH 桌面客户端登录，不改变其他 Bot 的模型。
 
 安装 `npm install -g @deepseek-ai/dsh@0.2.1-rc.2`，用 `dsh --version` 核对；非 PATH 安装可通过 `RAYTONEBOT_DSH_BIN` 指定实际入口。Linux 隔离部署应由可信部署层安装到 Agent 可读但不可写的路径，并将该入口加入服务 PATH 或通过主机私有环境设置变量；验证隔离契约后还需显式设置 `RAYTONEBOT_DSH_ISOLATED=1`，未设置时隔离模式拒绝启动 DSH。本机模式不需要该开关；安装 Bot 本身不会安装引擎。新入口、审批、思考/文本、工具、产物、停止和历史沿现有界面。本机会话保存在数据目录 `dsh/<conversationId>/sessions/`，Linux 隔离会话保存在 Agent HOME 的 `.raytone-dsh/`；换进程后续接原 id，丢失则报错。
 
@@ -25,7 +25,7 @@
 - 对话列表每行带角色小头像；输入框占位为「给<角色>发消息…」。
 - 输入框不再显示模型选择（`composer.modelSwitcher: false`）；模型在设置的「模型服务」里配置。Bot 的可选模型覆盖优先于轮次入口传入的 provider/model；未配置覆盖时保持原选择。Pi 自定义模型可在原 Provider 卡设置上下文/输出上限、text/image 与 reasoning 能力，未填写使用原默认。
 - 顶栏显示实际 Bot 模型；设置了覆盖的 Claude/Codex 固定使用模型服务，需在 Bot 编辑器清除覆盖才能切到本机登录。启用可选 Composer 模型菜单时，有覆盖就修改此 Bot，无覆盖才修改全局默认。停用服务保留配置和凭据，但主机拒绝继续执行；不会自动换到其他模型。
-- Claude/DSH 仅将官方 DeepSeek 根地址或 `/v1` 转换为官方 Anthropic 地址。自定义 OpenAI-compatible 代理不能据 provider 名称推断 Anthropic 接口；可在 Anthropic 协议的服务预设中填写代理地址，主机不会把代理密钥送去官方地址。
+- Claude Code 与 DSH 的原生 DeepSeek 路径仅将官方 DeepSeek 根地址或 `/v1` 转换为官方 Anthropic 地址。DSH 对其他服务复用固定版本自带的 `llm-pi-ai` 协议适配器；每轮通过 ACP 明确选择当前模型，包括恢复历史会话。自定义 OpenAI-compatible 地址不按名称推断 Anthropic 接口；Claude Code 仍需明确配置 Anthropic 协议。密钥只送到其绑定地址。
 - 引擎角色定义在 `src/pi/harnessCatalog.ts`；Bot 显示配置在 `src/runtime/botProfiles.ts`。创建普通 Bot 复用已有引擎角色，不需要修改 `AGENT_PRESETS` 或增加内置角色。
 
 ## Bot 配置与上下文范围（ADR-055）

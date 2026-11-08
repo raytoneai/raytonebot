@@ -48,6 +48,7 @@ import { createReasoningRenderPolicy } from "./preview/reasoningPreviewPolicy";
 import {
   defaultProviderConnection,
   modelOptionsForProject,
+  type AgentFrontendProject,
   type ProviderConnection,
   type ProviderConnectionId,
   type SlotConfig,
@@ -231,7 +232,7 @@ export function AgentApp() {
   const [sessionKeys, setSessionKeys] = useState<Record<string, string>>({});
   const [providerSelectionError, setProviderSelectionError] = useState<string>();
   const providerSelectionPending = useRef(false);
-  const { project: configuredProject, setProject: setConfiguredProject, status: providerSettingsStatus, saveProviders, saved: savedProviderSettings } = useProviderSettings(project);
+  const { project: configuredProject, setProject: setConfiguredProject, status: providerSettingsStatus, saveProviders, syncProviders, saved: savedProviderSettings } = useProviderSettings(project);
   const [piEvents, setPiEvents] = useState<AgentUXEvent[] | undefined>(undefined);
   const [piConversations, setPiConversations] = useState<readonly EphemeralPiConversation[]>(() => [
     createEphemeralPiConversation(),
@@ -626,13 +627,12 @@ export function AgentApp() {
 
   useEffect(() => {
     if (devtoolsRequested() || new URLSearchParams(window.location.search).get("stream")?.trim()) return;
-    const provider = defaultProviderConnection(configuredProject);
-    void configurePiRuntime({
-      ...piRuntimeConfigurationForProvider(provider),
-      conversationId: activePiConversationId,
-    })
-      .then(setPiRuntimeState)
-      .catch(() => getPiRuntimeState().then(setPiRuntimeState).catch(() => undefined));
+    const controller = new AbortController();
+    // Startup only reads readiness; selecting a model waits for the host's provider settings.
+    void getPiRuntimeState(fetch, { signal: controller.signal })
+      .then(state => { if (!controller.signal.aborted) setPiRuntimeState(state); })
+      .catch(() => undefined);
+    return () => controller.abort();
   }, []);
 
   useEffect(() => {
@@ -785,12 +785,13 @@ export function AgentApp() {
   }
 
   async function synchronizePiRuntime(
-    projectSnapshot = activeProject,
+    projectSnapshot?: AgentFrontendProject,
     conversationId = activePiConversationId,
     signal?: AbortSignal,
     bot?: Pick<BotProfile, "model">,
   ) {
-    const { provider } = botModelConfiguration(projectSnapshot, agentSettings, bot);
+    const currentProject = projectSnapshot ?? { ...activeProject, providers: await syncProviders() };
+    const { provider } = botModelConfiguration(currentProject, agentSettings, bot);
     if (!provider?.enabled) throw new Error(settingsCopy[locale].agents.modelUnavailable);
     const state = await configurePiRuntime(
       {
@@ -909,6 +910,7 @@ export function AgentApp() {
     };
     try {
       const syncedBots = diagnostic ? { store: botStore, profiles: bots } : await syncBotProfiles();
+      const projectSnapshot = diagnostic ? activeProject : { ...activeProject, providers: await syncProviders() };
       // Reopening and reattaching share this load; a new turn never starts from an empty stub.
       let snapshot = stream.current;
       if (snapshot.stored && snapshot.events.length === 0) {
@@ -919,9 +921,9 @@ export function AgentApp() {
       stream.replace(snapshot);
       const botId = diagnostic ? OBSERVER_BOT_ID : stream.current.groupHostId ?? conversationBotId(syncedBots.store, stream.current) ?? presetId;
       const targetBot = diagnostic ? observerBot : syncedBots.profiles.find(bot => bot.id === botId);
-      const model = botModelConfiguration(activeProject, { ...agentSettings, presetId }, isGroup ? undefined : targetBot);
+      const model = botModelConfiguration(projectSnapshot, { ...agentSettings, presetId }, isGroup ? undefined : targetBot);
       // CLI local-login runs bring their own model unless the Bot has a provider override.
-      if (!diagnostic && (isGroup || settingsUseProvider(model.settings))) await synchronizePiRuntime(activeProject, stream.current.id, controller.signal, isGroup ? undefined : targetBot);
+      if (!diagnostic && (isGroup || settingsUseProvider(model.settings))) await synchronizePiRuntime(projectSnapshot, stream.current.id, controller.signal, isGroup ? undefined : targetBot);
       const attachments: PiPromptAttachment[] = [];
       const referencedConversationIds: string[] = [];
       const attachmentScope = isGroup ? "shared" : presetId;
@@ -1187,7 +1189,7 @@ export function AgentApp() {
       if (modelBot?.model) {
         const bot = { ...modelBot, model: { provider: id, model: selectedModel } };
         await saveBotProfile(bot, botRevision);
-        await synchronizePiRuntime(activeProject, activePiConversationId, undefined, bot);
+        await synchronizePiRuntime(undefined, activePiConversationId, undefined, bot);
       } else {
         await saveProviders(nextProject.providers);
         await synchronizePiRuntime(nextProject);
@@ -1284,7 +1286,7 @@ export function AgentApp() {
     setPiEvents([]);
     void startNewPiSession(conversation.id)
       .then(setPiRuntimeState)
-      .then(() => synchronizePiRuntime(activeProject, conversation.id, undefined, group ? undefined : bot))
+      .then(() => synchronizePiRuntime(undefined, conversation.id, undefined, group ? undefined : bot))
       .catch(() => undefined);
     outputPanel.reset();
     setLeftCollapsed(false);
@@ -1406,7 +1408,7 @@ export function AgentApp() {
     else if (conversation.stored || conversation.events.length) void refreshPiConversation(conversation);
     outputPanel.reset();
     const selectedBot = isGroupConversation(conversation) ? undefined : knownBots.find(bot => bot.id === conversationBotId(botStore, conversation));
-    if (!isObserverConversation(conversation)) void synchronizePiRuntime(activeProject, conversation.id, undefined, selectedBot).catch(() => undefined);
+    if (!isObserverConversation(conversation)) void synchronizePiRuntime(undefined, conversation.id, undefined, selectedBot).catch(() => undefined);
   }
 
   const newChat = () => {

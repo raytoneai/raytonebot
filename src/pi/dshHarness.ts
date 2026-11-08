@@ -15,14 +15,30 @@ import { WEB_TOOL_SPECS } from "./webAccess.ts";
 import { userInputTool } from "./userInputTool.ts";
 import { planTool } from "./planTool.ts";
 import type { HostToolResult, HostToolSpec } from "./mcpServers.ts";
+import type { PiProviderDefinition } from "./piClient.ts";
+import type { ModelOptions } from "./modelMetadata.ts";
+import { anthropicBaseUrlForProvider } from "./harnessCatalog.ts";
 
 export type DshRunOptions = CliRunBase & {
   home: string;
+  previousModels?: readonly string[];
   systemPrompt: string;
-  provider: { baseUrl: string; apiKey: string; model: string };
+  provider: { baseUrl: string; apiKey: string; model: string; api?: "openai-completions" | "anthropic-messages"; modelOptions?: ModelOptions };
   onPermission(request: ClaudePermissionRequest): Promise<true | string>;
   onAccepted?(): void;
 };
+
+export function dshProviderConnection(definition: PiProviderDefinition, apiKey?: string, model = definition.models[0]): DshRunOptions["provider"] & { protocol: "openai" | "anthropic" } {
+  if (definition.protocol !== "openai-compatible" && definition.protocol !== "anthropic") {
+    throw new Error(`${definition.name} uses ${definition.protocol}; DeepSeek Harness needs an OpenAI-compatible or Anthropic endpoint.`);
+  }
+  if (!apiKey && definition.authMode !== "none") throw new Error(`${definition.name} API key is not set. Enter it in settings, or set ${definition.apiKeyEnvVar ?? "its key"} on the server.`);
+  // Keep existing official DeepSeek sessions on their native adapter; never infer proxy endpoints from an ID.
+  const nativeUrl = definition.protocol === "openai-compatible" ? anthropicBaseUrlForProvider(definition) : undefined;
+  return { baseUrl: nativeUrl ?? (definition.protocol === "anthropic" ? anthropicBaseUrlForProvider(definition)! : definition.baseUrl), apiKey: apiKey ?? "no-auth", model,
+    protocol: nativeUrl || definition.protocol === "anthropic" ? "anthropic" : "openai",
+    ...nativeUrl ? {} : { api: definition.protocol === "anthropic" ? "anthropic-messages" : "openai-completions", modelOptions: definition.modelOptions?.[model] } };
+}
 
 /** Isolated native sessions belong to the agent UID, outside the host's private data directory. */
 export function isolatedDshHome(home: string, agentHome: string): string {
@@ -31,9 +47,13 @@ export function isolatedDshHome(home: string, agentHome: string): string {
 }
 
 /** A complete, host-owned overlay. No personal profiles, credentials, telemetry or autonomous work. */
-export function dshPatch(options: Pick<DshRunOptions, "cwd" | "home" | "provider">, socketPath: string, specs: HostToolSpec[], mcpClientModule?: string, sharedGid?: number) {
+export function dshPatch(options: Pick<DshRunOptions, "cwd" | "home" | "provider" | "previousModels">, socketPath: string, specs: HostToolSpec[], mcpClientModule?: string, sharedGid?: number) {
+  const { api, model, modelOptions } = options.provider;
+  const route = api ? "raytone-configured" : "deepseek-official";
+  const { reasoning, ...capabilities } = modelOptions ?? {};
+  const models = [...new Set([model, ...options.previousModels ?? []])];
   const disabled = ["hmr", "plugin-manager", "tool-plugin-manager", "config-editor", "settings", "credentials", "authorization",
-    "deepseek-account", "llm-deepseek-account", "llm-pi-ai", "session-log-deepseek", "plugin-package-inventory-deepseek",
+    "deepseek-account", "llm-deepseek-account", "session-log-deepseek", "plugin-package-inventory-deepseek",
     "otel", "session-telemetry-otel", "ptc-runtime", "workflow-ptc", "tool-workflow", "subagent-spawn-in-process", "subagent-fork-in-process",
     "tool-subagent", "tool-subagent-fork", "tool-subagent-control", "tool-subagent-list-agents", "tool-web", "web-search-deepseek",
     "web-deepseek-api", "web-fetch-http", "goal-round-driver", "tool-goal", "plan-mode", "skill-filesystem", "tool-skill",
@@ -46,11 +66,16 @@ export function dshPatch(options: Pick<DshRunOptions, "cwd" | "home" | "provider
     { id: "sandbox-policy", config: { mode: "workspace-write", workspaceRoot: options.cwd } },
     { id: "tool-bash", config: { enableRunInBackground: false, promoteOnTimeout: false } },
     { id: "bash-sandbox", config: { timeoutMs: 120_000, maxTimeoutMs: 600_000, graceMs: 1_000 } },
+    // ACP resolves the old route on resume before accepting session/set_config_option.
     { id: "llm-deepseek", config: { apiKeyEnv: "RAYTONE_DSH_MODEL_TOKEN", baseURL: options.provider.baseUrl } },
-    { id: "agent-default-model", config: { provider: "deepseek-official", model: options.provider.model } },
+    api || options.previousModels?.length ? { id: "llm-pi-ai", disabled: false, config: { providers: { "raytone-configured": {
+      api: api ?? "openai-completions", apiKeyEnv: "RAYTONE_DSH_MODEL_TOKEN", baseURL: options.provider.baseUrl,
+      models: models.map(id => ({ id, ...capabilities, ...reasoning === undefined ? {} : { reasoningEfforts: reasoning ? { off: null, low: "low", medium: "medium", high: "high" } : false } })),
+    } } } } : { id: "llm-pi-ai", disabled: true },
+    { id: "agent-default-model", config: { provider: route, model } },
     { id: "session-persistence-jsonl", config: { root: join(options.home, "sessions") } },
     { id: "attachment-local", config: { dshHome: options.home } },
-    { id: "acp", inject: ["acpAppStartup", "raytoneBridge"], config: { provider: "deepseek-official", model: options.provider.model } },
+    { id: "acp", inject: ["acpAppStartup", "raytoneBridge"], config: { provider: route, model } },
     { insert: [{ id: "raytone-bridge", name: fileURLToPath(new URL("./runtime/dshPlugin.mjs", import.meta.url)),
       config: { socketPath, tools: specs, mcpClientModule, ...(sharedGid === undefined ? {} : { sharedGid, sharedWorkspace: options.cwd }) } }] },
   ];
@@ -72,6 +97,7 @@ export async function runDsh(options: DshRunOptions): Promise<void> {
   const runtimeHome = isolated ? mkdtempSync("/tmp/raytone-dsh-") : temp;
   const socketPath = join(temp, "host.sock");
   const protocol = createDshProtocol({ ...options, prompt: `[RaytoneBot instructions]\n${options.systemPrompt}\n\n${options.prompt}`,
+    model: { provider: options.provider.api ? "raytone-configured" : "deepseek-official", model: options.provider.model },
     userInputTools: ["ask_user", "update_plan"] });
   const sockets = new Set<Socket>();
   const active = new Set<Promise<void>>();
